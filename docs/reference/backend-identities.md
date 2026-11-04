@@ -2,6 +2,12 @@
 
 [Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)
 
+A backend identity names the implementation responsible for computation; a device identity names
+one reported device within that implementation. Availability says that a device was reported at
+a particular moment, while capability says whether an exact operation can be supported. A
+requirement filters acceptable choices; none of these data values opens a device or runs work.
+
+
 The implemented `modules:backend-contract` surface contains:
 
 - `BackendId`, an immutable open-string identity for a backend ownership domain; and

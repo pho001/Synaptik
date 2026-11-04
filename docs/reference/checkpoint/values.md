@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
+Values-only recovery replaces a compatible target's named parameter and buffer bindings; it
+does not reconstruct arbitrary model-building code. An **alias group** contains paths referring
+to the same exact Tensor, not merely equal numbers. A configuration digest identifies the caller's
+chosen model configuration, while the schema describes each stored state entry.
+
 <a id="values-only-recovery"></a>
 ## Values-only recovery
 

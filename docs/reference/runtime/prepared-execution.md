@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+A prepared execution owns reusable recipes and any persistent resources acquired for them.
+A run state instead owns one invocation's mutable resources. A **run lease** temporarily protects
+the preparation needed by an admitted run; it is different from the returned result's lease over
+completed outputs. Closing preparation stops new runs without revoking an already returned result.
+
 <a id="current-advanced-engine-prepare-and-run-boundary"></a>
 ## Current advanced Engine prepare and run boundary
 

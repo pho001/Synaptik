@@ -2,6 +2,12 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+Verification inference independently derives the metadata each operation should produce and
+compares it with the captured description. A **deferred constraint** is a relationship that cannot
+yet be proved and must be checked when actual dimensions are supplied. A Scan **body** is the
+repeated step's graph, with its own local identifiers; equal numeric IDs in outer and body graphs
+never establish a connection by themselves.
+
 <a id="current-package-private-verification-inference"></a>
 ### Current package-private verification inference
 

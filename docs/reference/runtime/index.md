@@ -3,6 +3,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+Think of Runtime as following an already prepared work list, not interpreting a Tensor graph.
+A **schedule** gives the order of actions, **slots** name planned storage roles, and
+**representations** supply the backend's concrete resources for those roles. One **run state**
+tracks a single invocation's resources and which buffer copies currently hold usable values.
+
 <a id="purpose-and-implementation-status"></a>
 ## Purpose and implementation status
 

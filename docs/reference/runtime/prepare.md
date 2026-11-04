@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+Prepare bridges a logical computation plan and reusable execution recipes. A directed acyclic
+graph (**DAG**) records operation dependencies without cycles; its input/output **ports** are
+ordered operand and result positions. Backend analysis translates that partition into concrete
+work and declares its memory needs before shared preparation assigns slots and finalizes recipes.
+
 The public `modules:prepare` surface now spans the existing `prepare.analysis` package, four
 root-package finalization contracts, and five complete-graph orchestration declarations.
 Analysis receives one immutable `PartitionDag` for exactly one planned partition and retains one

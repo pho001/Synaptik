@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+**Capability** asks whether an implementation supports the exact described operation, not just
+whether an operation name appears in a list. **Eligibility** also accounts for availability and
+hard requirements. A **partition** is a consecutive graph region assigned to one backend; it does
+not promise that the region becomes one fused numerical kernel.
+
 <a id="current-operation-capability-contracts"></a>
 ## Current operation-capability contracts
 

@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+A capability query describes one exact operation and its input/output metadata. A provider answers
+whether its backend can own that occurrence; planning then records the selected owner and groups
+consecutive same-owner nodes into **partitions**. These public values are plans, not allocations,
+selected devices or executable kernels.
+
 The public `modules:planning` surface contains these backend-neutral compile-time declarations:
 
 - `OperationCapabilityQuery`, an immutable operation occurrence consisting of one exact

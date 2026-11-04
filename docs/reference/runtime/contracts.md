@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+Runtime connects reusable work recipes to the resources of one invocation. **Prepared** objects
+describe repeated work; **bound** objects hold that run's concrete references. A **lease** keeps
+resources usable for a defined lifetime without making the borrower their independent owner.
+Closing a result ends that result's lease; it does not close the caller's borrowed input storage.
+
 The public `modules:runtime` surface now contains five focused packages:
 
 - `runtime.memory` defines `BufferSlot`, `WorkspaceSlot`, and immutable ordered

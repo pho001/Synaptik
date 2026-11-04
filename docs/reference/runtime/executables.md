@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+A prepared executable is a reusable recipe; a bound invocation is that recipe connected to one
+run's concrete resources. **Cold binding** performs compatibility checks before the repeated
+execution path, so execution can use direct typed references. Here cold means setup rather than
+numerical work; it is not the separate cold graph-reconstruction API.
+
 <a id="current-prepared-executable-and-bound-invocation"></a>
 ## Current prepared executable and bound invocation
 

@@ -3,6 +3,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
+A graph source records operations, their dependencies and declared inputs; named state supplies
+the persistent values those operations use. **Cold reconstruction** rebuilds ordinary Tensor
+expressions from that description without evaluating them. Copying detaches named state into
+private storage, whereas rebinding changes which input expressions are used without reading storage.
+
 <a id="purpose-and-mental-model"></a>
 ## Purpose and mental model
 

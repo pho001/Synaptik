@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
 
+The three lifecycle stages have different jobs: **compile** creates a logical recipe,
+**prepare** arranges backend executable resources, and **run** executes with supplied values.
+The returned result is a resource **lease**, not an asynchronous promise. Explicit
+**materialization** makes a detached host copy that can survive closing that result.
+
 <a id="current-ordinary-explicit-composition-and-advanced-lifecycle"></a>
 ## Current ordinary, explicit-composition, and advanced lifecycle
 

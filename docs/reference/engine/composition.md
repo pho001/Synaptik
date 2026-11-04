@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
 
+Explicit composition means the caller opens backend integrations and transfers them into one
+Engine. A backend **owner** is the implementation assigned a graph partition, not the owner of
+the caller's input memory. A **cross-owner transfer** moves a value between those implementations;
+it is planned before a run, not an automatic retry on another backend.
+
 <a id="current-explicit-cpu-and-metal-composition"></a>
 ## Current explicit CPU and Metal composition
 

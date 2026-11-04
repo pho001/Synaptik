@@ -2,6 +2,29 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
 
+Exact continuation means taking the same next training input with all state that can affect the
+step restored consistently. Model values alone omit the optimizer's history and the caller's
+progress. An **unpublished candidate** is a private replacement assembled and validated before the
+caller makes it active; discarding a failed candidate is not a built-in cross-owner rollback.
+
+```mermaid
+flowchart TD
+    accTitle: Validate a private recovery candidate before replacing the active holder
+    accDescr: Saved model values, training state, modes and contexts, and caller progress feed one private candidate. Failure discards the candidate. Only successful validation followed by retirement of the old session permits caller-controlled publication; retirement failure aborts publication.
+    M["Model values"] --> C["Private replacement tree and session"]
+    S["TrainingState: parameters and optimizer history"] --> C
+    X["Modes, forward contexts, next input and external state"] --> C
+    C --> V{"All participant checks pass?"}
+    V -- No --> D["Close and discard candidate"]
+    V -- Yes --> R["Retire quiescent old session"]
+    R --> P["On success: caller publishes replacement holder"]
+    R --> F["On failure: abort publication; old session may be unusable"]
+```
+
+Read every incoming branch as required information, not fields automatically stored in a model
+file. The caller supplies exclusion throughout; the diagram is not a durable checkpoint adapter
+or a promise that a failed old-session close can be reversed.
+
 <a id="caller-coordinated-in-memory-recovery"></a>
 ## Caller-coordinated in-memory recovery
 

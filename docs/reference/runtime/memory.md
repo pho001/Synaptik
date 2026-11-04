@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+A **buffer slot** names a planned place for a logical value, while a **workspace slot** names
+scratch storage used while computing. Neither slot is a physical memory address. **Byte geometry**
+specifies storage size and alignment; a dense index is merely an entry's zero-based list position,
+not the opaque number stored inside the slot identifier.
+
 <a id="current-slot-identities"></a>
 ## Current slot identities
 

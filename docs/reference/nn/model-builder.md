@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
+A **fluent builder** collects choices through chained method calls before creating the Model.
+The **input signature** specifies the required element type, shape, layout and gradient flag;
+it is not an example batch's contents. Building acquires private state and constructs expressions,
+while compute and configured training later use those expressions through Engine.
+
 <a id="fluent-model-builder"></a>
 ### Fluent Model builder
 

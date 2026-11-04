@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
+A **valid length** says how many initial time steps belong to each sequence; the remaining
+suffix is padding. **Runtime-length** means those counts arrive as Tensor values for execution,
+rather than Java counts used to construct a different expression for each batch. A final hidden
+state is the state after that row's last valid transition, not necessarily its last padded output.
+
 <a id="nn-runtime-length-recurrent-composition"></a>
 ### NN runtime-length recurrent composition
 

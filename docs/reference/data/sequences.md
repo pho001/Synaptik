@@ -3,6 +3,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/data/src/main/java/io/github/pho001/synaptik/data/PaddedSequenceBatch.java)
 
+A sequence batch puts several ordered sequences into one rectangular Tensor. **Padding** fills
+positions needed to make their lengths equal; a **valid count** records how many positions belong
+to each original sequence. Logical **axis order** says whether batch or time comes first. These
+metadata declarations do not themselves rearrange storage or make a downstream operation ignore padding.
+
 <a id="purpose-and-mental-model"></a>
 ## Purpose and mental model
 

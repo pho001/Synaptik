@@ -4,6 +4,11 @@ The topic pages explain relationships and examples; generated Javadoc supplies e
 
 [Reference goals](index.md) · [Framework package atlas](../explanation/packages/index.md)
 
+Javadoc is generated API documentation: it turns Java declarations and their documentation
+comments into browsable pages. A signature tells you a method's name, argument types and return
+type; its contract also explains valid arguments, lifetime and failure behavior. A JAR is an
+archive file, so the supplied documentation must be extracted before a browser can follow it.
+
 ## Read the supplied candidate without rebuilding
 
 Prerequisites: JDK 26's `jar` tool, the existing private release repository under `build/release/0.1.0-public-audit.20261104/repository`, and a writable temporary directory. Run from the repository root. This extracts only the 18 existing Javadoc archives into a new local temporary directory; it does not write into the supplied repository or replace candidate artifacts.

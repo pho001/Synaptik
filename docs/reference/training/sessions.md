@@ -3,6 +3,12 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
 
+A training session connects a scalar **objective** (the quantity to optimize), selected
+parameters and an optimizer to one reusable Engine execution. A **gradient** measures how that
+objective changes with a selected parameter. The session computes and checks gradients before
+committing an update; model train/eval mode is a separate forward-behavior choice and does not
+itself start an optimizer step.
+
 <a id="purpose-and-implementation-status"></a>
 ## Purpose and implementation status
 

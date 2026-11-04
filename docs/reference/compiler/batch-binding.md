@@ -3,6 +3,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+A named batch dimension, written B, leaves the number of examples unspecified in a template.
+**Metadata binding** supplies actual input descriptions and checks that every use of B agrees,
+without reading the input's numbers. This differs from runtime input binding, which associates
+usable stored values with the compiled input positions.
+
 <a id="ordinary-named-batch-metadata-binding"></a>
 ## Ordinary named-batch metadata binding
 

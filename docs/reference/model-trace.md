@@ -2,6 +2,11 @@
 
 [Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)
 
+Model describes what a Tensor value means and how expressions depend on one another. Trace
+instead describes observations about work, such as a preparation outcome, without carrying the
+Tensor's numeric contents. Its event envelope is a common wrapper for an observation's identity,
+time and typed details; a marker interface labels permitted details but does not emit events.
+
 The implemented `modules:model` surface contains:
 
 - data type metadata, typed scalar values, and numeric promotion;

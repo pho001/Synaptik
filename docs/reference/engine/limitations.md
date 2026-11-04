@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
 
+Read support at the exact workflow boundary: a valid expression can still fail preparation if
+the selected backend cannot implement it. A **resolved layout** describes how logical coordinates
+map to stored elements; **contiguous** means those elements follow a compact ordering. Neither
+word alone proves every upstream operation has a supported implementation.
+
 <a id="current-cpu-limitations-and-planned-conveniences"></a>
 ## Current CPU limitations and planned conveniences
 

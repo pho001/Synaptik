@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+**Canonicalization** gives an equivalent graph a consistent internal numbering and representation.
+**Optimization** then removes or combines work only where the documented exact rules allow it.
+Dead-code elimination removes work not needed by outputs; common-subexpression elimination shares
+equivalent occurrences where permitted. Neither step chooses a backend kernel or reads Tensor values.
+
 <a id="current-package-private-canonicalization-and-whole-graph-optimization"></a>
 ### Current package-private canonicalization and whole-graph optimization
 

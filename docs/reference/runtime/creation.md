@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+A creation plan says which representations are borrowed and which a backend must create for a
+run. A **representation** is a backend's concrete form of a logical buffer or scratch space.
+**Rollback** here means closing successfully created owned resources if setup cannot complete,
+not rewinding arbitrary backend effects or closing borrowed inputs.
+
 <a id="current-prepared-representation-creation"></a>
 ## Current prepared representation creation
 

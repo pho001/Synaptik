@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
+**Unary** means the complete forward boundary has one Tensor input and one Tensor output.
+A Sequential passes that output to the next child. **Declarative** composition records a supported
+layer structure as data rather than arbitrary Java callbacks. Reconstructing that description
+creates the structure and state placeholders, not the trained parameter values or an executable.
+
 <a id="current-nn-unary-composition-contract"></a>
 ## Current NN unary composition contract
 

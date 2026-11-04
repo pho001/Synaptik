@@ -4,6 +4,11 @@ Use ordinary Engine for reusable execution, or explicit composition when you mus
 
 [Reference goals](../index.md) · [Javadoc access](../javadoc.md)
 
+Compile describes the computation, prepare constructs reusable execution recipes, and run
+connects one set of stored inputs to those recipes. A result lease keeps that invocation's
+completed resources alive; materializing a result makes an independent host copy. Reuse the
+preparation for repeated runs, but close each result when its selected outputs are no longer needed.
+
 ## Choose a topic
 
 - [CPU integration and native ownership](cpu-integration.md)

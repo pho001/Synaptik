@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+Compilation turns an expression's meaning into a verified logical recipe. **Capture** records
+its dependencies, **inference** derives expected shapes and types, and **planning** assigns backend
+owners and groups consecutive owned work. **Lowering** is the later backend-specific translation
+into executable operations; it is not the same as capture or logical planning.
+
 <a id="purpose-and-implementation-status"></a>
 ## Purpose and implementation status
 

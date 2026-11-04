@@ -2,6 +2,12 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
 
+Parameter **admission** checks whether live state satisfies the session's update requirements,
+not merely whether it is floating-point. A **master parameter** is the private FLOAT32 working
+value retained for a low-precision parameter; the graph still sees its declared logical type.
+The explicit native copy changes the Tensor's host-storage association without replacing its
+identity and is not a device transfer.
+
 <a id="initial-parameter-domain"></a>
 ## Initial parameter domain
 

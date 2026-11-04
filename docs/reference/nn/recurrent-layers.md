@@ -2,6 +2,12 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
+A recurrent neural network (**RNN**) carries a hidden value from one sequence step to the next.
+A gated recurrent unit (**GRU**) uses learned controls to mix old and new hidden values;
+long short-term memory (**LSTM**) carries both hidden state and a separate cell state. State is
+explicit here: a cell describes one transition, and a sequence composes transitions without
+silently keeping the caller's final state for another call.
+
 <a id="current-nn-recurrent-composition-contract"></a>
 ## Current NN recurrent composition contract
 

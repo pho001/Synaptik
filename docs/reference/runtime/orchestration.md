@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+Orchestration means arranging existing stages in the right order. **Analysis** declares the
+backend's resource needs; **assignment** gives those needs stable slots; **finalization** builds
+recipes using the assignments. The runner later binds and executes them for one invocation.
+Preparation failure cleanup releases acquired resources rather than returning a partial owner.
+
 <a id="current-prepare-orchestration-assignment-and-backend-finalization"></a>
 ## Current Prepare orchestration, assignment, and backend finalization
 

@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+Input **binding** connects supplied values to the compiled computation. Identity-based binding
+matches the original Tensor identifiers; positional binding follows final compiled input order.
+A successful synchronous run has finished computing, but its **result lease** keeps resources
+alive until close. **Materialization** explicitly copies a selected result into detached host bytes.
+
 <a id="current-ordinary-engine-boundary"></a>
 ## Current ordinary Engine boundary
 

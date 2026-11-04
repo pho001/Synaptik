@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+**Capture** walks Tensor expression dependencies and records operations and their ordered inputs
+and outputs as a graph. **Provenance** is the association between a Tensor and the operation
+occurrence that produced it. A **port** is one input or output position of that occurrence, not a
+memory location; a multi-output operation can therefore have several distinct result ports.
+
 <a id="current-model-contracts"></a>
 ## Current model contracts
 

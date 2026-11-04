@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
 
+An integration is the CPU backend's lifecycle connection to Engine: capability answers,
+preparation collaborators, input borrowing and output copying. A **route** is an implementation
+choice inside that same backend, such as portable Java or a native library. Opening OpenBLAS or
+oneDNN does not create a new backend identity or a second automatic-differentiation system.
+
 The public `backends:cpu` integration surface contains four supported types:
 
 - `CpuCapabilityProvider`, the stateless fail-closed CPU capability provider; and

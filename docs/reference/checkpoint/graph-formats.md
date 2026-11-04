@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
+A format version identifies the rules for reading stored bytes. An **opcode** is the numeric
+label for one stored operation, and a data-type ID identifies its element format. **Serialization**
+encodes supported source descriptions and state into bytes; deserialization rebuilds them. Format
+support is separate from a backend's ability to execute the rebuilt computation or train it.
+
 <a id="fp8-graph-persistence"></a>
 ## FP8 graph persistence
 

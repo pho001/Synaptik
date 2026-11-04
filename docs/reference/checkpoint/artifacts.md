@@ -3,6 +3,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
+An **opaque payload** is a byte sequence whose meaning this API deliberately does not know.
+The **envelope** groups named payloads; the **manifest** describes their names, sizes and digests.
+A higher-level **schema** says how those bytes represent a graph or model. File integrity checks
+can detect bytes that do not match their recorded digests, but do not prove who created the file.
+
 <a id="purpose-and-mental-model"></a>
 ## Purpose and mental model
 

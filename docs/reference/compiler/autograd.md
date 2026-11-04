@@ -2,6 +2,12 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+Automatic differentiation (**autograd**, or AD) builds expressions for derivatives by following
+how an output depends on selected inputs. A **cotangent seed** specifies the output sensitivity
+being propagated backward; for a scalar objective, a seed of one asks for its ordinary gradient.
+Here those expressions are built before **capture**, the conversion to a graph with local node
+and value identifiers. Constructing derivatives does not execute or update parameters.
+
 <a id="current-package-private-pre-capture-autograd"></a>
 ### Current package-private pre-capture autograd
 

@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+These configuration values express requests rather than perform work. A **hard requirement**
+excludes unacceptable backend choices; a **soft preference** ranks choices that already qualify.
+An autotuning request asks later preparation to compare eligible execution alternatives within
+explicit budgets, rather than granting an otherwise unsupported alternative permission to run.
+
 The implemented `modules:config` surface contains four standalone compile-configuration values:
 
 - `BackendIntent` records whether planning has one hard backend eligibility target;

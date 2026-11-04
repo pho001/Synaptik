@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+Read this lifecycle as a sequence of admission checks, not successive attempts to run the
+computation. An **occurrence** is one particular operation in the graph, even when another operation
+has the same kind and shapes. Owner selection names its responsible backend; later **route**
+selection chooses how that backend implements it.
+
 <a id="current-internal-lifecycle-and-planned-public-failures"></a>
 ## Current internal lifecycle and planned public failures
 

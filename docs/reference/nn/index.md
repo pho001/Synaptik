@@ -4,6 +4,11 @@ Use a fluent owned Model for a fixed-signature chain; use lower-level modules wh
 
 [Reference goals](../index.md) · [Javadoc access](../javadoc.md)
 
+A **layer** is a reusable neural-network building block; a **module** owns named parameters,
+persistent buffers and children. **Parameters** are state selected for learning, while buffers
+hold other persistent state. This section distinguishes ordinary expression-building modules from
+owned Models that additionally coordinate execution and privately acquired state.
+
 ## Choose a topic
 
 - [Owned tensor Model execution](owned-model.md)

@@ -3,6 +3,25 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/text/src/main/java/io/github/pho001/synaptik/text/WhitespaceTokenizer.java)
 
+**Tokenization** divides text into units and assigns each unit an integer ID from a fixed
+**vocabulary**, the known token-to-ID mapping. Here the units are whitespace-delimited strings,
+not characters or learned subword pieces. Those IDs are labels, not floating feature vectors;
+an **embedding** later uses each ID to select a row of learned numeric features.
+
+```mermaid
+flowchart LR
+    accTitle: Text IDs, padding counts and learned features have different roles
+    accDescr: Text is encoded to integer token IDs, which Data pads into values plus valid counts. An embedding maps IDs to floating features. Counts are separate metadata and must be explicitly exported for eligible recurrent inputs; no automatic model-builder chain is implied.
+    T["Text strings"] --> K["Tokenizer: integer IDs"] --> D["Data: padded INT64 values"]
+    D --> E["Embedding: floating feature rows"]
+    D --> L["Separate host valid counts"]
+    L -. "explicit eligible export" .-> R["INT64 runtime lengths"]
+```
+
+Follow the values branch for numeric features and the counts branch for sequence boundaries.
+Neither branch creates a global padding mask. This relationship is conceptual: the current fluent
+builder does not provide the integer-input Embedding-to-scan chain.
+
 <a id="purpose-and-mental-model"></a>
 ## Purpose and mental model
 

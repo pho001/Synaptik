@@ -3,6 +3,11 @@
 
 [Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)
 
+Here **public** means Java callers can name an API; **supported** also depends on the documented
+workflow and constraints. **Compatibility** asks whether callers or stored data keep working across
+changes, not whether two backends compute the same result. A declared name or marker alone is
+not evidence of implemented execution.
+
 <a id="purpose-and-status"></a>
 ## Purpose and status
 

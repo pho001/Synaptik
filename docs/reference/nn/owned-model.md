@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
+**Owned** means this Model acquires private named state and coordinates the lifetimes needed
+for its high-level execution methods. It does not mean every generic Model supports those methods.
+A **cold forward** constructs output expressions without running them; compute evaluates through
+Engine. Graph load restores supported source and values, not a prepared plan or optimizer history.
+
 <a id="owned-tensor-model-capability"></a>
 ### Owned tensor Model capability
 

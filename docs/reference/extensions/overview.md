@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)
 
+These extensions meet at ordinary Tensors but do different jobs: Data arranges numeric inputs,
+Text maps text fragments to integer identifiers, and NN (neural networks) owns layers and their
+named state. Preparing a batch does not execute a network, and constructing a network expression
+does not train it. The application explicitly connects those stages.
+
 <a id="current-public-contracts"></a>
 ## Current public contracts
 

@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+**Publication** makes one already valid buffer copy available at an ordered result position;
+it does not compute the value or copy it to the host. A result **occurrence** is one position,
+so two positions may intentionally refer to the same representation. The result lease keeps the
+complete run state alive until close; detached host materialization is a separate Engine operation.
+
 <a id="current-prepared-publication-and-result-lease"></a>
 ## Current prepared publication and result lease
 

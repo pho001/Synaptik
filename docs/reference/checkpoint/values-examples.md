@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
+These examples compare **raw bits**, the exact stored representation of each element, rather
+than approximate numeric equality. For example, positive and negative floating-point zero are
+numerically equal but have different bits. Canonical bytes use one specified element order and
+byte order so values from different storage owners can be compared without interpreting native memory.
+
 <a id="complete-example"></a>
 ## Complete example
 

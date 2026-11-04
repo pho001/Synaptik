@@ -2,6 +2,26 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
+A neural-network (**NN**) module owns named state and child modules. Its **topology** is that
+ownership tree, whereas the Tensor expression graph records the computation built by a forward
+call. Initialization supplies starting parameter values; **forward** then describes operations
+using those values without numerically evaluating them.
+
+```mermaid
+flowchart LR
+    accTitle: Module ownership and expression dependencies are different structures
+    accDescr: A model owns hidden and output layers. A forward call uses their current weights to build a computation from input through two projections. Shared state is owned by modules but referenced by expression dependencies.
+    M["Model: owns children"] --> H["hidden layer: owns weight"]
+    M --> O["output layer: owns weight"]
+    X["input Tensor"] --> P["hidden projection expression"] --> Q["output projection expression"]
+    H -. "current weight binding" .-> P
+    O -. "current weight binding" .-> Q
+```
+
+Solid arrows at the top identify module ownership; the input-to-output arrows identify computation
+flow. Dotted arrows connect the two structures through current state bindings. This is a conceptual
+relationship, not a claim that a forward call executes either projection.
+
 <a id="current-nn-typed-model-composition-contract"></a>
 ## Current NN typed Model composition contract
 

@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+A transfer copies one logical value between concrete representations already selected during
+preparation. It differs from allocation, which creates storage, and from binding, which connects
+a recipe to that storage. A successful transfer makes the destination valid; failed physical work
+must not make a partially written destination appear usable.
+
 <a id="current-prepared-buffer-transfer"></a>
 ## Current prepared buffer transfer
 

@@ -2,6 +2,29 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+**Residency** means that a representation object is present and bound to the open run.
+**Validity** means that this copy contains the logical value the schedule may read. These are
+independent: newly allocated storage can be resident but invalid. A validity bit records a fact;
+setting it does not initialize bytes or make a physical copy.
+
+```mermaid
+stateDiagram-v2
+    accTitle: A resident copy is not necessarily valid
+    accDescr: An ordinary created buffer starts resident and invalid. Successful production or transfer makes it valid. A later output write invalidates existing copies before work, and run closure ends residency.
+    [*] --> Invalid: ordinary run-owned buffer created
+    state "Resident, invalid" as Invalid
+    state "Resident, valid" as Valid
+    Invalid --> Valid: successful production or transfer
+    Valid --> Invalid: before a declared output write
+    Invalid --> Closed: run state closes
+    Valid --> Closed: run state closes
+    state "No longer bound to an open run" as Closed
+```
+
+Read the arrows as Runtime bookkeeping around physical actions, not as actions that copy bytes.
+Borrowed inputs and initialized buffers start in the valid state; scratch workspaces have no
+logical validity bit. Ending a borrowed binding does not free caller-owned storage.
+
 <a id="current-per-run-representation-foundation"></a>
 ## Current per-run representation foundation
 

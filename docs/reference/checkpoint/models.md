@@ -3,6 +3,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
+A **whole-model** file includes a supported layer definition as well as state values. A
+**values-only** file supplies state for a compatible model the caller has already recreated.
+The state schema describes paths, roles, types and shapes; it is not the parameter values
+themselves. Neither workflow stores the optimizer's memory of earlier updates.
+
 <a id="purpose-and-mental-model"></a>
 ## Purpose and mental model
 

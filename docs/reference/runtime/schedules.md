@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
+A **schedule** is an ordered recipe for actions, not the actions already performed. Each list
+position is an **occurrence**: retaining the same executable twice requests two executions, not
+two owners of its resources. A **suffix** is the final portion of the list; publication belongs
+there so outputs are exposed only after the preceding execution and transfer actions.
+
 <a id="current-prepared-schedule"></a>
 ## Current prepared schedule
 

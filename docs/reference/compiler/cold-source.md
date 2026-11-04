@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+**Cold source** is a computation description that can be inspected and rebuilt without running
+its numeric operations. Reconstruction uses compatible replacement inputs to recreate ordinary
+Tensor expressions; it is not loading a compiled executable. The raw source preserves construction
+structure, whereas complete compilation may optimize it and complete logical layout metadata.
+
 <a id="current-cold-source-capture-and-reconstruction"></a>
 ### Current cold source capture and reconstruction
 

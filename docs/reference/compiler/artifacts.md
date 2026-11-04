@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+Complete compilation packages a verified graph and its logical plans into one immutable result.
+The integration **port** is a restricted doorway for other modules to request that work. The
+result describes what later preparation must arrange; it contains neither physical buffers nor
+an executable ready to run.
+
 <a id="current-complete-artifact-compilation-and-integration-port"></a>
 ### Current complete artifact compilation and integration port
 

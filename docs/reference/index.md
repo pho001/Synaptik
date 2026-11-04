@@ -4,6 +4,11 @@ Use this reference when you know what you want to do and need exact semantics, o
 
 A Tensor expression describes a computation; compilation produces a logical recipe; preparation acquires reusable executable resources; a run binds values and returns a result lease. A detached host value is a copied result that can outlive that lease. These are different objects and lifetimes, not interchangeable names for an array.
 
+In this reference, a **contract** is the behavior and constraints a caller relies on, including
+who must keep resources alive and who closes them. **Metadata** describes a value, such as its
+shape and element type; it is not the value's numeric contents. The topic pages separate those
+descriptions from the storage and work needed to produce results.
+
 ## Choose by goal
 
 | I want to… | Start here | Then consult |

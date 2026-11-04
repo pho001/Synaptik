@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+Logical memory planning records which graph value is produced, consumed or required as an
+output. Physical memory planning must later determine storage size and arrangement. A logical
+value ID names a computation result, not a buffer address; a logical preservation requirement
+therefore does not allocate storage or decide which physical copy will be published.
+
 <a id="current-logical-memory-recipes"></a>
 ## Current logical-memory recipes
 

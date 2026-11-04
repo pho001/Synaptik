@@ -2,6 +2,12 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
+A convolution layer learns local filters over one, two or three spatial axes. A **channel** is
+one feature plane at each position; **channels-first** places that axis before the spatial axes.
+The **kernel** is the filter's spatial extent, **stride** is its movement between positions,
+**padding** extends the boundary, and **dilation** spaces filter samples apart. Groups divide
+channels into separate connections rather than mixing every input channel with every output.
+
 <a id="current-nn-channels-first-convolution-contract"></a>
 ## Current NN channels-first convolution contract
 

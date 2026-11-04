@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+An entry point is the API through which a caller requests compilation. Ordinary Engine supplies
+a fixed convenient policy; Advanced Engine exposes more explicit request data. A compiled handle
+identifies a logical recipe belonging to one Engine, not runnable storage. Preparation must still
+check that the selected backend can turn that recipe into executable work.
+
 <a id="current-ordinary-and-advanced-engine-compile-boundaries"></a>
 ## Current ordinary and advanced Engine compile boundaries
 

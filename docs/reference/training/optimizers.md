@@ -2,6 +2,12 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
 
+An **optimizer** turns gradients into parameter updates. Its **state** can include momentum
+(a running update direction), Adam's first and second moments (running gradient and squared-gradient
+estimates), and pending accumulated gradients. An optimizer **slot** is one such per-parameter
+history value, not a Runtime memory slot. A **transaction** stages a complete update before commit;
+its documented atomicity does not create a transaction across model files and external progress.
+
 <a id="optimizers-and-gradient-modes"></a>
 ## Optimizers and gradient modes
 

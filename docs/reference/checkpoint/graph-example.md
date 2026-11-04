@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
+**Cold** means that this workflow rebuilds the description of a computation without running it.
+A stored input prototype specifies what a future input must look like, not an earlier batch's
+values. Rebinding substitutes a compatible new Tensor into that description; numerical execution
+is a later, explicit step.
+
 <a id="complete-cold-example"></a>
 ## Complete cold example
 

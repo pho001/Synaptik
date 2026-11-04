@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+Compile configuration separates which graph is requested, which backend owners are acceptable,
+and whether optional exact rewrites are allowed. A **compile mode** describes graph scope, such
+as forward results plus derivatives; it is not itself a training session. An optimizer still
+needs a separate training owner to apply those derivatives to parameters.
+
 <a id="current-compile-configuration-inputs"></a>
 ## Current compile-configuration inputs
 

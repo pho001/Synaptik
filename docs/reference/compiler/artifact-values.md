@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
+These values are compilation results for other modules to read. An **artifact** here is an
+immutable description of the final computation and its plans, not a generated binary or saved
+checkpoint file. A **port** is the narrow API another module calls across this boundary; SPI means
+service-provider interface, an integration contract rather than the usual application entry point.
+
 The public `modules:compiler` contract surface now contains:
 
 - `GraphCompilationPort`, the narrow constant-free cross-module compile SPI used by Engine

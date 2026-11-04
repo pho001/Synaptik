@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
+A **binding** is the Tensor currently held by a named parameter or buffer wrapper. Replacing a
+binding changes later reads of that wrapper, not expressions already built from its old Tensor.
+A **state dictionary** maps complete names to current Tensor references; it is a shallow snapshot
+of bindings, not detached value bytes, a saved file or optimizer history.
+
 <a id="current-nn-parameter-update-contract"></a>
 ## Current NN parameter update contract
 

@@ -2,6 +2,11 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
 
+The advanced facade serves callers composing lower-level lifecycle objects explicitly.
+A **composition root** is the place where opened backend integrations are assembled and owned.
+It does not discover implementations. A borrowed representation wraps caller storage without
+taking responsibility for freeing that storage.
+
 <a id="advanced-engine-lifecycle"></a>
 ### Advanced Engine lifecycle
 
