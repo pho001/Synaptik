@@ -1,4 +1,4 @@
-# Task 0007A1G: Fold and [Dropout](../../../../glossary.md#dropout--inverted-dropout) [Residual](../../../../glossary.md#scan-residual-port-and-history-demand) Parity
+# Task 0007A1G: Fold and [Dropout](../../../../glossary.md#dropout--inverted-dropout) [Residual](../../../../glossary.md#term-residual-meanings) Parity
 
 ## Reader context
 
@@ -28,7 +28,7 @@ Complete
 
 ## Goal
 
-Correct the next bounded [residual](../../../../glossary.md#scan-residual-port-and-history-demand) group in the frozen [CPU](../../../../glossary.md#term-cpu) 0007A1C comparison:
+Correct the next bounded [residual](../../../../glossary.md#term-residual-meanings) group in the frozen [CPU](../../../../glossary.md#term-cpu) 0007A1C comparison:
 `F-FOLD2D` and `R-DROPOUT-GENERAL`. Preserve their exact fold and explicit-state [dropout](../../../../glossary.md#dropout--inverted-dropout)
 semantics while making each generated entry meet the unchanged generated/direct `<= 1.15x` gate
 in every one of five isolated [forks](../../../../glossary.md#term-fork-meanings).
@@ -95,7 +95,7 @@ they are not a full 20-row performance pass.
 - Changing or refreezing the A1C sources, cases, comparators, dimensions, threshold, warmup,
   sample order, fork count, state initialization, or algorithm.<span data-glossary-navigation="true"> ([dimensions glossary](../../../../glossary.md#dimension); [warmup glossary](../../../../glossary.md#term-warmup); [sample glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters); [fork glossary](../../../../glossary.md#term-fork-meanings))</span>
 - Correcting any pointwise, affine, movement, indexing, scatter, ordering, scan, aggregate, or
-  numerical residual row.<span data-glossary-navigation="true"> ([pointwise glossary](../../../../glossary.md#term-pointwise); [scan glossary](../../../../glossary.md#term-cumulative-scan); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  numerical residual row.<span data-glossary-navigation="true"> ([pointwise glossary](../../../../glossary.md#term-pointwise); [scan glossary](../../../../glossary.md#term-cumulative-scan); [residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 - Changing fold addition order or bits, dropout RNG mapping or outputs, carrier pattern, layout,
   resources, materialization, worker ownership, route, capability, public API, Prepare/Runtime
   behavior, dependency direction, architecture, or build configuration.<span data-glossary-navigation="true"> ([dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [carrier glossary](../../../../glossary.md#term-storage-carrier); [layout glossary](../../../../glossary.md#layout); [materialization glossary](../../../../glossary.md#materialization); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools))</span>
@@ -127,7 +127,7 @@ they are not a full 20-row performance pass.
   immutable prepared result.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [Runtime glossary](../../../../glossary.md#term-runtime); [immutable glossary](../../../../glossary.md#term-immutable))</span>
 - Generated entries remain typed, direct, field-free, allocation-free in normal proved work, free
   of mutable static state, and free of Synaptik-owned per-element calls.<span data-glossary-navigation="true"> ([mutable glossary](../../../../glossary.md#term-mutable); [element glossary](../../../../glossary.md#term-element))</span>
-- Benchmark evidence accepts or rejects fixed code [shapes](../../../../glossary.md#shape) and never selects production settings.
+- Benchmark evidence accepts or rejects fixed code shapes and never selects production settings.
 
 ## Package impact
 
@@ -266,7 +266,7 @@ shared contract may change.
 - [CPU](../../../../glossary.md#term-cpu) 0007A1C supplies the [immutable](../../../../glossary.md#term-immutable) 20-row corpus and remains Incomplete.
 - CPU 0007A1D supplies stable invocation-local segment [layouts](../../../../glossary.md#layout).
 - CPU 0007A1E is Complete at [schema](../../../../glossary.md#term-schema) 33.
-- CPU 0007A1F is Complete at schema 34 and supplies the current five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) evidence.
+- CPU 0007A1F is Complete at schema 34 and supplies the current five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#term-residual-meanings) evidence.
 - Completed CPU 0006B2, CPU 0006D, CPU 0007A0D, and CPU 0007A0F define fold/dropout semantics,
   resources, and generated foundations to preserve.<span data-glossary-navigation="true"> ([dropout glossary](../../../../glossary.md#dropout--inverted-dropout))</span>
 
@@ -274,7 +274,7 @@ shared contract may change.
 
 - [CPU](../../../../glossary.md#term-cpu) 0007A1H is the sole next [`Ready`](../../../../glossary.md#term-ready) task. It owns persistent `N-MEAN-GENERAL` and
   `N-PROD-MULTI` residuals through one code-shaping [owner](../../../../glossary.md#term-owner), `CpuAggregateEmitter`.
-- Other [residual](../../../../glossary.md#scan-residual-port-and-history-demand) [target](../../../../glossary.md#term-target) groups remain Draft and unassigned.
+- Other [residual](../../../../glossary.md#term-residual-meanings) [target](../../../../glossary.md#term-target) groups remain Draft and unassigned.
 - CPU 0007A1C resumes its unchanged closure only after all residual corrections complete.
 - CPU 0007A2 remains blocked until CPU 0007A1C is Complete.
 
@@ -314,7 +314,7 @@ controls pass every required gate. Do not commit or push.
   aggregate. Their small but repeated overages are bounded residuals.<span data-glossary-navigation="true"> ([forks glossary](../../../../glossary.md#term-fork-meanings))</span><span data-glossary-navigation="true"> ([dropout glossary](../../../../glossary.md#dropout--inverted-dropout))</span>
 - The rows use exactly two existing code-shaping [owners](../../../../glossary.md#term-owner), matching the correction-[owner](../../../../glossary.md#term-owner) boundary.
 - They remain one task because they are the next two residual ratios, have the same frozen
-  protocol and evidence lifecycle, and together remain within the two-owner/task-size guardrails.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  protocol and evidence lifecycle, and together remain within the two-owner/task-size guardrails.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#term-residual-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - No optimization may replace the exact sequential fold or V1 dropout work with an easier direct
   algorithm merely to pass the ratio gate.
 
@@ -371,7 +371,7 @@ Completed changes:
 - recorded exact A1G semantic, Class-File, schema, Java-test, and five-[fork](../../../../glossary.md#term-fork-meanings) evidence;
 - synchronized A1G as Complete while leaving A1C and A1D `Review needed`/Incomplete and A1E/A1F
   Complete; and
-- specified A1H as the sole next [Ready](../../../../glossary.md#term-ready) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) task. The one-fork `M-CONCAT` value
+- specified A1H as the sole next [Ready](../../../../glossary.md#term-ready) [residual](../../../../glossary.md#term-residual-meanings) task. The one-fork `M-CONCAT` value
   `1.158061861x` does not reopen completed A1E because its other four A1G forks and completed A1E
   five-fork evidence do not establish a persistent failure.
 

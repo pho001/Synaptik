@@ -292,7 +292,7 @@ results, per-row [median](../../../../glossary.md#term-median)-of-fork-medians, 
 
 Tier 3: [run](../../../../glossary.md#term-run) `./gradlew :backends:cpu:test` once and `./gradlew :backends:cpu:javadoc` after the
 documentation pass; then Markdown/link/anchor/fence checks, exact path/status/schema inventory,
-tracked-evidence [scan](../../../../glossary.md#term-cumulative-scan), and `git diff --check`. Tier 4: record no-change [conformance](../../../../glossary.md#term-conformance)/integration,
+tracked-evidence scan, and `git diff --check`. Tier 4: record no-change [conformance](../../../../glossary.md#term-conformance)/integration,
 architecture-test, repository-wide-test, and documentation-agent Java-rerun conclusions unless a
 real new boundary requires replanning.
 
@@ -502,7 +502,7 @@ performance-pass claim; CPU 0009 receives the corrected full evidence as missing
 - Documentation-agent review: clean documentation completion context
   `01a06d82-d72e-7c93-b762-ef8e43ff1976` finalized the task, [CPU](../../../../glossary.md#term-cpu) master-plan, and roadmap evidence.
 - Documentation impact: planning status, validation exception, residual risk, and CPU 0009
-  evidence transfer are synchronized; architecture and explanatory guides remain unchanged.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  evidence transfer are synchronized; architecture and explanatory guides remain unchanged.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning); [residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 - Javadoc review: no production Javadoc change is needed because the latest correction is confined
   to private test-harness measurement behavior; its affected test Javadoc is accurate.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - Glossary impact: none; no reusable project term or existing term boundary changed.

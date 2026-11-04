@@ -461,7 +461,7 @@ path does not authorize an unrelated path.
 - Freeze exactly the following eight targets. Dense layouts have offset zero and canonical
   row-major strides. Carrier columns list<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [row-major glossary](../../../../glossary.md#term-row-major))</span>
   `input/scale/bias/runningMean/runningVariance -> output`; `S` means a matching native-order
-  `MemorySegment`, primitive-array names are exact, and [vector](../../../../glossary.md#term-vector)-[layout](../../../../glossary.md#layout) pairs [mean](../../../../glossary.md#term-mean)
+  `MemorySegment`, primitive-array names are exact, and [vector](../../../../glossary.md#term-vector)-[layout](../../../../glossary.md#layout) pairs mean
   `(offset, stride)`. Every [target](../../../../glossary.md#term-target) uses usable parallelism four and
   `minimumElementsPerWorker = 4096`, so the selected range form and four submitted ranges are
   deterministic.
@@ -668,7 +668,7 @@ Implementation and clean documentation review completed on 2026-08-25. Before im
 critical review replaced the original prefix-[channel](../../../../glossary.md#term-channel) slab plan because it repeated channel reads
 and `sqrt` once per prefix, including `N` times per channel for dense `[N,C]` with a last channel
 [axis](../../../../glossary.md#term-axis). The first generated body then still used per-[element](../../../../glossary.md#term-element) [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) division/remainder and
-avoidable address reconstruction and did not satisfy the frozen performance [shape](../../../../glossary.md#shape). The accepted
+avoidable address reconstruction and did not satisfy the frozen performance shape. The accepted
 body decodes each range entry once, advances coordinates and addresses with an odometer and
 increments, and retains genuine [FLOAT32](../../../../glossary.md#term-float32) locals for [BFLOAT16](../../../../glossary.md#term-bfloat16)/FLOAT32 computation. This evidence
 does not claim universal [layout](../../../../glossary.md#layout) optimality.

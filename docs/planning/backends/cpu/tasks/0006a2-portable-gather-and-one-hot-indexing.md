@@ -152,7 +152,7 @@ runs. `CpuPreparedExecutable` cold binding creates one [CPU](../../../../glossar
 direct [INT32](../../../../glossary.md#data-type--datatype) or [INT64](../../../../glossary.md#data-type--datatype) carrier access and compact [immutable](../../../../glossary.md#term-immutable) geometry. On every execution it scans
 the complete [logical index](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) domain on the invoking thread, without allocation, reflection, map
 [lookup](../../../../glossary.md#term-lookup), semantic inspection, virtual per-[element](../../../../glossary.md#term-element) [dispatch](../../../../glossary.md#term-dispatch), output write, or worker submission.
-The carrier form is selected once during binding; the inner [scan](../../../../glossary.md#term-cumulative-scan) uses direct primitive-array or
+The carrier form is selected once during binding; the inner scan uses direct primitive-array or
 native-order [`MemorySegment`](../../../../glossary.md#term-memorysegment) loads and a resolved-layout odometer with no per-element division or
 modulo.
 

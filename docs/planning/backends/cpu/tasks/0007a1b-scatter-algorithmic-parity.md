@@ -480,7 +480,7 @@ implementation, performance, and documentation gates pass.
 
 - Range-owned copy-then-update is the lowest-complexity safe scratch-free algorithm because it
   retains disjoint output ownership while replacing a scan per output with one scan per bounded
-  worker range.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  worker range.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Update-domain partitioning without target ownership is rejected because duplicate targets can
   race or require atomics/merge and can change ordered floating addition.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target); [race glossary](../../../../glossary.md#term-race))</span>
 - Floating exact product keeps the output-owned safe split because one reusable per-range
@@ -515,7 +515,7 @@ worktree contains the completed uncommitted CPU 0007A1/0007A1A implementation an
 which this planning change preserves.
 
 The current generated dense and general scratch-free emitters use an output-owned outer range and
-[scan](../../../../glossary.md#term-cumulative-scan) the complete update domain for every output. [Scalar](../../../../glossary.md#term-scalar) work is approximately
+scan the complete update domain for every output. [Scalar](../../../../glossary.md#term-scalar) work is approximately
 `O(rangeLength * updateScalarCount)`. A range-owned base copy plus one [canonical](../../../../glossary.md#term-canonical-form) update scan is
 legal for replacement, ADD, MIN/MAX, and integral MUL and remains [race](../../../../glossary.md#term-race)-free for arbitrary legal
 ranges because each worker filters [targets](../../../../glossary.md#term-target) to its disjoint ordinal interval. It is not universally

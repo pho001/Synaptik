@@ -37,7 +37,7 @@ Java loop.
 This is one cohesive CPU-private realization correction. Both fold families share `CpuFoldIr`,
 compact cold geometry, `CpuFoldEmitter`, positive-zero output initialization, [canonical](../../../../glossary.md#term-canonical-form) input-row-
 major contribution scanning, represented addition, disjoint output ranges, and one generated-
-[artifact](../../../../glossary.md#term-artifact) compatibility boundary. The task changes generated code [shape](../../../../glossary.md#shape) only; completed CPU 0006B2
+[artifact](../../../../glossary.md#term-artifact) compatibility boundary. The task changes generated code shape only; completed CPU 0006B2
 capability and semantics remain unchanged.
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -61,7 +61,7 @@ capability and semantics remain unchanged.
   than treating planning evidence as implementation evidence.
 - Audit `CpuFoldEmitter`, `CpuClassFileKernelGenerator`, the packed geometry, and the generated
   classes before selecting locals or control flow. Do not assume that fold shares the final
-  scatter emitter shape merely because both scan contributions by output.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  scatter emitter shape merely because both scan contributions by output.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
 - Time only warmed fold output/contribution work. Exclude lowering, generation, class definition,
   artifact lookup, cold binding, geometry packing, allocation, input initialization, overlap and
   carrier validation, result verification, and sink observation from both timed forms.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [artifact glossary](../../../../glossary.md#term-artifact); [lookup glossary](../../../../glossary.md#term-lookup); [binding glossary](../../../../glossary.md#term-binding); [carrier glossary](../../../../glossary.md#term-storage-carrier); [validation glossary](../../../../glossary.md#term-validation))</span>
@@ -203,7 +203,7 @@ capability and semantics remain unchanged.
   avoidable per-element helper calls. Allow only a closed set of explicitly asserted JDK and<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [dispatch glossary](../../../../glossary.md#term-dispatch); [graph glossary](../../../../glossary.md#graph); [Runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [cache glossary](../../../../glossary.md#term-cache); [lookup glossary](../../../../glossary.md#term-lookup); [element glossary](../../../../glossary.md#term-element); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk))</span>
   `MemorySegment` primitives needed for carriers and [BFLOAT16](../../../../glossary.md#term-bfloat16) conversion/[rounding](../../../../glossary.md#term-rounding).
 - Assert dense and general class shapes through the Java Class-File API, not source-text matching,
-  fragile absolute bytecode offsets, or manual-only <span data-glossary-navigation="true"> ([shapes glossary](../../../../glossary.md#shape); [Class-File API glossary](../../../../glossary.md#term-class-file-api); [bytecode glossary](../../../../glossary.md#term-bytecode))</span>`javap`. Retained decompilation is audit
+  fragile absolute bytecode offsets, or manual-only <span data-glossary-navigation="true"> ([Class-File API glossary](../../../../glossary.md#term-class-file-api); [bytecode glossary](../../../../glossary.md#term-bytecode))</span>`javap`. Retained decompilation is audit
   evidence; automated assertions are the durable regression gate.<span data-glossary-navigation="true"> ([decompilation glossary](../../../../glossary.md#term-decompilation); [regression glossary](../../../../glossary.md#term-regression))</span>
 - Preserve or extend independent semantic differentials against `CpuScalarReferenceKernel` or
   test-local oracle code that does not call the generated emitter or share its mapping/addition
@@ -222,7 +222,7 @@ capability and semantics remain unchanged.
   `input[i] = (float) ((i % 251 - 125) * 0.25)`. Before timing, verify the generated and direct
   outputs bitwise against an independent oracle and verify that the fixed input remains unchanged.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle))</span>
 - The direct Java body must implement the exact canonical output-domain algorithm used for the
-  generated acceptance form: for each output ordinal in <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form))</span>`[0,1024)`, start with `+0.0f`; [scan](../../../../glossary.md#term-cumulative-scan)
+  generated acceptance form: for each output ordinal in <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form))</span>`0,1024)`, start with `+0.0f`; [scan
   `inputOrdinal` from `0` through `2031`; derive
   `window = inputOrdinal / 16`, `within = inputOrdinal - window * 16`, and
   `target = window * 8 + within`; add `input[inputOrdinal]` with [binary32](../../../../glossary.md#floating-point-precision-and-rounding) addition exactly when
@@ -406,7 +406,7 @@ allowlist on unrelated cleanup.
 ## Tests / [validation](../../../../glossary.md#term-validation)
 
 [Run](../../../../glossary.md#term-run) focused tests for each changed test [owner](../../../../glossary.md#term-owner) while iterating. The final focused command must name
-every changed test class and cover Class-File [shape](../../../../glossary.md#shape), both fold families and all admitted types,
+every changed test class and cover Class-File shape, both fold families and all admitted types,
 dense/general and mixed carriers, arbitrary [layouts](../../../../glossary.md#layout)/ranges, independent [oracle](../../../../glossary.md#term-test-oracle) differentials,
 parallel reuse, preparation/finalization, [specialization](../../../../glossary.md#term-specialization), and [schema](../../../../glossary.md#term-schema)/[persistence](../../../../glossary.md#term-persistence) compatibility.
 
@@ -469,7 +469,7 @@ or [architecture contract](../../../../glossary.md#architecture-contract). Stop 
 
 Expected impact: None.
 
-The task changes only [CPU](../../../../glossary.md#term-cpu)-owned generated fold code [shape](../../../../glossary.md#shape) and current-only [artifact](../../../../glossary.md#term-artifact) compatibility
+The task changes only [CPU](../../../../glossary.md#term-cpu)-owned generated fold code shape and current-only [artifact](../../../../glossary.md#term-artifact) compatibility
 under the existing analysis/finalization/[binding](../../../../glossary.md#term-binding) [lifecycle](../../../../glossary.md#lifecycle). If implementation requires an
 architecture, public/shared contract, [module](../../../../glossary.md#term-module), [dependency](../../../../glossary.md#term-dependency), semantic, route, resource,
 [materialization](../../../../glossary.md#materialization), or [Runtime](../../../../glossary.md#term-runtime)-policy change, stop and report the conflict.
@@ -538,7 +538,7 @@ Follow-up required: <specific follow-up>.
   Multi-node fusion, dynamic layouts, vector fold, native routes, and new semantics remain out of
   scope.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [fusion glossary](../../../../glossary.md#term-fusion); [vector glossary](../../../../glossary.md#term-vector); [scope glossary](../../../../glossary.md#term-scope))</span>
 - Output-domain execution remains intentionally quadratic in output count times input count for
-  the fixed parity baseline. Algorithm redesign is not hidden inside this generated-shape task.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
+  the fixed parity baseline. Algorithm redesign is not hidden inside this generated-shape task.
 
 ## [Validation](../../../../glossary.md#term-validation) evidence
 

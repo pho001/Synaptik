@@ -66,7 +66,7 @@ decision is required.
 
 - Add one cohesive supported root-package collaboration,
   `io.github.pho001.synaptik.backend.cpu.CpuLocalWorkloadTuning`, with the exact public shape in
-  Package and API design.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
+  Package and API design.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Add `CpuBackendIntegration.localWorkloadTuning()`, returning the same retained collaboration for
   the integration lifetime without transferring ownership.<span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Produce an optional
@@ -113,7 +113,7 @@ decision is required.
 - Engine representative-execution or fallback contracts, an Engine 0007 specification or
   implementation, Engine 0008, or tools/tuning 0002
 - cross-route generalization from CPU 0016; the supported seam wraps only the current CPU 0010E
-  exact/default FLOAT32/FLOAT64 bare-MATMUL candidate contract<span data-glossary-navigation="true"> ([generalization glossary](../../../../glossary.md#term-generalization); [FLOAT32 glossary](../../../../glossary.md#term-float32); [FLOAT64 glossary](../../../../glossary.md#term-float64); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul))</span>
+  exact/default FLOAT32/FLOAT64 bare-MATMUL candidate contract<span data-glossary-navigation="true"> ([FLOAT32 glossary](../../../../glossary.md#term-float32); [FLOAT64 glossary](../../../../glossary.md#term-float64); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul))</span>
 - new route eligibility, candidate pruning or synthesis, reordered candidates, relaxed numerics,
   BFLOAT16 OpenBLAS, vendor-peer routes 0011–0015, or Config 0004–0006<span data-glossary-navigation="true"> ([BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [OpenBLAS glossary](../../../../glossary.md#term-openblas))</span>
 - changing the method-free [Prepare](../../../../glossary.md#prepare) marker roles or [handoff](../../../../glossary.md#term-handoff), [Runtime](../../../../glossary.md#term-runtime) APIs, [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution),
@@ -395,7 +395,7 @@ return the task to planning.
     binding, Runtime selection, fallback-policy choice, or Engine work. CPU has no tools/tuning or
     Engine dependency.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [model glossary](../../../../glossary.md#term-model); [binding glossary](../../../../glossary.md#term-binding); [Engine glossary](../../../../glossary.md#term-engine); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 14. CPU 0016 remains Draft and unchanged as later cross-route generalization; CPU 0011 remains
-    Blocked and CPU 0012–0015/0017 retain their current optional statuses and ordering.<span data-glossary-navigation="true"> ([generalization glossary](../../../../glossary.md#term-generalization))</span>
+    Blocked and CPU 0012–0015/0017 retain their current optional statuses and ordering.
 15. No generated kernel, generated-artifact identity, lowering semantic, numerical rule,
     performance threshold, architecture contract, ADR, Gradle file, conformance test, or
     integration test changes.<span data-glossary-navigation="true"> ([kernel glossary](../../../../glossary.md#kernel); [identity glossary](../../../../glossary.md#term-identity-meanings); [lowering glossary](../../../../glossary.md#lowering); [architecture contract glossary](../../../../glossary.md#architecture-contract); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [Gradle glossary](../../../../glossary.md#term-gradle); [conformance glossary](../../../../glossary.md#term-conformance); [integration test glossary](../../../../glossary.md#term-integration-test))</span>
@@ -405,7 +405,7 @@ return the task to planning.
     APIs, architecture, Config, Engine API, and Runtime documentation. It does not repeat a
     successful Java suite unless it changes executable Java or identifies stale evidence.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 17. Focused and full CPU tests, CPU Javadoc, public-shape/import/javap checks, codec malformed-input
-    checks, changed-Markdown links/anchors/headings/fences/newlines, exact scope, and<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [codec glossary](../../../../glossary.md#term-codec))</span>
+    checks, changed-Markdown links/anchors/headings/fences/newlines, exact scope, and<span data-glossary-navigation="true"> ([codec glossary](../../../../glossary.md#term-codec))</span>
     `git diff --check` pass with recorded evidence.
 
 ## [Validation](../../../../glossary.md#term-validation)
@@ -481,7 +481,7 @@ the focused CPU guide/glossary entries. It must:
 - Do not create the representative-execution/fallback task in this change.
 - Keep tools/tuning 0002 as later [graph](../../../../glossary.md#graph)/plan tuning.
 - Keep CPU 0016 as later cross-route generalization after concrete vendor peer routes exist; it
-  must reuse rather than duplicate this supported composition shape where applicable.<span data-glossary-navigation="true"> ([generalization glossary](../../../../glossary.md#term-generalization); [shape glossary](../../../../glossary.md#shape))</span>
+  must reuse rather than duplicate this supported composition shape where applicable.
 
 ## Architecture impact
 
@@ -529,7 +529,7 @@ decoding, and prepare trial/final selected recipes only after fresh authoritativ
 the exact choice. Preserve ordinary [heuristic](../../../../glossary.md#term-heuristic) preparation, source-only [constants](../../../../glossary.md#term-constant), current
 provider/thread coordination, closure, and every [ownership](../../../../glossary.md#term-ownership-meanings) boundary. Add no measurement, [cache](../../../../glossary.md#term-cache)
 I/O, Engine orchestration, [Runtime](../../../../glossary.md#term-runtime) selection, [dependency](../../../../glossary.md#term-dependency), generated-[kernel](../../../../glossary.md#kernel) behavior, or cross-
-route [generalization](../../../../glossary.md#term-generalization).
+route generalization.
 
 [Run](../../../../glossary.md#term-run) focused and full CPU tests, CPU Javadoc, public-surface/import/[bytecode](../../../../glossary.md#term-bytecode)/manual [codec](../../../../glossary.md#term-codec) checks,
 Markdown/scope/status [validation](../../../../glossary.md#term-validation), and `git diff --check`. Then use the mandatory separate clean

@@ -51,16 +51,16 @@ Do not rewrite completed Prepare0014 evidence or the static baseline TSV.
 - [Backend execution](../../../../architecture/contracts/backend-execution.md)<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend))</span>:
   `Performance evidence and optimization tooling`, `CPU backend routes` — observational evidence,
   specialized clean-Java/Class-File comparison, no production selection or hidden hot-loop overhead.
-- [Recurrent scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>:
+- [Recurrent scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan):
   `Accepted symbolic-batch scan` and its subheadings — fixed T/features, actual reverse, saved sites,
-  empty B and immutable code with isolated invocation resources. Stop on ambiguity or scope expansion.<span data-glossary-navigation="true"> ([features glossary](../../../../glossary.md#term-software-feature); [immutable glossary](../../../../glossary.md#term-immutable); [scope glossary](../../../../glossary.md#term-scope))</span>
+  empty B and immutable code with isolated invocation resources. Stop on ambiguity or scope expansion.<span data-glossary-navigation="true"> ([features glossary](../../../../glossary.md#term-feature); [immutable glossary](../../../../glossary.md#term-immutable); [scope glossary](../../../../glossary.md#term-scope))</span>
 
 ## Dependencies and integration
 
 - Depends on: [Prepare0014](../../../modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md#result)
   and [CPU0037](0037-general-scan-dense-read-views.md#result), both Complete/accepted.
 - Conflicts with: symbolic-Scan fixture/oracle/probe and shared CPU docs; serialize production Scan
-  changes. No competing writer; MAIN admission audit read-only.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [fixture glossary](../../../../glossary.md#term-fixture); [oracle glossary](../../../../glossary.md#term-test-oracle); [CPU glossary](../../../../glossary.md#term-cpu))</span>
+  changes. No competing writer; MAIN admission audit read-only.<span data-glossary-navigation="true"> ([fixture glossary](../../../../glossary.md#term-fixture); [oracle glossary](../../../../glossary.md#term-test-oracle); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - Parallel group: None; sole serial writer, no concurrent-write worktree.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus ACCEPTED
   DIRTY tree, not merged predecessors. Exact baseline:

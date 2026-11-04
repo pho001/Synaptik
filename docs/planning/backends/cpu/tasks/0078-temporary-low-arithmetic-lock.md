@@ -87,7 +87,7 @@ availability checks, not a new policy/service/[registry](../../../../glossary.md
 - `public static void requirePermittedLowPrecisionUse(CpuKernelSpecialization specialization, CpuKernelIr ir)`.
 
 These methods are unsupported [backend](../../../../glossary.md#backend)-internal [API](../../../../glossary.md#term-application-programming-interface-api) despite cross-package public visibility.
-The query predicate never calls provider.supports, recurrent/general-[Scan](../../../../glossary.md#term-cumulative-scan) analysis or the
+The query predicate never calls provider.supports, recurrent/general-Scan analysis or the
 CpuPartitionLowering constructor. Generalize the one existing `opcode(CompiledNode)` mapping to
 `opcode(OperationKind)` and migrate Lowering, GeneralScanLowering and DagDecomposer callers;
 do not copy a provider mapping. POW remains numerical even under [IDENTITY](../../../../glossary.md#term-identity-meanings)/POSITIVE_ONE realization.
@@ -145,7 +145,7 @@ changed bytes/facts need their owning selective [identity](../../../../glossary.
 
 - Depends on: reviewed [scope](../../../../glossary.md#term-scope) freeze, complete CPU0077 integration, reviewed seams and authority.
 - Conflicts with: CPU provider/lowering/preparer/IR/generator/cache/fixed execution, current low
-  ledger and affected tests. Serialize the entire CPU source cutover; no all-PURE Scan writer.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [cache glossary](../../../../glossary.md#term-cache); [PURE glossary](../../../../glossary.md#term-pure); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  ledger and affected tests. Serialize the entire CPU source cutover; no all-PURE Scan writer.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [cache glossary](../../../../glossary.md#term-cache); [PURE glossary](../../../../glossary.md#term-pure))</span>
 - Parallel group: [RELEASE](../../../../glossary.md#term-release)-CPU78-[LIFECYCLE](../../../../glossary.md#lifecycle); sole [CPU](../../../../glossary.md#term-cpu) writer, disjoint Engine0022 cleanup scope.
 - Common base revision: `07a281edd3086efde2853211b71b48288db027e1` plus accepted post-CPU0077
   cpu0078-base.json and MAIN's authority-only Engine0022 addendum. No CPU source/semantics change

@@ -245,7 +245,7 @@ architecture, [API](../../../../glossary.md#term-application-programming-interfa
   oracle uses the same logical NCHW output-cell traversal, initialized accumulator, ordered kernel
   traversal, and one store. <span data-glossary-navigation="true"> ([NCHW glossary](../../../../glossary.md#term-nchw); [accumulator glossary](../../../../glossary.md#accumulator-type))</span>`CpuConv2dEvidenceTest` generates and parses representative classes and
   checks a final field-free class with one static `invoke` method; its constant-pool scan rejects
-  Synaptik helpers, reflection, invoke dispatch, <span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>`java.util`, and boxing. The retained
+  Synaptik helpers, reflection, invoke dispatch, <span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant))</span>`java.util`, and boxing. The retained
   CPU 0008N1 and current <span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>`CpuPartitionPreparer` establish the separate schema-63 vector identity
   and nested width-block route; scalar routes retain schema 52. Current evidence tests assert
   envelope schema 66, distinct from the convolution-vector class identity.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers))</span>

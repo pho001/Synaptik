@@ -34,7 +34,7 @@ generated [cumulative scan](../../../../glossary.md#cumulative-scan), and genera
 near-parity with equivalent direct Java loops while preserving all current semantics and general
 fallbacks.
 
-This is one cohesive generated-hot-path correction. Pointwise loop [shape](../../../../glossary.md#shape), [scan](../../../../glossary.md#term-cumulative-scan)/aggregate body
+This is one cohesive generated-hot-path correction. Pointwise loop shape, [scan](../../../../glossary.md#term-cumulative-scan)/aggregate body
 generation, typed [carrier](../../../../glossary.md#term-storage-carrier) access, and generated-[artifact](../../../../glossary.md#term-artifact) compatibility meet at the same
 `CpuClassFileKernelGenerator` and `CpuKernelSpecialization` boundary. Splitting them would either
 leave known bridge-only hot paths in a newly versioned [schema](../../../../glossary.md#term-schema) or permit compatibility reuse across
@@ -158,7 +158,7 @@ status, and historical evidence remain valid and unchanged.
   special value, arbitrary legal range, and scalar/parallel parity. Independent reference tests
   must not call production scan/aggregate emitters.<span data-glossary-navigation="true"> ([regression glossary](../../../../glossary.md#term-regression); [scan glossary](../../../../glossary.md#term-cumulative-scan); [layout glossary](../../../../glossary.md#layout); [singleton glossary](../../../../glossary.md#term-singleton); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Add stable automated generated-bytecode shape tests. Dense heap-array scalar pointwise bytecode
-  must exhibit int loop/address locals without per-element <span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [shape glossary](../../../../glossary.md#shape); [heap glossary](../../../../glossary.md#term-heap); [pointwise glossary](../../../../glossary.md#term-pointwise); [element glossary](../../../../glossary.md#term-element))</span>`l2i`; dense Vector API bytecode must
+  must exhibit int loop/address locals without per-element <span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [heap glossary](../../../../glossary.md#term-heap); [pointwise glossary](../../../../glossary.md#term-pointwise); [element glossary](../../../../glossary.md#term-element))</span>`l2i`; dense Vector API bytecode must
   exhibit one precomputed bound, one vector loop, and one scalar tail; scan/aggregate generated
   classes must contain their typed specialized hot work rather than a bridge-only call to generic<span data-glossary-navigation="true"> ([Vector API glossary](../../../../glossary.md#term-vector-api); [vector glossary](../../../../glossary.md#term-vector); [scalar tail glossary](../../../../glossary.md#term-scalar-tail))</span>
   `execute(Object,Object,long[],long,long)` helpers.
@@ -380,7 +380,7 @@ compatibility omission behind a follow-up.
 ## Tests / [validation](../../../../glossary.md#term-validation)
 
 During implementation, [run](../../../../glossary.md#term-run) focused [Gradle](../../../../glossary.md#term-gradle) tests for [specialization](../../../../glossary.md#term-specialization)/[cache](../../../../glossary.md#term-cache) [identity](../../../../glossary.md#term-identity-meanings), [scalar](../../../../glossary.md#term-scalar)/[vector](../../../../glossary.md#term-vector)
-[pointwise](../../../../glossary.md#term-pointwise) [bytecode](../../../../glossary.md#term-bytecode) [shape](../../../../glossary.md#shape) and semantics, [fused](../../../../glossary.md#specialization-and-fusion) pointwise [regression](../../../../glossary.md#term-regression), [scan](../../../../glossary.md#term-cumulative-scan)/aggregate [lowering](../../../../glossary.md#lowering) and
+[pointwise](../../../../glossary.md#term-pointwise) [bytecode](../../../../glossary.md#term-bytecode) shape and semantics, [fused](../../../../glossary.md#specialization-and-fusion) pointwise [regression](../../../../glossary.md#term-regression), [scan](../../../../glossary.md#term-cumulative-scan)/aggregate [lowering](../../../../glossary.md#lowering) and
 generated execution, prepared [binding](../../../../glossary.md#term-binding)/ranges, and independent reference parity. The final focused
 command must name every changed test [owner](../../../../glossary.md#term-owner). After executable Java stabilizes, run once:
 
@@ -484,7 +484,7 @@ Follow-up required: <specific follow-up>.
   share one generated-class boundary and one externally required parity outcome.<span data-glossary-navigation="true"> ([atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [pointwise glossary](../../../../glossary.md#term-pointwise); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
 - Use a cold-proved int-index/address code-shape category while retaining the universal long entry
   and all general long forms. This targets measured heap-array overhead without narrowing the
-  supported carrier/layout/range domain.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [targets glossary](../../../../glossary.md#term-target); [heap glossary](../../../../glossary.md#term-heap); [narrowing glossary](../../../../glossary.md#term-narrowing); [carrier glossary](../../../../glossary.md#term-storage-carrier); [layout glossary](../../../../glossary.md#layout))</span>
+  supported carrier/layout/range domain.<span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target); [heap glossary](../../../../glossary.md#term-heap); [narrowing glossary](../../../../glossary.md#term-narrowing); [carrier glossary](../../../../glossary.md#term-storage-carrier); [layout glossary](../../../../glossary.md#layout))</span>
 - Require generated typed scan/aggregate bodies rather than optimizing the generic bridge helper.
   Structural specialization already knows kind, type, form/mode, access plan, and carrier pattern;
   retaining their per-element dispatch would contradict the CPU hot-path contract and the audit.<span data-glossary-navigation="true"> ([specialization glossary](../../../../glossary.md#term-specialization); [element glossary](../../../../glossary.md#term-element); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
@@ -541,7 +541,7 @@ Follow-up required: <specific follow-up>.
   loop, and one scalar tail; and embeds typed generated scan and aggregate bodies while retaining
   typed long-address fallbacks for general layouts and segment carriers.<span data-glossary-navigation="true"> ([Vector API glossary](../../../../glossary.md#term-vector-api); [scalar tail glossary](../../../../glossary.md#term-scalar-tail); [scan glossary](../../../../glossary.md#term-cumulative-scan); [layouts glossary](../../../../glossary.md#layout))</span>
 - Reused [bytecode](../../../../glossary.md#term-bytecode) evidence under `/tmp/synaptik-bytecode-benchmark-0007a0/bytecode` verifies the
-  corrected generated shapes. <span data-glossary-navigation="true"> ([shapes glossary](../../../../glossary.md#shape))</span>`add_scalar.javap.txt` and `fused_scalar.javap.txt` show entry
+  corrected generated shapes. `add_scalar.javap.txt` and `fused_scalar.javap.txt` show entry
   narrowing followed by integer address locals and `iinc` updates. `add_vector.javap.txt` shows
   one `DoubleVector.SPECIES_PREFERRED` load, one integer vector bound computed before the vector
   loop, and a scalar tail. `aggregate.javap.txt` shows a typed [FLOAT64](../../../../glossary.md#term-float64) full-MIN fold with
@@ -595,7 +595,7 @@ Follow-up required: <specific follow-up>.
 - Scan and ordinary aggregate generation now embeds typed family bodies selected from structural
   IR facts. Dense rank-one heap-array scans and full dense heap-array aggregates use direct typed
   integer-address loops. General scan and aggregate layouts retain typed long-address fallbacks
-  that perform only the coordinate work required by arbitrary rank/stride geometry.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [rank-one glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [General scan glossary](../../../../glossary.md#general-differentiable-scan); [layouts glossary](../../../../glossary.md#layout); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [rank glossary](../../../../glossary.md#term-rank); [stride glossary](../../../../glossary.md#term-stride))</span>
+  that perform only the coordinate work required by arbitrary rank/stride geometry.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [rank-one glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [layouts glossary](../../../../glossary.md#layout); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [rank glossary](../../../../glossary.md#term-rank); [stride glossary](../../../../glossary.md#term-stride))</span>
 - Schema 22 is current-only. It rejects older envelopes without migration and records the changed
   emitted-code compatibility boundary while keeping concrete extents, carrier objects, slots,
   ranges, workers, run identity, and benchmark evidence cold.<span data-glossary-navigation="true"> ([Schema glossary](../../../../glossary.md#term-schema); [carrier glossary](../../../../glossary.md#term-storage-carrier); [run glossary](../../../../glossary.md#term-run))</span>
@@ -609,7 +609,7 @@ Follow-up required: <specific follow-up>.
 Completed changes:
 
 - Corrected generated dense pointwise scalar/vector loop shape, typed scan bodies, typed ordinary
-  aggregate bodies, and schema 22 compatibility in CPU-internal implementation.<span data-glossary-navigation="true"> ([pointwise glossary](../../../../glossary.md#term-pointwise); [scalar glossary](../../../../glossary.md#term-scalar); [vector glossary](../../../../glossary.md#term-vector); [shape glossary](../../../../glossary.md#shape); [scan glossary](../../../../glossary.md#term-cumulative-scan); [schema glossary](../../../../glossary.md#term-schema); [CPU glossary](../../../../glossary.md#term-cpu))</span>
+  aggregate bodies, and schema 22 compatibility in CPU-internal implementation.<span data-glossary-navigation="true"> ([pointwise glossary](../../../../glossary.md#term-pointwise); [scalar glossary](../../../../glossary.md#term-scalar); [vector glossary](../../../../glossary.md#term-vector); [scan glossary](../../../../glossary.md#term-cumulative-scan); [schema glossary](../../../../glossary.md#term-schema); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - Finalized affected implementation Javadocs, package summaries, CPU guide, glossary impact, this
   task, CPU master plan, and roadmap inside the 38-path allowlist.
 - Preserved completed CPU 0007 and CPU 0007A historical task semantics and left CPU 0007A1 as the

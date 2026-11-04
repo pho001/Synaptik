@@ -1,4 +1,4 @@
-# Task 0007A1N: Multi-[axis](../../../../glossary.md#term-axis) MIN [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
+# Task 0007A1N: Multi-[axis](../../../../glossary.md#term-axis) MIN [residual](../../../../glossary.md#term-residual-meanings) parity
 
 ## Reader context
 
@@ -27,7 +27,7 @@ Complete
 
 ## Goal
 
-Correct exactly the final persistent `X-MIN-MULTI` generated/direct [residual](../../../../glossary.md#scan-residual-port-and-history-demand) through its cohesive
+Correct exactly the final persistent `X-MIN-MULTI` generated/direct [residual](../../../../glossary.md#term-residual-meanings) through its cohesive
 ordinary-aggregate code-shaping [owner](../../../../glossary.md#term-owner), `CpuAggregateEmitter`. Preserve the frozen [CPU](../../../../glossary.md#term-cpu) 0007A1C
 [BFLOAT16](../../../../glossary.md#term-bfloat16) multi-[axis](../../../../glossary.md#term-axis) `MIN` semantics, kept [Dimensions](../../../../glossary.md#dimension), first-[NaN](../../../../glossary.md#term-nan) and [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero) selection,
 segment input, offset two-strided `short[]` output, [canonical](../../../../glossary.md#term-canonical-form) selected-domain order, arbitrary
@@ -67,7 +67,7 @@ passing the frozen five-[fork](../../../../glossary.md#term-fork-meanings) `<= 1
 - Changing the frozen probe, case, Shapes, carriers, comparator, JVM flags, fork protocol,
   threshold, direct oracle, or semantics.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm); [fork glossary](../../../../glossary.md#term-fork-meanings); [oracle glossary](../../../../glossary.md#term-test-oracle))</span>
 - Reopening any completed row or marking CPU 0007A1C Complete before all its original closure
-  gates are explicitly reconciled after this residual passes.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  gates are explicitly reconciled after this residual passes.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 - Changing another production code-shaping owner, aggregate IR/lowering, family eligibility,
   reduction meaning, validation, resources, materialization, orchestration, route selection,
   Prepare/Runtime behavior, capabilities, public API, dependencies, build structure, conformance,
@@ -100,7 +100,7 @@ passing the frozen five-[fork](../../../../glossary.md#term-fork-meanings) `<= 1
   invokes only prepared direct carriers, cold geometry, and range bounds.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [validation glossary](../../../../glossary.md#term-validation); [artifact glossary](../../../../glossary.md#term-artifact); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Generated code must preserve the optimal clean Java selected-domain algorithm, visit order,
   first-NaN/signed-zero policy, hot-loop/dataflow shape, and avoidable-overhead profile while
-  keeping the typed general-long form for every unproved case.<span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [dataflow glossary](../../../../glossary.md#term-dataflow); [shape glossary](../../../../glossary.md#shape))</span>
+  keeping the typed general-long form for every unproved case.<span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [dataflow glossary](../../../../glossary.md#term-dataflow))</span>
 - Benchmark observations accept or reject this bounded generated body and never select or mutate
   production settings.
 
@@ -199,13 +199,13 @@ shared contract may change.
   aggregate selection body.<span data-glossary-navigation="true"> ([extrema glossary](../../../../glossary.md#saturation-pole-and-extremum))</span>
 - [CPU](../../../../glossary.md#term-cpu) 0007A1D supplies stable invocation-local segment [layout](../../../../glossary.md#layout) handling.
 - CPU 0007A1F and CPU 0007A1H supply the accepted guarded aggregate-loop precedent.
-- CPU 0007A1M is Complete at [schema](../../../../glossary.md#term-schema) 41 and supplies the accepted final-[residual](../../../../glossary.md#scan-residual-port-and-history-demand) frontier.
+- CPU 0007A1M is Complete at [schema](../../../../glossary.md#term-schema) 41 and supplies the accepted final-[residual](../../../../glossary.md#term-residual-meanings) frontier.
 
 ## Follow-up tasks
 
 - Reconcile and close CPU 0007A1C only after this final persistent row and all original closure
   evidence gates pass.
-- [CPU](../../../../glossary.md#term-cpu) 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective [residual](../../../../glossary.md#scan-residual-port-and-history-demand) work.
+- [CPU](../../../../glossary.md#term-cpu) 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective [residual](../../../../glossary.md#term-residual-meanings) work.
 
 ## Architecture impact
 
@@ -244,7 +244,7 @@ probe pass every gate. Do not commit, push, or stage.
 - Accepted A1M [forks](../../../../glossary.md#term-fork-meanings) measure `X-MIN-MULTI` at `8.975696234x`, `8.989556087x`, `8.984536082x`,
   `9.118772524x`, and `9.076912061x`; the row is persistent rather than a one-[fork](../../../../glossary.md#term-fork-meanings) anomaly.
 - This is the only residual in every accepted A1M fork. Its selected-domain ordinary aggregate
-  algorithm and sole code-shaping owner are distinct from A1M's functional-scatter algorithm.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [owner glossary](../../../../glossary.md#term-owner))</span>
+  algorithm and sole code-shaping owner are distinct from A1M's functional-scatter algorithm.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#term-residual-meanings); [owner glossary](../../../../glossary.md#term-owner))</span>
 - The direct oracle uses one kept-axis output loop and nested selected-axis loops with raw BFLOAT16
   selection. The task must match that algorithm and work, not merely produce equivalent values.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [axis glossary](../../../../glossary.md#term-axis); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16))</span>
 

@@ -170,7 +170,7 @@ io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuAdvancedReduction
 --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedCoverageCheckpointTest
 --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedStructuralOracleCatalogTest`.
 It ran 69 tests with zero failures, errors, or skips. The generated-class tests and the direct
-evidence closure inspect field-free typed static entry [shape](../../../../glossary.md#shape), closed member [ownership](../../../../glossary.md#term-ownership-meanings), no bootstrap
+evidence closure inspect field-free typed static entry shape, closed member [ownership](../../../../glossary.md#term-ownership-meanings), no bootstrap
 methods, no [runtime](../../../../glossary.md#term-runtime) numerical helper, and no object/reflection/method-handle/collection [dispatch](../../../../glossary.md#term-dispatch).
 Source inspection of `CpuLogSumExpEmitter` confirms direct primitive carrier loads, dense and
 odometer selected-domain traversal, two max-shift passes, primitive [compensated sum](../../../../glossary.md#rounding-sites-fma-and-aggregate-floor), and exactly

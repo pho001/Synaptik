@@ -48,7 +48,7 @@ Packed [runtime](../../../../glossary.md#term-runtime)-long T remains frozen; ph
   and [Core invariants](../../../../../ARCHITECTURE.md#core-invariants): existing [ownership](../../../../glossary.md#term-ownership-meanings)/[identity](../../../../glossary.md#term-identity-meanings)/semantics.
 - [Backend](../../../../glossary.md#backend) [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling)
   and [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>: passive evidence and optimal Java [oracle](../../../../glossary.md#term-test-oracle).
-- [Accepted symbolic-batch scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>,
+- [Accepted symbolic-batch scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>,
   all four subsections: actual reverse, saved sites, numeric resources and qualification gates.
 Stop for any contract ambiguity or required production expansion; no new contract/ADR is selected.<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 
@@ -58,7 +58,7 @@ Stop for any contract ambiguity or required production expansion; no new contrac
   [Prepare0014](../../../modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md#result),
   [CPU0037](0037-general-scan-dense-read-views.md#result); all Complete with final reviews/gates.
 - Conflicts with: generated Scan/fixture/oracle/timing/protocol/shared-document writers;
-  inactive, previous agents closed, exclusive serial writer only.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [fixture glossary](../../../../glossary.md#term-fixture); [oracle glossary](../../../../glossary.md#term-test-oracle))</span>
+  inactive, previous agents closed, exclusive serial writer only.<span data-glossary-navigation="true"> ([fixture glossary](../../../../glossary.md#term-fixture); [oracle glossary](../../../../glossary.md#term-test-oracle))</span>
 - Parallel group: None; implementation then independent review, no concurrent write tasks.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
   plus accepted uncommitted 2472-file baseline, not merged predecessors.
@@ -170,7 +170,7 @@ body 19.015134s/30s; all 18 windows/300 calls complete, no overshoot/censorship;
 625.304583/169.238057 (3.694822522), joint 839.323470/380.119307 (2.208052723).
 The [sample analysis](</private/tmp/synaptik-cpu0040-main.P3w6A4/analysis.json>) retains every [sample](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters); observed excess localizes to reverse, not universal parity,
 exact phase percentages or a cause. Split/original-joint [compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names) contexts are not interchangeable.
-Actual measured [JIT](../../../../glossary.md#term-just-in-time-compilation-jit) [log](../../../../glossary.md#term-log): `hotspot-pid32214.xml`; normal [C2](../../../../glossary.md#term-c2) 3968/3969/4061/4062/4111 were [ready](../../../../glossary.md#term-ready) before
+Actual measured [JIT](../../../../glossary.md#term-just-in-time-compilation-jit) [log](../../../../glossary.md#term-log): `hotspot-pid32214.xml`; normal [C2](../../../../glossary.md#term-c2) 3968/3969/4061/4062/4111 were ready before
 matching samples, no later invalidation/deopt; original-joint 4108 invalidation was startup-only.
 `caller-inline-audit.json`: generated callers fail inline as too large; reverse [FFM](../../../../glossary.md#term-ffm) helpers inline.
 Availability/[inlining](../../../../glossary.md#term-inlining) is not executed-instruction proof; targeted diagnostic output adds overhead.
@@ -188,7 +188,7 @@ Direct [derivative](../../../../glossary.md#term-derivative) vectorization versu
 have four-way [guard](../../../../glossary.md#term-guard)-free contributor loops, consistent with the observed near-1× phase result.
 Packed T/frame causality is NOT proved: checked dH reads at BCIs 570/763 use row*128+col*4,
 not frame/time; frame-dependent X is already guard-free inside dW. No exact cycle attribution.
-Smallest unapproved follow-up: source-level test of existing dH [carrier](../../../../glossary.md#term-storage-carrier)/read-proof [shape](../../../../glossary.md#shape) before any fix;
+Smallest unapproved follow-up: source-level test of existing dH [carrier](../../../../glossary.md#term-storage-carrier)/read-proof shape before any fix;
 retain checked FFM, arithmetic order, storage/[alias](../../../../glossary.md#aliasing-and-arena) and [lifetime](../../../../glossary.md#term-lifetime). No broad T rewrite/new route/Unsafe.
 No required work remains in this diagnostic. Original performance parity remains incomplete;
 CPU source/test frontiers None; no new Ready production task, fix, probe, [commit](../../../../glossary.md#term-commit) or push is authorized.

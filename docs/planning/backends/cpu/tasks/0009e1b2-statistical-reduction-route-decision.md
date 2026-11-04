@@ -8,9 +8,9 @@ they share corrected two-pass processing and differ at the final square root.
 `CpuAdvancedReductionIr` and `CpuAdvancedReductionLowering.Geometry` define identity and static
 complete-output-cell geometry, not the statistical algorithm itself.
 
-Here, Prepare declares aligned exact-state resources, finalizes artifacts, and binds typed carriers;
-Runtime invokes immutable entries. Each concurrent complete-cell range receives isolated run
-scratch, not persistent model state. Generated Class-File inspection is a structural oracle for
+Here, CPU analysis selects structural carrier/layout forms and declares aligned exact-state resources;
+finalization constructs an immutable prepared executable recipe. Runtime later calls the CPU binder
+on current run storage, creating a per-run bound invocation with isolated complete-cell range scratch. Scratch is run-owned, not persistent model state. Generated Class-File inspection checks
 typed entries and dispatch hygiene. The independent reference kernel is the semantic oracle,
 implementing mathematical order without consuming packed lowering geometry or exact-state workspace.
 

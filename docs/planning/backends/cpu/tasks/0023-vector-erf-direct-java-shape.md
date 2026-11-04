@@ -1,4 +1,4 @@
-# [CPU](../../../../glossary.md#term-cpu) 0023 — Align [vector](../../../../glossary.md#term-vector) [ERF](../../../../glossary.md#term-erf) with the direct Java [shape](../../../../glossary.md#shape)
+# [CPU](../../../../glossary.md#term-cpu) 0023 — Align [vector](../../../../glossary.md#term-vector) [ERF](../../../../glossary.md#term-erf) with the direct Java shape
 
 ## Reader context — historical integration boundary
 
@@ -19,7 +19,7 @@ Draft
 ## Goal and class
 
 Class C generated hot-path follow-up. Bring [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) [vector](../../../../glossary.md#term-vector) [ERF](../../../../glossary.md#term-erf) polynomial [evaluation](../../../../glossary.md#term-evaluation)
-into the same specialized [constant](../../../../glossary.md#term-constant)-Horner [shape](../../../../glossary.md#shape) as the clean Java [oracle](../../../../glossary.md#term-test-oracle), or document a concrete
+into the same specialized [constant](../../../../glossary.md#term-constant)-Horner shape as the clean Java [oracle](../../../../glossary.md#term-test-oracle), or document a concrete
 technical reason and evidence for any retained deviation. Preserve numerical meaning and support.
 This Draft is not implementation authorization and does not reopen historical benchmark campaigns.
 
@@ -44,7 +44,7 @@ not establish an equivalent [hot path](../../../../glossary.md#term-hot-path). R
 Add structural and semantic regressions, assess [compatibility identity](../../../../glossary.md#identity-meanings-and-algebraic-identities) explicitly, and [run](../../../../glossary.md#term-run) focused
 generated/direct paired diagnostics after stabilization plus the affected [module](../../../../glossary.md#term-module)/[Javadoc](../../../../glossary.md#term-javadoc) once.
 No five-[fork](../../../../glossary.md#term-fork-meanings) [matrix](../../../../glossary.md#term-matrix-meanings), universal speed claim, new public strategy, tuning policy or numerical change.
-If a [shape](../../../../glossary.md#shape) correction does not close the gap, report the remaining evidence and investigate only
+If a shape correction does not close the gap, report the remaining evidence and investigate only
 the demonstrated bottleneck; do not substitute a global benchmark program for a scoped decision.
 
 ## Dependencies and integration
@@ -53,7 +53,7 @@ the demonstrated bottleneck; do not substitute a global benchmark program for a 
 - Conflicts with: CPU [activation](../../../../glossary.md#term-activation)/[vector](../../../../glossary.md#term-vector)/helper/[schema](../../../../glossary.md#term-schema) and generated-evidence writers.
 - Parallel group: None until a [Ready](../../../../glossary.md#term-ready) packet selects disjoint [ownership](../../../../glossary.md#term-ownership-meanings).
 - Common base revision: select after the project review closes.
-- Integration order: [oracle](../../../../glossary.md#term-test-oracle)/[shape](../../../../glossary.md#shape) correction → focused [validation](../../../../glossary.md#term-validation) → independent Class C review.
+- Integration order: [oracle](../../../../glossary.md#term-test-oracle)/shape correction → focused [validation](../../../../glossary.md#term-validation) → independent Class C review.
 - Integration validation: affected CPU tests/Javadoc, exact semantic/class checks, code-shape
   inspection, bounded timing evidence and documentation; no automatic repository-wide campaign.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - Shared-document integration [owner](../../../../glossary.md#term-owner): future coordinator.

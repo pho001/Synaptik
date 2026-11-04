@@ -44,9 +44,9 @@ time, apply user fallback policy, read or write a [cache](../../../../glossary.m
   memory, publication plan, constants, and diagnostics. <span data-glossary-navigation="true"> ([publication plan glossary](../../../../glossary.md#publication-plan); [constants glossary](../../../../glossary.md#term-constant))</span>`CpuBackendIntegration` supplies CPU
   analysis/finalization, source-only constant resources, and the sole complete schedule assembler.
 - CPU 0008D already enumerates at most 64 complete legal topology candidates from the canonical
-  split using existing contraction legality. Its <span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [canonical glossary](../../../../glossary.md#term-canonical-form); [contraction glossary](../../../../glossary.md#contraction-dimension))</span>`CpuFusionDecision.LegalCandidate` values carry
+  split using existing contraction legality. Its <span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>`CpuFusionDecision.LegalCandidate` values carry
   graph-identity-free topology, structural, resource, score, rank, canonical-split, and 0008B-
-  baseline facts. Legality rejections and incomplete enumeration are already explicit.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [graph glossary](../../../../glossary.md#graph); [identity glossary](../../../../glossary.md#term-identity-meanings); [rank glossary](../../../../glossary.md#term-rank))</span>
+  baseline facts. Legality rejections and incomplete enumeration are already explicit.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [graph glossary](../../../../glossary.md#graph); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - CPU 0008E already retains, per legal topology, the direct variant, eligible one-source copies,
   and eligible disjoint-two-source copies. It rejects a pair as `CO_CONSUMED_PAIR` when one
   represented instruction consumes both sources. Its immutable variant identities carry exact
@@ -66,7 +66,7 @@ time, apply user fallback policy, read or write a [cache](../../../../glossary.m
   variants, bind them to a Phase-1 result, or freshly prepare a specifically selected complete
   variant. Treating CPU 0010I local-route candidates as Phase-2 plans would repeat Phase-1 search.
 - Tools/tuning 0002 is therefore correctly `Blocked` and has no task specification. CPU 0016 is a
-  later cross-route local workload-cache generalization and is not this producer.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [generalization glossary](../../../../glossary.md#term-generalization); [producer glossary](../../../../glossary.md#term-producer))</span>
+  later cross-route local workload-cache generalization and is not this producer.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [producer glossary](../../../../glossary.md#term-producer))</span>
 
 No architecture conflict was found. This task implements the already authorized concrete-[backend](../../../../glossary.md#backend)
 candidate [ownership](../../../../glossary.md#term-ownership-meanings) and [opaque](../../../../glossary.md#term-opaque) Prepare [handoff](../../../../glossary.md#term-handoff) without changing `ARCHITECTURE.md`.
@@ -101,7 +101,7 @@ candidate [ownership](../../../../glossary.md#term-ownership-meanings) and [opaq
   finalized executable recipe, schedule, and immutable <span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [lifecycle glossary](../../../../glossary.md#lifecycle); [shape glossary](../../../../glossary.md#shape); [constant glossary](../../../../glossary.md#term-constant); [publication glossary](../../../../glossary.md#term-publication); [immutable glossary](../../../../glossary.md#term-immutable))</span>[`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution).
 - The batch order is stable: 0008D legal topology rank first, then direct, retained single-copy
   candidates in stable source order, then retained disjoint-pair candidates in lexicographic
-  source order. Deduplicate only by the exact existing typed variant identity.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [rank glossary](../../../../glossary.md#term-rank); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  source order. Deduplicate only by the exact existing typed variant identity.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Eligible zero-copy candidates include canonical split, the exact 0008B baseline when distinct,
   the 0008D ordinary selected topology, and every other retained legal fused/split topology.
   Eligible copied candidates are exactly the one-copy and disjoint-two-copy variants retained by
@@ -174,7 +174,7 @@ candidate [ownership](../../../../glossary.md#term-ownership-meanings) and [opaq
   mixed backends, zero-node/pass-through artifacts, or more than one Phase-1 occurrence<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [graph glossary](../../../../glossary.md#graph); [Planning glossary](../../../../glossary.md#term-planning); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [partition glossary](../../../../glossary.md#partition); [backends glossary](../../../../glossary.md#backend); [node glossary](../../../../glossary.md#node); [artifacts glossary](../../../../glossary.md#term-artifact); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - any new fusion contraction, recognition, legality rule, pointwise source eligibility, copy form,
   generated algorithm, emitter branch, route, provider, numerical mode, relaxed mathematics,
-  BFLOAT16 OpenBLAS, or vendor-peer route<span data-glossary-navigation="true"> ([fusion glossary](../../../../glossary.md#term-fusion); [contraction glossary](../../../../glossary.md#contraction-dimension); [pointwise glossary](../../../../glossary.md#term-pointwise); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [OpenBLAS glossary](../../../../glossary.md#term-openblas))</span>
+  BFLOAT16 OpenBLAS, or vendor-peer route<span data-glossary-navigation="true"> ([fusion glossary](../../../../glossary.md#term-fusion); [pointwise glossary](../../../../glossary.md#term-pointwise); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [OpenBLAS glossary](../../../../glossary.md#term-openblas))</span>
 - changing ordinary `CpuBackendIntegration.prepare`, `preparations`, or
   `CpuLocalWorkloadTuning`; ordinary preparation remains direct by default for 0008E and keeps the
   existing safe local-route heuristic<span data-glossary-navigation="true"> ([heuristic glossary](../../../../glossary.md#term-heuristic))</span>
@@ -449,7 +449,7 @@ or weaken this task's completeness.
 ## Acceptance criteria
 
 1. `CpuCompletePlanTuning` is the sole new supported top-level [CPU](../../../../glossary.md#term-cpu) type, is retained by
-   `CpuBackendIntegration`, and has exactly the public collaboration [shape](../../../../glossary.md#shape) specified above.
+   `CpuBackendIntegration`, and has exactly the public collaboration shape specified above.
 2. Its nested batch/decision adopt the existing method-free Prepare roles; no shared Prepare
    contract changes and no CPU internal type leaks through public signatures or Javadocs.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [signatures glossary](../../../../glossary.md#term-signature))</span>
 3. A complete batch contains every and only retained eligible 0008D/0008E variant in exact stable
@@ -704,7 +704,7 @@ criterion and the documentation pass succeed.
   backend candidate ownership and opaque Prepare transport without changing authority, module
   boundaries, dependency direction, or lifecycle order.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [opaque glossary](../../../../glossary.md#term-opaque); [Prepare glossary](../../../../glossary.md#prepare); [module glossary](../../../../glossary.md#term-module); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Public Tensor/Compile/Training and shared Prepare/Runtime API no-change conclusion: the feature
-  consumes current <span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Runtime glossary](../../../../glossary.md#term-runtime); [feature glossary](../../../../glossary.md#term-feature))</span>`CompileArtifacts`, method-free tuning roles, assignment/finalization, and
+  consumes current <span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Runtime glossary](../../../../glossary.md#term-runtime); [feature glossary](../../../../glossary.md#term-software-feature))</span>`CompileArtifacts`, method-free tuning roles, assignment/finalization, and
   `PreparedExecution` contracts without [widening](../../../../glossary.md#term-widening) them or changing [model](../../../../glossary.md#term-model)/training semantics.
 - Config, Engine, provider, generated-code, other backend-guide, architecture-test,
   backend-conformance, integration, build/Gradle, and generated-emitter no-change conclusion:

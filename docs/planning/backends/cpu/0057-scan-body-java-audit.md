@@ -1,4 +1,4 @@
-# CPU0057: [Scan](../../../glossary.md#term-cumulative-scan) reverse body versus equivalent Java
+# CPU0057: Scan reverse body versus equivalent Java
 
 ## Reader context
 
@@ -26,7 +26,7 @@ cannot be reconstructed from the summary tables.
 
 ## Purpose and conclusion
 
-This diagnostic explains where the current generated [Scan](../../../glossary.md#term-cumulative-scan) reverse differs from direct equivalent
+This diagnostic explains where the current generated Scan reverse differs from direct equivalent
 Java, and what the retained evidence can actually say about that difference. It is an offline
 report, not an [architecture contract](../../../glossary.md#architecture-contract), implementation approval, or new performance measurement.
 
@@ -34,7 +34,7 @@ The computation and checked memory-access counts match for the inspected [FLOAT3
 [bytecode](../../../glossary.md#term-bytecode) does not match instruction for instruction. A small, proved redundancy remains: adding
 a known-zero scratch base at two hot access sites. Omitting it would remove **44 additions at
 B=7 and 244 at B=32**, plus the same number of local loads, in these invocation domains.
-This is a code-[shape](../../../glossary.md#shape) opportunity only: [C2](../../../glossary.md#term-c2) may already fold it. It is not a demonstrated native
+This is a code-shape opportunity only: [C2](../../../glossary.md#term-c2) may already fold it. It is not a demonstrated native
 cost or a promised fix for an approximately 30% timing gap.
 
 The retained just-in-time [compiler](../../../glossary.md#term-compiler) ([JIT](../../../glossary.md#term-just-in-time-compilation-jit)) [logs](../../../glossary.md#commit-release-distribution-log-and-seed-meanings) show successful normal-entry C2 [compilation](../../../glossary.md#compiler-engine-and-execution-stage-names) for
@@ -45,7 +45,7 @@ temporary-local counts, and [C1](../../../glossary.md#term-c1) compilation failu
 
 ## [Mental model](../../../glossary.md#term-mental-model) and comparison boundary
 
-A [Scan](../../../glossary.md#term-cumulative-scan) repeats a body over time. Its reverse consumes saved forward values rather than
+A Scan repeats a body over time. Its reverse consumes saved forward values rather than
 recomputing [activations](../../../glossary.md#term-activation). Here the local activation [adjoint](../../../glossary.md#term-adjoint) is the [derivative](../../../glossary.md#term-derivative) contribution at
 one active row/[feature](../../../glossary.md#term-feature); `dh`, `dX`, `dW`, `dU`, and `db` are cotangents of initial [carry](../../../glossary.md#term-carry), sequence,
 input [weights](../../../glossary.md#term-weight), recurrent weights, and [bias](../../../glossary.md#term-bias) respectively.
@@ -220,7 +220,7 @@ The raw dh copy also adds a known-zero base 2B times (14/64); dX zero-fill has e
 
 G computes two time-frame products before its active-time gate; E computes them after it.
 In these domains both perform eight such products, so the delta is zero. For all-zero lengths,
-E returns after the maximum [scan](../../../glossary.md#term-cumulative-scan), whereas G still walks T with address/control setup while
+E returns after the maximum scan, whereas G still walks T with address/control setup while
 skipping body loads and floating arithmetic. That separate case is not in the hot-count table.
 E also retains a direction branch and `Math.max`; G bakes direction and emits a comparison.
 Neither is hidden extra generated dispatch.
@@ -363,7 +363,7 @@ Any future change also needs separately authorized [identity](../../../glossary.
 This recommendation does not claim removal of every address temporary or [MATMUL](../../../glossary.md#matrix-multiplication--matmul) base addition.
 
 The inactive-cursor schedule is an additional observation, not a second implementation request.
-Before attributing the timing gap to either [shape](../../../glossary.md#shape), the missing evidence is the exact relevant
+Before attributing the timing gap to either shape, the missing evidence is the exact relevant
 normal G/E native instruction/[dataflow](../../../glossary.md#term-dataflow), its executed-path relevance, and [sample](../../../glossary.md#term-sample-machine-learning-and-hyperparameters)-to-version/uptime
 correlation. Existing [logs](../../../glossary.md#commit-release-distribution-log-and-seed-meanings) cannot supply those facts. No new [run](../../../glossary.md#term-run) or benchmark campaign is approved
 or requested by this report.

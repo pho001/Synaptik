@@ -8,9 +8,9 @@ represented absolute summation, whereas L2 uses scaled squares and a final squar
 `CpuAdvancedReductionIr` and `CpuAdvancedReductionLowering.Geometry` share identity and addressing
 infrastructure without merging those algorithms.
 
-Here, Prepare validates carriers and complete-cell ownership before writes, declares L1's isolated
-per-range exact-state slices, and binds immutable typed entries. That scratch belongs to the run,
-not persistent model state; L2 declares none. Class-File/member and hot-loop checks provide
+Here, CPU analysis selects structural carrier/layout forms and declares L1's isolated per-range
+exact-state slices; finalization constructs an immutable prepared executable recipe. Runtime later
+calls the CPU binder on current run storage to validate carriers and create a per-run bound invocation; L2 needs no scratch. Scratch is run-owned, not persistent model state. Class-File/member and hot-loop checks provide
 structural evidence. `CpuAdvancedReductionReferenceKernel` provides independent semantic evidence
 without consuming lowering geometry, packed invocation data, generated helpers, or exact-state
 workspace.
@@ -148,7 +148,7 @@ immutable invocation, inventory, and generated-evidence owners. That is greater 
 retaining the verified route.
 
 Source, generated-Class-File, and test-owner inspection found that the selected route retains
-the required hot-loop [shape](../../../../glossary.md#shape): typed carrier loads and final typed store are emitted directly;
+the required hot-loop shape: typed carrier loads and final typed store are emitted directly;
 generated artifacts have one typed static entry and no Synaptik member references, fields,
 bootstrap methods, reflection, collection/map [ownership](../../../../glossary.md#term-ownership-meanings), or per-[element](../../../../glossary.md#term-element) semantic [dispatch](../../../../glossary.md#term-dispatch).
 The generated L1 body resets and uses only its invocation-private exact-state slice, classifies

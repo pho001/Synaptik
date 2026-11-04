@@ -27,7 +27,7 @@ Complete
 
 Replace the rejected per-cell/per-block flat-ordinal decode with generated [Conv2d](../../../../glossary.md#convolution--conv2d)/[Conv3d](../../../../glossary.md#conv3d--ncdhw) nested
 loops that match an optimal specialized clean Java [Vector API](../../../../glossary.md#term-vector-api) [oracle](../../../../glossary.md#term-test-oracle) in semantic algorithm,
-loop/[dataflow](../../../../glossary.md#term-dataflow) [shape](../../../../glossary.md#shape), and avoidable-overhead profile. Select the existing output-width [SIMD](../../../../glossary.md#simd) form
+loop/[dataflow](../../../../glossary.md#term-dataflow) shape, and avoidable-overhead profile. Select the existing output-width [SIMD](../../../../glossary.md#simd) form
 only after the fixed evidence gates pass. Stage A may generate a test/evidence-only provisional
 [schema](../../../../glossary.md#term-schema)-63 class with an [identity](../../../../glossary.md#term-identity-meanings) distinct from [scalar](../../../../glossary.md#term-scalar) while schema 62 remains current; it cannot
 be a production route or [artifact](../../../../glossary.md#term-artifact). Otherwise retain the bounded scalar stop and schema 62.

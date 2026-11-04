@@ -28,7 +28,7 @@ No source/measurement frontier or automatic successor is authorized.
 
 ## Goal, [scope](../../../../glossary.md#term-scope) and exclusions
 
-Emit the ordinary compiled body under [Scan](../../../../glossary.md#term-cumulative-scan) traversal/[bindings](../../../../glossary.md#term-binding), without duplicate Scan math.
+Emit the ordinary compiled body under Scan traversal/[bindings](../../../../glossary.md#term-binding), without duplicate Scan math.
 Share current [pointwise](../../../../glossary.md#term-pointwise) composition/[normalization](../../../../glossary.md#term-normalization) and aggregate [ownership](../../../../glossary.md#term-ownership-meanings) through CPU0071's seam.
 Retain distinct ordinary exact SUM/[MEAN](../../../../glossary.md#term-mean) and Scan sequential SUM; retire the Scan reducer after closure.
 
@@ -50,7 +50,7 @@ Read AGENTS, CPU0071's [seam](0071-common-matmul-binding-foundation.md#implement
 [CPU routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span> and
 [Accepted ordinary symbolic-batch CPU contract](../../../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>;
 backend [CPU0071 approved static MATMUL compatibility cutover](../../../../architecture/contracts/backend-execution.md#cpu0071-approved-static-matmul-compatibility-cutover)<span data-glossary-navigation="true"> ([MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul))</span>;
-[Scan](../../../../glossary.md#term-cumulative-scan) [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
+Scan [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
 [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>,
 [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic),
 [Empty domains and numeric resources](../../../../architecture/contracts/recurrent-scan.md#empty-domains-and-numeric-resources),
@@ -62,7 +62,7 @@ and [Runtime preflight and implementation gates](../../../../architecture/contra
 and [Run lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#run-lifecycle)<span data-glossary-navigation="true"> ([Run glossary](../../../../glossary.md#term-run))</span>.
 
 MAIN approved helpers, retention/evidence policy and base on 2026-10-29. No production type,
-public [signature](../../../../glossary.md#term-signature) or Runtime [handoff](../../../../glossary.md#term-handoff) changed. A necessary type/handoff/byte-[shape](../../../../glossary.md#shape)/namespace change
+public [signature](../../../../glossary.md#term-signature) or Runtime [handoff](../../../../glossary.md#term-handoff) changed. A necessary type/handoff/byte-shape/namespace change
 would require explicit user approval before implementation. `CpuAggregateIr.Kind.SUM` exact-state
 guards remain mandatory; CPU0071's exception permits no further cutover or [schema](../../../../glossary.md#term-schema)/version change.
 
@@ -70,7 +70,7 @@ guards remain mandatory; CPU0071's exception permits no further cutover or [sche
 
 - Depends on: MAIN-accepted Complete CPU0064/0065/0070/0071, Compiler0015/0016 and Prepare0015;
   independent planning approval and MAIN Ready/GO satisfied before the completed implementation.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning); [Ready glossary](../../../../glossary.md#term-ready))</span>
-- Conflicts with: common [pointwise](../../../../glossary.md#term-pointwise)/aggregate/[carrier](../../../../glossary.md#term-storage-carrier)/[Scan](../../../../glossary.md#term-cumulative-scan)/[cache](../../../../glossary.md#term-cache)/resource and CPU0048–0052 writers.
+- Conflicts with: common [pointwise](../../../../glossary.md#term-pointwise)/aggregate/[carrier](../../../../glossary.md#term-storage-carrier)/Scan/[cache](../../../../glossary.md#term-cache)/resource and CPU0048–0052 writers.
 - Parallel group: None; clean sole implementation writer, independent targeted review.
 - Common base revision: HEAD=origin/main `07a281edd3086efde2853211b71b48288db027e1` plus accepted
   dirty work; MAIN snapshot <span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot))</span>`/private/tmp/synaptik-cpu-repairs.8TWk5O/cpu72-start.json` (2533 files,
@@ -92,7 +92,7 @@ Implemented package-local seams: `CpuPartitionLowering.validatePointwise` and
 `CpuAggregateLowering.normalizedAxes/reductionForm/keepDimensions` share current [pointwise](../../../../glossary.md#term-pointwise) and
 exact [Dimension](../../../../glossary.md#dimension)/[axis](../../../../glossary.md#term-axis)/[target](../../../../glossary.md#term-target) facts, reusing existing [opcode](../../../../glossary.md#term-opcode)/immediate/[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)-access [normalization](../../../../glossary.md#term-normalization).
 `CpuClassFileKernelGenerator.emitBoundPointwise` orders ordinary [scalar](../../../../glossary.md#term-scalar)/[vector](../../../../glossary.md#term-vector) and flat/Shaped
-[Scan](../../../../glossary.md#term-cumulative-scan) loads/math/stores; `CpuAggregateEmitter.emitRepresentedSum` owns sequential reset/fold/tail.
+Scan loads/math/stores; `CpuAggregateEmitter.emitRepresentedSum` owns sequential reset/fold/tail.
 The reviewed [signatures](../../../../glossary.md#term-signature) remain in the frozen source [manifest](../../../../glossary.md#term-manifest) below; no package/type/public [API](../../../../glossary.md#term-application-programming-interface-api) added.
 The [binding/evidence policy](../existing-emitter-composition-plan.md#cpu0072-extraction-and-evidence-policy)<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding))</span>
 preserves entry versus producing-site stores, raw/direct-[singleton](../../../../glossary.md#term-singleton) bytes and generation-only
@@ -102,7 +102,7 @@ filtering/count/resources stay in `BatchGeometry.bind`; [IR](../../../../glossar
 ## Acceptance criteria
 
 1. Both callers use common instruction/axis/target normalization and bound family emission;
-   remove duplicated Scan cases as they qualify. Common math accepts no Scan <span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis); [target glossary](../../../../glossary.md#term-target); [normalization glossary](../../../../glossary.md#term-normalization); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>`Shaped` semantic
+   remove duplicated Scan cases as they qualify. Common math accepts no Scan <span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis); [target glossary](../../../../glossary.md#term-target); [normalization glossary](../../../../glossary.md#term-normalization))</span>`Shaped` semantic
    owner and does not delegate to a renamed Scan reduction. Remove <span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>`CpuGeneralScanReductionEmitter`
    after complete current forward/actual-reverse closure. Other inventory families stay untouched.
 2. Ordinary SUM/[MEAN](../../../../glossary.md#term-mean) retain `CpuExactSumEmitter` and guarded exact forms, one final rounding and
@@ -126,7 +126,7 @@ filtering/count/resources stay in `BatchGeometry.bind`; [IR](../../../../glossar
 6. Independently qualify retained static/symbolic/length F32/F64 forward/actual Compiler reverse:
    current read/write predicates, mixed roles, empty K/T/B/features, 64→40→1→64 reuse, poison
    padding, saved sites, aliases/overflow, preflight-before-writes, retry/close/concurrency.
-   Unsupported interior/binder/dtype/layout cases still reject, including symbolic all-valid F64.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [features glossary](../../../../glossary.md#term-software-feature); [padding glossary](../../../../glossary.md#padding); [aliases glossary](../../../../glossary.md#aliasing-and-arena); [overflow glossary](../../../../glossary.md#term-overflow); [preflight glossary](../../../../glossary.md#term-preflight); [concurrency glossary](../../../../glossary.md#term-concurrency); [dtype glossary](../../../../glossary.md#data-type--datatype))</span>
+   Unsupported interior/binder/dtype/layout cases still reject, including symbolic all-valid F64.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [features glossary](../../../../glossary.md#term-feature); [padding glossary](../../../../glossary.md#padding); [aliases glossary](../../../../glossary.md#aliasing-and-arena); [overflow glossary](../../../../glossary.md#term-overflow); [preflight glossary](../../../../glossary.md#term-preflight); [concurrency glossary](../../../../glossary.md#term-concurrency); [dtype glossary](../../../../glossary.md#data-type--datatype))</span>
 7. Preserve pre-slot/zero-byte requirements, canonical keys, both identity streams, binary names,
    ABI/packs and ALL generated bytes: schema/family 71, shaped-v4, static MATMUL-v5, static length-v1/
    retained-MATMUL-v2, symbolic-v3, combined-v9, pointwise/fixed/ordinary batch-v1/typed-v1.
@@ -175,7 +175,7 @@ Targeted glossary review found no new meaning. No contract, [ADR](../../../../gl
 
 Completed 2026-10-29: common facts-only [normalization](../../../../glossary.md#term-normalization), ordinary [scalar](../../../../glossary.md#term-scalar)/[vector](../../../../glossary.md#term-vector) and flat/Shaped
 [pointwise](../../../../glossary.md#term-pointwise) composition, common represented-sequential SUM; ordinary exact SUM/[MEAN](../../../../glossary.md#term-mean) retained.
-Six production [owners](../../../../glossary.md#term-owner) changed; [Scan](../../../../glossary.md#term-cumulative-scan) reducer retired, recoverable from MAIN's [immutable](../../../../glossary.md#term-immutable) before-source.
+Six production [owners](../../../../glossary.md#term-owner) changed; Scan reducer retired, recoverable from MAIN's [immutable](../../../../glossary.md#term-immutable) before-source.
 The 16-path source-owned freeze is `/private/tmp/synaptik-cpu0072-source-freeze.YHQXJ1/source-freeze-final.json`;
 it covers seven production paths, six test paths, one frozen TSV, [CPU](../../../../glossary.md#term-cpu) guide and this brief.
 Evidence root `/private/tmp/synaptik-cpu0072-evidence.TU1EmY`: 278 whole ClassFiles/both [identity](../../../../glossary.md#term-identity-meanings)

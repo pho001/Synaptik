@@ -1,4 +1,4 @@
-# Task CPU0037: General-[scan](../../../../glossary.md#term-cumulative-scan) dense actual read [views](../../../../glossary.md#term-view-meanings)
+# Task CPU0037: General-scan dense actual read [views](../../../../glossary.md#term-view-meanings)
 
 ## Reader context — historical integration boundary
 
@@ -25,12 +25,12 @@ CPU frontier None; no successor or migration launch. Main's final preservation e
 
 ## Change class
 
-Class C — [backend](../../../../glossary.md#backend) [admission](../../../../glossary.md#term-admission) at generated-loop read/resource boundaries. Main [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) a clean
+Class C — [backend](../../../../glossary.md#backend) [admission](../../../../glossary.md#term-admission) at generated-loop read/resource boundaries. Main coordinates a clean
 implementation context and independent final code/docs/[Javadoc](../../../../glossary.md#term-javadoc) review; serial writers only.
 
 ## Goal and [scope](../../../../glossary.md#term-scope)
 
-Admit [homogeneous](../../../../glossary.md#term-homogeneous) [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) actual general-[Scan](../../../../glossary.md#term-cumulative-scan) reads with resolved [layout](../../../../glossary.md#layout), offset zero
+Admit [homogeneous](../../../../glossary.md#term-homogeneous) [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) actual general-Scan reads with resolved [layout](../../../../glossary.md#layout), offset zero
 and [strides](../../../../glossary.md#term-stride) exactly equal to `LayoutDescriptor.contiguous(shape).strides()`, even with `isView=true`.
 Apply to all existing [pointwise](../../../../glossary.md#term-pointwise), shaped and [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) families and actual initial-[carry](../../../../glossary.md#term-carry), sequence and
 [invariant](../../../../glossary.md#term-invariant) roles, including independently qualified actual [Compiler](../../../../glossary.md#term-compiler) reverse [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings)/saved/[primal](../../../../glossary.md#term-primal) reads.
@@ -59,7 +59,7 @@ Read `AGENTS.md`, this brief, affected source/tests and the root [scope](../../.
   [Core lifecycle](../../../../../ARCHITECTURE.md#core-lifecycle)<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle))</span>, [Core invariants](../../../../../ARCHITECTURE.md#core-invariants),
   [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>, [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements),
   [Documentation authority and architecture updates](../../../../../ARCHITECTURE.md#documentation-authority-and-architecture-updates).
-- [Scan](../../../../glossary.md#term-cumulative-scan) [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
+- Scan [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
   [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>,
   [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>,
   [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates).
@@ -77,7 +77,7 @@ precede code. Missing/ambiguous authority or any expansion requires a stop/main 
 - Depends on: CPU0036 Complete, including CPU0030–0035, Model0034/0035, Planning0008,
   Compiler0011/0012, Prepare0010 and accepted low-level join; their Results/reviews/gates verified.
 - Conflicts with: all scan admission/emitter/IR/binding/resource/identity and shared-authority/doc
-  writers; NN0032 migration remains Draft, no conflicting executor active at preparation.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [admission glossary](../../../../glossary.md#term-admission); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [binding glossary](../../../../glossary.md#term-binding); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  writers; NN0032 migration remains Draft, no conflicting executor active at preparation.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [binding glossary](../../../../glossary.md#term-binding); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Parallel group: None; no concurrent writes.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`, empty index,
   plus 293 accepted dirty paths/2421 listed files before this packet; accepted uncommitted work,
@@ -123,7 +123,7 @@ Current tests provide source/query, generated-[artifact](../../../../glossary.md
 3. Real Conv1d-prefix → explicit Scan RNN equation forward AND actual Compiler reverse execute
    against independent ordinary unrolling in F32/F64. Check outputs and numeric gradients for
    recurrent W/U/b and trainable prefix/input targets where connected, using the same owned leaves.
-   Include non-gradient zero h0 and non-square geometry; do not alter ModelBuilder <span data-glossary-navigation="true"> ([leaves glossary](../../../../glossary.md#term-leaf))</span><span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [Compiler glossary](../../../../glossary.md#term-compiler); [unrolling glossary](../../../../glossary.md#term-unrolling); [gradients glossary](../../../../glossary.md#term-gradient); [targets glossary](../../../../glossary.md#term-target))</span>`.rnn`.
+   Include non-gradient zero h0 and non-square geometry; do not alter ModelBuilder <span data-glossary-navigation="true"> ([leaves glossary](../../../../glossary.md#term-leaf))</span><span data-glossary-navigation="true"> ([RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [Compiler glossary](../../../../glossary.md#term-compiler); [unrolling glossary](../../../../glossary.md#term-unrolling); [gradients glossary](../../../../glossary.md#term-gradient); [targets glossary](../../../../glossary.md#term-target))</span>`.rnn`.
 4. A real singleton CONCAT on the Scan output creates the actual dense view reverse seed; execute
    its generated reverse and compare numeric gradients with ordinary unrolling. A fabricated
    backward body/provider-only assertion is insufficient for either source regression.<span data-glossary-navigation="true"> ([singleton glossary](../../../../glossary.md#term-singleton); [seed glossary](../../../../glossary.md#term-seed); [regression glossary](../../../../glossary.md#term-regression))</span>
@@ -165,7 +165,7 @@ No [Gradle](../../../../glossary.md#term-gradle)/executable validation was run b
 
 ## Documentation and review impact
 
-Root/sole recurrent-[scan](../../../../glossary.md#term-cumulative-scan) [owner](../../../../glossary.md#term-owner), [backend](../../../../glossary.md#backend)-execution pointer, ADR0048 and both focused explanations
+Root/sole recurrent-scan [owner](../../../../glossary.md#term-owner), [backend](../../../../glossary.md#backend)-execution pointer, ADR0048 and both focused explanations
 are finalized; Newton's independent source/test/docs/[Javadoc](../../../../glossary.md#term-javadoc) review accepted, no Java review edits.
 Main owns this brief, [CPU](../../../../glossary.md#term-cpu) master, factual NN0032/[NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) master, general-scan program and roadmap closure.
 NN/fluent/[persistence](../../../../glossary.md#term-persistence)/Training authority unchanged. General/[planning](../../../../glossary.md#term-planning)/architecture/[ADR](../../../../glossary.md#term-architecture-decision-record-adr)/backend

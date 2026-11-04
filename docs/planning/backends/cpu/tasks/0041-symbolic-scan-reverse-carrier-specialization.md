@@ -56,7 +56,7 @@ length-mode, [backend](../../../../glossary.md#backend)/[dtype](../../../../glos
   [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([Scope glossary](../../../../glossary.md#term-scope); [normative glossary](../../../../glossary.md#term-normative))</span>.
 - [Backend](../../../../glossary.md#backend) execution [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling)
   and [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>.
-- Recurrent [scan](../../../../glossary.md#term-cumulative-scan) [Accepted symbolic-batch scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>,
+- Recurrent scan [Accepted symbolic-batch scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>,
   including **Symbolic templates, roles and ports**, **Actual first-order closure and arithmetic**,
   **Empty domains and numeric resources**, and **[Qualification](../../../../glossary.md#term-qualification) and mechanism gates**.
 
@@ -69,7 +69,7 @@ These current contracts govern; stop on architectural ambiguity rather than inve
   [CPU0037](0037-general-scan-dense-read-views.md#result),
   [Prepare0014](../../../modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md#result); all Complete.
 - Conflicts with: Scan emitter/carrier/IR/identity, admission/resources/binding, shared contracts/docs,
-  and every performance task; serialize these scopes, no competing writer or performance run.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [carrier glossary](../../../../glossary.md#term-storage-carrier); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [identity glossary](../../../../glossary.md#term-identity-meanings); [binding glossary](../../../../glossary.md#term-binding); [run glossary](../../../../glossary.md#term-run))</span>
+  and every performance task; serialize these scopes, no competing writer or performance run.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [identity glossary](../../../../glossary.md#term-identity-meanings); [binding glossary](../../../../glossary.md#term-binding); [run glossary](../../../../glossary.md#term-run))</span>
 - Parallel group: None; serial writer handoffs need no worktree; read-only audit may overlap.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
   plus accepted dirty work, not HEAD ownership or merged predecessors; index empty.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
@@ -123,7 +123,7 @@ CpuSymbolicScanPhaseDiagnosticTest.java 43dea472afc9ad58898077be3e5c91faaf204b4e
   CPU0040's report <span data-glossary-navigation="true"> ([dataflow glossary](../../../../glossary.md#term-dataflow))</span>`/private/tmp/synaptik-cpu0040-main.P3w6A4/report.txt` is the starting evidence:
   generated reverse dW/dX dH.get BCIs 570/763 retain type/bounds/session checks and +1 contributor
   backedges versus direct +4 without inner FFM guards; helpers inline, no measured C2 invalidation.
-  Packed-time causality is unproved: checked dH uses row<span data-glossary-navigation="true"> ([FFM glossary](../../../../glossary.md#term-ffm); [C2 glossary](../../../../glossary.md#term-c2))</span>*128+column*4; frame-dependent X is [guard](../../../../glossary.md#term-guard)-free.
+  Packed-time causality is unproved: checked dH uses row*128+column*4; frame-dependent X is [guard](../../../../glossary.md#term-guard)-free.
 - Preserve actual Compiler-generated reverse outputs, saved bits, both traversals/seeds, B=0/1,
   T=0, mixed-B reuse/isolation, shared gradients, aliases, checked bounds and session/lifetime safety.
   Reuse existing matrix coverage; add the precise regression, not a new performance matrix.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [gradients glossary](../../../../glossary.md#term-gradient); [aliases glossary](../../../../glossary.md#aliasing-and-arena); [lifetime glossary](../../../../glossary.md#term-lifetime); [matrix glossary](../../../../glossary.md#term-matrix-meanings); [regression glossary](../../../../glossary.md#term-regression))</span>
@@ -135,7 +135,7 @@ CpuSymbolicScanPhaseDiagnosticTest.java 43dea472afc9ad58898077be3e5c91faaf204b4e
   unchanged. If static bytes must change, stop for scope review, never update their pins to pass.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [scope glossary](../../../../glossary.md#term-scope))</span>
 - Final actual code and all three phase results are reported honestly, including residual gap,
   regression, incomplete C2/decode coverage or censorship. Correctness alone does not close the
-  requested performance issue; do not label a partial result parity or silently mark it solved.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  requested performance issue; do not label a partial result parity or silently mark it solved.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 
 ## [Validation](../../../../glossary.md#term-validation)
 
@@ -149,7 +149,7 @@ JDK_JAVA_OPTIONS='--add-modules=jdk.incubator.vector' ./gradlew --no-daemon --no
 ```
 
 MAIN owns the third command once and the final fresh measured test [JVM](../../../../glossary.md#term-java-virtual-machine-jvm). At most ONE development
-[C2](../../../../glossary.md#term-c2) [capture](../../../../glossary.md#term-capture-meanings) is allowed only if the source cause needs it; worker [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) with MAIN BEFORE
+[C2](../../../../glossary.md#term-c2) [capture](../../../../glossary.md#term-capture-meanings) is allowed only if the source cause needs it; worker coordinates with MAIN BEFORE
 launch. No concurrent performance tasks, automatic retry, extra [fork](../../../../glossary.md#term-fork-meanings) or adaptive extension.
 MAIN creates an external `CPU0041_EVIDENCE` directory and targeted [compile](../../../../glossary.md#compile)-command file for actual
 post-fix generated [identities](../../../../glossary.md#term-identity-meanings), unchanged Java phases/original joint [oracle](../../../../glossary.md#term-test-oracle) and effective wrappers.
@@ -171,7 +171,7 @@ Validate four [immutable](../../../../glossary.md#term-immutable) hashes, scoped
 
 Peirce independently approved final source/tests/[Javadoc](../../../../glossary.md#term-javadoc)/docs and the final evidence audit with
 no findings/P1/P2; successful executable evidence was reused. MAIN coordinated the three current
-symbolic-v3 paragraphs in root Core invariants, [backend](../../../../glossary.md#backend) [CPU](../../../../glossary.md#term-cpu) routes and the general-[scan](../../../../glossary.md#term-cumulative-scan) explanation.
+symbolic-v3 paragraphs in root Core invariants, [backend](../../../../glossary.md#backend) [CPU](../../../../glossary.md#term-cpu) routes and the general-scan explanation.
 Existing Javadoc remains accurate with no Java comment edits; final generation passed afterward.
 Targeted guide/glossary review required no broader rewrite, glossary change or [ADR](../../../../glossary.md#term-architecture-decision-record-adr). [Planning](../../../../glossary.md#term-planning)/general
 profiles govern this closure; no architecture redesign, new type/[API](../../../../glossary.md#term-application-programming-interface-api)/[Runtime](../../../../glossary.md#term-runtime) [handoff](../../../../glossary.md#term-handoff) or unsafe route.

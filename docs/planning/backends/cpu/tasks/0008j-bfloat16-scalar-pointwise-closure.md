@@ -33,7 +33,7 @@ and failure behavior while making every BFLOAT16-producing logical [operation](.
 [round-to-nearest](../../../../glossary.md#floating-point-precision-and-rounding)-[ties-to-even](../../../../glossary.md#term-ties-to-even) exactly once into BFLOAT16 at that operation boundary.
 
 Directly generated Class-Files must match an optimal clean-Java implementation of the same
-specialized case in semantic algorithm, hot-loop and [dataflow](../../../../glossary.md#term-dataflow) [shape](../../../../glossary.md#shape), and avoidable-overhead
+specialized case in semantic algorithm, hot-loop and [dataflow](../../../../glossary.md#term-dataflow) shape, and avoidable-overhead
 profile. This task adds no [Vector API](../../../../glossary.md#term-vector-api) BFLOAT16 route and no generic fallback.
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -98,7 +98,7 @@ input and [exponent](../../../../glossary.md#term-exponent) is the right/scalar 
 ### Carriers, [layouts](../../../../glossary.md#layout), ranges, and [fusion](../../../../glossary.md#term-fusion)
 
 - Support `short[]`, native-order writable/readable [`MemorySegment`](../../../../glossary.md#term-memorysegment), and legal mixed array/segment
-  boundary assignments through the existing typed generated entry shape. BOOL outputs retain<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [BOOL glossary](../../../../glossary.md#data-type--datatype))</span>
+  boundary assignments through the existing typed generated entry shape. BOOL outputs retain<span data-glossary-navigation="true"> ([BOOL glossary](../../../../glossary.md#data-type--datatype))</span>
   `byte[]`/segment carriers. Do not add `Object` bridges or [carrier](../../../../glossary.md#term-storage-carrier) conversion [buffers](../../../../glossary.md#term-buffer).
 - Retain all currently supported [pointwise](../../../../glossary.md#term-pointwise) access regimes: `DENSE_LINEAR`; read-only
   `SCALAR_ALL_ZERO`; `LAST_AXIS_BIAS`; `BLOCK_OUTER`; and `GENERAL_ODOMETER`. Preserve right-
@@ -117,7 +117,7 @@ input and [exponent](../../../../glossary.md#term-exponent) is the right/scalar 
   local invariant, reject that contraction and retain CPU 0008B's deterministic materialized split.
   If even the bounded split topology cannot be represented, capability/preparation fails closed
   before declaration or artifact lookup. Never silently keep a FLOAT32 virtual intermediate,
-  disable a required encode/decode, or route to a generic/reference fallback.<span data-glossary-navigation="true"> ([fused glossary](../../../../glossary.md#specialization-and-fusion); [topology glossary](../../../../glossary.md#term-topology); [invariant glossary](../../../../glossary.md#term-invariant); [contraction glossary](../../../../glossary.md#contraction-dimension); [CPU glossary](../../../../glossary.md#term-cpu); [artifact glossary](../../../../glossary.md#term-artifact); [lookup glossary](../../../../glossary.md#term-lookup); [FLOAT32 glossary](../../../../glossary.md#term-float32))</span>
+  disable a required encode/decode, or route to a generic/reference fallback.<span data-glossary-navigation="true"> ([fused glossary](../../../../glossary.md#specialization-and-fusion); [topology glossary](../../../../glossary.md#term-topology); [invariant glossary](../../../../glossary.md#term-invariant); [CPU glossary](../../../../glossary.md#term-cpu); [artifact glossary](../../../../glossary.md#term-artifact); [lookup glossary](../../../../glossary.md#term-lookup); [FLOAT32 glossary](../../../../glossary.md#term-float32))</span>
 
 ### [Schema](../../../../glossary.md#term-schema), [artifacts](../../../../glossary.md#term-artifact), evidence, and documentation
 
@@ -183,7 +183,7 @@ input and [exponent](../../../../glossary.md#term-exponent) is the right/scalar 
   operation, layout, route, cache, resource, and worker interpretation.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [operation glossary](../../../../glossary.md#operation); [layout glossary](../../../../glossary.md#layout); [cache glossary](../../../../glossary.md#term-cache))</span>
 - The optimal clean-Java specialized implementation is the design and review oracle. Any generated
   deviation in semantic algorithm, per-node BFLOAT16 round-trip, hot-loop/dataflow shape, or
-  avoidable overhead needs an explicit technical reason and supporting evidence; otherwise stop.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [node glossary](../../../../glossary.md#node); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [round-trip glossary](../../../../glossary.md#schema-serialization-and-checkpoint); [dataflow glossary](../../../../glossary.md#term-dataflow); [shape glossary](../../../../glossary.md#shape))</span>
+  avoidable overhead needs an explicit technical reason and supporting evidence; otherwise stop.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [node glossary](../../../../glossary.md#node); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [round-trip glossary](../../../../glossary.md#schema-serialization-and-checkpoint); [dataflow glossary](../../../../glossary.md#term-dataflow))</span>
 - If a proposed BFLOAT16 operation lacks a complete current Model contract, exclude it and report
   the prerequisite. Do not infer semantics from a draft planning row.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 
@@ -409,7 +409,7 @@ on architecture, Model-contract, oracle-equivalence, fusion-rounding, or path-bu
   verifies completely. Five exact generated descriptors cover GELU over arrays, POW over segments,
   mixed general CLAMP, broadcast comparison to BOOL, and fused WHERE. Every generated and direct
   scan passed: each generated class is final and field-free with exactly one typed static entry;
-  there are no forbidden references, allocation, boxing, reflection, dynamic dispatch, or generic<span data-glossary-navigation="true"> ([artifact manifest glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [descriptors glossary](../../../../glossary.md#term-descriptor); [GELU glossary](../../../../glossary.md#gaussian-error-linear-unit--gelu); [BOOL glossary](../../../../glossary.md#data-type--datatype); [fused glossary](../../../../glossary.md#specialization-and-fusion); [scan glossary](../../../../glossary.md#term-cumulative-scan); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
+  there are no forbidden references, allocation, boxing, reflection, dynamic dispatch, or generic<span data-glossary-navigation="true"> ([artifact manifest glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [descriptors glossary](../../../../glossary.md#term-descriptor); [GELU glossary](../../../../glossary.md#gaussian-error-linear-unit--gelu); [BOOL glossary](../../../../glossary.md#data-type--datatype); [fused glossary](../../../../glossary.md#specialization-and-fusion); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
   `Object` carriers. Complete direct timed source, class, and `javap` output are retained.
 - Every row in every accepted [fork](../../../../glossary.md#term-fork-meanings) passed the `<= 1.15x` generated/direct gate. Median-of-five
   ratios are <span data-glossary-navigation="true"> ([Median glossary](../../../../glossary.md#term-median))</span>`0.9334689173615348` for `GELU_ARRAY`, `1.093502884572582` for `POW_SEGMENT`,
@@ -442,7 +442,7 @@ on architecture, Model-contract, oracle-equivalence, fusion-rounding, or path-bu
   arithmetic-producing logical DAG node performs exactly one inline ties-to-even/canonical-NaN
   encode before any fused consumer. <span data-glossary-navigation="true"> ([BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag); [node glossary](../../../../glossary.md#node); [ties-to-even glossary](../../../../glossary.md#term-ties-to-even); [canonical glossary](../../../../glossary.md#term-canonical-form); [NaN glossary](../../../../glossary.md#term-nan); [fused glossary](../../../../glossary.md#specialization-and-fusion))</span>`WHERE` copies selected raw bits; comparisons and
   classifications emit canonical BOOL. Any unproved contraction retains the deterministic legal
-  split or fails closed.<span data-glossary-navigation="true"> ([raw bits glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [BOOL glossary](../../../../glossary.md#data-type--datatype); [contraction glossary](../../../../glossary.md#contraction-dimension))</span>
+  split or fails closed.<span data-glossary-navigation="true"> ([raw bits glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [BOOL glossary](../../../../glossary.md#data-type--datatype))</span>
 - Schema 59 applies only to BFLOAT16 pointwise projections. Older projections and generated bytes
   remain unchanged and older envelopes are safe misses.<span data-glossary-navigation="true"> ([Schema glossary](../../../../glossary.md#term-schema); [pointwise glossary](../../../../glossary.md#term-pointwise))</span>
 - Architecture/current-plan/ADR/architecture-test conclusion: no ownership, module boundary,

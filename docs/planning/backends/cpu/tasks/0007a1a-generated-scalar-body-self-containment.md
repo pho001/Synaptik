@@ -192,7 +192,7 @@ This task may create or modify at most:
 
 - 8 production Java/package-contract paths, including at most one new package-private
   generation-time emitter;
-- 10 Java test paths, including at most one new focused generated-[shape](../../../../glossary.md#shape) test;
+- 10 Java test paths, including at most one new focused generated-shape test;
 - 5 documentation/[planning](../../../../glossary.md#term-planning) paths; and
 - 23 repository paths total.
 
@@ -309,7 +309,7 @@ approved and recorded.
 
 Expected impact: None.
 
-This task tightens generated implementation [shape](../../../../glossary.md#shape) inside the existing [CPU](../../../../glossary.md#term-cpu) [backend](../../../../glossary.md#backend). It does not
+This task tightens generated implementation shape inside the existing [CPU](../../../../glossary.md#term-cpu) [backend](../../../../glossary.md#backend). It does not
 change architecture authority, dependencies, public APIs, preparation/[runtime](../../../../glossary.md#term-runtime) [ownership](../../../../glossary.md#term-ownership-meanings), route
 selection, or performance-evidence boundaries. If implementation requires any such change, stop
 and report the conflict.

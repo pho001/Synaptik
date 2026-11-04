@@ -1,4 +1,4 @@
-# Task 0007A1H: Numerical Aggregate [Residual](../../../../glossary.md#scan-residual-port-and-history-demand) Parity
+# Task 0007A1H: Numerical Aggregate [Residual](../../../../glossary.md#term-residual-meanings) Parity
 
 ## Reader context
 
@@ -34,7 +34,7 @@ resource semantics while making each generated entry pass the unchanged generate
 `<= 1.15x` gate in every one of five isolated [forks](../../../../glossary.md#term-fork-meanings) and in the [median](../../../../glossary.md#term-median) of [fork](../../../../glossary.md#term-fork-meanings) medians.
 
 Both rows are owned by one existing code-shaping production type, `CpuAggregateEmitter`. This is
-the sole next bounded [residual](../../../../glossary.md#scan-residual-port-and-history-demand) task after completed CPU 0007A1G.
+the sole next bounded [residual](../../../../glossary.md#term-residual-meanings) task after completed CPU 0007A1G.
 
 ## [Scope](../../../../glossary.md#term-scope)
 
@@ -66,7 +66,7 @@ the sole next bounded [residual](../../../../glossary.md#scan-residual-port-and-
 - Run the unchanged full 20-row process. Accept only the two targets and the three established
   controls. Every other row remains diagnostic and unassigned.<span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target))</span>
 
-### Frozen [residual](../../../../glossary.md#scan-residual-port-and-history-demand) evidence
+### Frozen [residual](../../../../glossary.md#term-residual-meanings) evidence
 
 | Row | [Fork](../../../../glossary.md#term-fork-meanings) 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | [Median](../../../../glossary.md#term-median) | Worst fork | [Owner](../../../../glossary.md#term-owner) |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
@@ -131,7 +131,7 @@ exceeded the gate: `P-SCALAR-GENERAL`, `A-GENERAL`, `I-GATHER`, `I-GATHER-ND`,
 - Exact floating work uses only its already declared run-owned, range-sliced workspace. This task
   adds no hidden scratch, partial reduction, combine state, or mutable prepared state.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [mutable glossary](../../../../glossary.md#term-mutable))</span>
 - Generated entries remain typed, direct, field-free, and allocation-free in proved repeated work.
-- Benchmark observations accept or reject fixed code [shape](../../../../glossary.md#shape) and never select production settings.
+- Benchmark observations accept or reject fixed code shape and never select production settings.
 
 ## Package impact
 
@@ -204,7 +204,7 @@ architecture decision was needed.
   workspace boundaries, range ownership, visitation order, exact-state transitions, and resource
   declarations remain unchanged.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Stable Class-File evidence proves the selected direct primitive shape and a retained typed
-  general fallback in the target classes.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
+  general fallback in the target classes.
 - Generated/decompiled proved branches are algorithm- and dataflow-equivalent to optimal clean
   Java, including exact-state operations and final result rounding. Any deviation is explicitly
   justified and measured.<span data-glossary-navigation="true"> ([dataflow glossary](../../../../glossary.md#term-dataflow); [rounding glossary](../../../../glossary.md#term-rounding))</span>
@@ -261,7 +261,7 @@ or [CI](../../../../glossary.md#term-continuous-integration-ci) because this tas
 ## Dependencies
 
 - [CPU](../../../../glossary.md#term-cpu) 0007A1C supplies the [immutable](../../../../glossary.md#term-immutable) 20-row corpus and remains `Review needed`/Incomplete.
-- CPU 0007A1G is Complete at [schema](../../../../glossary.md#term-schema) 35 and supplies the final five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) evidence.
+- CPU 0007A1G is Complete at [schema](../../../../glossary.md#term-schema) 35 and supplies the final five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#term-residual-meanings) evidence.
 - CPU 0007A1 and CPU 0007A0F define the exact numerical aggregate semantics, resources, and
   direct generated bodies to preserve.
 - CPU 0007A1D remains `Review needed`/Incomplete; its stable schema-32 segment-layout hoisting is
@@ -271,7 +271,7 @@ or [CI](../../../../glossary.md#term-continuous-integration-ci) because this tas
 
 - [CPU](../../../../glossary.md#term-cpu) 0007A1I is the sole next [`Ready`](../../../../glossary.md#term-ready) task. It owns the persistent `I-GATHER` and `I-GATHER-ND`
   residuals through one code-shaping owner, <span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>`CpuIndexingEmitter`.
-- Other [residual](../../../../glossary.md#scan-residual-port-and-history-demand) families remain Draft and unassigned.
+- Other [residual](../../../../glossary.md#term-residual-meanings) families remain Draft and unassigned.
 - CPU 0007A1C resumes closure only after all corrective residual work is complete.
 - CPU 0007A2 remains blocked behind CPU 0007A1C and all corrective residual work.
 
@@ -314,7 +314,7 @@ controls pass every required gate. Do not commit, push, or stage.
   frozen evidence lifecycle, and generated/direct clean-Java requirement, so one cohesive task is
   smaller and clearer than two mechanical tasks.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [model glossary](../../../../glossary.md#term-model); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - No other residual joins this task. In particular, extrema, scan, indexing, pointwise, and affine
-  rows have different owners or algorithms.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [scan glossary](../../../../glossary.md#term-cumulative-scan); [pointwise glossary](../../../../glossary.md#term-pointwise))</span>
+  rows have different owners or algorithms.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#term-residual-meanings); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [scan glossary](../../../../glossary.md#term-cumulative-scan); [pointwise glossary](../../../../glossary.md#term-pointwise))</span>
 - The fixed clean Java comparators use the same exact numerical state machinery as production
   semantics; passing the gate may remove avoidable generated shape overhead but may not substitute
   a simpler inexact accumulation algorithm.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
@@ -380,7 +380,7 @@ did not change during this pass.
   cache, code-generation, and prepare package summaries; documented the two guarded exact-state
   forms and bounded evidence in the CPU guide and glossary; recorded complete semantic,
   Class-File, schema, Java-test, and five-fork evidence; marked A1H Complete; and created CPU
-  0007A1I as the sole next Ready residual task.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [CPU glossary](../../../../glossary.md#term-cpu); [fork glossary](../../../../glossary.md#term-fork-meanings); [Ready glossary](../../../../glossary.md#term-ready); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  0007A1I as the sole next Ready residual task.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [CPU glossary](../../../../glossary.md#term-cpu); [fork glossary](../../../../glossary.md#term-fork-meanings); [Ready glossary](../../../../glossary.md#term-ready); [residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 - Files changed or created by the documentation pass: `CpuGeneratorSchema.java`,
   `CpuAggregateEmitter.java`, [cache](../../../../glossary.md#term-cache)/codegen/[prepare](../../../../glossary.md#prepare) `package-info.java`, CPU backend guide,
   glossary, A1H, A1C, new A1I, CPU master plan, and roadmap. The two Java owners received
@@ -404,6 +404,6 @@ did not change during this pass.
 - Unresolved issues: seven deferred performance rows remain; A1C and A1D remain `Review needed`/
   Incomplete, and A1H does not close the twenty-row comparison.
 - Follow-up required: execute CPU 0007A1I, then plan only later evidence-backed residual clusters;
-  resume A1C closure only after every persistent frozen failure closes. CPU 0007A2 remains blocked.<span data-glossary-navigation="true"> ([resume glossary](../../../../glossary.md#schema-serialization-and-checkpoint))</span>
+  resume A1C closure only after every persistent frozen failure closes. CPU 0007A2 remains blocked.
 
 Status: Complete

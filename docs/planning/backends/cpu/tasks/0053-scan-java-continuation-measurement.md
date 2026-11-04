@@ -1,4 +1,4 @@
-# Task CPU0053: Fresh [Scan](../../../../glossary.md#term-cumulative-scan) versus Java continuation measurement
+# Task CPU0053: Fresh Scan versus Java continuation measurement
 
 ## Reader context
 
@@ -27,7 +27,7 @@ Clean launcher implementation and independent targeted review; no production cha
 
 ## Goal and [scope](../../../../glossary.md#term-scope)
 
-Measure the remaining entry-inclusive symbolic-length actual reverse [Scan](../../../../glossary.md#term-cumulative-scan) gap against equivalent
+Measure the remaining entry-inclusive symbolic-length actual reverse Scan gap against equivalent
 optimal Java and unchanged literal Java. Reuse current independent fixtures, but create a fresh
 off-tree launcher and evidence root rather than reopening or modifying CPU0045.
 Witness: [FLOAT32](../../../../glossary.md#term-float32), original forward traversal/opposite reverse, T4/F3/H2, B7 then B32,
@@ -46,14 +46,14 @@ Read [root authority/scope index](../../../../../ARCHITECTURE.md#scope-indexed-n
 and [Core invariants](../../../../../ARCHITECTURE.md#core-invariants).
 [Backend](../../../../glossary.md#backend) contract: [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling)
 and [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>.
-[Scan](../../../../glossary.md#term-cumulative-scan) contract: [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>,
+Scan contract: [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>,
 [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic)
 and [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
 
 ## Dependencies and integration
 
 - Depends on: CPU0045 and CPU0047 Complete; successful existing semantic/structural gates.
-- Conflicts with: any [Scan](../../../../glossary.md#term-cumulative-scan)/[fixture](../../../../glossary.md#term-fixture)/[oracle](../../../../glossary.md#term-test-oracle)/class writer or concurrent measurement.
+- Conflicts with: any Scan/[fixture](../../../../glossary.md#term-fixture)/[oracle](../../../../glossary.md#term-test-oracle)/class writer or concurrent measurement.
 - Parallel group: None for measured bodies. Read-only publication review and off-tree preparation
   are disjoint; neither may start a benchmark while publication validation runs.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Common base revision: published CPU0047 `07a281edd3086efde2853211b71b48288db027e1` plus the retained
@@ -109,7 +109,7 @@ Follow-up required: only if separately requested, adapt the comparison to the ac
 
 CPU0047 alone was committed/pushed as `07a281edd3086efde2853211b71b48288db027e1`: 15 isolated
 paths, clean-base [CPU](../../../../glossary.md#term-cpu) 49, [conformance](../../../../glossary.md#term-conformance) 16, [Engine](../../../../glossary.md#term-engine) 2 and [Javadoc](../../../../glossary.md#term-javadoc) passed; independent [publication](../../../../glossary.md#term-publication)
-review approved. Other accepted [Scan](../../../../glossary.md#term-cumulative-scan)/Compiler changes stayed local and were not discarded.
+review approved. Other accepted Scan/Compiler changes stayed local and were not discarded.
 The off-tree CPU0053 launcher compiled, and independent prelaunch review approved its fixed
 schedule/path/[ownership](../../../../glossary.md#term-ownership-meanings) configuration. All 1,204 fresh [manifest](../../../../glossary.md#term-manifest) inputs and 2,306 historical
 evidence files matched. No production Java or repository build file changed for this diagnostic.

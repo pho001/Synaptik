@@ -1,4 +1,4 @@
-# Task CPU0063: Clean [Scan](../../../../glossary.md#term-cumulative-scan) Java with generated entry [ABI](../../../../glossary.md#term-application-binary-interface-abi)
+# Task CPU0063: Clean Scan Java with generated entry [ABI](../../../../glossary.md#term-application-binary-interface-abi)
 
 ## Reader context
 
@@ -23,7 +23,7 @@ Complete; bounded J4 experiment and independent review accepted on 2026-10-28. M
 Write only in `/private/tmp/synaptik-scan-java-abi-lab.K8KBvk`; sources/old roots [immutable](../../../../glossary.md#term-immutable). No generator/production edits, build/suite, [commit](../../../../glossary.md#term-commit)/push; off-tree javac only.
 - Root: [Core invariants](../../../../../ARCHITECTURE.md#core-invariants), [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([normative glossary](../../../../glossary.md#term-normative))</span>.
 - [Backend](../../../../glossary.md#backend): [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling), [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>.
-- [Scan](../../../../glossary.md#term-cumulative-scan): [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic), [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>. Stop on ambiguity/conflict.
+- Scan: [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic), [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>. Stop on ambiguity/conflict.
 
 ## Dependencies and integration
 

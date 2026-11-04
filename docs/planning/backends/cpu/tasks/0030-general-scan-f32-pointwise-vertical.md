@@ -1,4 +1,4 @@
-# Task CPU0030: [FLOAT32](../../../../glossary.md#term-float32) [pointwise](../../../../glossary.md#term-pointwise) general-[scan](../../../../glossary.md#term-cumulative-scan) forward and automatic reverse execution
+# Task CPU0030: [FLOAT32](../../../../glossary.md#term-float32) [pointwise](../../../../glossary.md#term-pointwise) general-scan forward and automatic reverse execution
 
 ## Reader context — historical integration boundary
 
@@ -26,7 +26,7 @@ Clean implementation and independent targeted code/documentation review complete
 
 ## Goal and [scope](../../../../glossary.md#term-scope)
 
-Deliver [canonical](../../../../glossary.md#term-canonical-form)/static/all-valid [FLOAT32](../../../../glossary.md#term-float32) [scan](../../../../glossary.md#term-cumulative-scan) and its [Compiler](../../../../glossary.md#term-compiler)-generated first-order reverse
+Deliver [canonical](../../../../glossary.md#term-canonical-form)/static/all-valid [FLOAT32](../../../../glossary.md#term-float32) scan and its [Compiler](../../../../glossary.md#term-compiler)-generated first-order reverse
 through the real provider and public [Engine](../../../../glossary.md#term-engine), not a [kernel](../../../../glossary.md#kernel) [prototype](../../../../glossary.md#term-prototype).
 Example: `next=emit=tanh(h+xStep)`; also same-[shape](../../../../glossary.md#shape) shared [parameters](../../../../glossary.md#term-parameter) and two interacting carries.
 [Compile](../../../../glossary.md#compile) constructs the reverse; [CPU](../../../../glossary.md#term-cpu) prepares each body once and emits one outer time loop.
@@ -66,8 +66,8 @@ Example: `next=emit=tanh(h+xStep)`; also same-[shape](../../../../glossary.md#sh
 ## Non-goals
 
 No [CPU](../../../../glossary.md#term-cpu) [AD](../../../../glossary.md#autograd), second semantic body/[graph](../../../../glossary.md#graph), generic control-flow framework, executor/session/tape, T-fold
-graphs/code, [FP16](../../../../glossary.md#term-fp16)/[BF16](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding), [vector](../../../../glossary.md#term-vector)/parallel/time-parallel, [padding](../../../../glossary.md#padding)/lengths, [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context), [persistence](../../../../glossary.md#term-persistence) [feature](../../../../glossary.md#term-feature),
-native route, tuning/default change or broad performance campaign. Preserve fixed/static [scan](../../../../glossary.md#term-cumulative-scan) routes.
+graphs/code, [FP16](../../../../glossary.md#term-fp16)/[BF16](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding), [vector](../../../../glossary.md#term-vector)/parallel/time-parallel, [padding](../../../../glossary.md#padding)/lengths, [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context), [persistence](../../../../glossary.md#term-persistence) [feature](../../../../glossary.md#term-software-feature),
+native route, tuning/default change or broad performance campaign. Preserve fixed/static scan routes.
 Remaining declared algebra, true broadcast/reduction/[view](../../../../glossary.md#term-view-meanings) closure and F64 are a later mandatory gate,
 not abandoned or claimed complete by this milestone; low types retain separate [qualification](../../../../glossary.md#term-qualification).
 
@@ -78,7 +78,7 @@ not abandoned or claimed complete by this milestone; low types retain separate [
 - [Backend execution](../../../../architecture/contracts/backend-execution.md)<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend))</span>:
   `Concrete backend modules`, `CPU backend routes`, `Performance evidence and optimization tooling`.
 - [Recurrent scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan):
-  [`General differentiable scan`](../../../../glossary.md#general-differentiable-scan) and ALL its subheadings — sole complete [scan](../../../../glossary.md#term-cumulative-scan) semantics.
+  [`General differentiable scan`](../../../../glossary.md#general-differentiable-scan) and ALL its subheadings — sole complete scan semantics.
 - [Runtime/Prepare](../../../../architecture/contracts/runtime-prepare-engine.md)<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare))</span>: `modules/runtime`,
   `modules/prepare`, `Prepare lifecycle`, `Run lifecycle`, `Public reusable prepared execution`.
 - [Foundational](../../../../architecture/contracts/foundational-modules.md#profile-free-capability-queries):
@@ -92,7 +92,7 @@ do not invent architecture or silently turn the first [slice](../../../../glossa
 - Depends on: Model0034/0035, Planning0008, Compiler0011, Prepare0010; CPU0022/0027/0028/0029;
   existing Engine0021/Runtime run ownership and CPU generated-route baseline, all accepted Complete.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [run glossary](../../../../glossary.md#term-run); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - Conflicts with: CPU admission/lowering/IR/ABI/cache/schema/memory, scan semantic/AD/query/Prepare
-  contracts, v2 ledger, shared scan/CPU documentation and planning writers; serialize all these scopes.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission); [lowering glossary](../../../../glossary.md#lowering); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [cache glossary](../../../../glossary.md#term-cache); [schema glossary](../../../../glossary.md#term-schema); [scan glossary](../../../../glossary.md#term-cumulative-scan); [AD glossary](../../../../glossary.md#autograd); [Prepare glossary](../../../../glossary.md#prepare); [planning glossary](../../../../glossary.md#term-planning))</span>
+  contracts, v2 ledger, shared scan/CPU documentation and planning writers; serialize all these scopes.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission); [lowering glossary](../../../../glossary.md#lowering); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [cache glossary](../../../../glossary.md#term-cache); [schema glossary](../../../../glossary.md#term-schema); [AD glossary](../../../../glossary.md#autograd); [Prepare glossary](../../../../glossary.md#prepare); [planning glossary](../../../../glossary.md#term-planning))</span>
 - Parallel group: None; no concurrent write task or successor launch.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus accepted
   uncommitted authority/Model0034/0035, Planning0008, Compiler0011, Prepare0010. Launch verified empty
@@ -118,7 +118,7 @@ read focused tests beside these classes.
   resource facts, never masquerade as direct fixed recurrence. Shared Prepare projection is already done.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [Prepare glossary](../../../../glossary.md#prepare))</span>
 - `internal.lowering.CpuPartitionLowering`/`CpuPartitionDagDecomposer`/`CpuUnitTopology`: one indivisible
   scan unit, attachment-bearing query (current `assertOccurrence` drops it), ordinary neighbors and
-  dependency edges preserved; exclude scan from pointwise contraction/recognition/representation search.<span data-glossary-navigation="true"> ([pointwise glossary](../../../../glossary.md#term-pointwise); [contraction glossary](../../../../glossary.md#contraction-dimension))</span>
+  dependency edges preserved; exclude scan from pointwise contraction/recognition/representation search.<span data-glossary-navigation="true"> ([pointwise glossary](../../../../glossary.md#term-pointwise))</span>
 - `internal.ir.CpuKernelIr`/`CpuAccessPlan`: reuse typed arithmetic and dense/scalar accesses.
   Captured CompiledScanBody solely supplies graph/roles/demand; local IDs are never outer slots.
   Prove local shape/type/attrs under ordinary semantics; derive CPU virtual accesses without rewriting
@@ -142,7 +142,7 @@ New production types (all unsupported internal, no moves/[dependency](../../../.
 | `.internal.codegen.emit` | `CpuGeneralScanEmitter` | Generate outer time loop and inline existing typed [scalar](../../../../glossary.md#term-scalar)/[carrier](../../../../glossary.md#term-storage-carrier) body emission with explicit bindings. |
 | `.internal.executable` | `CpuGeneralScanPreparedExecutable` (private `Invocation`) | Cold-bind assigned representations to one generated call; no graph retained in [runtime](../../../../glossary.md#term-runtime) recipe. |
 
-Extend the [sealed](../../../../glossary.md#term-sealed) portable [IR](../../../../glossary.md#term-intermediate-representation-ir)/route encoding and [specialization](../../../../glossary.md#term-specialization) with typed optional [scan](../../../../glossary.md#term-cumulative-scan) facts,
+Extend the [sealed](../../../../glossary.md#term-sealed) portable [IR](../../../../glossary.md#term-intermediate-representation-ir)/route encoding and [specialization](../../../../glossary.md#term-specialization) with typed optional scan facts,
 analogous to existing typed [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) facts; all four types solve this family only, not a region abstraction.
 
 ## [Binding](../../../../glossary.md#term-binding), storage and [identity](../../../../glossary.md#term-identity-meanings) decisions
@@ -151,7 +151,7 @@ analogous to existing typed [MATMUL](../../../../glossary.md#matrix-multiplicati
    CpuGeneralScanIr records formal→arithmetic ordinals, next/emission/residual ordinals, positional
    actual→unique read map, demanded outer→write map, carry-bank assignments, expand aliases and direction.
    Its encoded CpuKernelIr is a boundary/identity envelope, not another graph; structuralKey must equal
-   that envelope's key. Typed scan facts supply emission, not parsed strings or a body registry.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [carry glossary](../../../../glossary.md#term-carry); [aliases glossary](../../../../glossary.md#aliasing-and-arena); [graph glossary](../../../../glossary.md#graph); [scan glossary](../../../../glossary.md#term-cumulative-scan); [registry glossary](../../../../glossary.md#term-registry))</span>
+   that envelope's key. Typed scan facts supply emission, not parsed strings or a body registry.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [carry glossary](../../../../glossary.md#term-carry); [aliases glossary](../../../../glossary.md#aliasing-and-arena); [graph glossary](../../../../glossary.md#graph); [registry glossary](../../../../glossary.md#term-registry))</span>
 2. Entry ABI: B distinct read/demanded-write MemorySegment parameters, optional scratch MemorySegment,
    then run-owned long[] geometry, long start, long end (one serial complete invocation, <span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [MemorySegment glossary](../../../../glossary.md#term-memorysegment); [parameters glossary](../../../../glossary.md#term-parameter); [run glossary](../../../../glossary.md#term-run))</span>`[0,N)`).
    Select segment access at prepare time for heap/native/mixed inputs through checked segmentArgument;
@@ -219,7 +219,7 @@ analogous to existing typed [MATMUL](../../../../glossary.md#matrix-multiplicati
 - New [CPU](../../../../glossary.md#term-cpu) tests: `CpuGeneralScanCapabilityTest`, `CpuGeneralScanLoweringTest`,
   `CpuGeneralScanPreparationTest`, `CpuGeneralScanExecutionTest`, `CpuGeneralScanGeneratedKernelTest`,
   `CpuGeneralScanTimingTest`; test-only `CpuGeneralScanCleanJavaOracle` in `internal.codegen.emit`.
-  Reuse current `CpuPartitionDagResourceTest`, [cache](../../../../glossary.md#term-cache)/[specialization](../../../../glossary.md#term-specialization) tests and fixed-[scan](../../../../glossary.md#term-cumulative-scan) regressions.
+  Reuse current `CpuPartitionDagResourceTest`, [cache](../../../../glossary.md#term-cache)/[specialization](../../../../glossary.md#term-specialization) tests and fixed-scan regressions.
 - Real provider accepts promised forward AND actual Compiler-generated reverse queries; reject missing
   body, malformed roles/demand, dynamic/unqualified-layout/mixed/F64/low descriptors, supported child with
   unsupported binder, RELU/other unsupported interior and generated SUM/cast occurrence even at T=0/N=0.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [layout glossary](../../../../glossary.md#layout); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [descriptors glossary](../../../../glossary.md#term-descriptor); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
@@ -280,7 +280,7 @@ git diff --check
 
 ## Documentation and review impact
 
-Completed [Javadoc](../../../../glossary.md#term-javadoc), [CPU](../../../../glossary.md#term-cpu) [backend](../../../../glossary.md#backend)-guide, targeted [scan](../../../../glossary.md#term-cumulative-scan)/[residual](../../../../glossary.md#scan-residual-port-and-history-demand) glossary and examples under general +
+Completed [Javadoc](../../../../glossary.md#term-javadoc), [CPU](../../../../glossary.md#term-cpu) [backend](../../../../glossary.md#backend)-guide, targeted scan/[residual](../../../../glossary.md#scan-residual-port-and-history-demand) glossary and examples under general +
 backend-guide/[API](../../../../glossary.md#term-application-programming-interface-api)-Javadoc profiles. Independent review covered diff, clean Java/[dataflow](../../../../glossary.md#term-dataflow)/Class-File,
 resources, [identity](../../../../glossary.md#term-identity-meanings) and [Engine](../../../../glossary.md#term-engine)/ledger evidence; final Javadoc PASS. Main integrated [schema](../../../../glossary.md#term-schema)/status
 references. [Metadata](../../../../glossary.md#term-metadata) closure reuses executable evidence and changes no Java or authority.

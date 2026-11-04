@@ -1,4 +1,4 @@
-# Task CPU0045: Equivalent clean Java for symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) reverse
+# Task CPU0045: Equivalent clean Java for symbolic-length Scan reverse
 
 ## Reader context — historical integration boundary
 
@@ -56,7 +56,7 @@ Read these exact applicable headings, not unrelated contracts or whole historica
   [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling),
   [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [backend glossary](../../../../glossary.md#backend))</span>,
   [Accepted ordinary symbolic-batch CPU contract](../../../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>.
-- `recurrent-scan.md`: [Reverse scan and exact primal bindings](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [primal glossary](../../../../glossary.md#term-primal); [bindings glossary](../../../../glossary.md#term-binding))</span>,
+- `recurrent-scan.md`: [Reverse scan and exact primal bindings](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal); [bindings glossary](../../../../glossary.md#term-binding))</span>,
   [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>,
   [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic),
   [Empty domains and numeric resources](../../../../architecture/contracts/recurrent-scan.md#empty-domains-and-numeric-resources),
@@ -72,7 +72,7 @@ Read these exact applicable headings, not unrelated contracts or whole historica
   [CPU0041](0041-symbolic-scan-reverse-carrier-specialization.md#result),
   [CPU0042](0042-length-aware-general-scan-execution.md#result) — all Complete.
 - Conflicts with: any writer/measurement changing Scan emission, carriers, resources, identities,
-  oracle/harness or shared contracts/planning; serialize implementation then result review.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [oracle glossary](../../../../glossary.md#term-test-oracle))</span>
+  oracle/harness or shared contracts/planning; serialize implementation then result review.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle))</span>
 - Parallel group: None; one fresh executor, no concurrent writer or measurement.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
   PLUS the accepted dirty tree in `/private/tmp/synaptik-cpu0045.ICUu7M/request-base.json`
@@ -99,7 +99,7 @@ Paths below are relative to `modules/backend/cpu/src/`; production prefix is
   `emitLengthAware`, `bindSymbolicGeometry`, `cacheLengthScalars`, `arithmeticCell`,
   `copyInitial`, `lengthTimeProduct`, `load`/`store`; analysis first, edit only a proved redundancy.
 - Production `codegen/emit/CpuCarrierEmitter.java`: `prepareSegmentLayouts`, `loadBytes`/`storeBytes`;
-  `codegen/emit/CpuClassFileKernelGenerator.java`: `generateClassBytes`/general-[Scan](../../../../glossary.md#term-cumulative-scan) entry setup.
+  `codegen/emit/CpuClassFileKernelGenerator.java`: `generateClassBytes`/general-Scan entry setup.
 - Production `ir/CpuGeneralScanIr.java`: `Stages`, `canonicalIdentity`, `bakedSpecializationIdentity`;
   `cache/CpuKernelSpecialization.java`: `compatibilityBytes`/`classIdentityBytes`.
 - Read-only production [ABI](../../../../glossary.md#term-application-binary-interface-abi) reference: `lowering/CpuGeneralScanLowering.java`, `Facts.pack(long)`.
@@ -222,6 +222,6 @@ checks actual source/tests/ClassFiles, documentation and links, reusing successf
 MAIN closeout: actual five-file documentation/[Javadoc](../../../../glossary.md#term-javadoc) diff, 22 frozen pins, 157 local links,
 132 anchors, accepted source baseline and protected predecessor evidence checked successfully;
 see `doc-closeout-receipt.txt`. Current plan statuses are integrated. The measurement budget is
-exhausted; remaining [Scan](../../../../glossary.md#term-cumulative-scan) performance analysis is deferred behind the approved structural repairs.
+exhausted; remaining Scan performance analysis is deferred behind the approved structural repairs.
 
 Status: Complete

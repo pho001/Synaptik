@@ -59,7 +59,7 @@ never recognizes a subtraction/exponential/reduction/division/[log](../../../../
 - Require the selected axis extent to be strictly positive. A zero selected extent is statically
   ineligible because Model and Compiler deliberately do not define its forward numerical result.
   If another axis has zero extent, the exact shape-preserving output is empty and execution is a
-  no-op with no read, write, validation scan, generated call, or worker submission.<span data-glossary-navigation="true"> ([extent glossary](../../../../glossary.md#term-extent); [Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [validation glossary](../../../../glossary.md#term-validation); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  no-op with no read, write, validation scan, generated call, or worker submission.<span data-glossary-navigation="true"> ([extent glossary](../../../../glossary.md#term-extent); [Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Define a CPU-private admitted runtime value subset: every represented input must be finite, and
   every <span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [runtime glossary](../../../../glossary.md#term-runtime); [finite glossary](../../../../glossary.md#term-finite))</span>`value - sliceMaximum` used by the selected algorithm must be finite. Validate the complete
   input and all such shifts before the first output write or worker submission. Reject NaN, either
@@ -271,7 +271,7 @@ condition. An omitted expected path does not authorize an unrelated one.
   equal; rejected values and zero-width slices are never tolerance-tested as outputs.<span data-glossary-navigation="true"> ([precision glossary](../../../../glossary.md#term-precision); [oracle glossary](../../../../glossary.md#term-test-oracle); [tolerance glossary](../../../../glossary.md#term-tolerance))</span>
 - Resource declarations contain exactly one input and one output, with zero workspace,
   materialization, partial, combine, or hidden scratch. Empty outputs declare their existing
-  boundary spans but perform no value scan or generated/worker call.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  boundary spans but perform no value scan or generated/worker call.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization))</span>
 - Cold binding validates carrier/access/alignment/spans, output injectivity, and complete overlap
   rejection before the focused value validator. Every failure precedes mutation/submission.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [alignment glossary](../../../../glossary.md#term-alignment); [injectivity glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity))</span>
 - Scalar and parallel-scalar outputs are raw-bit deterministic across legal complete-slice ranges,
@@ -421,7 +421,7 @@ gates pass. Do not commit, push, or stage.
   algorithm; a runtime kind switch is forbidden.<span data-glossary-navigation="true"> ([normalization glossary](../../../../glossary.md#term-normalization); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - One focused validator performs the complete admitted-domain scan before any worker submission.
   Folding it into each range would either repeat full validation or permit partial writes; adding
-  it to the already broad executable would obscure ownership.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [validation glossary](../../../../glossary.md#term-validation); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
+  it to the already broad executable would obscure ownership.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Three passes avoid output workspace and recompute exponentials for [`SOFTMAX`](../../../../glossary.md#softmax--log-softmax). This matches the
   optimal clean Java oracle and keeps exact resource truth simpler than a saved-exponential buffer.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [buffer glossary](../../../../glossary.md#term-buffer))</span>
 - Binary64 intermediates are selected for FLOAT64/FLOAT32. BFLOAT16 uses the CPU plan's expected

@@ -1,4 +1,4 @@
-# CPU0068: Qualify shared [feature](../../../../glossary.md#term-software-feature)-[vector](../../../../glossary.md#term-vector) body emission
+# CPU0068: Qualify shared [feature](../../../../glossary.md#term-feature)-[vector](../../../../glossary.md#term-vector) body emission
 
 ## Reader context
 
@@ -17,7 +17,7 @@ capability or launch authority.
 > Superseded by CPU0070's [replacement plan](../existing-emitter-composition-plan.md#simd-admission-and-parallel-composition-gates).
 > The original Draft below is archived, not executable. Shared existing SIMD mathematics is
 > retained; Scan SIMD admission still requires bounded authority and whole-binder qualification.
-> No diagnostic budget or scalar-then-vector reimplementation sequence carries forward.<span data-glossary-navigation="true"> ([SIMD glossary](../../../../glossary.md#simd); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [admission glossary](../../../../glossary.md#term-admission); [qualification glossary](../../../../glossary.md#term-qualification); [scalar glossary](../../../../glossary.md#term-scalar))</span>
+> No diagnostic budget or scalar-then-vector reimplementation sequence carries forward.<span data-glossary-navigation="true"> ([SIMD glossary](../../../../glossary.md#simd); [admission glossary](../../../../glossary.md#term-admission); [qualification glossary](../../../../glossary.md#term-qualification); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 
 ## Status and change class
 
@@ -29,8 +29,8 @@ accepted and MAIN/user must approve the exact vector predicates and coordinated 
 
 ## Goal, [scope](../../../../glossary.md#term-scope) and exclusions
 
-Qualify single-thread [feature](../../../../glossary.md#term-software-feature)-[lane](../../../../glossary.md#term-lane) [pointwise](../../../../glossary.md#term-pointwise) and full-K/N-[vector](../../../../glossary.md#term-vector) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) through CPU0067's common
-body seams for existing [Scan](../../../../glossary.md#term-cumulative-scan) occurrences. Ordinary vector bodies use those same seams; no second
+Qualify single-thread [feature](../../../../glossary.md#term-feature)-[lane](../../../../glossary.md#term-lane) [pointwise](../../../../glossary.md#term-pointwise) and full-K/N-[vector](../../../../glossary.md#term-vector) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) through CPU0067's common
+body seams for existing Scan occurrences. Ordinary vector bodies use those same seams; no second
 Scan vector emitter. Reuse CPU0065 direct/tiled [TANH](../../../../glossary.md#term-tanh) where each required saved/state site qualifies.
 The [proposal](../shared-body-emission-proposal.md#vector-realization-then-worker-integration)
 defines boundaries. Preserve [scalar](../../../../glossary.md#term-scalar) execution for unproved cases, including scalar reductions
@@ -46,7 +46,7 @@ Read AGENTS; root [Core invariants](../../../../../ARCHITECTURE.md#core-invarian
 [scope index](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>; [backend](../../../../glossary.md#backend)
 [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span> and
 [Accepted ordinary symbolic-batch CPU contract](../../../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>;
-[Scan](../../../../glossary.md#term-cumulative-scan) [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>,
+Scan [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>,
 [Qualification and mechanism gates](../../../../architecture/contracts/recurrent-scan.md#qualification-and-mechanism-gates),
 [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic),
 [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
@@ -58,7 +58,7 @@ Current [vector](../../../../glossary.md#term-vector) prohibitions are not waive
 ## Dependencies and integration
 
 - Depends on: CPU0067 Complete/accepted; CPU0065 retained; approved bounded [vector](../../../../glossary.md#term-vector) authority.
-- Conflicts with: common-body/[Scan](../../../../glossary.md#term-cumulative-scan)/vector/[MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/[cache](../../../../glossary.md#term-cache) and CPU0048–0052 writers.
+- Conflicts with: common-body/Scan/vector/[MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/[cache](../../../../glossary.md#term-cache) and CPU0048–0052 writers.
 - Parallel group: None; clean implementation plus independent read-only review.
 - Common base revision: CPU0067 accepted source on `07a281edd3086efde2853211b71b48288db027e1`
   plus accepted dirty tree; MAIN records fresh exact base/preservation/contracts before Ready.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>
@@ -83,12 +83,12 @@ stop for its exact name/package/purpose/[signature](../../../../glossary.md#term
 1. Preparation selects typed per-stage vector/scalar realization from exact whole-body/binder
    qualification. Initial vector predicates require contiguous feature lanes, exact supported
    F32/F64 math, complete active lanes and injective writes; tails use shared scalar emission.
-   No inactive operand is loaded/evaluated then masked. Preserve ROW(0)/ROW(1)/SHARED scopes.<span data-glossary-navigation="true"> ([vector glossary](../../../../glossary.md#term-vector); [qualification glossary](../../../../glossary.md#term-qualification); [contiguous glossary](../../../../glossary.md#term-contiguous); [feature glossary](../../../../glossary.md#term-software-feature); [lanes glossary](../../../../glossary.md#term-lane); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [injective glossary](../../../../glossary.md#term-injective))</span>
+   No inactive operand is loaded/evaluated then masked. Preserve ROW(0)/ROW(1)/SHARED scopes.<span data-glossary-navigation="true"> ([vector glossary](../../../../glossary.md#term-vector); [qualification glossary](../../../../glossary.md#term-qualification); [contiguous glossary](../../../../glossary.md#term-contiguous); [feature glossary](../../../../glossary.md#term-feature); [lanes glossary](../../../../glossary.md#term-lane); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [injective glossary](../../../../glossary.md#term-injective))</span>
 2. Independently qualify existing static F32/F64, symbolic F32 and combined length F32/F64
    forward and actual Compiler siblings against ordinary unrolling, accounting for exact versus
    represented-sequential SUM and using matching-algorithm oracles for exact checks. Admission is unchanged
    outside the explicitly approved routes; all-valid symbolic F64 remains rejected. Ordinary<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [unrolling glossary](../../../../glossary.md#term-unrolling); [Admission glossary](../../../../glossary.md#term-admission))</span>
-   `CpuMatmulIr.batchGeometry` remains [F32](../../../../glossary.md#floating-point-precision-and-rounding)/direct-[scalar](../../../../glossary.md#term-scalar)/no-[epilogue](../../../../glossary.md#term-epilogue); [Scan](../../../../glossary.md#term-cumulative-scan) numeric [binding](../../../../glossary.md#term-binding) is separate.
+   `CpuMatmulIr.batchGeometry` remains [F32](../../../../glossary.md#floating-point-precision-and-rounding)/direct-[scalar](../../../../glossary.md#term-scalar)/no-[epilogue](../../../../glossary.md#term-epilogue); Scan numeric [binding](../../../../glossary.md#term-binding) is separate.
 3. Retain ordered full-K math, distinct per-time ADD, sequential SUM and exact outer SUM/MEAN.
    Saved/state values preserve exactly the bits produced by the selected forward realization
    and consumed by reverse; finite output tolerances alone do not prove this. Vector TANH/SIGMOID
@@ -97,7 +97,7 @@ stop for its exact name/package/purpose/[signature](../../../../glossary.md#term
    demanded histories, aliases/carry versions, raw singleton/empty/padding and zero-sign rules.<span data-glossary-navigation="true"> ([MEAN glossary](../../../../glossary.md#term-mean); [finite glossary](../../../../glossary.md#term-finite); [TANH glossary](../../../../glossary.md#term-tanh); [SIGMOID glossary](../../../../glossary.md#term-sigmoid); [fan-out glossary](../../../../glossary.md#term-fan-out); [aliases glossary](../../../../glossary.md#aliasing-and-arena); [carry glossary](../../../../glossary.md#term-carry); [singleton glossary](../../../../glossary.md#term-singleton); [padding glossary](../../../../glossary.md#padding))</span>
 4. Prove common vector load/instruction/store and MATMUL bodies are used by ordinary and Scan
    callers. Species/setup is invocation-level; temporal addresses do not cause entry decoding,
-   per-step allocation or hidden helpers. Preserve v9 scalar fallbacks and code-shape gains.<span data-glossary-navigation="true"> ([MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [shape glossary](../../../../glossary.md#shape))</span>
+   per-step allocation or hidden helpers. Preserve v9 scalar fallbacks and code-shape gains.<span data-glossary-navigation="true"> ([MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul))</span>
 5. Test laneCount−1/laneCount/laneCount+1 and tiled tails, empty K/T/B/features, transposed reads,
    mixed length activity and poisoned padding, both seeds/traversals, tied parameters and reusable
    64→40→1→64. Exact scratch/history declarations remain complete before slots. No worker use.<span data-glossary-navigation="true"> ([seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [parameters glossary](../../../../glossary.md#term-parameter))</span>

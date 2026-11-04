@@ -37,7 +37,7 @@ reach reproducible near-parity with equivalent direct primitive stable-merge imp
 This is one cohesive CPU-private generated-code correction. The three families share
 `CpuOrderingIr`, compact cold geometry, `CpuOrderingEmitter`, stable bottom-up merge over two
 assigned [INT64](../../../../glossary.md#data-type--datatype) scratch regions, exact comparison classes, and one generated-[artifact](../../../../glossary.md#term-artifact) compatibility
-boundary. The task changes generated code [shape](../../../../glossary.md#shape) only; completed CPU 0006C capability, [operation](../../../../glossary.md#operation)
+boundary. The task changes generated code shape only; completed CPU 0006C capability, [operation](../../../../glossary.md#operation)
 semantics, algorithm, scratch declaration, and observable behavior remain unchanged.
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -453,7 +453,7 @@ the allowlist with unrelated cleanup.
 ## Tests / [validation](../../../../glossary.md#term-validation)
 
 [Run](../../../../glossary.md#term-run) focused tests for every changed test [owner](../../../../glossary.md#term-owner) while iterating. The final focused command must name
-every changed test class and cover stable Class-File [shape](../../../../glossary.md#shape), all three families and six types,
+every changed test class and cover stable Class-File shape, all three families and six types,
 dense/general and [heap](../../../../glossary.md#term-heap)/segment/mixed carriers, both directions, TOP_K modes, raw special values,
 arbitrary [layouts](../../../../glossary.md#layout)/ranges, exact scratch isolation, independent differentials, [scalar](../../../../glossary.md#term-scalar)/parallel
 reuse, preparation/finalization, [specialization](../../../../glossary.md#term-specialization), and [schema](../../../../glossary.md#term-schema)/[persistence](../../../../glossary.md#term-persistence) compatibility.
@@ -519,7 +519,7 @@ false.
 
 Expected impact: None.
 
-The task changes only [CPU](../../../../glossary.md#term-cpu)-owned generated ordering code [shape](../../../../glossary.md#shape) and current-only [artifact](../../../../glossary.md#term-artifact)
+The task changes only [CPU](../../../../glossary.md#term-cpu)-owned generated ordering code shape and current-only [artifact](../../../../glossary.md#term-artifact)
 compatibility under the existing analysis/finalization/[binding](../../../../glossary.md#term-binding) [lifecycle](../../../../glossary.md#lifecycle). If implementation
 requires an architecture, public/shared contract, [module](../../../../glossary.md#term-module), [dependency](../../../../glossary.md#term-dependency), semantic, algorithm, route,
 resource, [materialization](../../../../glossary.md#materialization), or [Runtime](../../../../glossary.md#term-runtime)-policy change, stop and report the conflict.

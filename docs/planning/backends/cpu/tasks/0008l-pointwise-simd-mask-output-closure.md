@@ -96,7 +96,7 @@ Materialized [BOOL](../../../../glossary.md#data-type--datatype) remains one byt
 and no other external byte is valid.
 
 The Java 26 [Vector API](../../../../glossary.md#term-vector-api) has no valid direct floating-[mask](../../../../glossary.md#term-boolean-mask)-to-byte-[vector](../../../../glossary.md#term-vector) conversion.
-`VectorMask.cast` requires equal [lane](../../../../glossary.md#term-lane) counts, while a byte vector of the numeric vector's [shape](../../../../glossary.md#shape)
+`VectorMask.cast` requires equal [lane](../../../../glossary.md#term-lane) counts, while a byte vector of the numeric vector's shape
 has four times the lanes of a `FloatVector` and eight times those of a `DoubleVector`.
 Reinterpreting a mask vector would produce four or eight bytes per logical lane. The platform
 preferred byte species is also unsuitable because a scalable-vector implementation may expose

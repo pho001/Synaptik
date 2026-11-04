@@ -114,7 +114,7 @@ either surrounding production CPU preparation step.
   OpenBLAS-provider, backend-conformance, integration-test, or architecture-test changes;<span data-glossary-navigation="true"> ([compiler glossary](../../../../glossary.md#term-compiler); [Planning glossary](../../../../glossary.md#term-planning); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [Engine glossary](../../../../glossary.md#term-engine); [Backend glossary](../../../../glossary.md#backend); [Trace glossary](../../../../glossary.md#trace); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - architecture contract, focused architecture explanation, ADR, kernel-routes guide, CPU strategy
   note, or general coding-rule changes;<span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
-- root [Gradle](../../../../glossary.md#term-gradle), settings, shared build logic, [dependency](../../../../glossary.md#term-dependency) [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), ASM, another [bytecode](../../../../glossary.md#term-bytecode) library,
+- root [Gradle](../../../../glossary.md#term-gradle), settings, shared build logic, [dependency](../../../../glossary.md#term-dependency) coordinates, ASM, another [bytecode](../../../../glossary.md#term-bytecode) library,
   `--enable-preview`, or another [incubator module](../../../../glossary.md#term-incubator-module);
 - broad execution algorithms, scalar/Vector performance claims, arbitrary vector-lane promises,
   benchmarks, or a real Tensor-operation result; and<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [lane glossary](../../../../glossary.md#term-lane))</span>
@@ -430,7 +430,7 @@ definition, and exact handle resolution. It must not contain a scalar/Vector bra
 - The specialization encoding order is exactly: schema version, lowering digest, execution mode,
   ordered arguments with data type/carrier/access/offset-baked flag/baked offset/ordered strides,
   ordered baked extents, dynamic-extent count, optional vector shape, exact byte order, unroll
-  factor, tile count, tail mode, numerical mode, combine order, and class-file major version.<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype); [extent glossary](../../../../glossary.md#term-extent); [shape glossary](../../../../glossary.md#shape); [byte order glossary](../../../../glossary.md#text-encoding-and-file-boundaries))</span>
+  factor, tile count, tail mode, numerical mode, combine order, and class-file major version.<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype); [extent glossary](../../../../glossary.md#term-extent); [byte order glossary](../../../../glossary.md#text-encoding-and-file-boundaries))</span>
 - The deterministic generated class name is derived from the complete specialization fingerprint
   inside `io.github.pho001.synaptik.backend.cpu.execution`. It is diagnostic identity only; hidden
   classes still have distinct JVM identities and are not found by name.<span data-glossary-navigation="true"> ([JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm))</span>
@@ -660,7 +660,7 @@ follow-up.
 - Java 26 `jdk.incubator.vector` requires explicit [module](../../../../glossary.md#term-module) [activation](../../../../glossary.md#term-activation). The [CPU](../../../../glossary.md#term-cpu) build file must add
   `--add-modules jdk.incubator.vector` to every CPU `JavaCompile`, the same module to CPU `Test`
   JVM arguments, and the equivalent option to the CPU <span data-glossary-navigation="true"> ([JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm); [arguments glossary](../../../../glossary.md#term-argument))</span>[`Javadoc`](../../../../glossary.md#term-javadoc) task. The intended task-local
-  Gradle shape is:<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
+  Gradle shape is:
 
   ```kotlin
   tasks.withType<JavaCompile>().configureEach {
@@ -769,7 +769,7 @@ After executable Java and [CPU](../../../../glossary.md#term-cpu) build flags st
 ```
 
 The suite must use Java 26 `ClassFile.of().parse(bytes)` and
-`ClassFile.of().verify(bytes)` for class version, method/field [shape](../../../../glossary.md#shape), [descriptors](../../../../glossary.md#term-descriptor), references, and
+`ClassFile.of().verify(bytes)` for class version, method/field shape, [descriptors](../../../../glossary.md#term-descriptor), references, and
 deterministic bytes. It must use exact `MethodHandle.type()` and
 `invokeExact` probes instead of recurring manual reflection or `javap` as the primary [invariant](../../../../glossary.md#term-invariant).
 If a [bytecode](../../../../glossary.md#term-bytecode) risk cannot be expressed with the Class-File [model](../../../../glossary.md#term-model), record one bounded `javap -v`
@@ -981,7 +981,7 @@ Reasoned no-change conclusions:
   synthetic foundation tests.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model))</span>
 - The CPU build change is limited to the required Java 26 Vector module activation for CPU
   compile, test, and Javadoc. No dependency coordinate, root/shared Gradle rule, preview option,
-  module descriptor, ASM dependency, or other module build changed.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [descriptor glossary](../../../../glossary.md#term-descriptor))</span>
+  module descriptor, ASM dependency, or other module build changed.<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor))</span>
 - Model, Config, Backend Contract, Trace, OpenBLAS provider, Prepare, Runtime, Compiler, Planning,
   Engine, extensions, and other backends require no documentation or source change because the
   task exposes no public/shared contract and makes no route, execution, storage-ownership, or
@@ -1000,7 +1000,7 @@ family [fingerprint](../../../../glossary.md#term-fingerprint) before emission, 
 The tests supply the only family emitter and exercise bounded synthetic copy and structural
 probes. They cover exact six-array carrier mapping, segment and mixed [signatures](../../../../glossary.md#term-signature), all four modes,
 external [`CpuWorkerGroup`](../../../../glossary.md#cpu-worker-group--cpuworkergroup) range [dispatch](../../../../glossary.md#term-dispatch), access restrictions, tail/reduction seams, [canonical](../../../../glossary.md#term-canonical-form)
-fingerprints, class [shape](../../../../glossary.md#shape), direct handle types, deterministic equal bytes, and distinct hidden
+fingerprints, class shape, direct handle types, deterministic equal bytes, and distinct hidden
 artifacts for equal requests. No production [operation](../../../../glossary.md#operation) meaning or route was added.
 
 The clean documentation pass independently reviewed source, tests, build flags, generated

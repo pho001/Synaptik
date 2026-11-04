@@ -146,7 +146,7 @@ unchanged.
   general forms. They must prove embedded typed loads/stores and loops, the intended integer or
   long address form, and absence of `CpuIndexingEmitter.execute2`/`execute3` or any replacement
   hot `Object` bridge.
-- Code-[shape](../../../../glossary.md#shape) tests must reject hot allocation, reflection, boxing, string/map [dispatch](../../../../glossary.md#term-dispatch),
+- Code-shape tests must reject hot allocation, reflection, boxing, string/map [dispatch](../../../../glossary.md#term-dispatch),
   [`DataType`](../../../../glossary.md#data-type--datatype)/family/carrier switching, graph/Runtime/backend selection, cache lookup, and avoidable
   per-element conversions. Prefer Class-File model assertions over source-text matching, absolute
   byte offsets, or manual <span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [Runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [cache glossary](../../../../glossary.md#term-cache); [lookup glossary](../../../../glossary.md#term-lookup); [element glossary](../../../../glossary.md#term-element); [model glossary](../../../../glossary.md#term-model))</span>`javap` as the lasting gate.
@@ -357,7 +357,7 @@ not authorize unrelated cleanup.
 
 [Run](../../../../glossary.md#term-run) focused tests for every changed test [owner](../../../../glossary.md#term-owner) during implementation. The minimum focused [matrix](../../../../glossary.md#term-matrix-meanings)
 must include indexing emission/semantics, bound validation-before-write, [lowering](../../../../glossary.md#lowering)/[IR](../../../../glossary.md#term-intermediate-representation-ir) [identity](../../../../glossary.md#term-identity-meanings),
-preparation/finalization, reference differential behavior, generated class [shape](../../../../glossary.md#shape), [specialization](../../../../glossary.md#term-specialization),
+preparation/finalization, reference differential behavior, generated class shape, [specialization](../../../../glossary.md#term-specialization),
 and [schema](../../../../glossary.md#term-schema)/[persistence](../../../../glossary.md#term-persistence) compatibility. After executable Java stabilizes, run once:
 
 ```bash
@@ -415,7 +415,7 @@ shared or [architecture contract](../../../../glossary.md#architecture-contract)
 
 Expected impact: None.
 
-The task changes only [CPU](../../../../glossary.md#term-cpu)-owned generated indexing code [shape](../../../../glossary.md#shape) and current-only [artifact](../../../../glossary.md#term-artifact)
+The task changes only [CPU](../../../../glossary.md#term-cpu)-owned generated indexing code shape and current-only [artifact](../../../../glossary.md#term-artifact)
 compatibility under the existing analysis/finalization/[binding](../../../../glossary.md#term-binding) [lifecycle](../../../../glossary.md#lifecycle). If implementation
 requires an architecture, public/shared contract, [module](../../../../glossary.md#term-module), [dependency](../../../../glossary.md#term-dependency), semantic, route, resource,
 [materialization](../../../../glossary.md#materialization), or [Runtime](../../../../glossary.md#term-runtime)-policy change, stop and report the conflict.

@@ -20,7 +20,7 @@ Complete
 ## Goal and class
 
 Class C [CPU](../../../../glossary.md#term-cpu) preparation/execution correctness under existing capability and [lifecycle](../../../../glossary.md#lifecycle) contracts.
-Close project-review [C2](../../../../glossary.md#term-c2)/C3/C4 without [widening](../../../../glossary.md#term-widening) [operation](../../../../glossary.md#operation) domains or changing shared [Runtime](../../../../glossary.md#term-runtime).
+Close project-review C2/C3/C4 without [widening](../../../../glossary.md#term-widening) [operation](../../../../glossary.md#operation) domains or changing shared [Runtime](../../../../glossary.md#term-runtime).
 
 ## Confirmed defects and owned [scope](../../../../glossary.md#term-scope)
 
@@ -66,7 +66,7 @@ SoftmaxKind/LossKind and [mask](../../../../glossary.md#term-boolean-mask) contr
 
 ## Dependencies and integration
 
-- Depends on: [CPU](../../../../glossary.md#term-cpu) 0019/0020 Complete; project-review [C2](../../../../glossary.md#term-c2)/C3/C4.
+- Depends on: [CPU](../../../../glossary.md#term-cpu) 0019/0020 Complete; project-review C2/C3/C4.
 - Conflicts with: CPU [prepare](../../../../glossary.md#prepare)/executable/validator writers and CPU 0022 implementation.
 - Parallel group: PROJECT-REVIEW-2026-10-13-REPAIRS (other [module](../../../../glossary.md#term-module) [owners](../../../../glossary.md#term-owner) only).
 - Common base revision: production `728680ea` plus [planning](../../../../glossary.md#term-planning)-only briefs.
@@ -83,7 +83,7 @@ no CPU writer is active. User-authorized repair, complete predecessors, clean co
 Implementation `ca21c80c` integrated as `c0559e2b` after independent Class C APPROVE and the
 coordinator's [softmax](../../../../glossary.md#softmax--log-softmax) glossary correction. [CPU](../../../../glossary.md#term-cpu): 1,026 passed / 28 optional skips, no failures;
 two focused [conformance](../../../../glossary.md#term-conformance) and six public integration tests passed. [Javadoc](../../../../glossary.md#term-javadoc) passed with 94
-pre-existing warnings; diff checks passed. [Metadata](../../../../glossary.md#term-metadata)/value-[scan](../../../../glossary.md#term-cumulative-scan) timing and [materialization](../../../../glossary.md#materialization) order
+pre-existing warnings; diff checks passed. [Metadata](../../../../glossary.md#term-metadata)/value-scan timing and [materialization](../../../../glossary.md#materialization) order
 were independently inspected. No unresolved code finding; the report records the bounded [mask](../../../../glossary.md#term-boolean-mask)
 and materialized-[BOOL](../../../../glossary.md#data-type--datatype) sentinel coverage limitations. The group's combined [checkpoint](../../../../glossary.md#term-checkpoint) passed
 after serial 0022; successful worker evidence was reused.

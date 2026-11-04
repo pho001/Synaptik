@@ -608,7 +608,7 @@ therefore reused it as required:
   1 second with 21 actionable tasks (1 executed, 20 up-to-date).
 
 The exact environment-prefixed evidence launch was first blocked before [Gradle](../../../../glossary.md#term-gradle) by sandbox access
-to the wrapper lock, and its approval [channel](../../../../glossary.md#term-channel) failed. The same command then ran through the
+to the wrapper lock, and its approval channel failed. The same command then ran through the
 pre-approved narrow `/tmp/synaptik-clean-codex-exec` wrapper. Its first actual Gradle [run](../../../../glossary.md#term-run) failed
 before any [fork](../../../../glossary.md#term-fork-meanings), [sample](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters), or report because the harness assumed repository-root working directory
 and could not find its scratch directory. The harness was corrected to locate `backends/cpu` from

@@ -32,7 +32,7 @@ typed carriers, non-negative static access geometry, bounded [pointwise](../../.
 ([DAG](../../../../glossary.md#intermediate-representation-dag-and-ssa)), preparation, [artifact](../../../../glossary.md#term-artifact)-[cache](../../../../glossary.md#term-cache), finalization, and [publication](../../../../glossary.md#term-publication) machinery.
 
 Directly emitted Class-Files must match an optimal clean Java implementation of each specialized
-case in semantic algorithm, hot-loop/[dataflow](../../../../glossary.md#term-dataflow) [shape](../../../../glossary.md#shape), and avoidable-overhead profile. Generated
+case in semantic algorithm, hot-loop/[dataflow](../../../../glossary.md#term-dataflow) shape, and avoidable-overhead profile. Generated
 [element](../../../../glossary.md#term-element) work must not call `CastValueConversions` or another conversion bridge.
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -441,7 +441,7 @@ and integration tests are not [run](../../../../glossary.md#term-run) because no
   source/target, carrier, access, and oracle-equivalence row.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [manifest glossary](../../../../glossary.md#term-manifest); [oracle glossary](../../../../glossary.md#term-test-oracle))</span>
 - Performance pressure could encourage a helper call, fixed-fixture specialization, or SIMD scope
   expansion. The forbidden-reference scan, cold-identity checks, and explicit scalar-only boundary
-  are stop gates rather than optimization suggestions.<span data-glossary-navigation="true"> ([fixture glossary](../../../../glossary.md#term-fixture); [specialization glossary](../../../../glossary.md#term-specialization); [SIMD glossary](../../../../glossary.md#simd); [scope glossary](../../../../glossary.md#term-scope); [scan glossary](../../../../glossary.md#term-cumulative-scan); [identity glossary](../../../../glossary.md#term-identity-meanings); [scalar glossary](../../../../glossary.md#term-scalar))</span>
+  are stop gates rather than optimization suggestions.<span data-glossary-navigation="true"> ([fixture glossary](../../../../glossary.md#term-fixture); [specialization glossary](../../../../glossary.md#term-specialization); [SIMD glossary](../../../../glossary.md#simd); [scope glossary](../../../../glossary.md#term-scope); [identity glossary](../../../../glossary.md#term-identity-meanings); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 
 ## Architecture impact
 

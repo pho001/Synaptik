@@ -1,4 +1,4 @@
-# Task CPU0062: Decompiled [Scan](../../../../glossary.md#term-cumulative-scan) Java lab
+# Task CPU0062: Decompiled Scan Java lab
 
 ## Reader context
 
@@ -29,7 +29,7 @@ Write Java/evidence only under `/private/tmp/synaptik-scan-java-lab.T7IrZN`; rep
 
 - [Root Core invariants](../../../../../ARCHITECTURE.md#core-invariants) and [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([Scope glossary](../../../../glossary.md#term-scope); [normative glossary](../../../../glossary.md#term-normative))</span>.
 - [Backend](../../../../glossary.md#backend) [owner](../../../../glossary.md#term-owner): [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling), [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>.
-- [Scan](../../../../glossary.md#term-cumulative-scan) owner: [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic), [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>. Stop on ambiguity/conflict; no new architecture.
+- Scan owner: [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic), [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>. Stop on ambiguity/conflict; no new architecture.
 
 ## Dependencies and integration
 

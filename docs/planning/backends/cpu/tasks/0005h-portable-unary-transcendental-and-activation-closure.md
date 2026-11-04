@@ -153,7 +153,7 @@ checked by classification; no [payload](../../../../glossary.md#artifact-envelop
 | `SILU` | `-0` | `-0` | `+0` | `+infinity` | NaN -> NaN |
 
 Finite [overflow](../../../../glossary.md#term-overflow), [underflow](../../../../glossary.md#term-underflow), and [subnormal](../../../../glossary.md#term-subnormal) transitions follow the listed operations. The task adds
-no [flush-to-zero](../../../../glossary.md#subnormal-daz-ftz-overflow-and-underflow), finite-only assumption, [reassociation](../../../../glossary.md#term-reassociation), [contraction](../../../../glossary.md#contraction-dimension), reciprocal estimate, or
+no [flush-to-zero](../../../../glossary.md#subnormal-daz-ftz-overflow-and-underflow), finite-only assumption, [reassociation](../../../../glossary.md#term-reassociation), contraction, reciprocal estimate, or
 alternate exceptional-value mode.
 
 ### [Conformance](../../../../glossary.md#term-conformance) tolerances

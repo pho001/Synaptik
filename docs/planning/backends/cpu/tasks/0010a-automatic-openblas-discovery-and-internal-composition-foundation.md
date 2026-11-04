@@ -185,7 +185,7 @@ portable remains selected. This task does not weaken `OpenBlasRouteConfig.comple
 qualification from discovery.
 
 Current `SINGLE_THREAD` remains unchanged. Discovery neither calls `threadCount()` nor
-`setThreadCount(...)`, creates a lock, installs a worker budget, or [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) another [OpenBLAS](../../../../glossary.md#term-openblas)
+`setThreadCount(...)`, creates a lock, installs a worker budget, or coordinates another [OpenBLAS](../../../../glossary.md#term-openblas)
 owner. CPU 0010C owns that later thread-state and shared-budget capability.
 
 ## Out of [scope](../../../../glossary.md#term-scope)
@@ -361,7 +361,7 @@ follow-up or architecture clarification before editing it.
     thread-restoration assertions without requiring a version-specific Cellar path. Its existing
     single absolute-path argument remains exact and exclusive.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument))</span>
 11. Source and bytecode/API-shape scans confirm no new supported public CPU type, static mutable
-    discovery state, singleton, registry, <span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [shape glossary](../../../../glossary.md#shape); [mutable glossary](../../../../glossary.md#term-mutable); [singleton glossary](../../../../glossary.md#term-singleton); [registry glossary](../../../../glossary.md#term-registry))</span>`ServiceLoader`, filesystem enumeration, process launch,
+    discovery state, singleton, registry, <span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [mutable glossary](../../../../glossary.md#term-mutable); [singleton glossary](../../../../glossary.md#term-singleton); [registry glossary](../../../../glossary.md#term-registry))</span>`ServiceLoader`, filesystem enumeration, process launch,
     network/download/install code, provider mutation, or discovery reference in Runtime/hot
     execution.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime))</span>
 12. `CpuInternalPackageInventoryTest` records exactly the four new production types. The new
@@ -518,7 +518,7 @@ notes, exact evidence, completion summary, and final status only after that pass
 - No public Config or Engine lifecycle exists. The foundation is intentionally usable only by
   CPU-local composition/tests until those owners are implemented.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - The explicit session coordinates no other handle, class loader, engine, or arbitrary native
-  consumer and makes no thread-state isolation guarantee.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  consumer and makes no thread-state isolation guarantee.
 
 ## [Validation](../../../../glossary.md#term-validation) evidence
 
@@ -556,7 +556,7 @@ notes, exact evidence, completion summary, and final status only after that pass
   detailed 0010B–0010E task file. The final combined
   `git status --short -uall`/tracked-plus-untracked path check reported exactly those 13 paths, and
   `git diff --check` passed with no output. A separate `rg` trailing-whitespace scan and final-byte
-  newline check passed for all five untracked Java files, which Git's unstaged diff does not cover.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  newline check passed for all five untracked Java files, which Git's unstaged diff does not cover.
 - No-change conclusions: provider API/documentation remain accurate because CPU delegates exact
   selections unchanged and adds no provider behavior; public Config, Engine, Tensor, Compile, and
   Training APIs expose no discovery or route activation; shared Prepare and Runtime receive no
@@ -592,7 +592,7 @@ notes, exact evidence, completion summary, and final status only after that pass
 - Tests and validation performed: reused the implementation context's passing 189-suite/958-test
   CPU run, passing test-class compilation, automatic native checkpoint, Class-File visibility/
   field scan, and whitespace result; the documentation context passed CPU Javadoc, generated-page
-  inspection, five-file Markdown validation, exact-scope/status/frontier/manual checks, and final<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [run glossary](../../../../glossary.md#term-run); [compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names); [scan glossary](../../../../glossary.md#term-cumulative-scan); [Javadoc glossary](../../../../glossary.md#term-javadoc); [scope glossary](../../../../glossary.md#term-scope))</span>
+  inspection, five-file Markdown validation, exact-scope/status/frontier/manual checks, and final<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [run glossary](../../../../glossary.md#term-run); [compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names); [Javadoc glossary](../../../../glossary.md#term-javadoc); [scope glossary](../../../../glossary.md#term-scope))</span>
   `git diff --check`.
 - Documentation-agent review: clean documentation context
   `01a08fd1-151c-7111-b094-a1140cf7ed04` independently reviewed the final code/tests and finalized

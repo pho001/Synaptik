@@ -62,7 +62,7 @@ unblocks CPU 0009C's 48-row CONCAT/STACK hygiene closure; it does not broaden mo
   `IllegalStateException.<init>`, rather than merely filtering invocations. The same automated
   member scan rejects generated/reference/oracle/helper leakage, reflection, map/string or generic
   carrier dispatch, boxing, and unapproved virtual/interface dispatch; only the exact typed array
-  opcodes or explicitly justified <span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [carrier glossary](../../../../glossary.md#term-storage-carrier); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>[`MemorySegment`](../../../../glossary.md#term-memorysegment) calls may remain. Verify the clean Java has the
+  opcodes or explicitly justified <span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>[`MemorySegment`](../../../../glossary.md#term-memorysegment) calls may remain. Verify the clean Java has the
   same all-but-final-test/unconditional-final topology.
 - Inspect `CpuGeneratorSchema`, `CpuKernelSpecialization` identity/compatibility bytes, generated
   binary naming, persistent-cache behavior, and exact fixture digest resources before changing
@@ -271,7 +271,7 @@ Implementation context runs the focused production/evidence suite after executab
   --tests io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
 ```
 
-The extended structural-[oracle](../../../../glossary.md#term-test-oracle) test must [run](../../../../glossary.md#term-run) the automated generated-and-clean [opcode](../../../../glossary.md#term-opcode)/member [scan](../../../../glossary.md#term-cumulative-scan),
+The extended structural-[oracle](../../../../glossary.md#term-test-oracle) test must [run](../../../../glossary.md#term-run) the automated generated-and-clean [opcode](../../../../glossary.md#term-opcode)/member scan,
 selection-[topology](../../../../glossary.md#term-topology) check, mutations, and both exact source-derived cross-tabs: inventory access
 (`DENSE_LINEAR`/`GENERAL_ODOMETER`) and actual `loopAddressing` emitter path
 (`DENSE_HEAP_ARRAY_INT`/`GENERAL_LONG`). The extended

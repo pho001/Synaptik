@@ -8,11 +8,11 @@ supplies typed bodies selected through `CpuClassFileKernelGenerator`. The 32-row
 SHA-bound projection provide structural evidence, while scalar-reference comparisons provide an
 independent semantic oracle for represented results.
 
-Here, CPU Prepare selects and binds carrier/layout forms before `CpuPreparedExecutable` invokes
-immutable work. Each range owns output ordinals, initializes them to positive zero, and accumulates
-in canonical input-row-major order. This differs from input-owned scatter: independent output ranges
-need no workspace. Model semantics, public APIs, and shared Prepare/Runtime contracts remain outside
-the planning-only decision.
+Here, CPU analysis selects structural carrier/layout forms and finalization constructs an immutable
+prepared executable recipe. Runtime later calls the CPU binder on current run storage, creating a
+per-run bound invocation. Both scatter and fold own disjoint output ranges. Fold initializes positive
+zero and accumulates in canonical input-row-major order without workspace; the recorded floating-MUL
+scatter route instead requires exact-product scratch. Model semantics, public APIs, and shared Prepare/Runtime contracts remain outside this planning-only decision.
 
 Current-topic navigation (not a replacement for the historical record):
 
@@ -83,7 +83,7 @@ and each of its children summary-only; create no 0009E child specification.
 [CPU](../../../../glossary.md#term-cpu) [Prepare](../../../../glossary.md#prepare), not [Planning](../../../../glossary.md#term-planning) or [Runtime](../../../../glossary.md#term-runtime), cold-selects the concrete route and [carrier](../../../../glossary.md#term-storage-carrier)/[layout](../../../../glossary.md#layout) form.
 [Lowering](../../../../glossary.md#lowering)/prepare/finalization retain [immutable](../../../../glossary.md#term-immutable) geometry, range, and [binding](../../../../glossary.md#term-binding) facts; Runtime invokes
 prepared work only. A direct route preserves cold overlap checking and immutable recipes. Typed hot
-loops must match optimal clean Java's semantic algorithm and avoidable-overhead [shape](../../../../glossary.md#shape): no
+loops must match optimal clean Java's semantic algorithm and avoidable-overhead shape: no
 per-[element](../../../../glossary.md#term-element) allocation, boxing, reflection, string/map [dispatch](../../../../glossary.md#term-dispatch), [synchronization](../../../../glossary.md#term-synchronization), or avoidable
 virtual/interface dispatch. No [`Operation`](../../../../glossary.md#operation) or `CompiledNode` reaches Runtime hot loops. The [scalar](../../../../glossary.md#term-scalar)
 reference remains a [conformance](../../../../glossary.md#term-conformance)/[fail-closed](../../../../glossary.md#term-fail-closed) [oracle](../../../../glossary.md#term-test-oracle), not a Runtime interpreter.

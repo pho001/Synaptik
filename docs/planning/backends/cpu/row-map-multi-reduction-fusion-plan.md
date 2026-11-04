@@ -48,7 +48,7 @@ ordinary: one lowered execution unit     Scan: region inside the existing emitte
 
 No [Tensor](../../../glossary.md#tensor)/[Compiler](../../../glossary.md#term-compiler) semantic [node](../../../glossary.md#node) is added. A dedicated fusion emitter owns loop/local and
 init/contributor-step/finish orchestration, not clone [scalar](../../../glossary.md#term-scalar), [MATMUL](../../../glossary.md#matrix-multiplication--matmul) or SUM mathematics.
-Inside [Scan](../../../glossary.md#term-cumulative-scan) there is no per-step [Runtime](../../../glossary.md#term-runtime) unit, prepared [callback](../../../glossary.md#term-callback), worker submission or Job.
+Inside Scan there is no per-step [Runtime](../../../glossary.md#term-runtime) unit, prepared [callback](../../../glossary.md#term-callback), worker submission or Job.
 [CPU0073](tasks/0073-row-map-multi-reduction-fusion.md#result) is Complete, MAIN accepted 2026-10-30;
 its Result owns exact [validation](../../../glossary.md#term-validation) and limitations. Source frontier: None; no automatic successor.
 Measurement frontier: **None**. CPU0070/0071/0072 remain Complete; all old timing grants stay closed.
@@ -72,7 +72,7 @@ mandatory, and no performance contribution may be attributed to it without separ
 
 ## Legal pattern and conceptual examples
 
-Admit the same ordered row [axis](../../../glossary.md#term-axis) R throughout a pure row-local [DAG](../../../glossary.md#term-directed-acyclic-graph-dag), including bounded [feature](../../../glossary.md#term-software-feature)
+Admit the same ordered row [axis](../../../glossary.md#term-axis) R throughout a pure row-local [DAG](../../../glossary.md#term-directed-acyclic-graph-dag), including bounded [feature](../../../glossary.md#term-feature)
 contractions. Permit independent row outputs and terminal increasing-R sums/bilinear products
 `X.T @ D`, with each terminal's original ordered operands and represented sites. Terminal results
 finish after all row contributions; a downstream consumer executes only after completion.
@@ -100,7 +100,7 @@ boundary; it does not establish general [dtype](../../../glossary.md#data-type--
 still demonstrates delta + dX + dW with db outside. [Producer](../../../glossary.md#term-producer) + ordinary SUM alone is queued
 CPU0049 work, not the new capability or evidence of newly invented [pointwise](../../../glossary.md#term-pointwise) [fusion](../../../glossary.md#term-fusion).
 
-[Scan](../../../glossary.md#term-cumulative-scan) example: at each active original t, compute D[b,:] once, produce dX/dH row projections,
+Scan example: at each active original t, compute D[b,:] once, produce dX/dH row projections,
 and accumulate Xstep.T@D, previousH.T@D and represented bias SUM in increasing active b.
 Only after reduction, perform each SHARED [carry](../../../glossary.md#term-carry) ADD once at active(t), at a separate typed site.
 Inactive t leaves shared state raw unchanged; never fold the carry into each row contribution.
@@ -117,8 +117,8 @@ sharing alone is ineligible; this does not implement CPU0049's queued producer/S
 
 | Concern | Included | Excluded / retained fallback |
 |---|---|---|
-| Callers | Ordinary static [F32](../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../glossary.md#floating-point-precision-and-rounding); existing ordinary symbolic F32; static/symbolic/length/combined [Scan](../../../glossary.md#term-cumulative-scan) where separately admitted | Ordinary symbolic F64 [MATMUL](../../../glossary.md#matrix-multiplication--matmul); all-valid symbolic F64 Scan; any new [operation](../../../glossary.md#operation) [occurrence](../../../glossary.md#term-occurrence) |
-| Access | [Canonical](../../../glossary.md#term-canonical-form) boundaries, existing dense-read exception/[scalar](../../../glossary.md#term-scalar) reads, proved internal [transpose](../../../glossary.md#term-transpose)/expand/[feature](../../../glossary.md#term-software-feature)-only edits | New affine/offset/[carrier](../../../glossary.md#term-storage-carrier) capability; infer [axes](../../../glossary.md#term-axis) from sizes |
+| Callers | Ordinary static [F32](../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../glossary.md#floating-point-precision-and-rounding); existing ordinary symbolic F32; static/symbolic/length/combined Scan where separately admitted | Ordinary symbolic F64 [MATMUL](../../../glossary.md#matrix-multiplication--matmul); all-valid symbolic F64 Scan; any new [operation](../../../glossary.md#operation) [occurrence](../../../glossary.md#term-occurrence) |
+| Access | [Canonical](../../../glossary.md#term-canonical-form) boundaries, existing dense-read exception/[scalar](../../../glossary.md#term-scalar) reads, proved internal [transpose](../../../glossary.md#term-transpose)/expand/[feature](../../../glossary.md#term-feature)-only edits | New affine/offset/[carrier](../../../glossary.md#term-storage-carrier) capability; infer [axes](../../../glossary.md#term-axis) from sizes |
 | Arithmetic | [Homogeneous](../../../glossary.md#term-homogeneous) F32 or F64, scalar single-range; existing [pointwise](../../../glossary.md#term-pointwise) and [contraction](../../../glossary.md#contraction-dimension) math | Low/mixed types, new [FMA](../../../glossary.md#term-fused-multiply-add-fma)/[reassociation](../../../glossary.md#term-reassociation), new numerical algorithm |
 | [Shape](../../../glossary.md#shape) | Fixed bounded features, R static or existing named B, existing fixed T | B/T [unrolling](../../../glossary.md#term-unrolling), per-B executable [cache](../../../glossary.md#term-cache), [runtime](../../../glossary.md#term-runtime)-value profitability heuristics |
 | Scheduling | One complete ordinary work item; existing Scan outer traversal | [SIMD](../../../glossary.md#simd), threads, [OpenBLAS](../../../glossary.md#term-openblas), new executor/manager/interpreter, Job reuse |
@@ -147,7 +147,7 @@ the bound but cannot change [topology](../../../glossary.md#term-topology)/resou
    dominate both operand loads and dependent math, including invariant/shared hoists.<span data-glossary-navigation="true"> ([rounding glossary](../../../glossary.md#term-rounding); [singleton glossary](../../../glossary.md#term-singleton); [FMA glossary](../../../glossary.md#term-fused-multiply-add-fma); [derivative glossary](../../../glossary.md#term-derivative); [invariant glossary](../../../glossary.md#term-invariant))</span>
 4. Handle B=0, B=1, T=0 and all-inactive separately: required shared zeros still publish, row state
    preserves raw identity (including -0), inactive histories/dX use +0, and no poisoned padding is
-   read. Preserve length validation after producers before any Scan-local write, even at T=0.<span data-glossary-navigation="true"> ([producers glossary](../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([identity glossary](../../../glossary.md#term-identity-meanings); [padding glossary](../../../glossary.md#padding); [validation glossary](../../../glossary.md#term-validation); [Scan glossary](../../../glossary.md#term-cumulative-scan))</span>
+   read. Preserve length validation after producers before any Scan-local write, even at T=0.<span data-glossary-navigation="true"> ([producers glossary](../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([identity glossary](../../../glossary.md#term-identity-meanings); [padding glossary](../../../glossary.md#padding); [validation glossary](../../../glossary.md#term-validation))</span>
 5. Ordinary SUM retains exact accumulation: symbolic F32 five limbs/48 bytes and bounded symbolic
    F64 34 limbs/280 bytes; static F64 remains domain-sized. Keep D materialization needed by db,
    its exact workspace slot/creator and empty/singleton behavior. Scan SUM uses the existing
@@ -173,7 +173,7 @@ files live under `modules/backend/cpu/src/main/java/` at the matching package pa
 
 | Implemented type | Purpose and source-based necessity |
 |---|---|
-| `internal.ir.CpuRowMapReductionIr` | [Immutable](../../../glossary.md#term-immutable) derived region, implementing `CpuPortableKernelIr`; existing [Scan](../../../glossary.md#term-cumulative-scan) `Stage` has one output/input/right/reduction anchor, while ordinary `CpuKernelIr` only carries [pointwise](../../../glossary.md#term-pointwise) instructions. Neither expresses several terminal accumulators sharing one row map. |
+| `internal.ir.CpuRowMapReductionIr` | [Immutable](../../../glossary.md#term-immutable) derived region, implementing `CpuPortableKernelIr`; existing Scan `Stage` has one output/input/right/reduction anchor, while ordinary `CpuKernelIr` only carries [pointwise](../../../glossary.md#term-pointwise) instructions. Neither expresses several terminal accumulators sharing one row map. |
 | Nested `CpuRowMapReductionIr.Contraction(int output, int left, int right)` | Ordered value [bindings](../../../glossary.md#term-binding); `CpuMatmulLowering.validateRankTwo` checks only [rank](../../../glossary.md#term-rank)/[Dimension](../../../glossary.md#dimension) equations. Region proof separately establishes row [provenance](../../../glossary.md#provenance), access and [alias](../../../glossary.md#aliasing-and-arena) safety; never fabricate ordinary [F64](../../../glossary.md#floating-point-precision-and-rounding) [batch](../../../glossary.md#term-batch-machine-learning-and-hyperparameters) [MATMUL](../../../glossary.md#matrix-multiplication--matmul) [IR](../../../glossary.md#term-intermediate-representation-ir). |
 | Nested `CpuRowMapReductionIr.Sum(int output, int input, List<Integer> axes, boolean sumToShape)` | Explicit represented Scan SUM binding; never relabel exact `CpuAggregateIr.Kind.SUM` as sequential. |
 | `internal.lowering.CpuRowMapReductionLowering` | One cold legality/bounds proof shared by ordinary and Scan adapters; the pre-[fusion](../../../glossary.md#term-fusion) recognizer's single-anchor/`ORDINARY_SPLIT` [model](../../../glossary.md#term-model) could not express this group. |
@@ -200,7 +200,7 @@ static void emitBound(CodeBuilder code, CpuRowMapReductionIr ir,
     IntConsumer emitTerminalStep, Runnable finish);
 ```
 
-`rowSites` interleaves pointwise instruction outputs and row-[feature](../../../glossary.md#term-software-feature) [contraction](../../../glossary.md#contraction-dimension) outputs in one
+`rowSites` interleaves pointwise instruction outputs and row-[feature](../../../glossary.md#term-feature) [contraction](../../../glossary.md#contraction-dimension) outputs in one
 [topological order](../../../glossary.md#term-topological-order); each ordinal resolves to exactly one kind, completing its bounded feature cells
 before dependent sites. Terminals are excluded and ordered by `terminalOutputs`; every operand is
 dominated. Contractions use typed loaders, never whole ordinary route IR (symbolic MATMUL [F32](../../../glossary.md#floating-point-precision-and-rounding)-only).
@@ -252,7 +252,7 @@ Ordinary private helpers within existing owners and this capability do not need 
 
 ## Compatibility and retirement recommendation
 
-Keep global generator envelope `CURRENT_VERSION=71`, [Scan](../../../glossary.md#term-cumulative-scan) projection 71 and existing namespaces.
+Keep global generator envelope `CURRENT_VERSION=71`, Scan projection 71 and existing namespaces.
 Use approved ordinary class-[identity](../../../glossary.md#term-identity-meanings) projection **72** only for selected
 ordinary regions; `CpuKernelSpecialization` keeps projection 71 iff `generalScanIr` exists.
 Append `Optional<CpuRowMapReductionIr> rowMapReductionIr` to `CpuKernelSpecialization`; projection
@@ -283,7 +283,7 @@ old test oracles. CPU0071/0072 already retired Scan math subemitters; do not rec
 ## Delivery, [validation](../../../glossary.md#term-validation) and approval decisions
 
 One Class C task: (1) approval/authority gate; (2) durable equations/actual-[AD](../../../glossary.md#autograd) fixtures/negatives;
-(3) common [IR](../../../glossary.md#term-intermediate-representation-ir)/proof plus ordinary full-body unit; (4) [Scan](../../../glossary.md#term-cumulative-scan) adapter/resources;
+(3) common [IR](../../../glossary.md#term-intermediate-representation-ir)/proof plus ordinary full-body unit; (4) Scan adapter/resources;
 (5) shared math seams/emission/[identity](../../../glossary.md#term-identity-meanings) and generated-class inspection; (6) stabilized [module](../../../glossary.md#term-module) gate,
 named [conformance](../../../glossary.md#term-conformance)/integration and independent code/docs review. These are milestones, not a task cascade.
 

@@ -33,7 +33,7 @@ zero-copy, zero-allocation, concurrency or whole-release guarantee.
 Complete — MAIN integrated the coordinated Compiler0017/CPU0081 cutover after exact [Ready](../../../../glossary.md#term-ready)/source
 freezes, independent authority/interface and final implementation APPROVE0 reviews, actual
 ordinary composition/control/guards/[binding](../../../../glossary.md#term-binding) consumers and the unfiltered affected test/[Javadoc](../../../../glossary.md#term-javadoc)
-gate. This is component [qualification](../../../../glossary.md#term-qualification), not whole-[release](../../../../glossary.md#term-release) or wider cold/wire/[Metal](../../../../glossary.md#term-metal) [Scan](../../../../glossary.md#term-cumulative-scan) support.
+gate. This is component [qualification](../../../../glossary.md#term-qualification), not whole-[release](../../../../glossary.md#term-release) or wider cold/wire/[Metal](../../../../glossary.md#term-metal) Scan support.
 
 ## MAIN [Ready](../../../../glossary.md#term-ready) and integration
 
@@ -42,7 +42,7 @@ gate. This is component [qualification](../../../../glossary.md#term-qualificati
 - **Conflicts with:** Compiler0017 exclusively owns Compiler/Planning/Model/Checkpoint semantic/
   source API; this slice exclusively owns Prepare/CPU and non-Compiler context/query migrations.
   MAIN alone owns authority/shared docs/build/release inventory/integration and every command.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [Planning glossary](../../../../glossary.md#term-planning); [Model glossary](../../../../glossary.md#term-model); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Prepare glossary](../../../../glossary.md#prepare); [CPU glossary](../../../../glossary.md#term-cpu); [release glossary](../../../../glossary.md#term-release))</span>
-- **Parallel group:** general-[scan](../../../../glossary.md#term-cumulative-scan)-full-ordinary-2026-11-01.
+- **Parallel group:** general-scan-full-ordinary-2026-11-01.
 - **Common base revision:** HEAD07a281edd3086efde2853211b71b48288db027e1 PLUS every accepted dirty
   file in `/var/folders/z2/kdt1_wq1213732bs4wkhfrh40000gq/T/synaptik-production-run.gloed_6d/fullscan-ready-source.json`.
 - **Integration order:** reviewed Compiler0017 neutral/source cutover, then this reviewed physical
@@ -61,7 +61,7 @@ the named [manifest](../../../../glossary.md#term-manifest) before source launch
 ## Goal and boundaries
 
 Class C. All ordinary [CPU](../../../../glossary.md#term-cpu)-supported known [PURE](../../../../glossary.md#term-pure) body operations compose in both all-valid and
-length-aware [Scan](../../../../glossary.md#term-cumulative-scan) using the existing ordinary [lowering](../../../../glossary.md#lowering), focused arithmetic emitters and Scan time
+length-aware Scan using the existing ordinary [lowering](../../../../glossary.md#lowering), focused arithmetic emitters and Scan time
 loop. Actual selected backward is mandatory. Do not substitute a [ReLU](../../../../glossary.md#term-relu)-only cut, copied mathematics,
 a permanent Scan kind list, interpreter, prepared-body executor, scheduler, callbacks or per-step
 allocation. Preserve declared ordinary [descriptor](../../../../glossary.md#term-descriptor)/type/purity and global first-order exclusions.
@@ -83,7 +83,7 @@ CPU0081 owns [PrepareContext](../../../../glossary.md#prepare-context-preparecon
 `Map<NodeId, ScanActivityPlan> scanActivityPlans` after backendInputs, [GraphPreparation](../../../../glossary.md#graph-preparation--graphpreparation) projection
 from `artifacts.derivatives().scanActivityByNode()`, all [CPU](../../../../glossary.md#term-cpu) query/copy/control/physical/codegen/
 validator/[binding](../../../../glossary.md#term-binding) changes and non-Compiler context-copy migrations, including [Metal](../../../../glossary.md#term-metal) tuning.
-Associations use containing projected [Scan](../../../../glossary.md#term-cumulative-scan) [node](../../../../glossary.md#node) IDs; the plan references the exact local [graph](../../../../glossary.md#graph).
+Associations use containing projected Scan [node](../../../../glossary.md#node) IDs; the plan references the exact local [graph](../../../../glossary.md#graph).
 CPU never imports Compiler. Keep genuine ordinary empty-plan construction; copying annotated
 contexts must preserve/filter the plan map explicitly, never silently drop it through a convenience
 constructor. Migrate all body-bearing Query callers to the new fifth optional component.
@@ -125,7 +125,7 @@ raw affine source publications/ownership and unchanged authentic retained old re
   Local constants stay empty unless actual local ingress exists, never copied by outer ValueId.<span data-glossary-navigation="true"> ([PrepareContext glossary](../../../../glossary.md#prepare-context-preparecontext); [nodes glossary](../../../../glossary.md#node); [topology glossary](../../../../glossary.md#term-topology); [producer glossary](../../../../glossary.md#term-producer); [layout glossary](../../../../glossary.md#layout); [graph glossary](../../../../glossary.md#graph); [constants glossary](../../../../glossary.md#term-constant); [ValueId glossary](../../../../glossary.md#logical-valueid-versus-physical-memory-slot))</span>
 - Use existing CpuPartitionDagDecomposer.decompose/unitContext and CpuPartitionLowering.lower.
   The outer one-node Scan DAG is not a body context. Protect complete next-state temporal closure,
-  declared publication/residual roots and all exact ordinary physical boundaries/cuts.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag); [publication glossary](../../../../glossary.md#term-publication); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  declared publication/residual roots and all exact ordinary physical boundaries/cuts.<span data-glossary-navigation="true"> ([DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag); [publication glossary](../../../../glossary.md#term-publication); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
 - A zero-node passthrough body is legitimate: bind declared roots directly; do not forge a node,
   disable partition invariants or allocate a dummy carry/ROW value. Genuinely empty carry and
   generated no-ROW/empty reverse remain supported with explicit length mode.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition))</span>
@@ -153,7 +153,7 @@ raw affine source publications/ownership and unchanged authentic retained old re
 
 ## Symbolic geometry without representative B
 
-Static and one-[canonical](../../../../glossary.md#term-canonical-form)-named-B/fixed-T/[features](../../../../glossary.md#term-feature) [Scan](../../../../glossary.md#term-cumulative-scan) remain the declared geometry [target](../../../../glossary.md#term-target).
+Static and one-[canonical](../../../../glossary.md#term-canonical-form)-named-B/fixed-T/[features](../../../../glossary.md#term-feature) Scan remain the declared geometry [target](../../../../glossary.md#term-target).
 Use existing [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/recipe [owners](../../../../glossary.md#term-owner) and per-family ordinary pack [layouts](../../../../glossary.md#layout). A higher-[rank](../../../../glossary.md#term-rank) proved
 intermediate ROW or mixed typed boundary must not fail merely at an obsolete rank-three/first-
 float projection assumption. B-dependent geometry is symbolic/checked numeric recipe data, never
@@ -170,7 +170,7 @@ Unproved/unknown/independently named geometry still fails closed; ordinary numer
   Internal loss/row/auxiliary helper calls forward it when controlled. No numerical Tensor slot.<span data-glossary-navigation="true"> ([MemorySegment glossary](../../../../glossary.md#term-memorysegment); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [loss glossary](../../../../glossary.md#loss); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - Existing Scan entry owns the time loop and emits a FIXED sequence of invokestatic helper calls.
   Generation-time iteration over units is fine; runtime unit-object iteration/lookup, MethodHandle
-  dispatch per unit/time, BoundInvocation body children, callbacks and graph traversal are not.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [runtime glossary](../../../../glossary.md#term-runtime); [lookup glossary](../../../../glossary.md#term-lookup); [MethodHandle glossary](../../../../glossary.md#native-numerical-library-and-instruction-architecture); [dispatch glossary](../../../../glossary.md#term-dispatch); [BoundInvocation glossary](../../../../glossary.md#bound-invocation--boundinvocation); [graph glossary](../../../../glossary.md#graph))</span>
+  dispatch per unit/time, BoundInvocation body children, callbacks and graph traversal are not.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [lookup glossary](../../../../glossary.md#term-lookup); [MethodHandle glossary](../../../../glossary.md#native-numerical-library-and-instruction-architecture); [dispatch glossary](../../../../glossary.md#term-dispatch); [BoundInvocation glossary](../../../../glossary.md#bound-invocation--boundinvocation); [graph glossary](../../../../glossary.md#graph))</span>
 - Bind typed segment wrappers, numeric long[][] packs and validator cursors once per invocation.
   Rebind temporal numeric bases and reset mutable owner-defined cursor cells before each helper;
   retain per-family pack/reset ownership. Do not pack/clone/reallocate/slice/MemorySegment.ofArray
@@ -204,7 +204,7 @@ ordinary three-argument API; no copied family proof, sampled B or fake all-valid
   iterations. All-valid B=0/zero-feature occurrences remain present. Length B=0/all-zero-length
   no-body-work is separate. Control needs both complete-occurrence/empty-domain meaning and the
   proved row-indexed root presence; do not derive Shared presence from a numeric reduction or
-  assume an empty row-bit array makes an all-valid terminal absent.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [scalar glossary](../../../../glossary.md#term-scalar); [feature glossary](../../../../glossary.md#term-software-feature))</span>
+  assume an empty row-bit array makes an all-valid terminal absent.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [scalar glossary](../../../../glossary.md#term-scalar); [feature glossary](../../../../glossary.md#term-feature))</span>
 - ROW activity uses the PROVED original row at every valid axis/rank. Guard contributor traversal
   before either operand/index load for terminal SUM, row-contracting MATMUL and shared-target
   ADD-scatter. Reuse existing represented SUM/MM hooks; factor scatter's existing copy/update,
@@ -222,7 +222,7 @@ range/activity entry points. Existing ordinary bind paths must use the SAME loop
 Generated helper-call [targets](../../../../glossary.md#term-target) must be accessible, cold-bound storage/cursors retained once.
 No additional validator hierarchy or new [finite](../../../../glossary.md#term-finite) policy on Layer/RMS/BatchNorm/categorical [loss](../../../../glossary.md#loss).
 
-For each physical unit: inputs [ready](../../../../glossary.md#term-ready) -> structural/activity check -> validate ENTIRE eligible
+For each physical unit: inputs ready -> structural/activity check -> validate ENTIRE eligible
 active domain -> all numerical ranges -> completed [publication](../../../../glossary.md#term-publication). A later bad active row/index must
 reject before the unit writes any output/history/numeric scratch. Earlier completed units need no
 [rollback](../../../../glossary.md#term-rollback). Absent/inactive values are not inspected. [Canonical](../../../../glossary.md#term-canonical-form) [BOOL](../../../../glossary.md#data-type--datatype) 0/1, ignored categorical targets,
@@ -230,7 +230,7 @@ GATHER_ND component bounds and empty-output/nonempty-index guards retain ordinar
 Scatter checks bounds before replacement uniqueness; inactive earlier/later update candidates
 participate in neither. Do not accidentally restrict its [validation](../../../../glossary.md#term-validation) to output range.
 
-All B lengths validate after their [producers](../../../../glossary.md#term-producer) and before THIS [Scan](../../../../glossary.md#term-cumulative-scan)'s first [padding](../../../../glossary.md#padding)/output/history/
+All B lengths validate after their [producers](../../../../glossary.md#term-producer) and before THIS Scan's first [padding](../../../../glossary.md#padding)/output/history/
 scratch/control write, including T=0. [Metadata](../../../../glossary.md#term-metadata) geometry [admission](../../../../glossary.md#term-admission) reads no [host](../../../../glossary.md#term-host) values.
 
 ## [Identity](../../../../glossary.md#term-identity-meanings), old recipes and independent cold boundaries
@@ -259,7 +259,7 @@ activity plans are [compile](../../../../glossary.md#compile) output, not wire d
   temporal ADDs, active contributor SUM/MM/scatter and all-valid empty occurrence presence.<span data-glossary-navigation="true"> ([signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - Verify that a published zero seed and an explicit zero seed initialize the same present local
   root, while omitted/internal channels remain absent. Compiler's uniform route omission must
-  remove the channel, not require a runtime cross-occurrence control lookup.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [channel glossary](../../../../glossary.md#term-channel); [runtime glossary](../../../../glossary.md#term-runtime); [lookup glossary](../../../../glossary.md#term-lookup))</span>
+  remove the channel, not require a runtime cross-occurrence control lookup.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - Malformed symbolic `[B,2] -> [B,3]` fails Prepare before backend analysis, while legal all-valid
   whole-Tensor <span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [backend glossary](../../../../glossary.md#backend); [Tensor glossary](../../../../glossary.md#tensor))</span>`[2,B] -> [B,2]` executes across changed B/[buffers](../../../../glossary.md#term-buffer) without a length-locality shortcut.
 - Later invalid active values reject before current-unit writes; inactive bad values do not.
@@ -274,7 +274,7 @@ activity plans are [compile](../../../../glossary.md#compile) output, not wire d
 ## Result
 
 The existing local [graph](../../../../glossary.md#graph)/[DAG](../../../../glossary.md#term-directed-acyclic-graph-dag) [decomposition](../../../../glossary.md#term-decomposition), ordinary lowerers, focused emitters and same-class
-method declaration [owner](../../../../glossary.md#term-owner) supply body execution. One generated [Scan](../../../../glossary.md#term-cumulative-scan) entry retains time traversal;
+method declaration [owner](../../../../glossary.md#term-owner) supply body execution. One generated Scan entry retains time traversal;
 [run](../../../../glossary.md#term-run)-private typed packs, cursor/control storage, scratch and cleanup use existing [Prepare](../../../../glossary.md#prepare)/[Runtime](../../../../glossary.md#term-runtime)
 owners. There is no second executor, runtime body-unit [lookup](../../../../glossary.md#term-lookup) or copied mathematical inventory.
 The genuine T0 initial-[carry](../../../../glossary.md#term-carry) [derivative](../../../../glossary.md#term-derivative) borrows its actual selected caller [seed](../../../../glossary.md#term-seed) through the

@@ -18,7 +18,7 @@ Complete
 
 ## Goal and class
 
-Class C generated-code/numerical repair for project-review [C1](../../../../glossary.md#term-c1)/C5. [CPU](../../../../glossary.md#term-cpu) 0021 is independently
+Class C generated-code/numerical repair for project-review C1/C5. [CPU](../../../../glossary.md#term-cpu) 0021 is independently
 approved and integrated; this is the sole authorized CPU implementation successor.
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -54,12 +54,12 @@ Use optimal clean Java for each specialized case as semantic/[dataflow](../../..
   regression. Run small focused generated/direct diagnostic performance evidence for changed hot
   paths; no broad historical five-fork program or performance-policy change.<span data-glossary-navigation="true"> ([decompilation glossary](../../../../glossary.md#term-decompilation); [regression glossary](../../../../glossary.md#term-regression); [Run glossary](../../../../glossary.md#term-run); [fork glossary](../../../../glossary.md#term-fork-meanings))</span>
 - Focused regressions then CPU test/Javadoc once; affected conformance/integration tests.
-  Independent Class C review reuses evidence and checks numeric boundary derivation/code shape.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [conformance glossary](../../../../glossary.md#term-conformance); [shape glossary](../../../../glossary.md#shape))</span>
+  Independent Class C review reuses evidence and checks numeric boundary derivation/code shape.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - Report files/[commit](../../../../glossary.md#term-commit)/tests/doc impact/limitations and completion status; no push/shared plans.
 
 ## Dependencies and integration
 
-- Depends on: [CPU](../../../../glossary.md#term-cpu) 0021 and current [Model](../../../../glossary.md#term-model) semantics; source-confirmed [C1](../../../../glossary.md#term-c1)/C5.
+- Depends on: [CPU](../../../../glossary.md#term-cpu) 0021 and current [Model](../../../../glossary.md#term-model) semantics; source-confirmed C1/C5.
 - Conflicts with: all CPU generated [schema](../../../../glossary.md#term-schema), emitter, [activation](../../../../glossary.md#term-activation)/reference and numeric writers.
 - Parallel group: PROJECT-REVIEW-2026-10-13-REPAIRS, after serial CPU predecessor.
 - Common base revision: main after CPU 0021 integration, recorded in the launch verification below.

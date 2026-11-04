@@ -63,7 +63,7 @@ execution              = existing prepared units only
 ```
 
 [CPU](../../../../glossary.md#term-cpu) 0008D may later compare complete legal [fused](../../../../glossary.md#specialization-and-fusion) and split candidates. CPU 0008F may later add
-[MATMUL](../../../../glossary.md#matrix-multiplication--matmul) execution. Neither permission is implied by recognizing a [shape](../../../../glossary.md#shape) today.
+[MATMUL](../../../../glossary.md#matrix-multiplication--matmul) execution. Neither permission is implied by recognizing a shape today.
 
 ## [Scope](../../../../glossary.md#term-scope)
 
@@ -125,7 +125,7 @@ execution              = existing prepared units only
 - Preserve every represented operation boundary. Recognition never folds ADD into an anchor
   accumulator, combines intrinsic and external bias, reassociates a reduction or contraction,
   erases BFLOAT16/FLOAT32 narrowing, changes fused-multiply-add permission, or moves activation
-  across another operation.<span data-glossary-navigation="true"> ([accumulator glossary](../../../../glossary.md#accumulator-type); [bias glossary](../../../../glossary.md#term-bias); [contraction glossary](../../../../glossary.md#contraction-dimension); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [FLOAT32 glossary](../../../../glossary.md#term-float32); [narrowing glossary](../../../../glossary.md#term-narrowing); [fused glossary](../../../../glossary.md#specialization-and-fusion))</span>
+  across another operation.<span data-glossary-navigation="true"> ([accumulator glossary](../../../../glossary.md#accumulator-type); [bias glossary](../../../../glossary.md#term-bias); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [FLOAT32 glossary](../../../../glossary.md#term-float32); [narrowing glossary](../../../../glossary.md#term-narrowing); [fused glossary](../../../../glossary.md#specialization-and-fusion))</span>
 
 ### [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) [epilogue](../../../../glossary.md#term-epilogue) recognition
 
@@ -214,7 +214,7 @@ execution              = existing prepared units only
 ### Deterministic precedence, overlap, and ambiguity
 
 - Recognition is a single bounded forward scan over the supplied stable topological node order.
-  It does not rewrite, reorder, clone, or remove a <span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [topological glossary](../../../../glossary.md#term-topological-order); [node glossary](../../../../glossary.md#node))</span>`CompiledNode` or `GraphValue`.
+  It does not rewrite, reorder, clone, or remove a <span data-glossary-navigation="true"> ([topological glossary](../../../../glossary.md#term-topological-order); [node glossary](../../../../glossary.md#node))</span>`CompiledNode` or `GraphValue`.
 - At each unclaimed anchor ordinal, test families in this exact order:
   `CONV1D_COMPOSITION`, [`CONV2D`](../../../../glossary.md#convolution--conv2d), [`CONV3D`](../../../../glossary.md#conv3d--ncdhw), [`MATMUL`](../../../../glossary.md#matrix-multiplication--matmul), `REDUCTION`,
   `EXPLICIT_SEMANTIC_KERNEL`.
@@ -230,7 +230,7 @@ execution              = existing prepared units only
 - The exact associated baseline-unit indices are resolved only after the maximally split CPU
   0008B baseline succeeds. A fact may span multiple consecutive dependency-linked units, but it
   may not cause a unit contraction. Unit-member ordinals must cover every fact member exactly,
-  in order, with no unrelated unit member inserted.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [dependency glossary](../../../../glossary.md#term-dependency); [contraction glossary](../../../../glossary.md#contraction-dimension))</span>
+  in order, with no unrelated unit member inserted.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 
 ### Barriers and exact fallback
 

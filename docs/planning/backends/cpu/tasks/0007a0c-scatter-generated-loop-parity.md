@@ -99,7 +99,7 @@ capability and semantics remain unchanged.
   canonical logical update order using binary32 addition after each contribution. Its timed
   direct baseline must use the same output-domain scan and the same ordered binary32 work; an
   update-centric, pre-grouped, reordered, atomic, widened, or otherwise semantically easier
-  direct algorithm is forbidden.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [binary32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [scan glossary](../../../../glossary.md#term-cumulative-scan); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
+  direct algorithm is forbidden.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [binary32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
 - Generate typed `GENERAL_LONG` forms for every supported [`MemorySegment`](../../../../glossary.md#term-memorysegment), mixed-carrier,
   arbitrary non-negative layout, zero-stride read, offset/strided injective output, large range,
   and otherwise unproved case. Use primitive carry/reset state and only coordinate arithmetic
@@ -190,7 +190,7 @@ capability and semantics remain unchanged.
   graph/Runtime/backend/cache lookup, and avoidable helper calls. Allow only the closed necessary
   carrier/JDK/<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [graph glossary](../../../../glossary.md#graph); [Runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [cache glossary](../../../../glossary.md#term-cache); [lookup glossary](../../../../glossary.md#term-lookup); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk))</span>`MemorySegment` primitives asserted explicitly by the tests.
 - Test both dense and general class shapes without source-text matching, fragile absolute bytecode
-  offsets, or manual-only <span data-glossary-navigation="true"> ([shapes glossary](../../../../glossary.md#shape); [bytecode glossary](../../../../glossary.md#term-bytecode))</span>`javap`. The retained decompilation is audit evidence; automated
+  offsets, or manual-only <span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode))</span>`javap`. The retained decompilation is audit evidence; automated
   Class-File assertions are the durable gate.<span data-glossary-navigation="true"> ([decompilation glossary](../../../../glossary.md#term-decompilation))</span>
 - Preserve or extend independent semantic differential evidence. Expected scatter results must
   come from `CpuScalarReferenceKernel` or test-local oracle code that neither calls generated
@@ -399,7 +399,7 @@ documentation path outside the allowlist. Unused capacity does not authorize cle
 ## Tests / [validation](../../../../glossary.md#term-validation)
 
 [Run](../../../../glossary.md#term-run) focused tests for every changed test [owner](../../../../glossary.md#term-owner) while iterating. The final focused command must
-name every changed test class and cover Class-File [shape](../../../../glossary.md#shape), scatter semantics, independent [oracle](../../../../glossary.md#term-test-oracle),
+name every changed test class and cover Class-File shape, scatter semantics, independent [oracle](../../../../glossary.md#term-test-oracle),
 validation-before-write/worker submission, arbitrary range/parallel execution, scratch slicing,
 preparation/finalization, [specialization](../../../../glossary.md#term-specialization), and [schema](../../../../glossary.md#term-schema)/[persistence](../../../../glossary.md#term-persistence) compatibility.
 
@@ -459,7 +459,7 @@ shared or [architecture contract](../../../../glossary.md#architecture-contract)
 
 Expected impact: None.
 
-The task changes only [CPU](../../../../glossary.md#term-cpu)-owned generated scatter code [shape](../../../../glossary.md#shape) and current-only [artifact](../../../../glossary.md#term-artifact)
+The task changes only [CPU](../../../../glossary.md#term-cpu)-owned generated scatter code shape and current-only [artifact](../../../../glossary.md#term-artifact)
 compatibility under the existing analysis/finalization/[binding](../../../../glossary.md#term-binding) [lifecycle](../../../../glossary.md#lifecycle). If implementation
 requires an architecture, public/shared contract, [module](../../../../glossary.md#term-module), [dependency](../../../../glossary.md#term-dependency), semantic, route, resource,
 [materialization](../../../../glossary.md#materialization), or [Runtime](../../../../glossary.md#term-runtime)-policy change, stop and report the conflict.

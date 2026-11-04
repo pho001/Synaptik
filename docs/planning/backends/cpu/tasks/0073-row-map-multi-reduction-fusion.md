@@ -36,7 +36,7 @@ Authority prerequisite, clean implementation and independent code/documentation 
 
 Deliver one general [CPU](../../../../glossary.md#term-cpu) [lowering](../../../../glossary.md#lowering) capability: share a pure ordered row map, including bounded
 [feature](../../../../glossary.md#term-feature) contractions, among row outputs and multiple terminal contractions/represented sums.
-Ordinary [graphs](../../../../glossary.md#graph) get one lowered execution unit and [fusion](../../../../glossary.md#term-fusion) emitter; [Scan](../../../../glossary.md#term-cumulative-scan) gets a generation-time
+Ordinary [graphs](../../../../glossary.md#graph) get one lowered execution unit and [fusion](../../../../glossary.md#term-fusion) emitter; Scan gets a generation-time
 region in its existing unit/time loop, never a per-step [Runtime](../../../../glossary.md#term-runtime) unit, [callback](../../../../glossary.md#term-callback), worker or Job.
 Reuse existing [pointwise](../../../../glossary.md#term-pointwise) fusion and [operation](../../../../glossary.md#operation) math; introduce no [Tensor](../../../../glossary.md#tensor) semantic operation.
 
@@ -47,7 +47,7 @@ Use the proposal's [admission matrix](../row-map-multi-reduction-fusion-plan.md#
 [exact type/seam map](../row-map-multi-reduction-fusion-plan.md#minimal-proposed-production-map-and-signatures)
 and [identity recommendation](../row-map-multi-reduction-fusion-plan.md#compatibility-and-retirement-recommendation)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
 One cohesive capability covers ordinary static [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding), already-admitted symbolic ordinary F32,
-and existing separately admitted static/symbolic/length/combined [Scan](../../../../glossary.md#term-cumulative-scan) domains, through a common core.
+and existing separately admitted static/symbolic/length/combined Scan domains, through a common core.
 Keep ordinary exact SUM outside, retaining required D [materialization](../../../../glossary.md#materialization)/workspaces. Prove full
 [partition](../../../../glossary.md#partition)/body uses, [dependency](../../../../glossary.md#term-dependency) convexity, physical [aliases](../../../../glossary.md#aliasing-and-arena), named row-[axis](../../../../glossary.md#term-axis) [provenance](../../../../glossary.md#provenance) and lifetimes
 before cuts/resources. Retain saved/public/external stores or split the group.
@@ -55,7 +55,7 @@ before cuts/resources. Retain saved/public/external stores or split the group.
 ## Non-goals
 
 No new numerics/[FMA](../../../../glossary.md#term-fused-multiply-add-fma)/[reassociation](../../../../glossary.md#term-reassociation), [pointwise](../../../../glossary.md#term-pointwise)-[fusion](../../../../glossary.md#term-fusion) rewrite, ordinary symbolic [F64](../../../../glossary.md#floating-point-precision-and-rounding) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul),
-all-valid symbolic F64 [Scan](../../../../glossary.md#term-cumulative-scan), broader operations/[layouts](../../../../glossary.md#layout)/carriers, low types, [SIMD](../../../../glossary.md#simd)/threads/[OpenBLAS](../../../../glossary.md#term-openblas),
+all-valid symbolic F64 Scan, broader operations/[layouts](../../../../glossary.md#layout)/carriers, low types, [SIMD](../../../../glossary.md#simd)/threads/[OpenBLAS](../../../../glossary.md#term-openblas),
 [Runtime](../../../../glossary.md#term-runtime) protocol/executor/manager/interpreter, B/T [unrolling](../../../../glossary.md#term-unrolling), per-B [cache](../../../../glossary.md#term-cache) or Job reuse.
 Across-time [carry](../../../../glossary.md#term-carry) promotion is separate, not mandatory v1 work. CPU0049's simple [producer](../../../../glossary.md#term-producer)/SUM
 and reduction-[epilogue](../../../../glossary.md#term-epilogue) work is neither duplicated nor silently closed.
@@ -68,7 +68,7 @@ and reduction-[epilogue](../../../../glossary.md#term-epilogue) work is neither 
   [CPU0073 accepted row-map and multiple-terminal reduction fusion](../../../../architecture/contracts/backend-execution.md#cpu0073-accepted-row-map-and-multiple-terminal-reduction-fusion)<span data-glossary-navigation="true"> ([fusion glossary](../../../../glossary.md#term-fusion))</span>,
   [Accepted ordinary symbolic-batch CPU contract](../../../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>,
   [CPU0071 approved static MATMUL compatibility cutover](../../../../architecture/contracts/backend-execution.md#cpu0071-approved-static-matmul-compatibility-cutover)<span data-glossary-navigation="true"> ([MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul))</span>.
-- [Scan](../../../../glossary.md#term-cumulative-scan) [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>,
+- Scan [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>,
   [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates),
   [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic),
   [Qualification and mechanism gates](../../../../architecture/contracts/recurrent-scan.md#qualification-and-mechanism-gates),
@@ -88,7 +88,7 @@ Private helpers within existing owners and the approved capability need no fresh
 
 - Depends on: CPU0070/0071/0072 Complete; retained CPU0064/0065 and Compiler0015/0016/Prepare0015;
   user approval, independent authority APPROVE and MAIN acceptance recorded above.
-- Conflicts with: CPU0048–0052/common [fusion](../../../../glossary.md#term-fusion), [Scan](../../../../glossary.md#term-cumulative-scan) stages/resources/[cache](../../../../glossary.md#term-cache)/[identity](../../../../glossary.md#term-identity-meanings) and shared contracts.
+- Conflicts with: CPU0048–0052/common [fusion](../../../../glossary.md#term-fusion), Scan stages/resources/[cache](../../../../glossary.md#term-cache)/[identity](../../../../glossary.md#term-identity-meanings) and shared contracts.
 - Parallel group: None; one serial writer. No concurrent implementation writers authorized.
 - Common base revision: `07a281edd3086efde2853211b71b48288db027e1` plus accepted dirty base
   (456 existing entries; MAIN's 2536-path hash inventory); preserve all user-owned changes.<span data-glossary-navigation="true"> ([hash glossary](../../../../glossary.md#term-hash))</span>
@@ -121,13 +121,13 @@ envelope branch before aggregate cast), `CpuPartitionLowering`,
 `CpuPreparedExecutable.bindOrdinaryBatch` (full-body work=1). Exact SUM stays unchanged.
 New durable test-only classes: `internal.codegen.emit.CpuRowMapReductionJavaOracle`,
 `CpuRowMapReductionGeneratedKernelTest`, `internal.lowering.CpuRowMapReductionLoweringTest`.
-Extend existing [Scan](../../../../glossary.md#term-cumulative-scan)/dynamic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/generated-[artifact](../../../../glossary.md#term-artifact) tests and the named [checkpoint](../../../../glossary.md#term-checkpoint) classes below.
+Extend existing Scan/dynamic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/generated-[artifact](../../../../glossary.md#term-artifact) tests and the named [checkpoint](../../../../glossary.md#term-checkpoint) classes below.
 
 ## Acceptance criteria
 
 1. Demonstrate non-RNN dense actual AD (delta, dX/dZ, dW/dU, exact db boundary) and complete real
    Compiler-generated Scan reverse; handwritten reverse alone is insufficient. Durable repository
-   test oracles contain self-contained typed equations/cases and saved primals; no temporary files.<span data-glossary-navigation="true"> ([RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [AD glossary](../../../../glossary.md#autograd); [Compiler glossary](../../../../glossary.md#term-compiler); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+   test oracles contain self-contained typed equations/cases and saved primals; no temporary files.<span data-glossary-navigation="true"> ([RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [AD glossary](../../../../glossary.md#autograd); [Compiler glossary](../../../../glossary.md#term-compiler))</span>
 2. Recognize multiple terminal sinks, preserve contributor/operand order and typed producing sites,
    and reject terminal-feedback, leave/reentry paths, ambiguous F=B axes, unknown aliases,
    unsupported dtype/layout/family, and over-budget candidates without changing fallback bytes.<span data-glossary-navigation="true"> ([axes glossary](../../../../glossary.md#term-axis); [aliases glossary](../../../../glossary.md#aliasing-and-arena); [dtype glossary](../../../../glossary.md#data-type--datatype); [layout glossary](../../../../glossary.md#layout))</span>
@@ -177,7 +177,7 @@ future approval decision, not a test prerequisite silently permitting measuremen
 
 ## Documentation and review impact
 
-Independent final documentation updates the root/[backend](../../../../glossary.md#backend) mechanism, [Scan](../../../../glossary.md#term-cumulative-scan) mechanism/status only,
+Independent final documentation updates the root/[backend](../../../../glossary.md#backend) mechanism, Scan mechanism/status only,
 Scan explanation, [CPU](../../../../glossary.md#term-cpu) guide, [ADR 0052](../../../../design/decisions/0052-row-map-multi-reduction-fusion.md)
 and five [planning](../../../../glossary.md#term-planning) files. General/architecture/backend/[ADR](../../../../glossary.md#term-architecture-decision-record-adr)/planning/example profiles apply;
 [API](../../../../glossary.md#term-application-programming-interface-api)/[Javadoc](../../../../glossary.md#term-javadoc) profile guides read-only review. Source Javadocs are finalized by the code author.
@@ -188,7 +188,7 @@ no measurement permission follows.
 ## Result
 
 - Delivered the common IR/proof/generation core: three production types plus two nested records;
-  ordinary static F32/F64, admitted symbolic scalar F32 and separately admitted scalar Scan cases.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [scalar glossary](../../../../glossary.md#term-scalar); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  ordinary static F32/F64, admitted symbolic scalar F32 and separately admitted scalar Scan cases.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Implementation scope: 57 paths (19 production Java, 16 test Java, 22 resources); final docs: 11 paths.
   Computed shared producer required; exact ordinary SUM/D stores remain separate, Scan carry ADDs per time.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [producer glossary](../../../../glossary.md#term-producer); [carry glossary](../../../../glossary.md#term-carry))</span>
 - Hooke final source/tests/[Javadoc](../../../../glossary.md#term-javadoc)/evidence-transfer APPROVE: zero open findings; MAIN accepted 2026-10-30.

@@ -89,7 +89,7 @@ changing architecture.
 ## Files and symbols
 
 - `CpuPartitionDagDecomposer` — whole-partition admission and local fusion search; keep the
-  eight-node per-unit contraction limit.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [admission glossary](../../../../glossary.md#term-admission); [fusion glossary](../../../../glossary.md#term-fusion); [node glossary](../../../../glossary.md#node); [contraction glossary](../../../../glossary.md#contraction-dimension))</span>
+  eight-node per-unit contraction limit.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [admission glossary](../../../../glossary.md#term-admission); [fusion glossary](../../../../glossary.md#term-fusion); [node glossary](../../../../glossary.md#node))</span>
 - `CpuPartitionPreparer`, `CpuPartitionPreparationPlan` — direct long-partition analysis, truthful
   tuning exposure, plan validation and exact unit-indexed workspace declarations.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - Focused CPU lowering/preparation/finalization tests and one backend-conformance or Engine

@@ -36,7 +36,7 @@ reach reproducible near-parity with equivalent direct primitive implementations.
 This is one cohesive CPU-private generated-code correction. Initializer and next-state prologues,
 the CPU-private V1 counter mapping, keep-mask production, [finite](../../../../glossary.md#term-finite)-[precision](../../../../glossary.md#term-precision) scaling, and five-
 boundary invocation share `CpuRandomIr`, `CpuRandomEmitter`, one generated [artifact](../../../../glossary.md#term-artifact) compatibility
-boundary, and the same explicit-state replay contract. The task changes generated code [shape](../../../../glossary.md#shape) only;
+boundary, and the same explicit-state replay contract. The task changes generated code shape only;
 completed CPU 0006D capability, semantics, state representation, mapping, route, and observable
 behavior remain unchanged.
 
@@ -284,7 +284,7 @@ or exploit fixed input values.
   Record source SHA-256 and generated-class SHA-256 for both phases.<span data-glossary-navigation="true"> ([heap glossary](../../../../glossary.md#term-heap); [SHA-256 glossary](../../../../glossary.md#term-sha-256))</span>
 - Performance evidence is observational and must not select or mutate ordinary preparation or
   Runtime behavior. If either type has one failing fork or aggregate, keep status <span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime))</span>`In progress` or
-  `Review needed`, inspect generated and just-in-time compiled [shape](../../../../glossary.md#shape), and correct implementation.
+  `Review needed`, inspect generated and just-in-time compiled shape, and correct implementation.
 - Initializer, general layouts, segment/mixed carriers, partial ranges, empty cases, and parallel
   orchestration remain semantic/Class-File gates rather than broader timing claims.<span data-glossary-navigation="true"> ([layouts glossary](../../../../glossary.md#layout))</span>
 
@@ -458,7 +458,7 @@ type/package, a shared/public contract, or broader semantics, stop before editin
 ## Tests / [validation](../../../../glossary.md#term-validation)
 
 [Run](../../../../glossary.md#term-run) focused tests for every changed test [owner](../../../../glossary.md#term-owner) while iterating. The final focused command must name
-every changed test class and cover direct Class-File [shape](../../../../glossary.md#shape), initializer and both [dropout](../../../../glossary.md#dropout--inverted-dropout) types,
+every changed test class and cover direct Class-File shape, initializer and both [dropout](../../../../glossary.md#dropout--inverted-dropout) types,
 five V1 [vectors](../../../../glossary.md#term-vector), probability and threshold boundaries, dense/general forms, every ordered [carrier](../../../../glossary.md#term-storage-carrier)
 pattern, all-segment and role-toggled mixed carriers, [layouts](../../../../glossary.md#layout)/ranges, raw special values, exact
 state/[mask](../../../../glossary.md#term-boolean-mask)/value semantics, overlap timing, input [alias](../../../../glossary.md#aliasing-and-arena), [scalar](../../../../glossary.md#term-scalar)/parallel replay, preparation/
@@ -523,7 +523,7 @@ false.
 
 Expected impact: None.
 
-The task changes only [CPU](../../../../glossary.md#term-cpu)-owned generated random code [shape](../../../../glossary.md#shape) and current-only [artifact](../../../../glossary.md#term-artifact) compatibility
+The task changes only [CPU](../../../../glossary.md#term-cpu)-owned generated random code shape and current-only [artifact](../../../../glossary.md#term-artifact) compatibility
 under the existing analysis/finalization/[binding](../../../../glossary.md#term-binding) [lifecycle](../../../../glossary.md#lifecycle). If implementation requires an
 architecture, public/shared contract, [module](../../../../glossary.md#term-module), [dependency](../../../../glossary.md#term-dependency), semantic, generator, route, resource,
 [materialization](../../../../glossary.md#materialization), or [Runtime](../../../../glossary.md#term-runtime)-policy change, stop and report the conflict.

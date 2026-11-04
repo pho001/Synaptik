@@ -1,4 +1,4 @@
-# Task CPU0058: Symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) zero scratch-base omission
+# Task CPU0058: Symbolic-length Scan zero scratch-base omission
 
 ## Reader context
 
@@ -24,7 +24,7 @@ Use a clean implementation context and an independent clean targeted code/docume
 
 ## Goal
 
-Extend existing `zeroBases` access proof to combined symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) scratch `Cut` intermediates
+Extend existing `zeroBases` access proof to combined symbolic-length Scan scratch `Cut` intermediates
 whose full offset is zero for every B; preserve inclusive lifetimes, arithmetic and resources.
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -54,7 +54,7 @@ CPU0048–0052 and all exhausted/cancelled measurement grants remain held.
 - [Backend execution](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes):
   **[CPU](../../../../glossary.md#term-cpu) [backend](../../../../glossary.md#backend) routes** and
   [**Performance evidence and optimization tooling**](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling).
-- [Recurrent Scan](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>:
+- [Recurrent Scan](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates):
   **[Qualification](../../../../glossary.md#term-qualification), performance and migration gates**;
   [**Actual first-order closure and arithmetic**](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic);
   [**Activity, raw identity and retained histories**](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>;

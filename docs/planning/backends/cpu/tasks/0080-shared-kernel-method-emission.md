@@ -21,7 +21,7 @@ bytes and consumer failures remain unchanged rather than being rewritten as curr
 
 Complete — MAIN integrated the two exact reviewed source [owners](../../../../glossary.md#term-owner) after the [CPU](../../../../glossary.md#term-cpu)/[Javadoc](../../../../glossary.md#term-javadoc) gate,
 actual prefixed numeric dispatches, ordinary actual-[VJP](../../../../glossary.md#term-vector-jacobian-product-vjp) replay and retained-byte comparison.
-Final independent source/evidence/documentation APPROVE0; no wider [Scan](../../../../glossary.md#term-cumulative-scan)/control capability follows.
+Final independent source/evidence/documentation APPROVE0; no wider Scan/control capability follows.
 
 ## Goal and authority
 
@@ -53,7 +53,7 @@ record GeneratedMethod(String name, MethodTypeDesc type, int accessFlags) {}
 - Preserve existing multi-phase ordinary row helpers and their names/descriptors for the empty
   prefix. Namespace their actual emitted inventory when used as helpers; do not silently narrow
   supported ordinary generation to one-method cases. Existing scanRowRange/Scan paths retain exact
-  empty-prefix behavior; reject a prefixed nested Scan rather than introduce nested composition.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  empty-prefix behavior; reject a prefixed nested Scan rather than introduce nested composition.
 - Existing numerical low-type admission/validation applies independently at this entry before
   emission; no F32 envelope may hide locked low arithmetic. Retain raw/exact/cast/INT/BOOL behavior.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission); [validation glossary](../../../../glossary.md#term-validation); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [BOOL glossary](../../../../glossary.md#data-type--datatype))</span>
 - The whole-class verifier may consume the actual immutable inventory where necessary without
@@ -75,7 +75,7 @@ record GeneratedMethod(String name, MethodTypeDesc type, int accessFlags) {}
   Compiler0017B ordinary rule construction and Engine0024 build files. MAIN owns shared docs/join.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler))</span>
 - Parallel group RELEASE-SCAN-COORDINATE-METHODS. Workers run no commands/builds/tests/javac/lint/
   formatters/native loads. Use absolute paths in the assigned clean context; report exact source
-  preimage/final SHA and actual inventory/API, no verified-runtime claim.<span data-glossary-navigation="true"> ([RELEASE glossary](../../../../glossary.md#term-release); [COORDINATE glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [run glossary](../../../../glossary.md#term-run); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [runtime glossary](../../../../glossary.md#term-runtime))</span>
+  preimage/final SHA and actual inventory/API, no verified-runtime claim.<span data-glossary-navigation="true"> ([RELEASE glossary](../../../../glossary.md#term-release); [run glossary](../../../../glossary.md#term-run); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Order: independent contract/Ready -> exact clean context -> full factoring/Javadoc -> independent
   source review -> MAIN CPU/Javadoc gate and actual hidden-class execution -> final evidence/docs.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [Javadoc glossary](../../../../glossary.md#term-javadoc); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - MAIN compares retained 14-family/28-kernel/85-file capture unchanged and ordinary scalar-oracle
@@ -83,7 +83,7 @@ record GeneratedMethod(String name, MethodTypeDesc type, int accessFlags) {}
   units including loss helpers, verifies their real descriptors and executes numeric results.
   This is actual behavior, not a permanent wiring/member/count test. Preserve first failures.<span data-glossary-navigation="true"> ([kernel glossary](../../../../glossary.md#kernel); [capture glossary](../../../../glossary.md#term-capture-meanings); [scalar glossary](../../../../glossary.md#term-scalar); [oracle glossary](../../../../glossary.md#term-test-oracle); [smoke glossary](../../../../glossary.md#term-smoke-test); [descriptors glossary](../../../../glossary.md#term-descriptor))</span>
 
-No all-[PURE](../../../../glossary.md#term-pure) [admission](../../../../glossary.md#term-admission) or production-completion claim follows. The later composed [Scan](../../../../glossary.md#term-cumulative-scan) still must
+No all-[PURE](../../../../glossary.md#term-pure) [admission](../../../../glossary.md#term-admission) or production-completion claim follows. The later composed Scan still must
 reuse these methods through fixed emitted calls with complete activity, validators, typed scratch,
 geometry resets, native/[heap](../../../../glossary.md#term-heap) [ownership](../../../../glossary.md#term-ownership-meanings) and selective [identity](../../../../glossary.md#term-identity-meanings) [qualification](../../../../glossary.md#term-qualification).
 
@@ -93,7 +93,7 @@ The existing production generator genuinely calls one package-private `emitMetho
 the empty prefix; a nested [immutable](../../../../glossary.md#term-immutable) `GeneratedMethod` inventory records actual declarations.
 Namespaced ordinary entries, selected ordinary row phases and all three [loss](../../../../glossary.md#loss) methods use that
 same dispatch. Both direct loss calls use the caller's declaring [owner](../../../../glossary.md#term-owner)/prefix. Prefixed [general
-Scan](../../../../glossary.md#general-differentiable-scan) rejects before declarations; standalone [Scan](../../../../glossary.md#term-cumulative-scan) keeps its existing range-helper order.
+Scan](../../../../glossary.md#general-differentiable-scan) rejects before declarations; standalone Scan keeps its existing range-helper order.
 The complete existing low-type and [specialization](../../../../glossary.md#term-specialization)/[IR](../../../../glossary.md#term-intermediate-representation-ir) checks [run](../../../../glossary.md#term-run) before emission at this seam.
 No numerical body, [carrier](../../../../glossary.md#term-storage-carrier) [ABI](../../../../glossary.md#term-application-binary-interface-abi), local [layout](../../../../glossary.md#layout), wrapper invocation, [identity](../../../../glossary.md#term-identity-meanings)/[schema](../../../../glossary.md#term-schema) or [runtime](../../../../glossary.md#term-runtime)
 [lookup](../../../../glossary.md#term-lookup)/interpreter was added or changed.

@@ -262,7 +262,7 @@ Expected build file:
 
 Expected test files:
 
-- one supported-package public-[shape](../../../../glossary.md#shape)/[lifecycle](../../../../glossary.md#lifecycle) test
+- one supported-package public-shape/[lifecycle](../../../../glossary.md#lifecycle) test
 - one internal preparation/schedule test
 - one focused automatic-[OpenBLAS](../../../../glossary.md#term-openblas) lifecycle/fallback test
 - `testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/CpuOpenBlasRouteConformanceTest.java`,
@@ -388,7 +388,7 @@ Implementation-focused checks:
 ./gradlew :testing:architecture-tests:test --tests '*CpuDependencyContractTest*'
 ```
 
-The focused tests must cover public [shape](../../../../glossary.md#shape), exact availability, exactly-one-[partition](../../../../glossary.md#partition) all-[CPU](../../../../glossary.md#term-cpu)
+The focused tests must cover public shape, exact availability, exactly-one-[partition](../../../../glossary.md#partition) all-[CPU](../../../../glossary.md#term-cpu)
 preparation, [constant](../../../../glossary.md#term-constant) initialization, caller-input [borrowing](../../../../glossary.md#term-borrowing), every intrinsic borrow rejection
 listed in the acceptance criteria, and explicit acceptance of intrinsically valid storage without
 an expected logical [binding](../../../../glossary.md#term-binding). They must prove that zero-partition/pass-through [artifacts](../../../../glossary.md#term-artifact) and
@@ -424,7 +424,7 @@ Manual validation:
   invented expected descriptor, required capacity/span, prepared-position lookup, or write-role
   policy;<span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup))</span>
 - inspect all failure paths for deterministic partial-resource cleanup and suppressed failures;
-- [scan](../../../../glossary.md#term-cumulative-scan) for `ServiceLoader`, reflection, global registries/singletons, Config/tuning decisions, and
+- scan for `ServiceLoader`, reflection, global registries/singletons, Config/tuning decisions, and
   Runtime backend selection;<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - confirm generator [schema](../../../../glossary.md#term-schema) and generated-code paths are unchanged;
 - confirm the focused architecture test reads the declared CPU dependency set directly, permits

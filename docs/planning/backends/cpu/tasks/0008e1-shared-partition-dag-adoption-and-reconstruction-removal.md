@@ -105,7 +105,7 @@ This is an [ownership](../../../../glossary.md#term-ownership-meanings)-[alignme
   module. The shared projection is already complete for this task.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [validation glossary](../../../../glossary.md#term-validation); [module glossary](../../../../glossary.md#term-module))</span>
 - New fusion legality or profitability policy, contraction grammar, seed recognition, topology
   ceiling, score, tie rule, barrier rule, materialization candidate, representation selection, or
-  promotion policy.<span data-glossary-navigation="true"> ([fusion glossary](../../../../glossary.md#term-fusion); [contraction glossary](../../../../glossary.md#contraction-dimension); [seed glossary](../../../../glossary.md#term-seed); [materialization glossary](../../../../glossary.md#materialization))</span>
+  promotion policy.<span data-glossary-navigation="true"> ([fusion glossary](../../../../glossary.md#term-fusion); [seed glossary](../../../../glossary.md#term-seed); [materialization glossary](../../../../glossary.md#materialization))</span>
 - MATMUL or linear epilogues, pooling, attention, losses, native routes, packing, tuning, Config,
   Prepare 0004, CPU 0016, or any later CPU 0008F–0017 capability.<span data-glossary-navigation="true"> ([MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [linear glossary](../../../../glossary.md#term-linear-meanings); [pooling glossary](../../../../glossary.md#term-pooling); [losses glossary](../../../../glossary.md#loss))</span>
 - New operations, public APIs, backend capability, schema bump, cache compatibility, artifact
@@ -184,7 +184,7 @@ Type placement:
 
 - `CpuPartitionDagDecomposer` remains the CPU owner of computation-unit membership,
   contraction/enumeration, and candidate-local unit dependencies while consuming shared graph
-  occurrences.<span data-glossary-navigation="true"> ([contraction glossary](../../../../glossary.md#contraction-dimension); [graph glossary](../../../../glossary.md#graph))</span>
+  occurrences.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>
 - `CpuPartitionLowering` and `CpuAffineLayoutLowering` remain the owners of their semantic lowering
   and unit-local virtual/materialized decisions.
 - `CpuSpecializedSubgraphRecognizer` remains the [owner](../../../../glossary.md#term-owner) of recognition-only typed facts.
@@ -257,7 +257,7 @@ CPU 0008D/0008E candidate, representation, resource, and decision ceilings.
 
 - Every complete-[partition](../../../../glossary.md#partition) [CPU](../../../../glossary.md#term-cpu) [producer](../../../../glossary.md#term-producer)/consumer/edge fact that is exactly represented by
   `context.partitionDag()` is read from that shared projection rather than reconstructed through
-  a complete `context.nodes()` producer/consumer [scan](../../../../glossary.md#term-cumulative-scan).
+  a complete `context.nodes()` producer/consumer scan.
 - Remaining node iteration is semantic processing, stable membership traversal, CPU candidate/unit
   mapping, or IR use accounting; each remaining topology-looking scan has a recorded exact reason
   why shared DAG facts are not equivalent.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [topology glossary](../../../../glossary.md#term-topology); [DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag))</span>
@@ -418,7 +418,7 @@ summary, and status. Leave CPU 0008F Draft without a specification.
   CPU-owned computation-unit membership, contraction enumeration, candidate identities,
   dependencies, semantic input positions, IR instruction-use counts, representation-adjusted
   consumer positions, boundary roles, and logical-memory/publication interpretation remain in
-  their existing CPU owners.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [topology glossary](../../../../glossary.md#term-topology); [CPU glossary](../../../../glossary.md#term-cpu); [contraction glossary](../../../../glossary.md#contraction-dimension); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [publication glossary](../../../../glossary.md#term-publication))</span>
+  their existing CPU owners.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [topology glossary](../../../../glossary.md#term-topology); [CPU glossary](../../../../glossary.md#term-cpu); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [publication glossary](../../../../glossary.md#term-publication))</span>
 - Unit projection filters producer, consumer, and outside-consumer facts from the source DAG by
   exact <span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag))</span>`CompiledNode` [identity](../../../../glossary.md#term-identity-meanings) and constructs the existing unit-scoped [`PrepareContext`](../../../../glossary.md#prepare-context-preparecontext). It adds
   no second complete adjacency index or general graph abstraction.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>
@@ -481,7 +481,7 @@ summary, and status. Leave CPU 0008F Draft without a specification.
 
 - `CpuPartitionDagDecomposer` now derives ordinals, edges, fan-out, dependencies, stable
   topological order, and unit-projection outside-consumer facts from the shared DAG while keeping
-  contraction and unit membership CPU-owned.<span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out); [topological order glossary](../../../../glossary.md#term-topological-order); [DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag); [contraction glossary](../../../../glossary.md#contraction-dimension); [CPU glossary](../../../../glossary.md#term-cpu))</span>
+  contraction and unit membership CPU-owned.<span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out); [topological order glossary](../../../../glossary.md#term-topological-order); [DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - `CpuPartitionLowering` uses shared external-input, producer, and consumer occurrences while
   preserving first-use boundary order and repeated semantic input positions in CPU IR.<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
 - `CpuAffineLayoutLowering` validates exact intermediate/final consumer occurrences;

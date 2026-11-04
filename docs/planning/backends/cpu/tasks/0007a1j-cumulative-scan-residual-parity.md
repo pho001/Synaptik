@@ -1,4 +1,4 @@
-# Task 0007A1J: [Cumulative scan](../../../../glossary.md#cumulative-scan) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
+# Task 0007A1J: [Cumulative scan](../../../../glossary.md#cumulative-scan) [residual](../../../../glossary.md#term-residual-meanings) parity
 
 ## Reader context
 
@@ -27,7 +27,7 @@ Complete
 
 ## Goal
 
-Correct exactly the persistent `C-SCAN-GENERAL` generated/direct [residual](../../../../glossary.md#scan-residual-port-and-history-demand) through its sole
+Correct exactly the persistent `C-SCAN-GENERAL` generated/direct [residual](../../../../glossary.md#term-residual-meanings) through its sole
 code-shaping [owner](../../../../glossary.md#term-owner), `CpuScanEmitter`. Preserve the frozen [CPU](../../../../glossary.md#term-cpu) 0007A1C semantics, exclusive reverse
 [INT64](../../../../glossary.md#data-type--datatype) cumulative-product order, mixed segment carriers, arbitrary legal complete-[slice](../../../../glossary.md#slice) subranges,
 zero-workspace contract, and typed general fallback while passing the unchanged five-[fork](../../../../glossary.md#term-fork-meanings)
@@ -91,7 +91,7 @@ zero-workspace contract, and typed general fallback while passing the unchanged 
 - CPU analysis retains lowering, strategy, resource declaration, and route selection before shared
   assignment; CPU finalization realizes one artifact afterward; Runtime only invokes prepared
   direct carriers and complete-slice bounds.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [artifact glossary](../../../../glossary.md#term-artifact); [Runtime glossary](../../../../glossary.md#term-runtime); [slice glossary](../../../../glossary.md#slice))</span>
-- Generated code must preserve the optimal clean Java [scan](../../../../glossary.md#term-cumulative-scan) algorithm and hot-loop/[dataflow](../../../../glossary.md#term-dataflow) [shape](../../../../glossary.md#shape).
+- Generated code must preserve the optimal clean Java [scan](../../../../glossary.md#term-cumulative-scan) algorithm and hot-loop/[dataflow](../../../../glossary.md#term-dataflow) shape.
 - Benchmark observations accept or reject this bounded code shape and never select production
   settings.
 
@@ -142,7 +142,7 @@ change, resource change, [module](../../../../glossary.md#term-module), or broad
   order, modular INT64 multiplication, and zero-workspace/resource contracts remain unchanged.<span data-glossary-navigation="true"> ([slice glossary](../../../../glossary.md#slice); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [INT64 glossary](../../../../glossary.md#data-type--datatype))</span>
 - Target Class-File and disassembly prove the typed guarded scan body and retained fallback with
   no forbidden structure or avoidable repeated division, remainder, or packed-geometry lookup in
-  the proved hot loop.<span data-glossary-navigation="true"> ([Target glossary](../../../../glossary.md#term-target); [scan body glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state); [lookup glossary](../../../../glossary.md#term-lookup))</span>
+  the proved hot loop.<span data-glossary-navigation="true"> ([Target glossary](../../../../glossary.md#term-target); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - Focused [scan](../../../../glossary.md#term-cumulative-scan)/closure/[schema](../../../../glossary.md#term-schema) [owners](../../../../glossary.md#term-owner) pass, followed by one uncached [CPU](../../../../glossary.md#term-cpu) suite.
 - A distinct clean documentation context finalizes affected Javadocs, guide/glossary impact,
   evidence/status records, and documentation validation without rerunning stable Java tests.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
@@ -180,7 +180,7 @@ to CPU 0009 or [CI](../../../../glossary.md#term-continuous-integration-ci) beca
 - CPU 0007 and CPU 0007A0 supply the exact [scan](../../../../glossary.md#term-cumulative-scan) semantics and generated typed-body foundation.
 - CPU 0007A1A supplies the self-contained [BFLOAT16](../../../../glossary.md#term-bfloat16) scan boundary without changing this [INT64](../../../../glossary.md#data-type--datatype) row.
 - CPU 0007A1D supplies stable invocation-local segment [layout](../../../../glossary.md#layout) handling.
-- CPU 0007A1I is Complete at [schema](../../../../glossary.md#term-schema) 37 and supplies the fresh five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) frontier.
+- CPU 0007A1I is Complete at [schema](../../../../glossary.md#term-schema) 37 and supplies the fresh five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#term-residual-meanings) frontier.
 
 ## Follow-up tasks
 
@@ -188,8 +188,8 @@ to CPU 0009 or [CI](../../../../glossary.md#term-continuous-integration-ci) beca
   owns only persistent `A-GENERAL` through `CpuAffineCopyEmitter`.
 - The remaining `P-SCALAR-GENERAL`, `S-GENERAL-MIN`, and `X-MIN-MULTI` rows remain Draft and
   unassigned until fresh accepted evidence selects another bounded owner cluster.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>
-- [Resume](../../../../glossary.md#schema-serialization-and-checkpoint) [CPU](../../../../glossary.md#term-cpu) 0007A1C closure only after every persistent row closes.
-- CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective [residual](../../../../glossary.md#scan-residual-port-and-history-demand) work.
+- Resume [CPU](../../../../glossary.md#term-cpu) 0007A1C closure only after every persistent row closes.
+- CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective [residual](../../../../glossary.md#term-residual-meanings) work.
 
 ## Architecture impact
 
@@ -229,7 +229,7 @@ Do not commit, push, or stage.
   code-shaping owner, one fixed sequential algorithm, zero workspace, and already completed scan
   semantics/generated-body dependencies. Scatter retains separate range-copy, update filtering,
   reduction, and duplicate-order concerns that should not be pulled into this bounded task.
-- No other [residual](../../../../glossary.md#scan-residual-port-and-history-demand) shares the [scan](../../../../glossary.md#term-cumulative-scan) [owner](../../../../glossary.md#term-owner) or algorithm, so this remains a one-row task.
+- No other [residual](../../../../glossary.md#term-residual-meanings) shares the [scan](../../../../glossary.md#term-cumulative-scan) [owner](../../../../glossary.md#term-owner) or algorithm, so this remains a one-row task.
 - Schema advances exactly once from 37 to 38 because the generated scan class changes. Schema-37
   and earlier envelopes remain incompatible safe misses without migration or dual-schema reuse.<span data-glossary-navigation="true"> ([Schema glossary](../../../../glossary.md#term-schema))</span>
 - The specialization identity admits the exact reverse INT64 product family shape and two segment
@@ -320,7 +320,7 @@ paths, `git diff --check` and `git diff --cached --check` pass, and staging rema
 - Completed changes: added the schema-38 completely guarded fixed reverse exclusive INT64
   cumulative-product segment-cursor body, preserved arbitrary legal complete-slice subranges and
   typed fallback, finalized affected Javadocs/package summaries, documented bounded evidence and
-  compatibility, and synchronized the residual frontier.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [INT64 glossary](../../../../glossary.md#data-type--datatype); [slice glossary](../../../../glossary.md#slice); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  compatibility, and synchronized the residual frontier.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [INT64 glossary](../../../../glossary.md#data-type--datatype); [slice glossary](../../../../glossary.md#slice); [residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 - Files changed or created: five production/Javadoc paths, five test paths, the CPU backend guide,
   glossary, this task, CPU 0007A1C, CPU master plan, roadmap, and new CPU 0007A1K task. The
   documentation pass changed no executable statement or test.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [backend glossary](../../../../glossary.md#backend))</span>
@@ -341,10 +341,10 @@ paths, `git diff --check` and `git diff --cached --check` pass, and staging rema
   integration tests, other modules, and shared Gradle/build files remain accurate because this is
   a CPU-private generated code-shape/schema correction with unchanged ownership, dependencies,
   semantics, resources, capability, and lifecycle. Executable Java statements and tests remained
-  unchanged after the implementation evidence froze.<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Model glossary](../../../../glossary.md#term-model); [lowering glossary](../../../../glossary.md#lowering); [conformance glossary](../../../../glossary.md#term-conformance); [modules glossary](../../../../glossary.md#term-module); [Gradle glossary](../../../../glossary.md#term-gradle); [shape glossary](../../../../glossary.md#shape); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  unchanged after the implementation evidence froze.<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Model glossary](../../../../glossary.md#term-model); [lowering glossary](../../../../glossary.md#lowering); [conformance glossary](../../../../glossary.md#term-conformance); [modules glossary](../../../../glossary.md#term-module); [Gradle glossary](../../../../glossary.md#term-gradle); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Unresolved issues: four frozen performance residuals remain; CPU 0007A1C and 0007A1D remain
   incomplete/`Review needed`, and [CPU](../../../../glossary.md#term-cpu) 0007A2 remains Draft and blocked.
 - Follow-up required: execute Ready CPU 0007A1K, select later owner-cohesive residual tasks only
-  from accepted evidence, then resume CPU 0007A1C after all four residuals close.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [resume glossary](../../../../glossary.md#schema-serialization-and-checkpoint))</span>
+  from accepted evidence, then resume CPU 0007A1C after all four residuals close.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>
 
 Status: Complete

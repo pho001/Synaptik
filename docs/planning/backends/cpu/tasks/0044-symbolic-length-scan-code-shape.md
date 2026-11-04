@@ -1,4 +1,4 @@
-# Task CPU0044: Symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) code-[shape](../../../../glossary.md#shape) optimization
+# Task CPU0044: Symbolic-length Scan code-shape optimization
 
 ## Reader context — historical integration boundary
 
@@ -32,7 +32,7 @@ below, then compare retained v3/repaired v4 with unchanged Java in one bounded b
 
 One existing [CPU](../../../../glossary.md#term-cpu) capability, [homogeneous](../../../../glossary.md#term-homogeneous) [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding), both traversals and actual [Compiler](../../../../glossary.md#term-compiler) reverse.
 No new production type/package, configuration, public [API](../../../../glossary.md#term-application-programming-interface-api), [ABI](../../../../glossary.md#term-application-binary-interface-abi), [Runtime](../../../../glossary.md#term-runtime) [handoff](../../../../glossary.md#term-handoff), [dependency](../../../../glossary.md#term-dependency),
-execution [owner](../../../../glossary.md#term-owner), numeric policy or architecture decision. Six core [Scan](../../../../glossary.md#term-cumulative-scan) semantic sections stay frozen.
+execution [owner](../../../../glossary.md#term-owner), numeric policy or architecture decision. Six core Scan semantic sections stay frozen.
 No unrelated refactor, global [carrier](../../../../glossary.md#term-storage-carrier)-policy change, algorithm/[arity](../../../../glossary.md#term-arity)/[layout](../../../../glossary.md#layout) change, unsafe access,
 [oracle](../../../../glossary.md#term-test-oracle) weakening, broad timing campaign, default [JIT](../../../../glossary.md#term-just-in-time-compilation-jit)-policy change, native build or Git mutation.
 New named types, semantic ambiguity or actual contract conflicts require stop/report to MAIN.
@@ -46,7 +46,7 @@ Read the root [scope](../../../../glossary.md#term-scope) index, then these exac
 - [Backend owner](../../../../architecture/contracts/backend-execution.md)<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend); [owner glossary](../../../../glossary.md#term-owner))</span>: `Concrete backend modules`,
   `Performance evidence and optimization tooling`, `CPU backend routes`,
   `Accepted ordinary symbolic-batch CPU contract` (checked access, [identity](../../../../glossary.md#term-identity-meanings) and entry-cost rules).
-- [Scan owner](../../../../architecture/contracts/recurrent-scan.md)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>: `Canonical residual ports and demand`,
+- [Scan owner](../../../../architecture/contracts/recurrent-scan.md): `Canonical residual ports and demand`,
   `Reverse scan and exact primal bindings`, `Traversal, empty domains and declared qualification`,
   `Qualification, performance and migration gates`; `Accepted symbolic-batch scan` →
   `Actual first-order closure and arithmetic`, `Empty domains and numeric resources`,
@@ -61,7 +61,7 @@ Existing append-only [cache](../../../../glossary.md#term-cache) rules authorize
 ## Dependencies and integration
 
 - Depends on: CPU0043; Prepare0015; CPU0041; CPU0042 — Complete, accepted source/evidence/reviews/gates.
-- Conflicts with: combined [Scan](../../../../glossary.md#term-cumulative-scan) [lowering](../../../../glossary.md#lowering)/emission/resources/[identities](../../../../glossary.md#term-identity-meanings), [CPU](../../../../glossary.md#term-cpu) harness and shared docs; serialize writers.
+- Conflicts with: combined Scan [lowering](../../../../glossary.md#lowering)/emission/resources/[identities](../../../../glossary.md#term-identity-meanings), [CPU](../../../../glossary.md#term-cpu) harness and shared docs; serialize writers.
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`, empty index,
   plus accepted dirty inventory `/private/tmp/synaptik-dynamic-batch-cutover.Of4Q8D/cpu0044-repair-request-FodFPm.json` (2487 files; copies retained externally).
@@ -306,5 +306,5 @@ Follow-up required: user disposition on returning [dataflow](../../../../glossar
 - Parfit independent harness/untimed [ABI](../../../../glossary.md#term-application-binary-interface-abi) [preflight](../../../../glossary.md#term-preflight) APPROVE; final post-[run](../../../../glossary.md#term-run) evidence review Complete, no evidence-validity blocker, concurs ~1.395x/~1.501x slower v3 and withheld performance acceptance.
 - Source-matched owning evidence reused: CPU 1281 executed/46 skipped, 222 suites, 0 failures/errors; [Javadoc](../../../../glossary.md#term-javadoc) PASS with 94 unrelated warnings. Exact commands remain in [Validation](../../../../glossary.md#term-validation)/external evidence; no rerun for this [planning](../../../../glossary.md#term-planning) disposition.
 - MAIN preservation audit: frozen source hashes and all 3289 historical files unchanged after slot 3. Original protocols/results and complete predecessor histories remain intact.
-- Documentation impact: these three planning records only; no root/[backend](../../../../glossary.md#backend)-guide version receipts, authority, numerical/[Scan](../../../../glossary.md#term-cumulative-scan) semantics, architecture decision or glossary change. Source Javadoc correctness review already approved.
+- Documentation impact: these three planning records only; no root/[backend](../../../../glossary.md#backend)-guide version receipts, authority, numerical/Scan semantics, architecture decision or glossary change. Source Javadoc correctness review already approved.
 - Required next step is a user decision, then explicit MAIN [scope](../../../../glossary.md#term-scope)/acceptance; performance is NOT accepted, task is NOT Complete, and no successor or extra measurement is authorized.

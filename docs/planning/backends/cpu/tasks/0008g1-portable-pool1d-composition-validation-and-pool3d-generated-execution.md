@@ -34,7 +34,7 @@ The Pool1d path must recognize only
 `EXPAND_DIMS(axis 2) -> POOL2D -> SQUEEZE(axis 2)`, keep both [rank](../../../../glossary.md#term-rank)-edit results virtual, and reuse
 the existing [schema](../../../../glossary.md#term-schema)-55 Pool2d generated body. The [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling) path must use a rank-five direct
 complete-output-cell [scalar](../../../../glossary.md#term-scalar) body, with caller-owned parallelism only across disjoint output cells,
-and prove that generated code has the same semantic algorithm, loop/[dataflow](../../../../glossary.md#term-dataflow) [shape](../../../../glossary.md#shape), and
+and prove that generated code has the same semantic algorithm, loop/[dataflow](../../../../glossary.md#term-dataflow) shape, and
 avoidable-overhead profile as an optimal clean Java implementation of the same [specialization](../../../../glossary.md#term-specialization).
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -567,7 +567,7 @@ through the existing [partition](../../../../glossary.md#partition) [DAG](../../
 execution, overlap [validation](../../../../glossary.md#term-validation), and complete-output-cell range [ownership](../../../../glossary.md#term-ownership-meanings) [carry](../../../../glossary.md#term-carry) checked rank-five
 geometry with zero workspace or [materialization](../../../../glossary.md#materialization). Generated max and average bodies preserve
 depth-height-width/width-fastest traversal, [padding](../../../../glossary.md#padding)/[dilation](../../../../glossary.md#term-dilation)/[stride](../../../../glossary.md#term-stride), special-value and [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero)
-rules, direct typed array/segment access, and the general-long address [shape](../../../../glossary.md#shape) of the direct [oracle](../../../../glossary.md#term-test-oracle).
+rules, direct typed array/segment access, and the general-long address shape of the direct [oracle](../../../../glossary.md#term-test-oracle).
 
 The independent documentation-focused context finalized all affected production Javadocs,
 including record-component and compatibility-constructor contracts, and narrowed the reference

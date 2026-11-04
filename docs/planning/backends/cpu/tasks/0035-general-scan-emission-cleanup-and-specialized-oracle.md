@@ -1,4 +1,4 @@
-# Task CPU0035: General-[scan](../../../../glossary.md#term-cumulative-scan) emission cleanup and specialized [oracle](../../../../glossary.md#term-test-oracle)
+# Task CPU0035: General-scan emission cleanup and specialized [oracle](../../../../glossary.md#term-test-oracle)
 
 ## Reader context — historical integration boundary
 
@@ -25,7 +25,7 @@ and one independent final targeted code/documentation review; no additional [pla
 
 ## Goal
 
-Remove proved redundant staged [scan](../../../../glossary.md#term-cumulative-scan) [bytecode](../../../../glossary.md#term-bytecode) and compare the actual generated [kernel](../../../../glossary.md#kernel) with an
+Remove proved redundant staged scan [bytecode](../../../../glossary.md#term-bytecode) and compare the actual generated [kernel](../../../../glossary.md#kernel) with an
 equally specialized clean Java reference: [FP64](../../../../glossary.md#term-fp64) `next=emit=h+xStep*w`, static B=4/H=8, [runtime](../../../../glossary.md#term-runtime) long T,
 complete final-[carry](../../../../glossary.md#term-carry) and stacked-emission outputs. Keep the existing generic [oracle](../../../../glossary.md#term-test-oracle) and history.
 
@@ -52,7 +52,7 @@ Read `AGENTS.md`, this brief, affected source/focused tests, and only these root
 - [Backend](../../../../glossary.md#backend) execution: [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes),
   [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling),
   [Profile-free backend capability and identity](../../../../architecture/contracts/backend-execution.md#profile-free-backend-capability-and-identity)<span data-glossary-navigation="true"> ([backend capability glossary](../../../../glossary.md#backend-capability); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
-- [Scan](../../../../glossary.md#term-cumulative-scan) [owner](../../../../glossary.md#term-owner): [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
+- Scan [owner](../../../../glossary.md#term-owner): [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
   especially [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>
   and [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates).
 
@@ -63,7 +63,7 @@ architecture decision or [scope](../../../../glossary.md#term-scope) expansion; 
 
 - Depends on: CPU0034 Complete, including its accepted CPU0033/low-level join and Compiler0012 baseline.
 - Conflicts with: any scan emitter/IR/staged identity, oracle/harness or shared-document writer;
-  inactive. Checkpoint/NN and unrelated Draft successors stay held.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [identity glossary](../../../../glossary.md#term-identity-meanings); [oracle glossary](../../../../glossary.md#term-test-oracle); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
+  inactive. Checkpoint/NN and unrelated Draft successors stay held.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [identity glossary](../../../../glossary.md#term-identity-meanings); [oracle glossary](../../../../glossary.md#term-test-oracle); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - Parallel group: None; serial implementation/review closed; no active executor or concurrent writer.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus all 266
   accepted dirty paths, including CPU0034; these are not merged predecessors. Archive:
@@ -95,7 +95,7 @@ Java paths: `modules/backend/cpu/src/{main,test}/java/io/github/pho001/synaptik/
   existing bounded timing seam; test <span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle))</span>`internal/cache/CpuKernelSpecializationTest.java` and
   `CpuGeneratedKernelArtifactStoreTest.java`: identity/rejection/reuse. Focused existing lowering,
   preparation, execution and capability tests; new stale-v2 resources in existing emit test resources.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering))</span>
-- Review current [CPU scan explanation](../../../../backend-guide/cpu-backend.md#bounded-float32float64-general-scan)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+- Review current [CPU scan explanation](../../../../backend-guide/cpu-backend.md#bounded-float32float64-general-scan)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
   and [general-scan explanation](../../../../architecture/general-differentiable-scan.md), plus only
   current identity facts in root Core invariants and owning backend contract (not broad rule edits).<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 
@@ -176,7 +176,7 @@ runner or measurement and grants no new authorization; [Checkpoint](../../../../
 ## Documentation and review impact
 
 Independent final Class C review finalized affected emitter/[oracle](../../../../glossary.md#term-test-oracle)/timing Javadocs, current [backend](../../../../glossary.md#backend)/
-general-[scan](../../../../glossary.md#term-cumulative-scan) explanations and descriptive v3 facts in root/owning backend contract. Documentation
+general-scan explanations and descriptive v3 facts in root/owning backend contract. Documentation
 rules and applicable general/[API](../../../../glossary.md#term-application-programming-interface-api)-[Javadoc](../../../../glossary.md#term-javadoc)/backend/architecture profiles governed the targeted pass;
 glossary/link/anchor/diff review found no new terminology, policy, [dependency](../../../../glossary.md#term-dependency) or [ADR](../../../../glossary.md#term-architecture-decision-record-adr) requirement.
 

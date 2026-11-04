@@ -1,4 +1,4 @@
-# Task 0007A1K: Affine-copy [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
+# Task 0007A1K: Affine-copy [residual](../../../../glossary.md#term-residual-meanings) parity
 
 ## Reader context
 
@@ -28,7 +28,7 @@ Complete
 
 ## Goal
 
-Correct exactly the persistent `A-GENERAL` generated/direct [residual](../../../../glossary.md#scan-residual-port-and-history-demand) through its sole code-shaping
+Correct exactly the persistent `A-GENERAL` generated/direct [residual](../../../../glossary.md#term-residual-meanings) through its sole code-shaping
 [owner](../../../../glossary.md#term-owner), `CpuAffineCopyEmitter`. Preserve the frozen [CPU](../../../../glossary.md#term-cpu) 0007A1C raw-[BFLOAT16](../../../../glossary.md#term-bfloat16) copy semantics,
 composed PERMUTE/[SLICE](../../../../glossary.md#slice) mapping, segment-to-[heap](../../../../glossary.md#term-heap) carriers, nonzero offsets, positive non-unit
 [strides](../../../../glossary.md#term-stride), arbitrary legal output subranges, and typed general fallback while passing the unchanged
@@ -95,7 +95,7 @@ five-[fork](../../../../glossary.md#term-fork-meanings) `<= 1.15x` gate.
   selection before shared assignment; CPU finalization realizes one artifact afterward; Runtime
   only invokes prepared direct carriers and output bounds.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [artifact glossary](../../../../glossary.md#term-artifact); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Generated code must preserve the optimal clean Java affine-copy mapping and hot-loop/dataflow
-  shape without interpreting Model operations or layouts at Runtime.<span data-glossary-navigation="true"> ([dataflow glossary](../../../../glossary.md#term-dataflow); [shape glossary](../../../../glossary.md#shape); [layouts glossary](../../../../glossary.md#layout))</span>
+  shape without interpreting Model operations or layouts at Runtime.<span data-glossary-navigation="true"> ([dataflow glossary](../../../../glossary.md#term-dataflow); [layouts glossary](../../../../glossary.md#layout))</span>
 - Benchmark observations accept or reject this bounded code shape and never select production
   settings.
 
@@ -186,15 +186,15 @@ to CPU 0009 or [CI](../../../../glossary.md#term-continuous-integration-ci) beca
 - CPU 0006 and CPU 0007A0A supply exact affine-view composition and generated typed-copy
   foundations.<span data-glossary-navigation="true"> ([view glossary](../../../../glossary.md#term-view-meanings))</span>
 - CPU 0007A1D supplies stable invocation-local segment [layout](../../../../glossary.md#layout) handling.
-- CPU 0007A1J is Complete at [schema](../../../../glossary.md#term-schema) 38 and supplies the accepted five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) frontier.
+- CPU 0007A1J is Complete at [schema](../../../../glossary.md#term-schema) 38 and supplies the accepted five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#term-residual-meanings) frontier.
 
 ## Follow-up tasks
 
 - Detailed [CPU 0007A1L pointwise general-loop residual parity](0007a1l-pointwise-general-loop-residual-parity.md)<span data-glossary-navigation="true"> ([pointwise glossary](../../../../glossary.md#term-pointwise))</span>
   is the sole next Ready task and owns <span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>`P-SCALAR-GENERAL`. `S-GENERAL-MIN` and
   `X-MIN-MULTI` remain Draft and unassigned.
-- [Resume](../../../../glossary.md#schema-serialization-and-checkpoint) [CPU](../../../../glossary.md#term-cpu) 0007A1C closure only after every persistent row closes.
-- CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective [residual](../../../../glossary.md#scan-residual-port-and-history-demand) work.
+- Resume [CPU](../../../../glossary.md#term-cpu) 0007A1C closure only after every persistent row closes.
+- CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective [residual](../../../../glossary.md#term-residual-meanings) work.
 
 ## Architecture impact
 
@@ -236,7 +236,7 @@ Do not commit, push, or stage.
   bit semantics, one output-domain pass, and zero workspace. Pointwise general addressing,
   scatter copy/update/reduction, and multi-axis extrema retain distinct owner and algorithm risks.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [Pointwise glossary](../../../../glossary.md#term-pointwise); [axis glossary](../../../../glossary.md#term-axis); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum))</span>
 - No other residual shares the affine-copy owner or raw-copy algorithm, so this remains a one-row
-  task.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  task.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 
 ## Known limitations
 
@@ -311,6 +311,6 @@ Do not commit, push, or stage.
   reusable glossary term or public API was introduced.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [prepare glossary](../../../../glossary.md#prepare); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Unresolved issues: exactly `P-SCALAR-GENERAL`, `S-GENERAL-MIN`, and `X-MIN-MULTI` remain.
 - Follow-up required: execute Ready CPU 0007A1L, then plan only the next evidence-supported
-  owner-cohesive residual correction. CPU 0007A2 remains Draft and blocked until A1C closes.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [owner glossary](../../../../glossary.md#term-owner); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  owner-cohesive residual correction. CPU 0007A2 remains Draft and blocked until A1C closes.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [owner glossary](../../../../glossary.md#term-owner); [residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 
 Status: Complete

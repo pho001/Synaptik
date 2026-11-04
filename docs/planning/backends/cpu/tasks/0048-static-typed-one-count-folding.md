@@ -43,7 +43,7 @@ without executing private expansion/[materialization](../../../../glossary.md#ma
 ## Non-goals
 
 No [Compiler](../../../../glossary.md#term-compiler)/[Model](../../../../glossary.md#term-model)/shared [Prepare](../../../../glossary.md#prepare)/[Runtime](../../../../glossary.md#term-runtime)/[Engine](../../../../glossary.md#term-engine) production change, supported [API](../../../../glossary.md#term-application-programming-interface-api), [module](../../../../glossary.md#term-module) edge,
-[lifecycle](../../../../glossary.md#lifecycle), native [ABI](../../../../glossary.md#term-application-binary-interface-abi), [Scan](../../../../glossary.md#term-cumulative-scan)-body [lowering](../../../../glossary.md#lowering)/tuning, new capability, general affine propagation,
+[lifecycle](../../../../glossary.md#lifecycle), native [ABI](../../../../glossary.md#term-application-binary-interface-abi), Scan-body [lowering](../../../../glossary.md#lowering)/tuning, new capability, general affine propagation,
 masked/data-dependent counts, other [constants](../../../../glossary.md#term-constant)/reductions, benchmark campaign or speed/parity claim.
 No build edits, historical timing selectors, automatic successor, stage/[commit](../../../../glossary.md#term-commit)/push or rollout.
 
@@ -109,7 +109,7 @@ unchanged HEAD/index, protected dirty base and inactive conflicts; CPU0048-only 
   a single constant-write unit; ValueId-based selection keeps original sources out of its entry.<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [ValueId glossary](../../../../glossary.md#logical-valueid-versus-physical-memory-slot))</span>
 - `internal/cache/CpuKernelSpecialization.java` unchanged: the IR fingerprint keys baked typed
   literals/code shape in both identity streams; retain unaffected/fallback keys and ClassFiles.
-  No global schema/projection bump; affected-versus-unaffected controls remain required.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [fingerprint glossary](../../../../glossary.md#term-fingerprint); [shape glossary](../../../../glossary.md#shape); [identity glossary](../../../../glossary.md#term-identity-meanings); [schema glossary](../../../../glossary.md#term-schema))</span>
+  No global schema/projection bump; affected-versus-unaffected controls remain required.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [fingerprint glossary](../../../../glossary.md#term-fingerprint); [identity glossary](../../../../glossary.md#term-identity-meanings); [schema glossary](../../../../glossary.md#term-schema))</span>
 - Tests under the corresponding CPU test root: new `internal/lowering/CpuStaticTypedOneCountFoldingTest.java`,
   `internal/prepare/CpuStaticTypedOneCountPreparationTest.java` and
   `internal/codegen/emit/CpuConstantWriteGeneratedKernelTest.java`; reuse aggregate/DAG fixtures and
@@ -144,7 +144,7 @@ unchanged HEAD/index, protected dirty base and inactive conflicts; CPU0048-only 
   layouts/topologies. No payload read, leaf equality or mutable-value assumption proves constancy.
   Change actual storage/fresh run inputs after preparation and verify recomputation/current results.<span data-glossary-navigation="true"> ([leaves glossary](../../../../glossary.md#term-leaf))</span><span data-glossary-navigation="true"> ([mutable glossary](../../../../glossary.md#term-mutable); [Tensor glossary](../../../../glossary.md#tensor); [masks glossary](../../../../glossary.md#term-boolean-mask); [layouts glossary](../../../../glossary.md#layout); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [run glossary](../../../../glossary.md#term-run))</span>
 - Dynamic/named-B or otherwise unproved counts keep their current count algebra, resource topology,
-  admission/failure behavior and reusable run binding. Existing Scan paths/defaults remain untouched.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [admission glossary](../../../../glossary.md#term-admission); [binding glossary](../../../../glossary.md#term-binding); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  admission/failure behavior and reusable run binding. Existing Scan paths/defaults remain untouched.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [admission glossary](../../../../glossary.md#term-admission); [binding glossary](../../../../glossary.md#term-binding))</span>
 
 ## [Validation](../../../../glossary.md#term-validation)
 
@@ -192,7 +192,7 @@ No [ADR](../../../../glossary.md#term-architecture-decision-record-adr)/authorit
 - Implemented exact static typed-one SUM folding and `CpuConstantWriteIr`; private domain storage,
   copies/contributor loops/scratch removed, original scalar/nonscalar source initialization retained.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Changed the ten named CPU production files, inventory and three new focused CPU tests, plus
-  conformance/Engine fixtures; no shared production, API, architecture, build or Scan change.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [conformance glossary](../../../../glossary.md#term-conformance); [Engine glossary](../../../../glossary.md#term-engine); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  conformance/Engine fixtures; no shared production, API, architecture, build or Scan change.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [conformance glossary](../../../../glossary.md#term-conformance); [Engine glossary](../../../../glossary.md#term-engine); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Frozen-source independent BOUNDED APPROVE, zero unresolved P1/P2; provisional intermediate-plan
   and trailing-zero overflow findings closed, one-unit finalizer regression covered.<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow); [regression glossary](../../../../glossary.md#term-regression))</span>
 - Focused command above plus `--tests '*CpuInternalPackageInventoryTest'`: PASS, 48 tests,

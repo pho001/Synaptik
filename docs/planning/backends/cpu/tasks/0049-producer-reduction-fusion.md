@@ -50,7 +50,7 @@ Conceptual [F32](../../../../glossary.md#floating-point-precision-and-rounding) 
   types, symbolic-B fusion, SIMD/parallel fusion, native work, defaults/tuning changes or public
   Tensor/Compiler semantics. Exclusions keep their existing supported route or rejection.
   No Scan widening, row-region extension, duplicate fuser/math or runtime abstraction.
-  Paused Scan performance and every historical timing budget remain closed.<span data-glossary-navigation="true"> ([SUM-to-Shape glossary](../../../../glossary.md#sum-to-shape); [fusion glossary](../../../../glossary.md#term-fusion); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [Boolean glossary](../../../../glossary.md#data-type--datatype); [SIMD glossary](../../../../glossary.md#simd); [Tensor glossary](../../../../glossary.md#tensor); [Compiler glossary](../../../../glossary.md#term-compiler); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [widening glossary](../../../../glossary.md#term-widening); [runtime glossary](../../../../glossary.md#term-runtime))</span>
+  Paused Scan performance and every historical timing budget remain closed.<span data-glossary-navigation="true"> ([SUM-to-Shape glossary](../../../../glossary.md#sum-to-shape); [fusion glossary](../../../../glossary.md#term-fusion); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [Boolean glossary](../../../../glossary.md#data-type--datatype); [SIMD glossary](../../../../glossary.md#simd); [Tensor glossary](../../../../glossary.md#tensor); [Compiler glossary](../../../../glossary.md#term-compiler); [widening glossary](../../../../glossary.md#term-widening); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 
 ## Contracts
 
@@ -70,7 +70,7 @@ first, then only these applicable headings:
   and [Run lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#run-lifecycle)<span data-glossary-navigation="true"> ([Run glossary](../../../../glossary.md#term-run))</span>.
 - Backend execution [Physical region and admission](../../../../architecture/contracts/backend-execution.md#physical-region-and-admission)<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission))</span>
   under CPU0073: ordinary exact SUM/MEAN are excluded from <span data-glossary-navigation="true"> ([MEAN glossary](../../../../glossary.md#term-mean))</span>**that row-region mechanism**.
-  This task does not extend it: `CpuRowMapReductionIr` and represented [Scan](../../../../glossary.md#term-cumulative-scan) SUM remain unchanged.
+  This task does not extend it: `CpuRowMapReductionIr` and represented Scan SUM remain unchanged.
   [CPU0073's explicit distinction](0073-row-map-multi-reduction-fusion.md#non-goals) confirms it
   did not close CPU0049; no other predecessor narrative is needed.
 
@@ -143,7 +143,7 @@ Production paths use `modules/backend/cpu/src/main/java/io/github/pho001/synapti
 7. Use an additive ordinary fused structural discriminator in both compatibility/class-identity
    streams, covering topology, typed sites, axes, boundary accesses and baked code-shaping facts.
    Keep global envelope 71 and unrelated family projections; do not reuse row-region projection
-   72/markers. Reject stale fused artifacts; preserve bare/split/Scan/CPU0048 controls and reuse.<span data-glossary-navigation="true"> ([fused glossary](../../../../glossary.md#specialization-and-fusion); [identity glossary](../../../../glossary.md#term-identity-meanings); [artifacts glossary](../../../../glossary.md#term-artifact); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+   72/markers. Reject stale fused artifacts; preserve bare/split/Scan/CPU0048 controls and reuse.<span data-glossary-navigation="true"> ([fused glossary](../../../../glossary.md#specialization-and-fusion); [identity glossary](../../../../glossary.md#term-identity-meanings); [artifacts glossary](../../../../glossary.md#term-artifact))</span>
 8. Maintain a specialized clean-Java oracle with the same typed sites, exact limb algorithm,
    prebound carriers and preallocated state. Inspect generated ClassFiles against its loop/dataflow:
    one contribution traversal, completed-result tail, no materialized private buffer, new math
@@ -174,7 +174,7 @@ After untimed/source review, the sole authorized ordinary generated/direct
 hot-path comparison: one [JVM](../../../../glossary.md#term-java-virtual-machine-jvm), [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) `[64,256]` MUL→[axis](../../../../glossary.md#term-axis)-1 SUM, prebound equal carriers/state,
 six [warmup](../../../../glossary.md#term-warmup) and nine alternating paired [samples](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters), 25 calls/sample and a 60-second cap. Verify outputs,
 separate setup/entry/[kernel](../../../../glossary.md#kernel) costs, report dispersion/[JIT](../../../../glossary.md#term-just-in-time-compilation-jit) limitations and structural explanation
-of any gap; no speed threshold, extra [forks](../../../../glossary.md#term-fork-meanings)/retries, [Scan](../../../../glossary.md#term-cumulative-scan) case or historical-budget reuse.
+of any gap; no speed threshold, extra [forks](../../../../glossary.md#term-fork-meanings)/retries, Scan case or historical-budget reuse.
 Protocol completed/closed; no further measurement. Check links/anchors, size and scoped whitespace.
 
 ## Documentation and review impact

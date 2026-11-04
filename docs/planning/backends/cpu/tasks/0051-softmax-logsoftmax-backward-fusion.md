@@ -55,7 +55,7 @@ explicit candidates are ineligible. Failed proof retains existing [decomposition
 
 ## Non-goals
 
-No public op/[API](../../../../glossary.md#term-application-programming-interface-api), [Compiler](../../../../glossary.md#term-compiler) rewrite/[dependency](../../../../glossary.md#term-dependency), forward change, [Scan](../../../../glossary.md#term-cumulative-scan) [widening](../../../../glossary.md#term-widening), [SIMD](../../../../glossary.md#simd)/parallel redesign,
+No public op/[API](../../../../glossary.md#term-application-programming-interface-api), [Compiler](../../../../glossary.md#term-compiler) rewrite/[dependency](../../../../glossary.md#term-dependency), forward change, Scan [widening](../../../../glossary.md#term-widening), [SIMD](../../../../glossary.md#simd)/parallel redesign,
 general framework, authority change, tuning, native build, historical campaign or Git [publication](../../../../glossary.md#term-publication).
 
 ## Contracts
@@ -140,7 +140,7 @@ Production prefix: `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/
    SUM and rounds that SUM once; pass two rounds SUB then MUL. Log-softmax SUM consumes stored <span data-glossary-navigation="true"> ([dtype glossary](../../../../glossary.md#data-type--datatype); [limb glossary](../../../../glossary.md#exact-superaccumulator-and-limbs); [Log-softmax glossary](../../../../glossary.md#softmax--log-softmax))</span>`g`
    once; pass two computes current scalar EXP (<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [EXP glossary](../../../../glossary.md#term-expx))</span>`StrictMath.exp`, with F32 result conversion), rounds
    MUL then SUB. No running-sum/Kahan substitute, FMA/contraction, high-precision product, dropped site
-   or forward recomputation. Preserve limb width/flags, overflow/NaN/infinity/zero-sign finish and primitive behavior.<span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [contraction glossary](../../../../glossary.md#contraction-dimension); [precision glossary](../../../../glossary.md#term-precision); [overflow glossary](../../../../glossary.md#term-overflow); [NaN glossary](../../../../glossary.md#term-nan); [infinity glossary](../../../../glossary.md#term-infinity))</span>
+   or forward recomputation. Preserve limb width/flags, overflow/NaN/infinity/zero-sign finish and primitive behavior.<span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [precision glossary](../../../../glossary.md#term-precision); [overflow glossary](../../../../glossary.md#term-overflow); [NaN glossary](../../../../glossary.md#term-nan); [infinity glossary](../../../../glossary.md#term-infinity))</span>
 3. One unit, two direct passes/slice, three read/write roles (dedup identical reads), no intermediate
    tensor store/full-domain temporary. Hoist bases/strides/width/carriers; row/element cursors, no element
    coordinate decode. Reuse one flags-plus-limbs workspace slice across rows, declared before slots,
@@ -149,7 +149,7 @@ Production prefix: `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/
    specialization streams, under envelope 71/static class projection 52. Key variant/sites, dtype,
    axis, structural access and every baked extent/stride/offset/span/state fact; exclude graph IDs,
    slots/objects/addresses/run bases. Validate exclusivity, scratch ABI/geometry, cache reuse/misses.
-   Forward, aggregate-fusion, low-fold, row/Scan and unrelated keys/ClassFiles remain unchanged.<span data-glossary-navigation="true"> ([specialization glossary](../../../../glossary.md#term-specialization); [extent glossary](../../../../glossary.md#term-extent); [graph glossary](../../../../glossary.md#graph); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [cache glossary](../../../../glossary.md#term-cache); [fusion glossary](../../../../glossary.md#term-fusion); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+   Forward, aggregate-fusion, low-fold, row/Scan and unrelated keys/ClassFiles remain unchanged.<span data-glossary-navigation="true"> ([specialization glossary](../../../../glossary.md#term-specialization); [extent glossary](../../../../glossary.md#term-extent); [graph glossary](../../../../glossary.md#graph); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [cache glossary](../../../../glossary.md#term-cache); [fusion glossary](../../../../glossary.md#term-fusion))</span>
 5. Compare fused results with split execution and an independent optimal specialized clean-Java oracle
    with typed locals/direct loops/independent exact accumulation and rounding, not a production evaluator.
    Cover both dtypes/kinds/ranks, eight heap/segment tuples, offsets/broadcasts/empty/singleton/subranges,
@@ -194,7 +194,7 @@ Archive actual phase-specific XML from `modules/backend/cpu/build/test-results/t
 with command/environment/exit and executed/UP-TO-DATE [provenance](../../../../glossary.md#provenance); no stale [CPU](../../../../glossary.md#term-cpu) XML for consumers.
 Preserve inventory [hash](../../../../glossary.md#term-hash)
 `7e6faca8db36bb8700fde9dfe8e72c554bf51ee207693a22ef798bd991846f1b`; do not regenerate inventories or
-re-pin evidence without actual ClassFile change and MAIN approval. No historical timing/[Scan](../../../../glossary.md#term-cumulative-scan)/prolonged
+re-pin evidence without actual ClassFile change and MAIN approval. No historical timing/Scan/prolonged
 [matrix](../../../../glossary.md#term-matrix-meanings) or automatic diagnostic. No architecture/full-root gate without boundary/build changes.
 
 ## Documentation and review impact
@@ -209,7 +209,7 @@ Apply documentation-rules/general/[backend](../../../../glossary.md#backend)/[Ja
 MAIN accepted 2026-10-31 after final independent result APPROVE, no blocking P1/P2. Evidence roots:
 `/private/tmp/synaptik-cpu0051-impl.JgdND8` (implementation) and `/private/tmp/synaptik-cpu0051.AaUYCr` (MAIN).
 
-- Implemented both bounded two-pass patterns with exact typed sites/SUM, private-[buffer](../../../../glossary.md#term-buffer) removal, [scalar](../../../../glossary.md#term-scalar) [binding](../../../../glossary.md#term-binding)/workspace and selective dual-stream [identity](../../../../glossary.md#term-identity-meanings). Exactly two new production types; no [API](../../../../glossary.md#term-application-programming-interface-api)/authority/[Scan](../../../../glossary.md#term-cumulative-scan)/[SIMD](../../../../glossary.md#simd) or global [vector](../../../../glossary.md#term-vector)/thread-default change.
+- Implemented both bounded two-pass patterns with exact typed sites/SUM, private-[buffer](../../../../glossary.md#term-buffer) removal, [scalar](../../../../glossary.md#term-scalar) [binding](../../../../glossary.md#term-binding)/workspace and selective dual-stream [identity](../../../../glossary.md#term-identity-meanings). Exactly two new production types; no [API](../../../../glossary.md#term-application-programming-interface-api)/authority/Scan/[SIMD](../../../../glossary.md#simd) or global [vector](../../../../glossary.md#term-vector)/thread-default change.
 - Twenty implementation/test paths are in `freeze/paths.sha256`; guide plus three [planning](../../../../glossary.md#term-planning) paths make 24 task-delta paths. Actual-before snapshots, not Git HEAD, delimit accepted dirty work.
 - `focused-07`: 14 CPU0051 PASS; `retained-controls-08`: 2 PASS, no skips. Earlier mixed `focused-04` had 52 [CPU](../../../../glossary.md#term-cpu) PASS but exit1 from a test factory overload; corrected consumer [compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names) passed. Development failures remain in `HANDOFF.txt` and phase [logs](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings).
 - `final-cpu-javadoc-10` exit0/6m18s: CPU 1518 total, 1461 PASS, 57 SKIP, zero failures/errors; [Javadoc](../../../../glossary.md#term-javadoc) PASS with 94 warnings. Only the two specified historical timing methods were filtered; no full-root gate.

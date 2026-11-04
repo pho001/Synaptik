@@ -108,8 +108,8 @@ Only derived [hashes](../../../../glossary.md#term-hash)/[provenance](../../../.
    primitive float accumulator initialized +0.0f, one FP32 add per contributor, one final low narrowing
    per owned output. No low round-trip in the loop, double accumulator, term truncation or new scratch.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [carrier glossary](../../../../glossary.md#term-storage-carrier); [accumulator glossary](../../../../glossary.md#accumulator-type); [FP32 glossary](../../../../glossary.md#term-fp32); [narrowing glossary](../../../../glossary.md#term-narrowing); [round-trip glossary](../../../../glossary.md#schema-serialization-and-checkpoint); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero))</span>
 2. Preserve canonical logical input row-major contributor order. FOLD_AXIS maps selected position w and
-   final-window offset k to w<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [row-major glossary](../../../../glossary.md#term-row-major))</span>*step+k, retaining other coordinates. FOLD2D decodes q into channel/ky/kx
-   and p into oh/ow, mapping y=oh<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [channel glossary](../../../../glossary.md#term-channel))</span>*strideH-padH+ky*dilationH and analogously x; exclude out-of-bounds
+   final-window offset k to w*step+k, retaining other coordinates. FOLD2D decodes q into channel/ky/kx
+   and p into oh/ow, mapping y=oh*strideH-padH+ky*dilationH and analogously x; exclude out-of-bounds
    padding/ceil tails, never invent zeros as contributors. Every matching logical occurrence counts once,
    including repeated physical reads; gaps remain +0 and out-of-range output sentinels remain unchanged.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 3. Retain the independent optimal Java oracle unchanged. The repaired arithmetic core must use exact low

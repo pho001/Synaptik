@@ -27,7 +27,7 @@ Complete
 
 ## Goal
 
-Correct the strongest single-[owner](../../../../glossary.md#term-owner) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) cluster left by [CPU](../../../../glossary.md#term-cpu) 0007A1D: the frozen `M-PAD`,
+Correct the strongest single-[owner](../../../../glossary.md#term-owner) [residual](../../../../glossary.md#term-residual-meanings) cluster left by [CPU](../../../../glossary.md#term-cpu) 0007A1D: the frozen `M-PAD`,
 `M-CONCAT`, `M-UNFOLD-AXIS`, and `M-UNFOLD2D` generated movement rows still spend substantially
 more time than their equivalent direct primitive Java comparators after [scalar](../../../../glossary.md#term-scalar) segment-[layout](../../../../glossary.md#layout)
 construction has been hoisted.
@@ -56,7 +56,7 @@ Every [target](../../../../glossary.md#term-target) must meet the unchanged gene
   Carrier form alone must not force broader or narrower addressing.
 - Add stable Class-File tests for the selected movement shapes. Assert the intended primitive
   invocation-local/cursor form semantically, without fixed bytecode offsets, constant-pool
-  indexes, generated names, or JIT assembly.<span data-glossary-navigation="true"> ([shapes glossary](../../../../glossary.md#shape); [bytecode glossary](../../../../glossary.md#term-bytecode); [constant glossary](../../../../glossary.md#term-constant); [JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit))</span>
+  indexes, generated names, or JIT assembly.<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [constant glossary](../../../../glossary.md#term-constant); [JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit))</span>
 - Advance the generated-kernel schema exactly once when emitted bytes change. Earlier artifacts
   become incompatible safe misses with no migration, alias, dual-schema path, or partial reuse.<span data-glossary-navigation="true"> ([kernel glossary](../../../../glossary.md#kernel); [artifacts glossary](../../../../glossary.md#term-artifact); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - Re-run the unchanged full 20-row process. This task is accepted only on the four target rows and
@@ -65,7 +65,7 @@ Every [target](../../../../glossary.md#term-target) must meet the unchanged gene
 
 ### Frozen [target](../../../../glossary.md#term-target) rows
 
-| Row | [Schema](../../../../glossary.md#term-schema)-32 [fork](../../../../glossary.md#term-fork-meanings)-1 ratio | Shared code-[shape](../../../../glossary.md#shape) evidence |
+| Row | [Schema](../../../../glossary.md#term-schema)-32 [fork](../../../../glossary.md#term-fork-meanings)-1 ratio | Shared code-shape evidence |
 |---|---:|---|
 | `M-PAD` | `7.743893186x` | General output odometer reloads [rank](../../../../glossary.md#term-rank) geometry and recomputes the conditional source address. |
 | `M-CONCAT` | `60.725558334x` | General loop repeatedly selects an [occurrence](../../../../glossary.md#term-occurrence) and reconstructs [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix)/addresses through prefix and [stride](../../../../glossary.md#term-stride) arrays. |
@@ -74,7 +74,7 @@ Every [target](../../../../glossary.md#term-target) must meet the unchanged gene
 
 The diagnostic version with all `ByteOrder.nativeOrder()` and `ValueLayout.withOrder(...)`
 construction removed still measured these four rows at `1.962945423x`, `10.053775572x`,
-`2.065186933x`, and `3.088574486x`, respectively. The [residual](../../../../glossary.md#scan-residual-port-and-history-demand) therefore survives complete
+`2.065186933x`, and `3.088574486x`, respectively. The [residual](../../../../glossary.md#term-residual-meanings) therefore survives complete
 [layout](../../../../glossary.md#layout)-construction removal and is falsifiable independently of [CPU](../../../../glossary.md#term-cpu) 0007A1D's partial fix.
 
 ## Out of [scope](../../../../glossary.md#term-scope)
@@ -254,7 +254,7 @@ contract may change.
   specification only after CPU 0007A1F completes.
 - The next evidence-backed owner cluster among the other nine failed A1D targets must remain Draft
   until this task's final evidence is available.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [targets glossary](../../../../glossary.md#term-target))</span>
-- CPU 0007A1C resumes its unchanged full closure only after all [residual](../../../../glossary.md#scan-residual-port-and-history-demand) corrections complete.
+- CPU 0007A1C resumes its unchanged full closure only after all [residual](../../../../glossary.md#term-residual-meanings) corrections complete.
 - CPU 0007A2 remains blocked until CPU 0007A1C is Complete.
 
 ## Architecture impact
@@ -391,6 +391,6 @@ the exact one-Ready/status check passed; exact retained evidence and deferred-ro
 - Unresolved issues: CPU 0007A1C remains incomplete because deferred diagnostic rows still fail;
   A1E does not claim full-probe closure.
 - Follow-up required: implement [Ready](../../../../glossary.md#term-ready) [CPU](../../../../glossary.md#term-cpu) 0007A1F for `M-STACK` and `X-ANY-SINGLE`; keep A1G and
-  all other residual groups Draft until ordered evidence permits advancement.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  all other residual groups Draft until ordered evidence permits advancement.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 
 Status: Complete

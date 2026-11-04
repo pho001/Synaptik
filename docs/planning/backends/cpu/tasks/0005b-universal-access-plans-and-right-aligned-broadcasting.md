@@ -343,7 +343,7 @@ This task may create or modify at most 43 paths:
 | **Total** | **43** | **24 + 14 + 2 + 3** |
 
 The ceiling increases by one existing production path because `CpuPartitionAnalysisInputs` must
-supply the structural [carrier](../../../../glossary.md#term-storage-carrier) pattern before analysis. The simpler class [shape](../../../../glossary.md#shape) removes the
+supply the structural [carrier](../../../../glossary.md#term-storage-carrier) pattern before analysis. The simpler class shape removes the
 rejected exponential design without adding a new production type or package.
 
 If another production or test path is necessary, stop and revise this specification before

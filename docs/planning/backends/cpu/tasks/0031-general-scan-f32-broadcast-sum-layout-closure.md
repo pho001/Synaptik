@@ -1,4 +1,4 @@
-# Task CPU0031: [F32](../../../../glossary.md#floating-point-precision-and-rounding) general-[scan](../../../../glossary.md#term-cumulative-scan) broadcast, SUM and [layout](../../../../glossary.md#layout) closure
+# Task CPU0031: [F32](../../../../glossary.md#floating-point-precision-and-rounding) general-scan broadcast, SUM and [layout](../../../../glossary.md#layout) closure
 
 ## Reader context — historical integration boundary
 
@@ -24,7 +24,7 @@ Class C — generated hot-loop/[dataflow](../../../../glossary.md#term-dataflow)
 
 ## Goal
 
-Execute [homogeneous](../../../../glossary.md#term-homogeneous) [FLOAT32](../../../../glossary.md#term-float32) [shape](../../../../glossary.md#shape)-changing [scan](../../../../glossary.md#term-cumulative-scan) algebra and its actual [Compiler](../../../../glossary.md#term-compiler)-generated
+Execute [homogeneous](../../../../glossary.md#term-homogeneous) [FLOAT32](../../../../glossary.md#term-float32) [shape](../../../../glossary.md#shape)-changing scan algebra and its actual [Compiler](../../../../glossary.md#term-compiler)-generated
 first-order reverse: body proof → resource/[liveness](../../../../glossary.md#term-liveness) plan → one emitted time loop.
 Close broadcast [parameter](../../../../glossary.md#term-parameter) [gradients](../../../../glossary.md#term-gradient) without assuming every [carry](../../../../glossary.md#term-carry) or body value has one common N.
 
@@ -53,7 +53,7 @@ Close broadcast [parameter](../../../../glossary.md#term-parameter) [gradients](
 
 [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) (including its reverse), [FLOAT64](../../../../glossary.md#term-float64)/low/mixed types, new [AD](../../../../glossary.md#autograd)/rules, [Compiler](../../../../glossary.md#term-compiler) production changes,
 [padding](../../../../glossary.md#padding)/lengths, [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/[persistence](../../../../glossary.md#term-persistence) [admission](../../../../glossary.md#term-admission), [Engine](../../../../glossary.md#term-engine)/[Runtime](../../../../glossary.md#term-runtime)/shared-[Prepare](../../../../glossary.md#prepare) changes, native/[vector](../../../../glossary.md#term-vector)/
-parallel [scan](../../../../glossary.md#term-cumulative-scan) routes, tuning, arbitrary regions/control flow, or a broad performance campaign.
+parallel scan routes, tuning, arbitrary regions/control flow, or a broad performance campaign.
 Retain fixed four-[dtype](../../../../glossary.md#data-type--datatype)/[layout](../../../../glossary.md#layout) routes and CPU0030's admitted [pointwise](../../../../glossary.md#term-pointwise) domain without [regression](../../../../glossary.md#term-regression).
 
 ## Contracts
@@ -89,7 +89,7 @@ Missing/ambiguous applicable authority or need for a new boundary: stop and ask 
 - Depends on: CPU0030; its accepted Model0034/0035, Planning0008, Compiler0011, Prepare0010
   and CPU0022/0027/0028/0029 baseline, all Complete per current area/program status and main's handoff.<span data-glossary-navigation="true"> ([handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Conflicts with: general-scan admission/lowering/IR/emission/binding/resources, generated/cache
-  identity, numerical policy/current ledgers, shared planning/explanations; serialize these scopes.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [admission glossary](../../../../glossary.md#term-admission); [lowering glossary](../../../../glossary.md#lowering); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [binding glossary](../../../../glossary.md#term-binding); [cache glossary](../../../../glossary.md#term-cache); [identity glossary](../../../../glossary.md#term-identity-meanings); [planning glossary](../../../../glossary.md#term-planning))</span>
+  identity, numerical policy/current ledgers, shared planning/explanations; serialize these scopes.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission); [lowering glossary](../../../../glossary.md#lowering); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [binding glossary](../../../../glossary.md#term-binding); [cache glossary](../../../../glossary.md#term-cache); [identity glossary](../../../../glossary.md#term-identity-meanings); [planning glossary](../../../../glossary.md#term-planning))</span>
 - Parallel group: None; one writer. Read-only review may overlap; no concurrent write [scope](../../../../glossary.md#term-scope).
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`, plus
   248 accepted dirty paths through final CPU0030 and this planning packet; not merged predecessors.
@@ -123,7 +123,7 @@ Only added top-level production type, now delivered: `CpuGeneralScanReductionEmi
 `io.github.pho001.synaptik.backend.cpu.internal.codegen.emit`, for step-bound SUM loops rather than
 the ordinary aggregate emitter's fixed two-entry ABI/exact-[limb](../../../../glossary.md#exact-superaccumulator-and-limbs) workspace. Reuse [scalar](../../../../glossary.md#term-scalar)/[carrier](../../../../glossary.md#term-storage-carrier)/loop
 seams; keep ordinary aggregate routes unchanged. Derived stage/[binding](../../../../glossary.md#term-binding)/resource facts stay nested
-in the four existing [scan](../../../../glossary.md#term-cumulative-scan) types; no second semantic body, generic stage executor or new public type.
+in the four existing scan types; no second semantic body, generic stage executor or new public type.
 Any additional production type/package requires main's packet update before implementation.
 
 Tests: extend existing `CpuGeneralScan*` capability/[lowering](../../../../glossary.md#lowering)/preparation/generated/execution/[oracle](../../../../glossary.md#term-test-oracle)/
@@ -223,7 +223,7 @@ typed double locals/eight-byte resources, full numerical/saved-site tests and NO
 
 ## Documentation and review impact
 
-[Planning](../../../../glossary.md#term-planning) profile applies. Affected Javadocs, targeted [CPU](../../../../glossary.md#term-cpu)/[backend](../../../../glossary.md#backend)/[scan](../../../../glossary.md#term-cumulative-scan) explanations and current
+[Planning](../../../../glossary.md#term-planning) profile applies. Affected Javadocs, targeted [CPU](../../../../glossary.md#term-cpu)/[backend](../../../../glossary.md#backend)/scan explanations and current
 ledger evidence are finalized; main owns shared status integration.
 No architecture decision/edge or new glossary meaning changed. Targeted terms: [general scan](../../../../glossary.md#general-differentiable-scan),
 formal/[primal](../../../../glossary.md#term-primal) [binding](../../../../glossary.md#term-binding), [residual](../../../../glossary.md#scan-residual-port-and-history-demand)/[history demand](../../../../glossary.md#scan-residual-port-and-history-demand), [cotangent normalization](../../../../glossary.md#cotangent-normalization) and [sum-to-Shape](../../../../glossary.md#sum-to-shape).
@@ -233,7 +233,7 @@ Closure changes planning [metadata](../../../../glossary.md#term-metadata) only;
 ## Result
 
 Main accepted 2026-10-22, 14:38+ UTC: bounded [F32](../../../../glossary.md#floating-point-precision-and-rounding) broadcast/SUM/[layout](../../../../glossary.md#layout) forward + actual reverse Complete.
-Files: [scan](../../../../glossary.md#term-cumulative-scan) [IR](../../../../glossary.md#term-intermediate-representation-ir)/[lowering](../../../../glossary.md#lowering)/emitter/executable seams, new CpuGeneralScanReductionEmitter, existing [specialization](../../../../glossary.md#term-specialization),
+Files: scan [IR](../../../../glossary.md#term-intermediate-representation-ir)/[lowering](../../../../glossary.md#lowering)/emitter/executable seams, new CpuGeneralScanReductionEmitter, existing [specialization](../../../../glossary.md#term-specialization),
 scan/[cache](../../../../glossary.md#term-cache)/[oracle](../../../../glossary.md#term-test-oracle)/timing tests, [CPU](../../../../glossary.md#term-cpu) build opt-ins, [conformance](../../../../glossary.md#term-conformance)/[Engine](../../../../glossary.md#term-engine) fixtures, ledger v2 and focused docs/Javadocs.
 Rawls final code APPROVE (0 P1/P2), R1–R4 closed/manifests verified; Herschel independent docs APPROVE (0),
 preserving Rawls's 12 Markdown/5 Java files and finalizing five docs; six Java files executable-[token](../../../../glossary.md#term-token)-neutral,

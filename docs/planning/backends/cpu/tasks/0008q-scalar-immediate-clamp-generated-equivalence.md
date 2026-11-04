@@ -40,7 +40,7 @@ Establish the smallest source-derived, [fail-closed](../../../../glossary.md#ter
 
 - Enumerating arbitrary immediate bit patterns or claiming every [scalar](../../../../glossary.md#term-scalar) value has equivalent generated code.
 - Production [identity](../../../../glossary.md#term-identity-meanings), [fixture](../../../../glossary.md#term-fixture) [hashes](../../../../glossary.md#term-hash), [schema](../../../../glossary.md#term-schema), [lowering](../../../../glossary.md#lowering), codegen, capability, selection, semantics, [vector](../../../../glossary.md#term-vector) eligibility, timing, broad coverage inventory, or [CPU](../../../../glossary.md#term-cpu) 0009 completion.
-- Grouping across [scalar-power realization](../../../../glossary.md#scalar-power-realization), [constant](../../../../glossary.md#term-constant) encoding category, semantic edge category, type, [carrier](../../../../glossary.md#term-storage-carrier), [layout](../../../../glossary.md#layout), strategy, [opcode](../../../../glossary.md#term-opcode), or materially distinct generated [shape](../../../../glossary.md#shape).
+- Grouping across [scalar-power realization](../../../../glossary.md#scalar-power-realization), [constant](../../../../glossary.md#term-constant) encoding category, semantic edge category, type, [carrier](../../../../glossary.md#term-storage-carrier), [layout](../../../../glossary.md#layout), strategy, [opcode](../../../../glossary.md#term-opcode), or materially distinct generated shape.
 
 ## Architecture references
 
@@ -53,7 +53,7 @@ Establish the smallest source-derived, [fail-closed](../../../../glossary.md#ter
 
 - Existing `CpuKernelIr` and `CpuKernelSpecialization` [identity](../../../../glossary.md#term-identity-meanings) remains exact; no [runtime](../../../../glossary.md#term-runtime)/address/object/[extent](../../../../glossary.md#term-extent)/worker/[artifact](../../../../glossary.md#term-artifact)-root fact enters identity and this task changes no such rule.
 - [Normalization](../../../../glossary.md#term-normalization) is test-only evidence: it cannot rewrite a class, normalize production identity, merge artifacts, authorize [cache](../../../../glossary.md#term-cache) reuse, or change selection.
-- If normalization cannot identify exact immediate operands or finds a changed instruction, branch, invoke, [carrier](../../../../glossary.md#term-storage-carrier) access, loop/[dataflow](../../../../glossary.md#term-dataflow) [shape](../../../../glossary.md#shape), or non-immediate [constant](../../../../glossary.md#term-constant), leave the form ungrouped and [fail closed](../../../../glossary.md#admission-preflight-and-fail-closed-validation).
+- If normalization cannot identify exact immediate operands or finds a changed instruction, branch, invoke, [carrier](../../../../glossary.md#term-storage-carrier) access, loop/[dataflow](../../../../glossary.md#term-dataflow) shape, or non-immediate [constant](../../../../glossary.md#term-constant), leave the form ungrouped and [fail closed](../../../../glossary.md#admission-preflight-and-fail-closed-validation).
 
 ## Package impact
 
@@ -84,7 +84,7 @@ At most three [CPU](../../../../glossary.md#term-cpu) test-source paths, two CPU
 
 Stop without changing production behavior and leave the task `Blocked` or `Incomplete` if any
 reachable [scalar](../../../../glossary.md#term-scalar)-immediate/clamp form cannot be reduced to a [finite](../../../../glossary.md#term-finite) [fixture](../../../../glossary.md#term-fixture) set, a proposed unit
-changes an instruction, control-flow/invoke/[carrier](../../../../glossary.md#term-storage-carrier)/hot-loop/[dataflow](../../../../glossary.md#term-dataflow) [shape](../../../../glossary.md#shape), a fixture cannot retain
+changes an instruction, control-flow/invoke/[carrier](../../../../glossary.md#term-storage-carrier)/hot-loop/[dataflow](../../../../glossary.md#term-dataflow) shape, a fixture cannot retain
 its exact existing [identity](../../../../glossary.md#term-identity-meanings)/[hash](../../../../glossary.md#term-hash), the normalizer cannot prove the declared [constants](../../../../glossary.md#term-constant)-only relation,
 or the matching clean-Java semantic/structural test fails. Record the exact [opcode](../../../../glossary.md#term-opcode), type, carrier,
 [layout](../../../../glossary.md#layout), strategy, immediate category, fixture hash, and required family-specific follow-up.
@@ -175,7 +175,7 @@ because no build configuration changed.
 The checked pair derives from a real [PrepareContext](../../../../glossary.md#prepare-context-preparecontext), CpuPartitionPreparer, [lowering](../../../../glossary.md#lowering), selected
 portable route, and generator. Its strict normalizer admits a difference only at its declared
 immediate instruction location and compares every other instruction operand, member structure,
-and prohibited hot-path [feature](../../../../glossary.md#term-feature). Generated classes execute against independent typed clean-Java
+and prohibited hot-path [feature](../../../../glossary.md#term-software-feature). Generated classes execute against independent typed clean-Java
 loops with ordinary, [NaN](../../../../glossary.md#term-nan), [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero), and [infinity](../../../../glossary.md#term-infinity) inputs. A full [scalar](../../../../glossary.md#term-scalar)/clamp [matrix](../../../../glossary.md#term-matrix-meanings) was not
 possible under this task's three-source/two-resource ceiling without inventing [fixture](../../../../glossary.md#term-fixture) families;
 it is intentionally deferred and 0009 remains blocked.

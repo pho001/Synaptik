@@ -25,7 +25,7 @@ CPU0072 stays Draft/unlaunched. Class C: generated-code hot paths and temporal/r
 
 ## Goal and [scope](../../../../glossary.md#term-scope)
 
-Make existing ordinary [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) and current [scalar](../../../../glossary.md#term-scalar) [Scan](../../../../glossary.md#term-cumulative-scan) use common family [normalization](../../../../glossary.md#term-normalization)
+Make existing ordinary [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) and current [scalar](../../../../glossary.md#term-scalar) Scan use common family [normalization](../../../../glossary.md#term-normalization)
 and bound [contraction](../../../../glossary.md#contraction-dimension) emission. Separate invocation setup from [operation](../../../../glossary.md#operation) regions in existing
 [owners](../../../../glossary.md#term-owner); retain ordinary direct/tiled scalar/[SIMD](../../../../glossary.md#simd) and CPU0065 [TANH](../../../../glossary.md#term-tanh). Move Scan's existing indexed/
 cursor variants and activity semantics into common [ownership](../../../../glossary.md#term-ownership-meanings), then retire its MATMUL subemitter.
@@ -46,7 +46,7 @@ Read AGENTS and affected source/tests. Root [Core invariants](../../../../../ARC
 and [scope index](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span> route to [backend](../../../../glossary.md#backend)
 [CPU routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span> and
 [Accepted ordinary symbolic-batch CPU contract](../../../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>;
-[Scan](../../../../glossary.md#term-cumulative-scan) [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
+Scan [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
 [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>,
 [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic),
 [Qualification and mechanism gates](../../../../architecture/contracts/recurrent-scan.md#qualification-and-mechanism-gates),
@@ -65,7 +65,7 @@ Future boundary changes require exact package/name/purpose/[signature](../../../
 
 - Depends on: CPU0070 independently reviewed/MAIN accepted; retained CPU0064/0065 and accepted
   Compiler0015/0016/Prepare0015; explicit user implementation approval and Ready gates above.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>
-- Conflicts with: [CPU](../../../../glossary.md#term-cpu) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/[carrier](../../../../glossary.md#term-storage-carrier)/loop/[Scan](../../../../glossary.md#term-cumulative-scan)/[cache](../../../../glossary.md#term-cache)/resource and CPU0048–0052 writers.
+- Conflicts with: [CPU](../../../../glossary.md#term-cpu) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/[carrier](../../../../glossary.md#term-storage-carrier)/loop/Scan/[cache](../../../../glossary.md#term-cache)/resource and CPU0048–0052 writers.
 - Parallel group: None; one clean implementation writer, then independent targeted review.
 - Common base revision: `07a281edd3086efde2853211b71b48288db027e1` plus accepted dirty work;
   MAIN's preservation receipt below verifies this accepted base, not an assumed merged base.
@@ -86,14 +86,14 @@ Source prefix: `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/back
 
 - `lowering/CpuMatmulLowering.lower`/`BatchGeometry`, `ir/CpuMatmulIr`/`CpuAccessPlan`: checked [normalization](../../../../glossary.md#term-normalization).
 - `codegen/emit/` [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/[carrier](../../../../glossary.md#term-storage-carrier)/loop emitters and generator: separate entry setup from [contraction](../../../../glossary.md#contraction-dimension).
-- [Scan](../../../../glossary.md#term-cumulative-scan) [lowering](../../../../glossary.md#lowering) `analyzeShaped/analyzeSymbolic`, [IR](../../../../glossary.md#term-intermediate-representation-ir) and `CpuGeneralScanEmitter.Shaped` adapters:
+- Scan [lowering](../../../../glossary.md#lowering) `analyzeShaped/analyzeSymbolic`, [IR](../../../../glossary.md#term-intermediate-representation-ir) and `CpuGeneralScanEmitter.Shaped` adapters:
   temporal adaptation; preserve `CpuGeneralScanStageSchedule.order`, resources and existing fallback.
 - `cache/CpuKernelSpecialization`/`CpuGeneratorSchema`, IR identity and named tests/oracles below:
   both identity streams, frozen artifacts and generated/direct evidence.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [artifacts glossary](../../../../glossary.md#term-artifact))</span>
 
 ## Implemented seams and approved policy
 
-Existing `CpuMatmulLowering.lower` and [Scan](../../../../glossary.md#term-cumulative-scan) [lowering](../../../../glossary.md#lowering) now call package-local `validateRankTwo`
+Existing `CpuMatmulLowering.lower` and Scan [lowering](../../../../glossary.md#lowering) now call package-local `validateRankTwo`
 for exact [Shape](../../../../glossary.md#shape)/[Dimension](../../../../glossary.md#dimension) equations, never sampled B. `BatchGeometry` retains [F32](../../../../glossary.md#floating-point-precision-and-rounding) guards.
 `CpuMatmulEmitter.emitCursorContraction`/`emitIndexedContraction` own increasing full-K control
 and represented math. Generation-only callbacks inline [bytecode](../../../../glossary.md#term-bytecode), never [runtime](../../../../glossary.md#term-runtime) calls; cursor
@@ -111,7 +111,7 @@ not universal proof. Unexpected changed namespaces still require review.
 ## Acceptance criteria
 
 1. Ordinary and Scan rank-two callers reach common MATMUL normalization and contraction owners.
-   No math entry accepts Scan <span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [rank-two glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [normalization glossary](../../../../glossary.md#term-normalization); [contraction glossary](../../../../glossary.md#contraction-dimension))</span>`Shaped`/Stage as its semantic owner or delegates back to a renamed
+   No math entry accepts Scan <span data-glossary-navigation="true"> ([rank-two glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [normalization glossary](../../../../glossary.md#term-normalization); [contraction glossary](../../../../glossary.md#contraction-dimension))</span>`Shaped`/Stage as its semantic owner or delegates back to a renamed
    Scan-only implementation. Existing unrelated high-rank/low/integral ordinary forms retain
    their guards and code; no universal-loop refactor is required.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [rank glossary](../../../../glossary.md#term-rank))</span>
 2. CodeBuilder alone allocates [JVM](../../../../glossary.md#term-java-virtual-machine-jvm) locals. Distinguish those locals from packed `long[]` indices
@@ -130,7 +130,7 @@ not universal proof. Unexpected changed namespaces still require review.
 5. Preserve v9 stable carriers/temporal bases, explicit-B affine/zero-base proofs, cell sharing,
    indexed active-row/feature contractions and bank-free schedule/fallback, inclusive all-B cut
    lifetimes and physical final-port hazards. Retain CPU0065 vector TANH/tails and ordinary
-   worker/range behavior. No Scan SIMD/parallel admission follows from common math.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-software-feature); [vector glossary](../../../../glossary.md#term-vector); [TANH glossary](../../../../glossary.md#term-tanh); [SIMD glossary](../../../../glossary.md#simd); [admission glossary](../../../../glossary.md#term-admission))</span>
+   worker/range behavior. No Scan SIMD/parallel admission follows from common math.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-feature); [vector glossary](../../../../glossary.md#term-vector); [TANH glossary](../../../../glossary.md#term-tanh); [SIMD glossary](../../../../glossary.md#simd); [admission glossary](../../../../glossary.md#term-admission))</span>
 6. Qualify all retained static/symbolic/length forward and actual Compiler reverse occurrences
    independently: both traversals/seeds, F32/F64 only where already admitted, ties/two carries,
    shared parameter sums, poison padding, zero/full/mixed/invalid lengths, T=0/B=0/1/empty K/
@@ -176,7 +176,7 @@ Completed 2026-10-29: common [normalization](../../../../glossary.md#term-normal
 [owners](../../../../glossary.md#term-owner); `CpuGeneralScanMatmulEmitter` deleted after caller [qualification](../../../../glossary.md#term-qualification). Five test-only
 `CpuMatmulBinding*` classes provide [snapshot](../../../../glossary.md#term-snapshot)/[binding](../../../../glossary.md#term-binding) tests, [fixture](../../../../glossary.md#term-fixture), clean Java and explicit harness.
 Source freeze: 31 [CPU](../../../../glossary.md#term-cpu)-src paths (14 modified, 16 added, one retired), plus CPU guide/brief.
-No new production type, numerical rule, resource/[Runtime](../../../../glossary.md#term-runtime) [handoff](../../../../glossary.md#term-handoff), worker/Job or [Scan](../../../../glossary.md#term-cumulative-scan) route.
+No new production type, numerical rule, resource/[Runtime](../../../../glossary.md#term-runtime) [handoff](../../../../glossary.md#term-handoff), worker/Job or Scan route.
 
 Both streams implement only static all-valid [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) v4→v5 and retained-MATMUL static-length
 v1→length-aware-matmul v2, with stale definition/persisted-[cache](../../../../glossary.md#term-cache) rejection. Non-MATMUL shaped-v4/

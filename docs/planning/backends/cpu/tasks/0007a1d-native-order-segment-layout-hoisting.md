@@ -30,7 +30,7 @@ closure replace further work under this isolated gate; they do not retroactively
 
 ## Goal
 
-Correct the first evidence-backed code-[shape](../../../../glossary.md#shape) defect exposed by [CPU](../../../../glossary.md#term-cpu) 0007A1C: generated [scalar](../../../../glossary.md#term-scalar)
+Correct the first evidence-backed code-shape defect exposed by [CPU](../../../../glossary.md#term-cpu) 0007A1C: generated [scalar](../../../../glossary.md#term-scalar)
 [`MemorySegment`](../../../../glossary.md#term-memorysegment) access repeatedly reconstructs native-order typed [layouts](../../../../glossary.md#layout) inside hot loops.
 
 Hoist the exact typed native-order layout state once per generated invocation and make the 13
@@ -42,7 +42,7 @@ family algorithm.
 
 - Use the unchanged frozen sources and evidence under
   `/private/tmp/synaptik-cpu-0007a1c-oMAmuVhF`.
-- Correct only the shared generated segment-access [shape](../../../../glossary.md#shape) owned by `CpuCarrierEmitter`; a necessary
+- Correct only the shared generated segment-access shape owned by `CpuCarrierEmitter`; a necessary
   entry-body setup change may also use `CpuClassFileKernelGenerator` as the second and final
   code-shaping owner.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>
 - Initialize each required native-order typed layout outside repeated scalar load/store work and
@@ -69,7 +69,7 @@ family algorithm.
 
 The 13 rows are fixed by the first 0007A1C [fork](../../../../glossary.md#term-fork-meanings) and retained disassembly:
 
-| Row | Fork-1 ratio | Retained code-[shape](../../../../glossary.md#shape) fact |
+| Row | Fork-1 ratio | Retained code-shape fact |
 |---|---:|---|
 | `P-SCALAR-GENERAL` | `9.602663980x` | [Scalar](../../../../glossary.md#term-scalar) [FLOAT32](../../../../glossary.md#term-float32) segment loads reconstruct native-order [layout](../../../../glossary.md#layout). |
 | `A-GENERAL` | `28.418421710x` | [BFLOAT16](../../../../glossary.md#term-bfloat16) segment load reconstructs native-order layout. |
@@ -93,7 +93,7 @@ their retained Class-File shapes do not contain the same native-order-layout con
 
 - Changing or refreezing the CPU 0007A1C probe, ledger, cases, direct comparators, threshold,
   algorithms, work sizes, fork count, sampling, or evidence directory.<span data-glossary-navigation="true"> ([fork glossary](../../../../glossary.md#term-fork-meanings); [sampling glossary](../../../../glossary.md#term-sampling-machine-learning-and-hyperparameters))</span>
-- Correcting any [residual](../../../../glossary.md#scan-residual-port-and-history-demand) row owned by [CPU](../../../../glossary.md#term-cpu) 0007A1E through CPU 0007A1G.
+- Correcting any [residual](../../../../glossary.md#term-residual-meanings) row owned by [CPU](../../../../glossary.md#term-cpu) 0007A1E through CPU 0007A1G.
 - Family-specific mapping, fold, dropout, scan, aggregate, exact-sum/product, scalar-formula, or
   address-geometry redesign.<span data-glossary-navigation="true"> ([dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [scan glossary](../../../../glossary.md#term-cumulative-scan); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Preparation/finalization behavior, new preparation/finalization coverage, unrelated assertions
@@ -242,13 +242,13 @@ Repository-wide, architecture, [conformance](../../../../glossary.md#term-confor
 
 - [CPU](../../../../glossary.md#term-cpu) 0007A1C is Incomplete with a retained frozen 20-case corpus and first-[fork](../../../../glossary.md#term-fork-meanings) failure.
 - CPU 0007A0–0007A1B provide the completed generated-family and [schema](../../../../glossary.md#term-schema)-31 baseline.
-- Current Java 26 Class-File and foreign-memory APIs define the emitted [bytecode](../../../../glossary.md#term-bytecode) [shape](../../../../glossary.md#shape).
+- Current Java 26 Class-File and foreign-memory APIs define the emitted [bytecode](../../../../glossary.md#term-bytecode) shape.
 
 ## Follow-up tasks
 
 - [CPU](../../../../glossary.md#term-cpu) 0007A1E: [Ready](../../../../glossary.md#term-ready) movement general-address-loop parity correction for `M-PAD`, `M-CONCAT`,
   `M-UNFOLD-AXIS`, and `M-UNFOLD2D` through the single `CpuDataMovementEmitter` [owner](../../../../glossary.md#term-owner).
-- CPU 0007A1F: Draft [residual](../../../../glossary.md#scan-residual-port-and-history-demand) [BOOL](../../../../glossary.md#data-type--datatype) movement/aggregate correction for `M-STACK` and
+- CPU 0007A1F: Draft [residual](../../../../glossary.md#term-residual-meanings) [BOOL](../../../../glossary.md#data-type--datatype) movement/aggregate correction for `M-STACK` and
   `X-ANY-SINGLE`; create its detailed specification only after CPU 0007A1E completes.
 - CPU 0007A1G: Draft fold/[dropout](../../../../glossary.md#dropout--inverted-dropout) residual correction for `F-FOLD2D` and
   `R-DROPOUT-GENERAL`; create its detailed specification only after CPU 0007A1F completes.
@@ -287,7 +287,7 @@ Do not mark Complete until all 13 target and three control rows pass every requi
 
 ## Local decisions
 
-- Fix the shared causal code [shape](../../../../glossary.md#shape) before family-specific [residual](../../../../glossary.md#scan-residual-port-and-history-demand) rows.
+- Fix the shared causal code shape before family-specific [residual](../../../../glossary.md#term-residual-meanings) rows.
 - The first task owns 13 rows because retained `javap` shows the same repeated native-order typed
   layout construction in each generated path; their operation families remain unchanged.<span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout); [operation glossary](../../../../glossary.md#operation))</span>
 - The four rows without that shape are not used to justify this production change.
@@ -302,7 +302,7 @@ Do not mark Complete until all 13 target and three control rows pass every requi
   parity or tuning claim.<span data-glossary-navigation="true"> ([JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm))</span>
 - This task does not close [CPU](../../../../glossary.md#term-cpu) 0007A1C or authorize CPU 0007A2.
 - Residual full-probe failure is permitted only for the four named later rows and must be recorded
-  as an expected incomplete closure result, not a passing full benchmark.<span data-glossary-navigation="true"> ([Residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  as an expected incomplete closure result, not a passing full benchmark.<span data-glossary-navigation="true"> ([Residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 - The final required fork failed all 13 A1D targets. The task therefore did not reach its
   five-fork or aggregate acceptance gates and remains incomplete despite stable semantic,
   structural, and Java-test evidence.<span data-glossary-navigation="true"> ([fork glossary](../../../../glossary.md#term-fork-meanings))</span>
@@ -315,7 +315,7 @@ Do not mark Complete until all 13 target and three control rows pass every requi
 [Planning](../../../../glossary.md#term-planning)/documentation context `/root` verified the frozen sources, ledger, and all 20 generated
 class checksums; exact semantics `VERIFIED,20`; the raw [fork](../../../../glossary.md#term-fork-meanings)-1 ratios; current source [schema](../../../../glossary.md#term-schema) 31;
 and no 0007A1C production-[owner](../../../../glossary.md#term-owner) diff. Retained `javap` identifies the 13 [target](../../../../glossary.md#term-target) classes above with
-native-order typed [layout](../../../../glossary.md#layout) construction and the four [residual](../../../../glossary.md#scan-residual-port-and-history-demand) classes without that same [shape](../../../../glossary.md#shape).
+native-order typed [layout](../../../../glossary.md#layout) construction and the four [residual](../../../../glossary.md#term-residual-meanings) classes without that same shape.
 `schema-after.txt` is malformed and is not accepted as evidence; current source supplies the
 independent schema-31 baseline. No executable command was rerun while creating this specification.
 
@@ -412,6 +412,6 @@ implementation term.
   groups in strict order before resuming CPU 0007A1C. CPU 0007A2 remains blocked.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>
 
 Historical implementation result: Incomplete. The original 13-[target](../../../../glossary.md#term-target)/five-[fork](../../../../glossary.md#term-fork-meanings) acceptance gate
-was not met. The listed [residual](../../../../glossary.md#scan-residual-port-and-history-demand) follow-ups and the accumulated 0007A1C closure later completed
+was not met. The listed [residual](../../../../glossary.md#term-residual-meanings) follow-ups and the accumulated 0007A1C closure later completed
 under their own contracts; no further implementation is authorized under A1D's failed isolated
 gate. Review disposition: Superseded.

@@ -30,16 +30,16 @@ independent Class C source/protocol/result/documentation review APPROVE, 0 P1/P2
 
 Class C — generated [dataflow](../../../../glossary.md#term-dataflow)/[lifetime](../../../../glossary.md#term-lifetime) and [artifact](../../../../glossary.md#term-artifact) [identity](../../../../glossary.md#term-identity-meanings). Port generic external-cell staging:
 invariants once per invocation, SHARED cells only at consuming active original t.
-Primary witness: real generated [F32](../../../../glossary.md#floating-point-precision-and-rounding) [scalar](../../../../glossary.md#term-scalar) reverse [Scan](../../../../glossary.md#term-cumulative-scan), not a Java transcription.
+Primary witness: real generated [F32](../../../../glossary.md#floating-point-precision-and-rounding) [scalar](../../../../glossary.md#term-scalar) reverse Scan, not a Java transcription.
 
 ## [Scope](../../../../glossary.md#term-scope) and non-goals
 
 - Existing eligible ordinary/Scan F32/F64 scalar rows; ordinary arrays/checked segments, Scan segments.
   Static/named-B/length/combined admission unchanged, including symbolic F64 exclusions. Parallel-scalar
-  stages only where proof fits the existing helper ABI; otherwise checked fallback, no capability shrink.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [scalar glossary](../../../../glossary.md#term-scalar); [admission glossary](../../../../glossary.md#term-admission); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
+  stages only where proof fits the existing helper ABI; otherwise checked fallback, no capability shrink.<span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [scalar glossary](../../../../glossary.md#term-scalar); [admission glossary](../../../../glossary.md#term-admission); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
 - Implemented staging requires complete actually consumed fixed-feature views, rank at most two,
   and complete regional-body lifetimes. ROW/carry/bank/scratch and already-hoisted scalar sources
-  are excluded. Partial/unused/empty domains, unrelated producers and over-budget proofs remain checked.<span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-software-feature); [views glossary](../../../../glossary.md#term-view-meanings); [rank glossary](../../../../glossary.md#term-rank); [carry glossary](../../../../glossary.md#term-carry))</span>
+  are excluded. Partial/unused/empty domains, unrelated producers and over-budget proofs remain checked.<span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-feature); [views glossary](../../../../glossary.md#term-view-meanings); [rank glossary](../../../../glossary.md#term-rank); [carry glossary](../../../../glossary.md#term-carry))</span>
 - No RNN/F3/H2/root9/10/value special case, carry promotion, math/store reorder, SIMD rewrite,
   new capability/supported API/type/framework, larger resources, runtime/worker/ownership/ABI change or rollout.
   No old/new emitter pair, stage/commit/push, historical timing rerun or task cascade.<span data-glossary-navigation="true"> ([RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [SIMD glossary](../../../../glossary.md#simd); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [runtime glossary](../../../../glossary.md#term-runtime); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [commit glossary](../../../../glossary.md#term-commit))</span>
@@ -62,7 +62,7 @@ Read AGENTS, current sources/focused tests, the root [scope](../../../../glossar
   `Resources, dispatch lifetime and compatibility`; [CPU0075 selective scalar load and address reuse](../../../../architecture/contracts/backend-execution.md#cpu0075-selective-scalar-load-and-address-reuse)<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar))</span>;
   [CPU0076 invariant external-cell load staging](../../../../architecture/contracts/backend-execution.md#cpu0076-prospective-invariant-external-cell-load-staging)<span data-glossary-navigation="true"> ([invariant glossary](../../../../glossary.md#term-invariant))</span>.
 - Backend [Accepted ordinary symbolic-batch CPU contract](../../../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [CPU glossary](../../../../glossary.md#term-cpu))</span>.
-- [Scan](../../../../glossary.md#term-cumulative-scan) [Reverse scan and exact primal bindings](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal); [bindings glossary](../../../../glossary.md#term-binding))</span>,
+- Scan [Reverse scan and exact primal bindings](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal); [bindings glossary](../../../../glossary.md#term-binding))</span>,
   [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>,
   [CPU0074 selected terminal grouping exception](../../../../architecture/contracts/recurrent-scan.md#cpu0074-selected-terminal-grouping-exception),
   [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>,
@@ -114,7 +114,7 @@ Production root: `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/ba
    SHARED temporal cells stage after producers at each consuming active original t, never from
    an adjacent time. No source read at T=0/B=0/all-inactive/empty feature domain. Worker staging
    needs an active consumer in its range, not just global active(t); otherwise checked fallback.
-   Do not label per-helper staging once-per-whole-Scan.<span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-software-feature); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+   Do not label per-helper staging once-per-whole-Scan.<span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-feature))</span>
 3. Before cuts/resources/slots prove BOTH caller/helper whole-lifetime bounds, even without exec-v1.
    Include all demanded history LONG bases (forwarded sources/prepublication too), duplicate
    producing wrappers' carrier/LONG bases in BOTH phases, controls/addresses, producers/terminals,
@@ -147,7 +147,7 @@ protocol/[hashes](../../../../glossary.md#term-hash) for review/MAIN GO. Focused
 ./gradlew :backends:cpu:test --tests '*CpuRowScalarReuseTest' --tests '*CpuRowMapReductionGeneratedKernelTest' --tests '*CpuRowFusionSimdParallelTest' --tests '*CpuRowMapReductionLoweringTest' --tests '*CpuGeneralScanLoweringTest' --tests '*CpuKernelSpecializationTest' --tests '*CpuGeneratedKernelArtifactStoreTest' --offline
 ```
 
-Consumed budget: ONE [JVM](../../../../glossary.md#term-java-virtual-machine-jvm), external 90s watchdog, actual [F32](../../../../glossary.md#floating-point-precision-and-rounding) reverse [Scan](../../../../glossary.md#term-cumulative-scan) B32/B256, T4/F3/H2.
+Consumed budget: ONE [JVM](../../../../glossary.md#term-java-virtual-machine-jvm), external 90s watchdog, actual [F32](../../../../glossary.md#floating-point-precision-and-rounding) reverse Scan B32/B256, T4/F3/H2.
 A=literal accepted CPU0075 current G, SHA256
 `d8333ed3f20e2663b455411d45eda6a8295edb56346ff959b9d5823c60611a6e`, from
 `baseline/weight-lab-frozen/G.class`; B=actual new generator, C=unchanged original Java R.
@@ -173,7 +173,7 @@ MAIN's named changed-boundary join (actual reverse/empty-time/empty-row [Engine]
 
 ## Documentation and review impact
 
-Independent reviewer finalized exactly nine packet Markdown files: root, [backend](../../../../glossary.md#backend)/[Scan](../../../../glossary.md#term-cumulative-scan) contracts,
+Independent reviewer finalized exactly nine packet Markdown files: root, [backend](../../../../glossary.md#backend)/Scan contracts,
 boundary explanation, [CPU](../../../../glossary.md#term-cpu) guide, ADR0055, this brief, CPU master and roadmap. General/architecture/
 backend/decision/[planning](../../../../glossary.md#term-planning)/example/[API](../../../../glossary.md#term-application-programming-interface-api)-[Javadoc](../../../../glossary.md#term-javadoc) profiles applied; local links/anchors/whitespace checked.
 Javadoc implementation contracts reviewed in the six frozen production [owners](../../../../glossary.md#term-owner); no final Java edits,

@@ -64,7 +64,7 @@ The current source-backed boundaries are deliberately narrow:
 
 For every retained generated [hot path](../../../../glossary.md#term-hot-path), preserve the `AGENTS.md` requirement for a well-written,
 optimal clean-Java semantic and hot-loop/[dataflow](../../../../glossary.md#term-dataflow) [oracle](../../../../glossary.md#term-test-oracle). Generated code must retain the oracle's
-semantic algorithm, loop/dataflow [shape](../../../../glossary.md#shape), and avoidable-overhead profile; Class-File/[decompilation](../../../../glossary.md#term-decompilation)
+semantic algorithm, loop/dataflow shape, and avoidable-overhead profile; Class-File/[decompilation](../../../../glossary.md#term-decompilation)
 inspection remains proportionate evidence, not a universal verifier. For every migration, replace
 the complete selected generated subfamily, including [lowering](../../../../glossary.md#lowering)/selection, cold [binding](../../../../glossary.md#term-binding), invocation,
 [artifact](../../../../glossary.md#term-artifact)/[cache](../../../../glossary.md#term-cache)/inventory and generated-only evidence as applicable. No hidden fallback or

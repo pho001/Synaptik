@@ -94,7 +94,7 @@ the exact matrix, carriers, and modes after this vertical [slice](../../../../gl
   per-node calls in node order. It performs no graph, slot, storage, route, cache, or operation
   dispatch in the hot path.<span data-glossary-navigation="true"> ([guard glossary](../../../../glossary.md#term-guard); [cache glossary](../../../../glossary.md#term-cache); [dispatch glossary](../../../../glossary.md#term-dispatch); [hot path glossary](../../../../glossary.md#term-hot-path))</span>
 - Keep task-0004 synthetic tests valid after the ordered-recipe generalization and add focused
-  capability, multi-node partition, numerical, storage, ordering, failure, and bytecode tests.<span data-glossary-navigation="true"> ([generalization glossary](../../../../glossary.md#term-generalization))</span>
+  capability, multi-node partition, numerical, storage, ordering, failure, and bytecode tests.
 - Keep all execution implementation types package-private in the existing flat
   `io.github.pho001.synaptik.backend.cpu.execution` package. This concrete family needs direct
   collaboration with the completed package-private carrier, generator, artifact, worker,
@@ -290,7 +290,7 @@ exact [matrix](../../../../glossary.md#term-matrix-meanings) is a stop condition
 - [x] One partition bound invocation performs one state guard and direct ordered typed node calls
       without graph/slot/storage/route/cache/operation lookup in the hot path.<span data-glossary-navigation="true"> ([bound invocation glossary](../../../../glossary.md#bound-invocation--boundinvocation); [guard glossary](../../../../glossary.md#term-guard); [graph glossary](../../../../glossary.md#graph); [cache glossary](../../../../glossary.md#term-cache); [operation glossary](../../../../glossary.md#operation); [lookup glossary](../../../../glossary.md#term-lookup); [hot path glossary](../../../../glossary.md#term-hot-path))</span>
 - [x] CPU 0001–0004 contracts remain compatible; their focused tests pass after the ordered-recipe
-      generalization.<span data-glossary-navigation="true"> ([generalization glossary](../../../../glossary.md#term-generalization))</span>
+      generalization.
 - [x] No public CPU type, package, registry, facade, service locator, generic manager, or JPMS
       boundary is added.<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [facade glossary](../../../../glossary.md#term-facade); [service locator glossary](../../../../glossary.md#term-service-locator); [JPMS glossary](../../../../glossary.md#term-java-platform-module-system-jpms))</span>
 - [x] No unadvertised operation, data type, layout, carrier, mode, fusion, or vendor route is
@@ -459,7 +459,7 @@ Files changed or created: 13 [CPU](../../../../glossary.md#term-cpu) production 
 `docs/planning/roadmap.md`; no file outside the task's permitted paths changed.
 
 Tests and [validation](../../../../glossary.md#term-validation): sole final CPU [module](../../../../glossary.md#term-module) suite passed 31 tests; CPU [Javadoc](../../../../glossary.md#term-javadoc) built successfully;
-generated docs, Markdown links/anchors/fences/newlines/whitespace, public [shape](../../../../glossary.md#shape), imports, exact
+generated docs, Markdown links/anchors/fences/newlines/whitespace, public shape, imports, exact
 [scope](../../../../glossary.md#term-scope), statuses, Draft-task absence, and diff whitespace passed inspection.
 
 Unresolved issues: none within CPU 0005. CPU 0005A and later [operation](../../../../glossary.md#operation), [carrier](../../../../glossary.md#term-storage-carrier), execution-mode,

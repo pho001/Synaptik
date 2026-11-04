@@ -41,7 +41,7 @@ existing fold machinery. Preserve [Compiler](../../../../glossary.md#term-compil
   Unsupported layout/strategy, K=1, low/mixed/integer/BOOL, symbolic geometry, nonmatches,
   MaxPool/Pool3d/Conv/unrelated folds retain existing routes/rejections.<span data-glossary-navigation="true"> ([SCALAR glossary](../../../../glossary.md#term-scalar); [MemorySegment glossary](../../../../glossary.md#term-memorysegment); [heap glossary](../../../../glossary.md#term-heap); [BOOL glossary](../../../../glossary.md#data-type--datatype); [Pool3d glossary](../../../../glossary.md#pool3d--ncdhw-pooling))</span>
 - No other-module production, authority/dependency/default/tuning changes, native rebuild, Scan work,
-  broad campaign, automatic successor or stage/commit/push. BF16/F16 untouched, NOT newly qualified.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [commit glossary](../../../../glossary.md#term-commit); [BF16 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F16 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>
+  broad campaign, automatic successor or stage/commit/push. BF16/F16 untouched, NOT newly qualified.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency); [commit glossary](../../../../glossary.md#term-commit); [BF16 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F16 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>
 
 ## Contracts
 
@@ -88,7 +88,7 @@ Read these headings; plans are not authority:
    `a=y+padH-ky*dilH`, `b=x+padW-kx*dilW`; require nonnegative, [stride](../../../../glossary.md#term-stride)-divisible a,b and
    `(oh=a/strideH,ow=b/strideW)` within exact OH/OW. Read `[n,c,oh*OW+ow]`; columns q maps
    to floor(q/K). At most one pooled position matches each kernel, preserving canonical q,p order.
-   O(N<span data-glossary-navigation="true"> ([kernel glossary](../../../../glossary.md#kernel))</span>*C*H*W*K); no all-columns/all-input [scan](../../../../glossary.md#term-cumulative-scan), expanded odometer or generic fallback overhead.
+   O(N*C*H*W*K); no all-columns/all-input scan, expanded odometer or generic fallback overhead.
 3. Same-format sequential F32/F64 additions, no reassociation/FMA/new aggregate state. Padding/
    ceil tails add nothing, gaps stay +0; legal subranges leave other cells untouched. Empty outputs
    perform no source read or coordinate division/modulo.<span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [reassociation glossary](../../../../glossary.md#term-reassociation); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [Padding glossary](../../../../glossary.md#padding); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
@@ -97,7 +97,7 @@ Read these headings; plans are not authority:
    no duplication. perPosition stays a real boundary, including its public/saved/fan-out consumers.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [autograd glossary](../../../../glossary.md#autograd); [fan-out glossary](../../../../glossary.md#term-fan-out); [partition glossary](../../../../glossary.md#partition); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 5. Fold child: compact source + output, zero workspace/materialization. Removed values keep logical
    metadata but no CPU declaration/slot/creator/argument/store/hidden allocation. Prove before/after
-   resources: N<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [metadata glossary](../../../../glossary.md#term-metadata); [CPU glossary](../../../../glossary.md#term-cpu); [argument glossary](../../../../glossary.md#term-argument))</span>*C*P*dtypeWidth source, not N*C*K*P*dtypeWidth; retain constants/other units.
+   resources: N*C*P*dtypeWidth source, not N*C*K*P*dtypeWidth; retain constants/other units.
    Correct ValueId/carrier injection, compact spans/type/alignment/access/writable-output and complete
    input/output physical-overlap checks precede writes, including heap-segment aliases.<span data-glossary-navigation="true"> ([constants glossary](../../../../glossary.md#term-constant); [ValueId glossary](../../../../glossary.md#logical-valueid-versus-physical-memory-slot); [carrier glossary](../../../../glossary.md#term-storage-carrier); [alignment glossary](../../../../glossary.md#term-alignment); [heap glossary](../../../../glossary.md#term-heap))</span>
 6. Both dtypes: N>1/C>1/K>1, nonsquare kernels, overlap/gaps, stride>1/dilation/padding/ceil tails,
@@ -157,7 +157,7 @@ One [JVM](../../../../glossary.md#term-java-virtual-machine-jvm)/60-second body 
 rounded source `[2,3,72]`, equal prebound [heap](../../../../glossary.md#term-heap) carriers/preallocated output. Six [warmup](../../../../glossary.md#term-warmup) and nine alternating
 measured pairs, 25 calls/arm; retain raw/class checks, all [samples](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters)/failures. Separate generation/binding/
 entry/[kernel](../../../../glossary.md#kernel) costs, no subtraction; disclose dispersion/[JIT](../../../../glossary.md#term-just-in-time-compilation-jit)/structural limits. No parity threshold,
-retry/[fork](../../../../glossary.md#term-fork-meanings)/[Scan](../../../../glossary.md#term-cumulative-scan)/historical campaign. Check links/size/whitespace and actual-before/HEAD/index preservation.
+retry/[fork](../../../../glossary.md#term-fork-meanings)/Scan/historical campaign. Check links/size/whitespace and actual-before/HEAD/index preservation.
 
 ## Documentation and review impact
 

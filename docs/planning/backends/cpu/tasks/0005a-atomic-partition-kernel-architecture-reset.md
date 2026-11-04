@@ -91,7 +91,7 @@ through 0005 remain historical `Complete` records during implementation. They be
   compatible extents, plus scalar and zero-element behavior.<span data-glossary-navigation="true"> ([cold path glossary](../../../../glossary.md#term-cold-path); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Preserve exact GELU semantics as the [Model](../../../../glossary.md#term-model) [target](../../../../glossary.md#term-target)
   `0.5 * x * (1 + erf(x / sqrt(2)))`. Preserve operation order and prohibit reassociation,
-  contraction, fast math, or substitution of <span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [reassociation glossary](../../../../glossary.md#term-reassociation); [contraction glossary](../../../../glossary.md#contraction-dimension))</span>`GELU_TANH_APPROXIMATION`. Use a CPU-private [scalar](../../../../glossary.md#term-scalar)
+  contraction, fast math, or substitution of <span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [reassociation glossary](../../../../glossary.md#term-reassociation))</span>`GELU_TANH_APPROXIMATION`. Use a CPU-private [scalar](../../../../glossary.md#term-scalar)
   [`erf`](../../../../glossary.md#term-erf) implementation shared by generated and reference realizations and retain the existing
   planned oracle/error requirements.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle))</span>
 - Keep the final 0005A execution strategy scalar and single-threaded while representing execution
@@ -413,7 +413,7 @@ follow their enclosing type.
 | `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/execution/CpuKernelSpecialization.java` | Move/rewrite to `internal/cache/CpuKernelSpecialization.java`; structural [specialization](../../../../glossary.md#term-specialization) without instance extents by default |
 | `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/execution/CpuLoweringFingerprint.java` | Move/rewrite to `internal/cache/CpuLoweringFingerprint.java` |
 | `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/execution/CpuPreparedExecutable.java` | Move/rewrite to `internal/executable/CpuPreparedExecutable.java`; [partition](../../../../glossary.md#partition)-level executable and strong [artifact](../../../../glossary.md#term-artifact) [owner](../../../../glossary.md#term-owner) |
-| `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/execution/CpuFamilyKernelEmitter.java` | Remove; [canonical](../../../../glossary.md#term-canonical-form)-[IR](../../../../glossary.md#term-intermediate-representation-ir) emission replaces family [callback](../../../../glossary.md#term-callback) [shape](../../../../glossary.md#shape) |
+| `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/execution/CpuFamilyKernelEmitter.java` | Remove; [canonical](../../../../glossary.md#term-canonical-form)-[IR](../../../../glossary.md#term-intermediate-representation-ir) emission replaces family [callback](../../../../glossary.md#term-callback) shape |
 | `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/execution/CpuNativeWorkspace.java` | Remove; no 0005A workspace consumer |
 | `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/execution/CpuParallelExecutionException.java` | Remove; parallel strategy returns in ordered follow-up |
 | `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/execution/CpuPointwiseAddCandidateSource.java` | Remove; replaced by whole-partition [lowering](../../../../glossary.md#lowering) |
@@ -523,7 +523,7 @@ a planning stop and correction, not implied authorization.
   vendor leaf package is created before its concrete Draft task.<span data-glossary-navigation="true"> ([OpenBLAS glossary](../../../../glossary.md#term-openblas); [leaf glossary](../../../../glossary.md#term-leaf))</span>
 - `CpuCapabilityProvider` is the sole supported public CPU API. Minimal cross-subpackage contracts
   are technically public only below <span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>`.internal`, documented unsupported, and enforced by focused
-  public-shape and inventory tests.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
+  public-shape and inventory tests.
 - One complete eligible partition lowers to one execution unit, one canonical IR, one generated
   class, one partition executable, and one <span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [canonical glossary](../../../../glossary.md#term-canonical-form); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>[`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation); its two internal values have no
   declaration or physical slot.

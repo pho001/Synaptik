@@ -571,7 +571,7 @@ task Complete only after every gate passes.
   docs/planning/backends/cpu/tasks/0010g-canonical-caller-owned-host-snapshot-export.md
   docs/planning/backends/cpu/master-plan.md docs/planning/roadmap.md` passed all six changed
   Markdown paths for local targets, effective anchors, balanced fences, LF/final newlines, and
-  trailing whitespace. The separate heading-order scan also passed.<span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  trailing whitespace. The separate heading-order scan also passed.<span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target))</span>
 - The final task-attributable union is exactly 13 paths: three CPU production Java files, four CPU
   test files, three explanatory documents, and three planning/status documents. Java changes are
   exactly the seven CPU paths. Scans found no Engine import or dependency, build edit, generated

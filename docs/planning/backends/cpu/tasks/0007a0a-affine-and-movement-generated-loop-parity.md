@@ -96,7 +96,7 @@ index](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) conversion in
 
 - Add generated-bytecode/class-shape assertions that prove dense affine and each structurally
   representative movement body contain their typed hot loop rather than a helper bridge, use the
-  intended integer loop/address form, and contain no per-element <span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [shape glossary](../../../../glossary.md#shape); [element glossary](../../../../glossary.md#term-element))</span>`l2i` or repeated invariant
+  intended integer loop/address form, and contain no per-element <span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [element glossary](../../../../glossary.md#term-element))</span>`l2i` or repeated invariant
   geometry decode. Keep general-long fallback shape assertions.<span data-glossary-navigation="true"> ([invariant glossary](../../../../glossary.md#term-invariant))</span>
 - Prefer parsing Class-File instructions/constant-pool references through a reusable test helper
   over source-text matching or fragile absolute bytecode offsets. A recurring invariant belongs in
@@ -247,7 +247,7 @@ allowlist.
 - Every unproved, segment, mixed-carrier, arbitrary-layout, or large-range case retains the correct
   typed long/general form and all completed represented-bit semantics.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [layout glossary](../../../../glossary.md#layout); [represented-bit glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity))</span>
 - Stable bytecode/class-shape tests enforce embedded typed work, integer dense form, general
-  fallback, and absence of hot generic dispatch/allocation without relying on wall-clock timing.<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [shape glossary](../../../../glossary.md#shape); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
+  fallback, and absence of hot generic dispatch/allocation without relying on wall-clock timing.<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - Focused semantic differential tests cover all seven movement kinds plus affine copy across
   current types, carriers, layouts, ranges, degenerate cases, and scalar/parallel execution.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Each required isolated generated/direct case passes the unchanged per-case `<= 1.15x`
@@ -312,7 +312,7 @@ Repository-wide, architecture, [backend](../../../../glossary.md#backend)-[confo
 
 Expected impact: None.
 
-The task changes only [CPU](../../../../glossary.md#term-cpu)-owned cold [specialization](../../../../glossary.md#term-specialization) and generated portable code [shape](../../../../glossary.md#shape). If it needs
+The task changes only [CPU](../../../../glossary.md#term-cpu)-owned cold [specialization](../../../../glossary.md#term-specialization) and generated portable code shape. If it needs
 an architecture, shared-contract, public [API](../../../../glossary.md#term-application-programming-interface-api), [module](../../../../glossary.md#term-module), semantic, resource, or route change, stop and
 report the conflict.
 

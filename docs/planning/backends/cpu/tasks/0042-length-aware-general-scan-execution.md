@@ -25,7 +25,7 @@ Class C — generated hot loops, mixed typed [binding](../../../../glossary.md#t
 
 ## Goal
 
-Execute fixed T/B/[features](../../../../glossary.md#term-software-feature) length-aware [Scan](../../../../glossary.md#term-cumulative-scan) forward and actual [Compiler](../../../../glossary.md#term-compiler)-generated first-order
+Execute fixed T/B/[features](../../../../glossary.md#term-feature) length-aware Scan forward and actual [Compiler](../../../../glossary.md#term-compiler)-generated first-order
 reverse in [FLOAT32](../../../../glossary.md#term-float32) AND [FLOAT64](../../../../glossary.md#term-float64): [compile](../../../../glossary.md#compile) → [prepare](../../../../glossary.md#prepare) → generated [CPU](../../../../glossary.md#term-cpu) loop. [Runtime](../../../../glossary.md#term-runtime) lengths change activity.
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -49,7 +49,7 @@ NN0032's second-order/CONCAT/mixed-[engine](../../../../glossary.md#term-engine)
 ## Contracts
 
 - [Root](../../../../../ARCHITECTURE.md): `Scope-indexed normative contracts`, `Core lifecycle`, `Core invariants`.
-- [Scan owner](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [owner glossary](../../../../glossary.md#term-owner))</span>:
+- [Scan owner](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>:
   `Source body, attachments and scoped identities`, `Canonical residual ports and demand`,
   `Reverse scan and exact primal bindings`, `Traversal, empty domains and declared qualification`,
   `Qualification, performance and migration gates`; preserve the separately qualified symbolic branch.
@@ -73,7 +73,7 @@ contract/[dtype](../../../../glossary.md#data-type--datatype) ambiguity, require
   [CPU0033](0033-general-scan-f64-domain-closure.md#result), [CPU0037](0037-general-scan-dense-read-views.md#result),
   [CPU0041](0041-symbolic-scan-reverse-carrier-specialization.md#result),
   [Prepare0014](../../../modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md#result).
-- Conflicts with: [scan](../../../../glossary.md#term-cumulative-scan) [admission](../../../../glossary.md#term-admission)/[binding](../../../../glossary.md#term-binding)/resources/[IR](../../../../glossary.md#term-intermediate-representation-ir)/emission/[identity](../../../../glossary.md#term-identity-meanings), ledger and shared docs; serialize.
+- Conflicts with: scan [admission](../../../../glossary.md#term-admission)/[binding](../../../../glossary.md#term-binding)/resources/[IR](../../../../glossary.md#term-intermediate-representation-ir)/emission/[identity](../../../../glossary.md#term-identity-meanings), ledger and shared docs; serialize.
 - Parallel group: None; serial implementation then independent review.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` + accepted dirty work;
   2477-file `/private/tmp/synaptik-dynamic-batch-cutover.Of4Q8D/cpu0042-implementation-baseline.json` and `-files`.
@@ -102,7 +102,7 @@ HEAD=origin/main unchanged, index empty. Other frontiers unchanged; no automatic
 - `internal/prepare/{CpuPartitionPreparer,CpuPartitionPreparationPlan,CpuPartitionFinalizer}.java`:
   `analyzeGeneralScan` one-width declarations, unit/[runtime](../../../../glossary.md#term-runtime) checks, child [dtype](../../../../glossary.md#data-type--datatype)/size/[alignment](../../../../glossary.md#term-alignment)/write offsets.
 - `internal/cache/CpuKernelSpecialization.java` generalScanIr constructor guards, `compatibilityBytes`,
-  `classIdentityBytes`; `internal/codegen/emit/CpuClassFileKernelGenerator.java` [scan](../../../../glossary.md#term-cumulative-scan) path and
+  `classIdentityBytes`; `internal/codegen/emit/CpuClassFileKernelGenerator.java` scan path and
   `CpuCarrierEmitter.prepareSegmentLayouts`: checked all-segment [layout](../../../../glossary.md#layout)/[argument](../../../../glossary.md#term-argument)-slot budget.
 - `internal/executable/CpuGeneralScanPreparedExecutable.java` constructor, accepts/bindCompatible,
   `Invocation.executeBound`: separate typed spans/slicing/read count; after-[producer](../../../../glossary.md#term-producer) value [preflight](../../../../glossary.md#term-preflight).
@@ -126,7 +126,7 @@ HEAD=origin/main unchanged, index empty. Other frontiers unchanged; no automatic
    after deduplication; lengths are INT64 <span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [scalar glossary](../../../../glossary.md#term-scalar); [carry glossary](../../../../glossary.md#term-carry); [INT64 glossary](../../../../glossary.md#data-type--datatype))</span>`[B]`, eight-byte span/alignment, not body width. Retain
    canonical/dense-view/scalar floating reads and canonical writes.<span data-glossary-navigation="true"> ([alignment glossary](../../../../glossary.md#term-alignment); [view glossary](../../../../glossary.md#term-view-meanings))</span>
 3. After length producers, in scan invocation execution before generated entry or any scan write,
-   recheck typed accessibility/span/alignment/overlap and all B values in <span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>`[0,T]`. Invalid last length
+   recheck typed accessibility/span/alignment/overlap and all B values in <span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span>`[0,T]`. Invalid last length
    leaves scan output/padding/history/scratch sentinels unchanged; no upstream rollback. Test same-partition
    and separate-schedule producers, invalid→valid retry, T=0/B=0, heap/segment/mixed, aliases/write overlap.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [rollback glossary](../../../../glossary.md#term-rollback); [partition glossary](../../../../glossary.md#partition); [heap glossary](../../../../glossary.md#term-heap); [aliases glossary](../../../../glossary.md#aliasing-and-arena))</span>
 4. `active(t,b)=t<L[b]` dominates padded sequence/seed/row-history loads and dependent arithmetic,
@@ -142,7 +142,7 @@ HEAD=origin/main unchanged, index empty. Other frontiers unchanged; no automatic
    per time; inactive time is raw identity, not old+0. O(P) carry/contribution scratch, no B×P bank;
    demanded O(T×P) shared history explicit. Empty feature/K/first-carry domains cannot suppress required
    nonempty results. Test poisoned padding/seeds, raw signed-zero/NaN/subnormal state, instrumented
-   inactive no-load/no-arithmetic and ordinary active specials.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-software-feature); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [NaN glossary](../../../../glossary.md#term-nan); [subnormal glossary](../../../../glossary.md#term-subnormal))</span>
+   inactive no-load/no-arithmetic and ordinary active specials.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-feature); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [NaN glossary](../../../../glossary.md#term-nan); [subnormal glossary](../../../../glossary.md#term-subnormal))</span>
 7. One fixed-geometry preparation reuses code/slots for changing L; fresh runs/results/concurrency
    remain isolated. No per-L specialization/reprepare or T-fold code expansion. Planned example:
    T=5, L=[5,3,0] executes 8 row transitions; reverse visits each valid prefix only, never padded tails.<span data-glossary-navigation="true"> ([concurrency glossary](../../../../glossary.md#term-concurrency); [specialization glossary](../../../../glossary.md#term-specialization))</span>
@@ -204,7 +204,7 @@ criteria in one brief (>200 lines/15 KB, below 25 KB), with a compact Result rat
 - Delivered fixed-geometry F32/F64 forward/actual reverse, mixed INT64 preflight, activity/saved sites and length-only identity.
   R1 fusion-domain and R2 SUM-epilogue availability fixes have both-dtype/traversal regressions; legacy proofs retained.<span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [INT64 glossary](../../../../glossary.md#data-type--datatype); [preflight glossary](../../../../glossary.md#term-preflight); [identity glossary](../../../../glossary.md#term-identity-meanings); [fusion glossary](../../../../glossary.md#term-fusion); [epilogue glossary](../../../../glossary.md#term-epilogue); [dtype glossary](../../../../glossary.md#data-type--datatype))</span>
 - Implementation: 9 CPU production, 7 CPU test/oracle and 4 conformance/ledger/Engine paths, plus final docs/Javadoc/status.
-  No new type/API/Runtime handoff, dependency/build or upstream executable change; upstream Scan Javadoc is factual only.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [oracle glossary](../../../../glossary.md#term-test-oracle); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Runtime glossary](../../../../glossary.md#term-runtime); [handoff glossary](../../../../glossary.md#term-handoff); [dependency glossary](../../../../glossary.md#term-dependency); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  No new type/API/Runtime handoff, dependency/build or upstream executable change; upstream Scan Javadoc is factual only.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [oracle glossary](../../../../glossary.md#term-test-oracle); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Runtime glossary](../../../../glossary.md#term-runtime); [handoff glossary](../../../../glossary.md#term-handoff); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Focused command above: 174 = 166 passed + 8 timing skips. Final CPU: 222 suites, 1308 = 1266 passed + 42 skips; zero failures/errors.
   Final `:modules:model:javadoc :backends:cpu:javadoc` PASS with the same 94 pre-existing warnings; tests reused after comments only.
 - MAIN's exact named join above PASS: 4 [conformance](../../../../glossary.md#term-conformance) suites/23 tests + 3 [Engine](../../../../glossary.md#term-engine) suites/27 tests; zero skips/failures/errors.

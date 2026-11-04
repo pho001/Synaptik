@@ -196,7 +196,7 @@ For every result [coordinate](../../../../glossary.md#axis-rank-scalar-vector-an
   both zero signs occur, <span data-glossary-navigation="true"> ([infinities glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>`MIN` yields [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero) and `MAX` yields positive zero. No NaN payload,
   source, signaling state, or sign is promised. Empty <span data-glossary-navigation="true"> ([positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>`U(c)` copies exact base bits.
 
-The output-domain [scan](../../../../glossary.md#term-cumulative-scan) makes `MUL`, `MIN`, and `MAX` independent of physical [layout](../../../../glossary.md#layout), worker
+The output-domain scan makes `MUL`, `MIN`, and `MAX` independent of physical [layout](../../../../glossary.md#layout), worker
 scheduling, atomics, and tree [shape](../../../../glossary.md#shape), as [Model](../../../../glossary.md#term-model) requires. The selected deterministic `ADD` order is
 a [CPU](../../../../glossary.md#term-cpu) realization, not a new Model guarantee.
 
@@ -288,7 +288,7 @@ uniqueness when its suffix [slice](../../../../glossary.md#slice) is empty.
 - Each generated range owns `[start, end)` output ordinals. Cold binding allocates and packs one
   primitive geometry array per selected call, seeds output coordinates, update-scan cursors, and
   optional scratch offset, and reuses it for every invocation. The generated hot loop advances
-  odometers without division/modulo, Model inspection, semantic lookup, or allocation.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [scan glossary](../../../../glossary.md#term-cumulative-scan); [Model glossary](../../../../glossary.md#term-model); [lookup glossary](../../../../glossary.md#term-lookup))</span>
+  odometers without division/modulo, Model inspection, semantic lookup, or allocation.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [Model glossary](../../../../glossary.md#term-model); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - Scalar preference selects scalar. Vector preference deliberately falls back to scalar compute.
   Existing cold policy may select parallel orchestration by output count; zero output selects no
   call. A range never writes outside its output interval and never shares mutable scratch with
@@ -406,7 +406,7 @@ Existing packages used:
 - `internal.ir` for the closed scatter structural [identity](../../../../glossary.md#term-identity-meanings).
 - `internal.lowering` for one-[node](../../../../glossary.md#node) semantic revalidation and compact geometry.
 - `internal.codegen.emit` for the generated bridge, output scan, typed carrier access, reductions,
-  and primitive-limb exact product.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  and primitive-limb exact product.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - `internal.prepare` and `internal.executable` for exact scratch declaration/selection, complete
   pre-write validation, cold range packing, and direct invocation.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - `internal.memory` for generic aligned [run](../../../../glossary.md#term-run)-owned [CPU](../../../../glossary.md#term-cpu) scratch.
@@ -679,7 +679,7 @@ when documentation and every acceptance gate pass.
 
 - Use a distinct scatter family rather than extending [gather](../../../../glossary.md#gather) indexing or value-blind movement.
 - Produce by disjoint output coordinates and scan logical contributions. This preserves functional
-  base participation, one final write, deterministic parallelism, and zero atomic/merge state.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [scan glossary](../../../../glossary.md#term-cumulative-scan); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
+  base participation, one final write, deterministic parallelism, and zero atomic/merge state.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
 - Validate every bound first, then `NONE` uniqueness, before any generated work. Use deterministic
   allocation-free comparison rather than a target hash table.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target); [hash glossary](../../../../glossary.md#term-hash))</span>
 - Use a deterministic CPU row-major order for ADD while preserving Model's broader reassociation

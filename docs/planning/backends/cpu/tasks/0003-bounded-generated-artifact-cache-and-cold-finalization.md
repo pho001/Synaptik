@@ -74,7 +74,7 @@ time-to-live are neither compatibility facts nor correctness inputs.
   class-entry compatibility field before accepting stored bytes. A path digest, specialization
   fingerprint, Java hash code, or checksum alone never establishes compatibility.<span data-glossary-navigation="true"> ([hash code glossary](../../../../glossary.md#term-hash-code))</span><span data-glossary-navigation="true"> ([specialization glossary](../../../../glossary.md#term-specialization); [fingerprint glossary](../../../../glossary.md#term-fingerprint))</span>
 - Validate bounded lengths, complete parsing, absence of trailing bytes, exact metadata, class
-  checksum, Java class-file verification, and exact generated-class shape before definition.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
+  checksum, Java class-file verification, and exact generated-class shape before definition.
 - Treat a missing, structurally incompatible, truncated, corrupt, or invalid envelope as a safe
   miss: never define or invoke its bytes. Regenerate verified bytes and atomically replace the
   unusable entry. Ordinary root, directory, permission, read, write, synchronization, or atomic-
@@ -90,7 +90,7 @@ time-to-live are neither compatibility facts nor correctness inputs.
   post-publication re-read/validation determine the bytes that are defined.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - Coordinate equal requests process-locally with one single-flight attempt keyed by canonical
   root plus full compatibility metadata, including across distinct store instances. Remove the
-  attempt after its shared success or exact unchecked failure; failures are not negative-cached.<span data-glossary-navigation="true"> ([Coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [single-flight glossary](../../../../glossary.md#single-flight-and-least-recently-used-caching))</span>
+  attempt after its shared success or exact unchecked failure; failures are not negative-cached.<span data-glossary-navigation="true"> ([single-flight glossary](../../../../glossary.md#single-flight-and-least-recently-used-caching))</span>
 - Weakly intern loaded `CpuGeneratedKernel` values process-locally by the same full key. The
   interner holds only `WeakReference` values and removes their exact keys through a
   `ReferenceQueue` when stale. It has no strong completed table, capacity, LRU order, expiry,
@@ -219,7 +219,7 @@ Type placement and exact package-private surface:
   structural encoding already used for its specialization fingerprint.<span data-glossary-navigation="true"> ([defensive copy glossary](../../../../glossary.md#term-defensive-copy); [canonical glossary](../../../../glossary.md#term-canonical-form); [fingerprint glossary](../../../../glossary.md#term-fingerprint))</span>
 - `io.github.pho001.synaptik.backend.cpu.execution.CpuGeneratorSchema` — add only the fixed
   artifact-format/domain constants and generated class/entry naming constants needed by both
-  deterministic metadata construction and generator shape validation.<span data-glossary-navigation="true"> ([constants glossary](../../../../glossary.md#term-constant); [metadata glossary](../../../../glossary.md#term-metadata); [shape glossary](../../../../glossary.md#shape); [validation glossary](../../../../glossary.md#term-validation))</span>
+  deterministic metadata construction and generator shape validation.<span data-glossary-navigation="true"> ([constants glossary](../../../../glossary.md#term-constant); [metadata glossary](../../../../glossary.md#term-metadata); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Delete obsolete `CpuGeneratedKernelCache`; there is no renamed strong cache or compatibility
   adapter.
 
@@ -300,7 +300,7 @@ For `loadOrGenerate(...)`:
     completed failure.
 
 [Checksum](../../../../glossary.md#term-checksum) mismatch never reaches class parsing. Metadata mismatch never reaches checksum or class
-definition. Class verification/[shape](../../../../glossary.md#shape) failure never reaches hidden-class definition. Definition
+definition. Class verification/shape failure never reaches hidden-class definition. Definition
 failure never returns an artifact. No validation result depends on file age or access history.
 
 Waiting is uninterruptible with respect to the shared attempt: interruption neither cancels the
@@ -653,7 +653,7 @@ Final implementation and documentation evidence:
   serialization/reflection mechanism, trusted-root security, no production-finalizer call, and
   no Runtime reference checks passed. The first combined mechanism scan used overly broad text
   patterns that also matched the required explanatory words and atomic move itself; a second
-  invocation then stopped on <span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [LRU glossary](../../../../glossary.md#single-flight-and-least-recently-used-caching); [serialization glossary](../../../../glossary.md#term-serialization); [scan glossary](../../../../glossary.md#term-cumulative-scan); [atomic move glossary](../../../../glossary.md#term-atomic-move))</span>`rg`'s ordinary no-match status. The final explicit empty-result and
+  invocation then stopped on <span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [LRU glossary](../../../../glossary.md#single-flight-and-least-recently-used-caching); [serialization glossary](../../../../glossary.md#term-serialization); [atomic move glossary](../../../../glossary.md#term-atomic-move))</span>`rg`'s ordinary no-match status. The final explicit empty-result and
   exact-move checker passed and is the recorded result.
 - CPU 0003 `Complete` synchronization, CPU 0004–0016 `Draft` rows, absence of their detailed task
   specs, and preserved future Model 0026 Draft dependency passed. Two preliminary status-checker
@@ -701,7 +701,7 @@ Reasoned no-change conclusions:
 - The store reads final entries through a no-follow regular-file check and `FileChannel`, checks
   stable bounded size and complete framing, then validates exact metadata and checksum before
   delegating class verification/shape checking and hidden definition to the generator. Invalid
-  entries return a safe miss; I/O and atomic-publication failures become contextual<span data-glossary-navigation="true"> ([framing glossary](../../../../glossary.md#term-framing); [checksum glossary](../../../../glossary.md#term-checksum); [shape glossary](../../../../glossary.md#shape); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
+  entries return a safe miss; I/O and atomic-publication failures become contextual<span data-glossary-navigation="true"> ([framing glossary](../../../../glossary.md#term-framing); [checksum glossary](../../../../glossary.md#term-checksum); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
   `IllegalStateException` subclasses retaining the cause.
 - [Publication](../../../../glossary.md#term-publication) uses a unique `.cpuclass-*.tmp` regular file in the final directory, writes and
   forces the whole envelope, and calls `Files.move(..., ATOMIC_MOVE, REPLACE_EXISTING)`. It never
@@ -725,7 +725,7 @@ Reasoned no-change conclusions:
 - Completed changes: replaced the obsolete bounded in-memory cache design with the explicit-root
   durable <span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache))</span>`.cpuclass` store, complete compatibility/envelope/checksum/class-shape validation,
   forced atomic publication, cross-JVM reuse, process-local single-flight, weak loaded interning,
-  generator emit/define separation, and defensive specialization encoding.<span data-glossary-navigation="true"> ([checksum glossary](../../../../glossary.md#term-checksum); [shape glossary](../../../../glossary.md#shape); [atomic publication glossary](../../../../glossary.md#term-atomic-publication); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm); [single-flight glossary](../../../../glossary.md#single-flight-and-least-recently-used-caching); [specialization glossary](../../../../glossary.md#term-specialization))</span>
+  generator emit/define separation, and defensive specialization encoding.<span data-glossary-navigation="true"> ([checksum glossary](../../../../glossary.md#term-checksum); [atomic publication glossary](../../../../glossary.md#term-atomic-publication); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm); [single-flight glossary](../../../../glossary.md#single-flight-and-least-recently-used-caching); [specialization glossary](../../../../glossary.md#term-specialization))</span>
 - Files changed or created: 13 present changed paths within the exact 15-path authorization; the
   other two authorized obsolete cache production/test paths are verified absent. The present set
   comprises five CPU production paths, three CPU tests, the CPU guide, glossary, this task, CPU

@@ -26,11 +26,11 @@ Draft; not a source frontier. Requires reviewed/MAIN-accepted CPU0066, verified 
 **user** approval of all four proposed named types (including nested Body/Accumulation) and the
 exact diagnostic budget. Private generation-only types are not exempt from the scoped stop.
 No launch/build/measurement authorized; extraction alone needs no new root/[ADR](../../../../glossary.md#term-architecture-decision-record-adr) rule.
-Class C: generated-code [shape](../../../../glossary.md#shape), exact arithmetic/resource requirements and temporal [binding](../../../../glossary.md#term-binding).
+Class C: generated-code shape, exact arithmetic/resource requirements and temporal [binding](../../../../glossary.md#term-binding).
 
 ## Goal and bounded [scope](../../../../glossary.md#term-scope)
 
-Deliver one common [scalar](../../../../glossary.md#term-scalar) math path for ordinary and existing captured [Scan](../../../../glossary.md#term-cumulative-scan) bodies, including
+Deliver one common [scalar](../../../../glossary.md#term-scalar) math path for ordinary and existing captured Scan bodies, including
 typed [lowering](../../../../glossary.md#lowering), emission, tests and documentation. Scan retains traversal and temporal [bindings](../../../../glossary.md#term-binding),
 not its own [pointwise](../../../../glossary.md#term-pointwise)/[MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/SUM algorithms or a private [optimizer](../../../../glossary.md#term-optimizer) behind a shared [facade](../../../../glossary.md#term-facade).
 Follow the [proposal's call flow](../shared-body-emission-proposal.md#concrete-common-call-flow-and-proposed-types).
@@ -48,7 +48,7 @@ Read AGENTS; root [Core invariants](../../../../../ARCHITECTURE.md#core-invarian
 [Concrete backend modules](../../../../architecture/contracts/backend-execution.md#concrete-backend-modules)<span data-glossary-navigation="true"> ([Concrete backend glossary](../../../../glossary.md#concrete-backend); [modules glossary](../../../../glossary.md#term-module))</span>,
 [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span> and
 [Accepted ordinary symbolic-batch CPU contract](../../../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>;
-[Scan](../../../../glossary.md#term-cumulative-scan) [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
+Scan [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
 [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic)
 and [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories);
 [Runtime](../../../../glossary.md#term-runtime)/[Prepare](../../../../glossary.md#prepare) [Prepare lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle)<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle))</span>
@@ -67,7 +67,7 @@ Any numerical/[ownership](../../../../glossary.md#term-ownership-meanings)/Runti
 
 - Depends on: CPU0066 accepted; user-approved named-type/diagnostic packet; CPU0064/0065 Complete;
   retained Compiler0015/0016 and Prepare0015.
-- Conflicts with: [CPU](../../../../glossary.md#term-cpu) common-body, [Scan](../../../../glossary.md#term-cumulative-scan), [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/aggregate, [cache](../../../../glossary.md#term-cache), workers and CPU0048–0052 writers.
+- Conflicts with: [CPU](../../../../glossary.md#term-cpu) common-body, Scan, [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/aggregate, [cache](../../../../glossary.md#term-cache), workers and CPU0048–0052 writers.
 - Parallel group: None; clean sole implementation writer, independent read-only review.
 - Common base revision: `07a281edd3086efde2853211b71b48288db027e1` plus accepted dirty tree;
   MAIN must record a fresh preservation snapshot/contract set before Ready, not assume a merge.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot); [Ready glossary](../../../../glossary.md#term-ready))</span>
@@ -91,7 +91,7 @@ Source prefix: `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/back
   generation-only types with proposal signatures. Existing <span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature))</span>`CpuLoopEmitter`/`CpuCarrierEmitter`
   own reusable coordinate/address/carrier emission, including v9's dominating constant facts.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [carrier glossary](../../../../glossary.md#term-storage-carrier); [constant glossary](../../../../glossary.md#term-constant))</span>
 - `CpuClassFileKernelGenerator`, `CpuMatmulEmitter`, `CpuAggregateEmitter`, `CpuExactSumEmitter`:
-  ordinary entries adapt to the same body methods used by Scan; preserve other family routes.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  ordinary entries adapt to the same body methods used by Scan; preserve other family routes.
 - `CpuGeneralScanEmitter.Shaped`: retain time/carry/activity/history bindings; delegate math.
   Retire <span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry))</span>`CpuGeneralScanMatmulEmitter` and `CpuGeneralScanReductionEmitter`, not rename them.
   Factor common fusion/cut proofs from <span data-glossary-navigation="true"> ([fusion glossary](../../../../glossary.md#term-fusion))</span>`CpuGeneralScanLowering.fuse*` and
@@ -107,7 +107,7 @@ Source prefix: `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/back
 1. Both ordinary and Scan callers reach common family normalization and body emission. Inspect
    call sites and removed source: no duplicate Scan arithmetic loop/axis/opcode implementation,
    renamed Scan-only backend or runtime operation dispatch. Existing ordinary non-Scan families
-   retain supported behavior; historical paths need not be rewritten beyond shared seams.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [normalization glossary](../../../../glossary.md#term-normalization); [axis glossary](../../../../glossary.md#term-axis); [opcode glossary](../../../../glossary.md#term-opcode); [backend glossary](../../../../glossary.md#backend); [runtime glossary](../../../../glossary.md#term-runtime); [operation glossary](../../../../glossary.md#operation); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
+   retain supported behavior; historical paths need not be rewritten beyond shared seams.<span data-glossary-navigation="true"> ([normalization glossary](../../../../glossary.md#term-normalization); [axis glossary](../../../../glossary.md#term-axis); [opcode glossary](../../../../glossary.md#term-opcode); [backend glossary](../../../../glossary.md#backend); [runtime glossary](../../../../glossary.md#term-runtime); [operation glossary](../../../../glossary.md#operation); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 2. MAIN's SUM audit is preserved: exact ordinary SUM/MEAN keep exact limbs/rounding/requirements;
    represented-sequential Scan SUM keeps ordered fadd/dadd, raw singleton/no-axis movement and
    empty/special/zero behavior. Tests include cancellation-sensitive values that distinguish the
@@ -126,7 +126,7 @@ Source prefix: `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/back
    geometry decoder or generic helper in the hot body. Failed proofs retain legal fallbacks.<span data-glossary-navigation="true"> ([dataflow glossary](../../../../glossary.md#term-dataflow))</span>
 6. Exercise T=0/B=0/1/empty K/zero features, 64→40→1→64 reusable geometry, scalar-to-dense carry,
    forwarded final pre-step views, aliases/overlap, overflow, failure/retry/close/concurrent runs.
-   Preserve ordinaryBatch F32/direct-only guard and reject all-valid symbolic F64 Scan.<span data-glossary-navigation="true"> ([features glossary](../../../../glossary.md#term-software-feature); [scalar glossary](../../../../glossary.md#term-scalar); [carry glossary](../../../../glossary.md#term-carry); [views glossary](../../../../glossary.md#term-view-meanings); [overflow glossary](../../../../glossary.md#term-overflow); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [guard glossary](../../../../glossary.md#term-guard); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>
+   Preserve ordinaryBatch F32/direct-only guard and reject all-valid symbolic F64 Scan.<span data-glossary-navigation="true"> ([features glossary](../../../../glossary.md#term-feature); [scalar glossary](../../../../glossary.md#term-scalar); [carry glossary](../../../../glossary.md#term-carry); [views glossary](../../../../glossary.md#term-view-meanings); [overflow glossary](../../../../glossary.md#term-overflow); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [guard glossary](../../../../glossary.md#term-guard); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>
 7. Frozen unaffected artifacts keep keys/bytes; explicitly approved changed artifacts advance
    both streams and reject stale ClassFiles. Test differing algorithm/roles/demand/access/carry/
    resource facts and compatible reuse. No actual B/L/addresses/slots enter canonical identity.<span data-glossary-navigation="true"> ([artifacts glossary](../../../../glossary.md#term-artifact); [canonical glossary](../../../../glossary.md#term-canonical-form); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
@@ -170,6 +170,6 @@ protocol before Ready/launch. Root validation only if actual [scope](../../../..
 Update affected implementation Javadocs and [CPU](../../../../glossary.md#term-cpu) [backend](../../../../glossary.md#backend) explanation; update compatibility
 authority only if affected, [ADR](../../../../glossary.md#term-architecture-decision-record-adr) only if significant. Use matching documentation profiles;
 [target](../../../../glossary.md#term-target) glossary terms, not a full read. Independent Class C code/docs review must confirm real
-common [ownership](../../../../glossary.md#term-ownership-meanings), preserved numerics/resources and v9 [shape](../../../../glossary.md#shape), reusing successful test evidence.
+common [ownership](../../../../glossary.md#term-ownership-meanings), preserved numerics/resources and v9 shape, reusing successful test evidence.
 Result empty until execution; report changed files, exact checks/limits and unresolved follow-up,
 ending `Status: Complete` or `Status: Incomplete` plus `Follow-up required: ...`.

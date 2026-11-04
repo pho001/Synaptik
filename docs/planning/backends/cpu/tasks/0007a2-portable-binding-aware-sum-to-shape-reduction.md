@@ -141,7 +141,7 @@ bound source Shape + exact bound target Shape
 
 ### Generated [hot path](../../../../glossary.md#term-hot-path) and [schema](../../../../glossary.md#term-schema) 43
 
-- Extend the existing aggregate generated entry [shapes](../../../../glossary.md#shape):
+- Extend the existing aggregate generated entry shapes:
   - reduction, integral: `(inputCarrier, outputCarrier, long[] geometry, long start, long end)void`;
   - reduction, floating: `(inputCarrier, outputCarrier, MemorySegment scratch, long[] geometry,
     long start, long end)void`;
@@ -170,7 +170,7 @@ bound source Shape + exact bound target Shape
   offsets, addresses, slots, ranges, worker count/chunk size, graph identities, and run identity
   remain cold when they do not change emitted code.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [specialization glossary](../../../../glossary.md#term-specialization); [descriptor glossary](../../../../glossary.md#term-descriptor); [manifest glossary](../../../../glossary.md#term-manifest); [cache glossary](../../../../glossary.md#term-cache); [run glossary](../../../../glossary.md#term-run); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 
-### Correctness, code-[shape](../../../../glossary.md#shape), and performance evidence
+### Correctness, code-shape, and performance evidence
 
 - Add an independent test-only oracle that computes the right-aligned mapping itself. Reduced
   floating cases use the existing independent <span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle))</span>`BigInteger`/rational SUM oracle without sharing
@@ -651,7 +651,7 @@ The existing aggregate flow now owns bound right-aligned geometry, source/[targe
 [identity](../../../../glossary.md#term-identity-meanings), direct no-reduction [represented-bit](../../../../glossary.md#storage-mapping-contiguity-and-injectivity) copy, general typed [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) odometers, and the
 specialized dense benchmark form. Floating paths retain `CpuExactSumEmitter` as the sole exact
 accumulation/conversion emitter. Integral dense loops use the optimization-relevant pre-tested
-counted-loop [shape](../../../../glossary.md#shape) demonstrated by the clean Java [oracle](../../../../glossary.md#term-test-oracle). Existing preparation/finalization and
+counted-loop shape demonstrated by the clean Java [oracle](../../../../glossary.md#term-test-oracle). Existing preparation/finalization and
 executable resource [owners](../../../../glossary.md#term-owner) required no production change.
 
 ## Completion summary

@@ -8,9 +8,9 @@ directional broadcast and addresses; `CpuMaskedReductionEmitter` uses `CpuExactS
 accumulation. The mask is tested before data loading or classification, and only selected positions
 advance the invocation-local count used by `MEAN`.
 
-Here, CPU Prepare validates ordered data/mask/output boundaries and binds typed carrier/layout
-entries before `CpuPreparedExecutable` invokes them. Borrowed carriers remain distinct from
-range-private, run-owned exact-state scratch, which is not persistent model state. Class-File checks
+Here, CPU analysis selects structural carrier/layout forms and finalization constructs an immutable
+prepared executable recipe. Runtime later calls the CPU binder on current run storage to validate
+ordered data/mask/output boundaries and create a per-run bound invocation with run-owned exact-state scratch. Borrowed carriers remain distinct; scratch is not persistent model state.
 are structural oracles for entry shape and branch order; independent scalar comparisons across 180
 inventory owners supply semantic evidence.
 
@@ -157,7 +157,7 @@ and one aligned range-private exact-state [slice](../../../../glossary.md#slice)
 
 `./gradlew :backends:cpu:test --tests io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIrTest --tests io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaskedReductionLoweringTest --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuMaskedReductionGeneratedKernelTest --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuMaskedAdvancedReductionSemanticClosureTest --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuSpecializedGeneratedMatrixTest --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparerTest --tests io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizerTest --tests io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutableTest`
 passed: 119 tests, zero failures, errors, or skips. The generated-[kernel](../../../../glossary.md#kernel) Class-File test
-independently verifies deterministic field-free public static entry [shape](../../../../glossary.md#shape), no Synaptik member
+independently verifies deterministic field-free public static entry shape, no Synaptik member
 references or bootstrap methods, and mask-load/false-branch/data-load order. The semantic
 closure test invokes every inventory [owner](../../../../glossary.md#term-owner) against its independent [oracle](../../../../glossary.md#term-test-oracle); the checked
 inventory has 90 `MASKED_SUM` and 90 `MASKED_MEAN` owners. No benchmark was [run](../../../../glossary.md#term-run) or claimed.

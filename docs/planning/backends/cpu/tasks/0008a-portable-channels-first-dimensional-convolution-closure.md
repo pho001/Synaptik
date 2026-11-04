@@ -233,7 +233,7 @@ rank-five [validation](../../../../glossary.md#term-validation), [lowering](../.
 - [Conv3d](../../../../glossary.md#conv3d--ncdhw) backward, training, saved values, [gradients](../../../../glossary.md#term-gradient), or [Compiler](../../../../glossary.md#term-compiler) 0006C.
 - General partition-DAG decomposition, fusion, recognition, profitability, materialization,
   representation reuse, or decision facts from CPU 0008B–0008E.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag); [decomposition glossary](../../../../glossary.md#term-decomposition); [fusion glossary](../../../../glossary.md#term-fusion); [materialization glossary](../../../../glossary.md#materialization))</span>
-- External Conv3d epilogues and [generalization](../../../../glossary.md#term-generalization) of the [Conv2d](../../../../glossary.md#convolution--conv2d)-only two-unit sequence.
+- External Conv3d epilogues and generalization of the [Conv2d](../../../../glossary.md#convolution--conv2d)-only two-unit sequence.
 - [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/[linear](../../../../glossary.md#term-linear-meanings), [pooling](../../../../glossary.md#term-pooling), attention, or [loss](../../../../glossary.md#loss) execution from CPU 0008F–0008I.
 - Vector convolution, native/provider route, packing, reorder, im2col, autotuning, cache
   measurement, hardware-specific specialization, or shared architecture changes.<span data-glossary-navigation="true"> ([Vector glossary](../../../../glossary.md#term-vector); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [im2col glossary](../../../../glossary.md#term-im2col); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [cache glossary](../../../../glossary.md#term-cache); [specialization glossary](../../../../glossary.md#term-specialization))</span>
@@ -425,7 +425,7 @@ stabilizes, run exactly one authoritative uncached CPU suite:
 
 Run the task-owned evidence harness in five fresh isolated Java 26 fixed-[heap](../../../../glossary.md#term-heap) [forks](../../../../glossary.md#term-fork-meanings) with the exact
 protocol in [Scope](../../../../glossary.md#term-scope). Retain machine-readable XML counts, the form ledger, semantic results, ratios,
-class bytes/checksums, complete Class-File and `javap -c -v` reports, forbidden-reference [scan](../../../../glossary.md#term-cumulative-scan),
+class bytes/checksums, complete Class-File and `javap -c -v` reports, forbidden-reference scan,
 accepted/rejected [fork](../../../../glossary.md#term-fork-meanings) [log](../../../../glossary.md#term-log), and [manifest](../../../../glossary.md#term-manifest) [digest](../../../../glossary.md#term-digest).
 
 The final clean documentation-focused context receives the stable diff and exact Java/evidence
@@ -516,7 +516,7 @@ and final status only from actual results.
   general DAG decomposition.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [lowering glossary](../../../../glossary.md#lowering); [node glossary](../../../../glossary.md#node); [topology glossary](../../../../glossary.md#term-topology); [CPU glossary](../../../../glossary.md#term-cpu); [DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag); [decomposition glossary](../../../../glossary.md#term-decomposition))</span>
 - Planning fixes Conv3d epilogues to intrinsic bias only. CPU 0008's external ADD/RELU and two-unit
   materialized suffix are rank-two family contracts, while 0008B–0008C explicitly own their later
-  generalization.<span data-glossary-navigation="true"> ([Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [bias glossary](../../../../glossary.md#term-bias); [rank-two glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [generalization glossary](../../../../glossary.md#term-generalization))</span>
+  generalization.<span data-glossary-navigation="true"> ([Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [bias glossary](../../../../glossary.md#term-bias); [rank-two glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
 - No new shared convolution component is pre-approved by resemblance alone. The implementation
   may add at most one narrowly named private component only after recording the concrete rank-two/
   rank-three responsibility and both consumers.<span data-glossary-navigation="true"> ([convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [rank glossary](../../../../glossary.md#term-rank))</span>

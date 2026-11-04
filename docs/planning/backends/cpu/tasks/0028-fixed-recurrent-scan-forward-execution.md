@@ -1,4 +1,4 @@
-# Task CPU0028 Fixed recurrent [scan](../../../../glossary.md#term-cumulative-scan) forward execution
+# Task CPU0028 Fixed recurrent [scan](../../../../glossary.md#term-fixed-recurrent-scan) forward execution
 
 ## Reader context — historical integration boundary
 
@@ -37,7 +37,7 @@ Every admitted [occurrence](../../../../glossary.md#term-occurrence) must satisf
 | Geometry | Fully static `[T,B,I]`, states `[B,H]`, exact packed [weights](../../../../glossary.md#term-weight)/bias and outputs; I/H positive, T/B may be zero. Each dimension, packed gate [extent](../../../../glossary.md#term-extent) and each boundary [element](../../../../glossary.md#term-element) count fits `int`; all products/byte spans/workspace sizes checked. |
 | [Layout](../../../../glossary.md#layout) | Every [descriptor](../../../../glossary.md#term-descriptor) equals `LayoutDescriptor.contiguous(shape)`, including zero offset; no unresolved, strided, broadcast or [view](../../../../glossary.md#term-view-meanings) layout. Segment slices may supply a different physical base with this same descriptor. |
 | Storage | Exact accessible aligned segment access for [canonical](../../../../glossary.md#term-canonical-form) [heap](../../../../glossary.md#term-heap) float[]/long[], native segments and mixtures, including read-only inputs; [run](../../../../glossary.md#term-run)-owned writable outputs/scratch. No [carrier](../../../../glossary.md#term-storage-carrier) copy. |
-| Strategy | One sequential [SCALAR](../../../../glossary.md#term-scalar) [scan](../../../../glossary.md#term-cumulative-scan) range, species bits zero, on the invoking thread; [vector](../../../../glossary.md#term-vector) preference/parallel budgets do not promote the scan. Other units retain their existing strategies. |
+| Strategy | One sequential [SCALAR](../../../../glossary.md#term-scalar) [scan](../../../../glossary.md#term-fixed-recurrent-scan) range, species bits zero, on the invoking thread; [vector](../../../../glossary.md#term-vector) preference/parallel budgets do not promote the scan. Other units retain their existing strategies. |
 
 FLOAT32 avoids new low [rounding](../../../../glossary.md#term-rounding)/[FLOAT64](../../../../glossary.md#term-float64) [qualification](../../../../glossary.md#term-qualification). Other types/layouts, backward execution,
 scan [SIMD](../../../../glossary.md#simd)/parallel/native, [fusion](../../../../glossary.md#term-fusion)/compaction, tuning and speed claims are excluded. Scan-containing
@@ -48,7 +48,7 @@ reports incomplete/unsupported as for direct long plans; ordinary untuned prepar
 
 No shared executable edits, public wrapper/session, new hierarchy, Data/[NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) migration, training/[BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt),
 [wire format](../../../../glossary.md#term-wire-format) or [dependency](../../../../glossary.md#term-dependency) change.
-No static per-step [graph](../../../../glossary.md#graph), [callback](../../../../glossary.md#term-callback)/body/region, hidden state, workspace pool, generated [scan](../../../../glossary.md#term-cumulative-scan) code,
+No static per-step [graph](../../../../glossary.md#graph), [callback](../../../../glossary.md#term-callback)/body/region, hidden state, workspace pool, generated [scan](../../../../glossary.md#term-fixed-recurrent-scan) code,
 benchmark campaign or cleanup of unrelated [CPU](../../../../glossary.md#term-cpu) code.
 
 ## Contracts
@@ -57,7 +57,7 @@ benchmark campaign or cleanup of unrelated [CPU](../../../../glossary.md#term-cp
   [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>,
   [Explicit non-goals](../../../../../ARCHITECTURE.md#explicit-non-goals),
   [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
-- Read the complete [recurrent-scan contract](../../../../architecture/contracts/recurrent-scan.md)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>,
+- Read the complete [recurrent-scan contract](../../../../architecture/contracts/recurrent-scan.md)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-fixed-recurrent-scan))</span>,
   including `Fixed recurrent scan without graph regions`, `Fixed family and current Model surface`,
   `Static Shape and runtime-value boundary`, `Valid lengths, traversal, and outputs`,
   `Purity and lifecycle ownership`, `Performance and migration invariants`.
@@ -79,7 +79,7 @@ benchmark campaign or cleanup of unrelated [CPU](../../../../glossary.md#term-cp
 
 - Depends on: NN0021A; Model0025E/0025F; Compiler0006A; CPU0027; Engine0021; CP0010/CP0011 — Complete.
 - Conflicts with: CPU capability, unit facts/decomposition/finalization and shared scan/lifecycle
-  documentation; CPU0023/other route work must not overlap these scopes.<span data-glossary-navigation="true"> ([decomposition glossary](../../../../glossary.md#term-decomposition); [scan glossary](../../../../glossary.md#term-cumulative-scan); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  documentation; CPU0023/other route work must not overlap these scopes.<span data-glossary-navigation="true"> ([decomposition glossary](../../../../glossary.md#term-decomposition); [scan glossary](../../../../glossary.md#term-fixed-recurrent-scan); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Parallel group: None.
 - Common base revision: `e9b00bafddb36c28b12a9bb9fa5add3f19978547`, `main == origin/main`.
 - Integration order: main Ready verification → clean CPU worker → independent review → main gate
@@ -102,7 +102,7 @@ no [commit](../../../../glossary.md#term-commit)/push. Authorized [CPU](../../..
   `CpuPartitionPreparationPlan.ExecutionUnitPlan/UnitRuntimeFacts`: mutually exclusive direct
   recurrent versus generated portable facts; existing generated consumers remain guarded.
 - `internal/prepare/CpuPartitionFinalizer` and `internal/executable/CpuPreparedPartitionExecutable`:
-  direct scan children after slot assignment, without generated artifacts or weaker access checks.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [artifacts glossary](../../../../glossary.md#term-artifact))</span>
+  direct scan children after slot assignment, without generated artifacts or weaker access checks.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-fixed-recurrent-scan); [artifacts glossary](../../../../glossary.md#term-artifact))</span>
 - Added `internal/lowering/CpuRecurrentScanLowering` ([immutable](../../../../glossary.md#term-immutable) `Facts`/`Geometry`),
   `internal/executable/CpuRecurrentScanPreparedExecutable` (private `Invocation`) and
   `internal/route/portable/CpuRecurrentScanKernel`: checked geometry/roles, binding/preflight and
@@ -119,7 +119,7 @@ no [commit](../../../../glossary.md#term-commit)/push. Authorized [CPU](../../..
    retains no prototype storage/length specialization; repeated lengths use the same preparation.<span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature); [shapes glossary](../../../../glossary.md#shape); [layouts glossary](../../../../glossary.md#layout); [overflow glossary](../../../../glossary.md#term-overflow); [Prepare glossary](../../../../glossary.md#prepare); [prototype glossary](../../../../glossary.md#term-prototype); [specialization glossary](../../../../glossary.md#term-specialization))</span>
 2. One immutable prepared scan kernel per occurrence, independent of T. Deduplicate repeated input
    ValueIds but retain ordered roles; preserve every sibling output, subset/reordered/aliased roots,
-   fan-out and composition. Dense output allocation remains O(T<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [scan glossary](../../../../glossary.md#term-cumulative-scan); [kernel glossary](../../../../glossary.md#kernel); [occurrence glossary](../../../../glossary.md#term-occurrence); [fan-out glossary](../../../../glossary.md#term-fan-out))</span>*B*H), not [constant](../../../../glossary.md#term-constant) memory.
+   fan-out and composition. Dense output allocation remains O(T*B*H), not [constant](../../../../glossary.md#term-constant) memory.
 3. Declare buffers and per-run gate/state scratch before slots. Derive checked exact scratch for
    the chosen row-wise loop (O(gates*H), independent of T and lengths); omit unused zero-domain
    scratch. No hidden prepared mutable state, per-step allocations, graph growth or hot maps,
@@ -181,7 +181,7 @@ unchanged. Closure runs static documentation checks only; no tests/builds are re
 ## Documentation and review impact
 
 Affected [CPU](../../../../glossary.md#term-cpu)/[Model](../../../../glossary.md#term-model) Javadocs, CPU [backend](../../../../glossary.md#backend) guide, `docs/architecture/runtime-prepare-backend-boundary.md`,
-`docs/user-guide/running-models.md`, `docs/api/graph-checkpoint-api.md` and fixed-[scan](../../../../glossary.md#term-cumulative-scan) glossary status
+`docs/user-guide/running-models.md`, `docs/api/graph-checkpoint-api.md` and fixed-[scan](../../../../glossary.md#term-fixed-recurrent-scan) glossary status
 now describe implemented execution. Independent code/docs review approved the final [snapshot](../../../../glossary.md#term-snapshot);
 final [Javadoc](../../../../glossary.md#term-javadoc) generation passed. Existing glossary meanings, architecture, ADRs, public [API](../../../../glossary.md#term-application-programming-interface-api),
 [persistence](../../../../glossary.md#term-persistence) [admission](../../../../glossary.md#term-admission) and [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) workflows are unchanged. Closure uses general and [planning](../../../../glossary.md#term-planning) profiles.
@@ -190,7 +190,7 @@ final [Javadoc](../../../../glossary.md#term-javadoc) generation passed. Existin
 
 Accepted 2026-10-20: all nine criteria fulfilled for direct Java [scalar](../../../../glossary.md#term-scalar) [FLOAT32](../../../../glossary.md#term-float32) [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../../glossary.md#term-long-short-term-memory-lstm),
 all six [signatures](../../../../glossary.md#term-signature), both directions, output-flag OR, [canonical](../../../../glossary.md#term-canonical-form) [heap](../../../../glossary.md#term-heap)/native/mixed storage,
-[producer](../../../../glossary.md#term-producer)-ordered [INT64](../../../../glossary.md#data-type--datatype) [preflight](../../../../glossary.md#term-preflight) before any [scan](../../../../glossary.md#term-cumulative-scan) write and isolated [RunState](../../../../glossary.md#run-state--runstate) scratch.
+[producer](../../../../glossary.md#term-producer)-ordered [INT64](../../../../glossary.md#data-type--datatype) [preflight](../../../../glossary.md#term-preflight) before any [scan](../../../../glossary.md#term-fixed-recurrent-scan) write and isolated [RunState](../../../../glossary.md#run-state--runstate) scratch.
 Changed areas: [CPU](../../../../glossary.md#term-cpu) [admission](../../../../glossary.md#term-admission)/[lowering](../../../../glossary.md#lowering)/preparation/execution, focused CPU/[conformance](../../../../glossary.md#term-conformance)/integration
 tests, v2 ledger and the documentation/Javadocs listed above; three new internal production types.
 Worker commands above: focused CPU 55 passed; full CPU 1,101 total/1,071 passed/30 existing opt-in

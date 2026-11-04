@@ -29,7 +29,7 @@ Complete
 
 Close the remaining bounded evidence gaps for every currently generatable portable [CPU](../../../../glossary.md#term-cpu) family by
 mapping each [operation](../../../../glossary.md#operation)/family/form to equivalent direct primitive Java, emitted/decompiled
-Class-File [shape](../../../../glossary.md#shape), forbidden-reference checks, and realistic parity evidence.
+Class-File shape, forbidden-reference checks, and realistic parity evidence.
 
 This is evidence-first corrective work. It distinguishes semantic/structural coverage from
 measured performance, does not promise universal parity across algorithms, resources, [layouts](../../../../glossary.md#layout),
@@ -46,7 +46,7 @@ explicit state (`INITIAL_STATE`, [FLOAT64](../../../../glossary.md#term-float64)
 
 | Category | Retained direct/[decompilation](../../../../glossary.md#term-decompilation) evidence | Remaining gap |
 |---|---|---|
-| Pointwise | Dense [scalar](../../../../glossary.md#term-scalar) ADD, [Vector](../../../../glossary.md#term-vector) ADD, [fused](../../../../glossary.md#specialization-and-fusion) ADD -> GELU_EXACT -> MUL; ten scalar [activation](../../../../glossary.md#term-activation), four vector activation, scalar-tail member-reference evidence; semantic tests cover all 48 opcodes/admitted types. | General-long, segment/mixed, non-floating vector, and virtual-[mask](../../../../glossary.md#term-boolean-mask) performance are partial; all opcodes need an explicit code-[shape](../../../../glossary.md#shape) mapping. |
+| Pointwise | Dense [scalar](../../../../glossary.md#term-scalar) ADD, [Vector](../../../../glossary.md#term-vector) ADD, [fused](../../../../glossary.md#specialization-and-fusion) ADD -> GELU_EXACT -> MUL; ten scalar [activation](../../../../glossary.md#term-activation), four vector activation, scalar-tail member-reference evidence; semantic tests cover all 48 opcodes/admitted types. | General-long, segment/mixed, non-floating vector, and virtual-[mask](../../../../glossary.md#term-boolean-mask) performance are partial; all opcodes need an explicit code-shape mapping. |
 | Affine/movement | FLOAT64 [CONTIGUOUS](../../../../glossary.md#term-contiguous), FLOAT32 TILE, [INT32](../../../../glossary.md#data-type--datatype) SLICE_UPDATE direct gates; dense/general Class-File and semantic tests cover affine and all seven movement forms. | PAD, composition, windows, and general-long/segment movement are untimed. |
 | Indexing | Dense FLOAT32 GATHER_ELEMENTS and [BOOL](../../../../glossary.md#data-type--datatype) ONE_HOT gates; Class-File tests cover all families, index widths, general [layouts](../../../../glossary.md#layout), and segment/mixed carriers. | GATHER, GATHER_ND, and general-long/segment performance are missing. |
 | Scatter | Dense replacement/addition, all three mappings, one general mixed addition, and exact floating-product scratch gates; [schema](../../../../glossary.md#term-schema)-31 tests span reductions/types/index widths. | Add one non-additive general-long reduction so closure does not rely only on FLOAT32 addition outside dense arrays. |
@@ -466,7 +466,7 @@ not rerun because this pass changed no executable Java or Javadoc and the stop r
 left those gates open.
 
 Implementation context `01a01dcf-2ad5-75c1-9e60-94cb4c69a659` subsequently completed the bounded
-CPU 0007A1D code [shape](../../../../glossary.md#shape) at schema 32. Its focused matrix passed 119 tests, the authoritative CPU
+CPU 0007A1D code shape at schema 32. Its focused matrix passed 119 tests, the authoritative CPU
 suite passed 54 suites/345 tests with zero failures/errors and one skip, and frozen semantics
 again passed 20/20. The three controls passed. The final required fork nevertheless failed all 13
 A1D targets; forks two through five correctly did not [run](../../../../glossary.md#term-run) and no aggregate exists. A diagnostic
@@ -499,7 +499,7 @@ only the four-row `CpuDataMovementEmitter` cluster as detailed Ready CPU 0007A1E
 - Evidence-driven correction order starts with the shared native-order segment-access bytecode
   shape in CPU 0007A1D. That implementation is retained as a stable prerequisite but did not close
   parity. The next correction is CPU 0007A1E's four-row movement general-address-loop cluster;
-  BOOL movement/aggregate and fold/dropout remain later ordered groups.<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [shape glossary](../../../../glossary.md#shape); [BOOL glossary](../../../../glossary.md#data-type--datatype); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout))</span>
+  BOOL movement/aggregate and fold/dropout remain later ordered groups.<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [BOOL glossary](../../../../glossary.md#data-type--datatype); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout))</span>
 - [CPU](../../../../glossary.md#term-cpu) 0007A1I subsequently closes both indexing rows at [schema](../../../../glossary.md#term-schema) 37. Frozen semantics remain
   `VERIFIED,20`; `I-GATHER` and `I-GATHER-ND` pass all five [forks](../../../../glossary.md#term-fork-meanings) with medians `0.853338331x` and
   `0.745954874x`, and all three controls pass. Exactly five rows remain persistent in the fresh

@@ -1,4 +1,4 @@
-# Task 0007A1L: [Pointwise](../../../../glossary.md#term-pointwise) general-loop [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
+# Task 0007A1L: [Pointwise](../../../../glossary.md#term-pointwise) general-loop [residual](../../../../glossary.md#term-residual-meanings) parity
 
 ## Reader context
 
@@ -27,7 +27,7 @@ Complete
 
 ## Goal
 
-Correct exactly the persistent `P-SCALAR-GENERAL` generated/direct [residual](../../../../glossary.md#scan-residual-port-and-history-demand) through the cohesive
+Correct exactly the persistent `P-SCALAR-GENERAL` generated/direct [residual](../../../../glossary.md#term-residual-meanings) through the cohesive
 [pointwise](../../../../glossary.md#term-pointwise) loop-shaping boundary in `CpuClassFileKernelGenerator` and `CpuLoopEmitter`. Preserve the
 frozen [CPU](../../../../glossary.md#term-cpu) 0007A1C [FLOAT32](../../../../glossary.md#term-float32) `DIV -> SIGMOID -> MUL` semantics, mixed carriers, broadcast input,
 strided output, arbitrary legal [half-open](../../../../glossary.md#term-half-open-interval) ranges, and unchanged general-long fallback while
@@ -99,7 +99,7 @@ passing the frozen five-[fork](../../../../glossary.md#term-fork-meanings) `<= 1
   selection before shared assignment; CPU finalization realizes one artifact afterward; Runtime
   only invokes prepared direct carriers, cold geometry, and range bounds.<span data-glossary-navigation="true"> ([fusion glossary](../../../../glossary.md#term-fusion); [lowering glossary](../../../../glossary.md#lowering); [artifact glossary](../../../../glossary.md#term-artifact); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Generated code must preserve the optimal clean Java algorithm and hot-loop/dataflow shape while
-  keeping the general-long form for all unproved cases.<span data-glossary-navigation="true"> ([dataflow glossary](../../../../glossary.md#term-dataflow); [shape glossary](../../../../glossary.md#shape))</span>
+  keeping the general-long form for all unproved cases.<span data-glossary-navigation="true"> ([dataflow glossary](../../../../glossary.md#term-dataflow))</span>
 - Benchmark observations accept or reject this bounded generated body and never select or mutate
   production settings.
 
@@ -138,7 +138,7 @@ Expected implementation paths:
   `CpuPartitionPreparerTest.java`, and `CpuPartitionFinalizerTest.java` only when schema advances;
   and<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema))</span>
 - CPU backend guide, glossary, this task, CPU 0007A1C, CPU master plan, roadmap, and the sole next
-  detailed residual task created only after this task completes.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [backend glossary](../../../../glossary.md#backend); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  detailed residual task created only after this task completes.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [backend glossary](../../../../glossary.md#backend); [residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 
 ## Maximum [scope](../../../../glossary.md#term-scope)
 
@@ -201,14 +201,14 @@ suites remain deferred to CPU 0009 or [CI](../../../../glossary.md#term-continuo
   foundation.<span data-glossary-navigation="true"> ([pointwise glossary](../../../../glossary.md#term-pointwise))</span>
 - CPU 0005H supplies the exact stable [SIGMOID](../../../../glossary.md#term-sigmoid) formula and exceptional-value behavior.
 - CPU 0007A1D supplies stable invocation-local segment [layout](../../../../glossary.md#layout) handling.
-- CPU 0007A1K is Complete at [schema](../../../../glossary.md#term-schema) 39 and supplies the accepted five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) frontier.
+- CPU 0007A1K is Complete at [schema](../../../../glossary.md#term-schema) 39 and supplies the accepted five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#term-residual-meanings) frontier.
 
 ## Follow-up tasks
 
 - Detailed [CPU 0007A1M scatter-MIN residual parity](0007a1m-scatter-min-residual-parity.md) is
   the sole next Ready task and owns <span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>`S-GENERAL-MIN`. `X-MIN-MULTI` remains Draft and unassigned.
-- [Resume](../../../../glossary.md#schema-serialization-and-checkpoint) [CPU](../../../../glossary.md#term-cpu) 0007A1C closure only after both remaining persistent rows close.
-- CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective [residual](../../../../glossary.md#scan-residual-port-and-history-demand) work.
+- Resume [CPU](../../../../glossary.md#term-cpu) 0007A1C closure only after both remaining persistent rows close.
+- CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective [residual](../../../../glossary.md#term-residual-meanings) work.
 
 ## Architecture impact
 
@@ -250,7 +250,7 @@ Do not commit, push, or stage.
 - This row is selected before the two remaining residuals because it is first in the frozen
   residual order and has one cohesive pointwise loop-shaping boundary. The unchanged scalar
   semantic emitter already matches the direct formula; the defect evidence is confined to the
-  generated general address state around that formula.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [pointwise glossary](../../../../glossary.md#term-pointwise); [scalar glossary](../../../../glossary.md#term-scalar))</span>
+  generated general address state around that formula.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#term-residual-meanings); [pointwise glossary](../../../../glossary.md#term-pointwise); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Scatter MIN and multi-axis aggregate MIN retain distinct copy/update/reduction and selected-
   domain algorithms and must not enter this task.<span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis))</span>
 

@@ -1,4 +1,4 @@
-# Task CPU0056: [Scan](../../../../glossary.md#term-cumulative-scan) invocation [binding](../../../../glossary.md#term-binding)
+# Task CPU0056: Scan invocation [binding](../../../../glossary.md#term-binding)
 
 ## Reader context
 
@@ -26,7 +26,7 @@ Use a clean implementation context and an independent clean targeted code/docume
 
 ## Goal and [scope](../../../../glossary.md#term-scope)
 
-Remove [Scan](../../../../glossary.md#term-cumulative-scan)'s execute-time segment-array/geometry [argument](../../../../glossary.md#term-argument) passing without changing generated code.
+Remove Scan's execute-time segment-array/geometry [argument](../../../../glossary.md#term-argument) passing without changing generated code.
 Retain the raw typed `CpuGeneratedKernel.entryPoint()` in `CpuGeneralScanPreparedExecutable`.
 On each cold bind, use `MethodHandles.insertArguments` to bind every [`MemorySegment`](../../../../glossary.md#term-memorysegment) argument,
 including optional scratch, then bind `(Object) long[]` geometry as one argument, not varargs.
@@ -46,7 +46,7 @@ Keep all old evidence, grants and exhausted budgets untouched; CPU0053 remains C
 - [Core invariants](../../../../../ARCHITECTURE.md#core-invariants) and [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([normative glossary](../../../../glossary.md#term-normative))</span>: [immutable](../../../../glossary.md#term-immutable) preparations and isolated [run state](../../../../glossary.md#run-state--runstate).
 - [Backend](../../../../glossary.md#backend) execution: [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes) and [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling): existing [CPU](../../../../glossary.md#term-cpu) [ownership](../../../../glossary.md#term-ownership-meanings) and observational evidence only.
 - [Runtime](../../../../glossary.md#term-runtime)/[Prepare](../../../../glossary.md#prepare)/[Engine](../../../../glossary.md#term-engine): [`modules/runtime`](../../../../architecture/contracts/runtime-prepare-engine.md#modulesruntime) and [Run lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#run-lifecycle)<span data-glossary-navigation="true"> ([Run glossary](../../../../glossary.md#term-run); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>: cold typed [binding](../../../../glossary.md#term-binding), one [RunState](../../../../glossary.md#run-state--runstate), [producer](../../../../glossary.md#term-producer) ordering and [resource lifetime](../../../../glossary.md#ownership-borrowing-and-lease).
-- Recurrent [Scan](../../../../glossary.md#term-cumulative-scan): [Runtime preflight and implementation gates](../../../../architecture/contracts/recurrent-scan.md#runtime-preflight-and-implementation-gates)<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight))</span> and [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>: preserve guards/support and separate cold/entry/[kernel](../../../../glossary.md#kernel) evidence.
+- Recurrent Scan: [Runtime preflight and implementation gates](../../../../architecture/contracts/recurrent-scan.md#runtime-preflight-and-implementation-gates)<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight))</span> and [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>: preserve guards/support and separate cold/entry/[kernel](../../../../glossary.md#kernel) evidence.
 
 Read these exact headings, affected source and focused tests; do not read predecessor histories.
 Stop for MAIN clarification if a contract is missing/ambiguous or this [scope](../../../../glossary.md#term-scope) requires expansion.
@@ -54,7 +54,7 @@ Stop for MAIN clarification if a contract is missing/ambiguous or this [scope](.
 ## Dependencies and integration
 
 - Depends on: CPU0055 and Prepare0015, Complete; MAIN supplied prior actual-result independent APPROVE and stable accepted source verification.
-- Conflicts with: [Scan](../../../../glossary.md#term-cumulative-scan) executable, geometry and generated-[artifact](../../../../glossary.md#term-artifact) writers; reported inactive, recheck before launch.
+- Conflicts with: Scan executable, geometry and generated-[artifact](../../../../glossary.md#term-artifact) writers; reported inactive, recheck before launch.
 - Parallel group: None; serial implementation and review, no concurrent writer.
 - Common base revision: HEAD=origin/main `07a281edd3086efde2853211b71b48288db027e1` plus accepted dirty work captured in `/private/tmp/synaptik-cpu-repairs.8TWk5O/cpu0056-base.json` (2496 files); not merged predecessors.
 - Integration order: brief → source + focused tests → independent review → [module](../../../../glossary.md#term-module) + named join → bounded performance diagnostic → Result/MAIN acceptance.
@@ -78,7 +78,7 @@ repository writes. Separate diagnostic preparation may write only its off-tree e
 ## Acceptance criteria
 
 - No prepared spreader; every cold [binding](../../../../glossary.md#term-binding) creates its own final two-long [target](../../../../glossary.md#term-target) with all segments/scratch and geometry captured. No [mutable](../../../../glossary.md#term-mutable) [run](../../../../glossary.md#term-run) binding moves into prepared state.
-- Preserve typed access, [dtype](../../../../glossary.md#data-type--datatype), [alignment](../../../../glossary.md#term-alignment), full-capacity overlap including tails, read/read [aliases](../../../../glossary.md#aliasing-and-arena), [liveness](../../../../glossary.md#term-liveness), [lease](../../../../glossary.md#term-lease) cleanup/retry and [producer](../../../../glossary.md#term-producer)-ordered all-B length checks before any [Scan](../../../../glossary.md#term-cumulative-scan)-local write, including invalid-last/T=0/B=0 cases.
+- Preserve typed access, [dtype](../../../../glossary.md#data-type--datatype), [alignment](../../../../glossary.md#term-alignment), full-capacity overlap including tails, read/read [aliases](../../../../glossary.md#aliasing-and-arena), [liveness](../../../../glossary.md#term-liveness), [lease](../../../../glossary.md#term-lease) cleanup/retry and [producer](../../../../glossary.md#term-producer)-ordered all-B length checks before any Scan-local write, including invalid-last/T=0/B=0 cases.
 - Preserve current fixed, symbolic and length-mode [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) support exactly, including actual reverse; do not infer all-valid symbolic F64 support. Generated bytes, both [identity](../../../../glossary.md#term-identity-meanings) streams and [cache](../../../../glossary.md#term-cache) identities remain exact.
 - Repeated/fresh-input/concurrent runs retain one [RunState](../../../../glossary.md#run-state--runstate) per logical run and isolated arrays, storage and bound targets; scratch-present/absent and empty domains retain existing semantics.
 - Focused regressions verify invocation [capture](../../../../glossary.md#term-capture-meanings)/isolation and preserved guards; retain generated-byte/identity assertions without changing their fixtures or expected identities.

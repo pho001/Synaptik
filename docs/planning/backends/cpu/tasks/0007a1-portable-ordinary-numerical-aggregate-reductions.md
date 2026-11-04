@@ -174,7 +174,7 @@ the [artifact](../../../../glossary.md#term-artifact). The [immutable](../../../
 worker-local [accumulator](../../../../glossary.md#accumulator-type). [Runtime](../../../../glossary.md#term-runtime) owns allocation and teardown through the existing run lifecycle.
 `sliceCount` is `min(selectedWorkerCount, outputCellCount)`; zero output cells require zero bytes,
 no assigned scratch slot, and no generated call. A positive output count requires at least one slice.
-[Scalar](../../../../glossary.md#term-scalar) execution uses the same scratch-bearing floating entry [shape](../../../../glossary.md#shape) and exact algorithm rather than
+[Scalar](../../../../glossary.md#term-scalar) execution uses the same scratch-bearing floating entry shape and exact algorithm rather than
 a second numerical implementation. Before each generated call, the executable passes that worker's
 already assigned disjoint slice as the `scratch` [argument](../../../../glossary.md#term-argument), so the entry needs no worker identifier
 and cannot address another worker's state.
@@ -182,7 +182,7 @@ and cannot address another worker's state.
 ### Generated [artifact](../../../../glossary.md#term-artifact) and [cache](../../../../glossary.md#term-cache) contract
 
 Generated code is direct from the first implementation. Specialize family, represented type,
-full/single-/multi-[axis](../../../../glossary.md#term-axis) form, dense/general access, [carrier](../../../../glossary.md#term-storage-carrier), state [layout](../../../../glossary.md#layout), and loop/code [shape](../../../../glossary.md#shape) at
+full/single-/multi-[axis](../../../../glossary.md#term-axis) form, dense/general access, [carrier](../../../../glossary.md#term-storage-carrier), state [layout](../../../../glossary.md#layout), and loop/code shape at
 generation time. The [JVM](../../../../glossary.md#term-java-virtual-machine-jvm) entries are exactly:
 
 - integral: `(inputCarrier, outputCarrier, long[] geometry, long start, long end)void`;
@@ -221,7 +221,7 @@ helpers. The [oracle](../../../../glossary.md#term-test-oracle) uses `BigInteger
 integer/rational [ties-to-even](../../../../glossary.md#term-ties-to-even) conversion. It compares raw result bits, with the [canonical](../../../../glossary.md#term-canonical-form) [schema](../../../../glossary.md#term-schema)-29
 [NaN](../../../../glossary.md#term-nan) policy above.
 
-Cover every family/type/form/[carrier](../../../../glossary.md#term-storage-carrier) category and both dense/general code [shapes](../../../../glossary.md#shape). Required adversarial
+Cover every family/type/form/[carrier](../../../../glossary.md#term-storage-carrier) category and both dense/general code shapes. Required adversarial
 data includes [catastrophic cancellation](../../../../glossary.md#conditioning-and-numerical-stability), halfway ties on both parity outcomes, [finite](../../../../glossary.md#term-finite) [overflow](../../../../glossary.md#term-overflow),
 normal/[subnormal](../../../../glossary.md#term-subnormal) boundaries, [underflow](../../../../glossary.md#term-underflow) to [signed zero](../../../../glossary.md#term-signed-zero), smallest subnormals, mixed [infinities](../../../../glossary.md#nan-infinity-and-signed-zero), every
 zero sign combination, NaN sign/[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication)/signaling classes, [`INT32`](../../../../glossary.md#data-type--datatype)/[`INT64`](../../../../glossary.md#data-type--datatype) modular wrap, empty

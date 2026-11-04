@@ -114,7 +114,7 @@ generated entries retain typed carriers, `long[] geometry`, `long start`, and `l
 [operation](../../../../glossary.md#operation), [layout](../../../../glossary.md#layout), worker, [cache](../../../../glossary.md#term-cache), or [dispatch](../../../../glossary.md#term-dispatch) [lookup](../../../../glossary.md#term-lookup) may occur in a hot loop.
 
 The generated class must match an optimal clean Java specialized [oracle](../../../../glossary.md#term-test-oracle) in semantic algorithm,
-hot-loop/[dataflow](../../../../glossary.md#term-dataflow) [shape](../../../../glossary.md#shape), and avoidable-overhead profile. A final, field-free,
+hot-loop/[dataflow](../../../../glossary.md#term-dataflow) shape, and avoidable-overhead profile. A final, field-free,
 constructor-free generated class has direct typed entry only. Prepared executables remain reusable;
 concurrent runs retain independent carriers, geometry, ranges, and [`RunState`](../../../../glossary.md#run-state--runstate).
 
@@ -435,7 +435,7 @@ Documentation-focused review context, 2026-09-06, mandatory separate clean conte
 
 Inspection of the transient emitter [snapshot](../../../../glossary.md#term-snapshot) shows that the attempted generated realization
 decoded complete output [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) for each width block and repeatedly performed long
-geometry/address work inside that block path. That emitted [shape](../../../../glossary.md#shape) differs from the optimal clean
+geometry/address work inside that block path. That emitted shape differs from the optimal clean
 Java nested-loop [dataflow](../../../../glossary.md#term-dataflow), which advances outer coordinates through enclosing loops and carries
 width-local address state into the [vector](../../../../glossary.md#term-vector) block. The measured generated body still beat the
 existing [scalar](../../../../glossary.md#term-scalar) generated body, but it took `1.775769426x` the independently compiled direct vector

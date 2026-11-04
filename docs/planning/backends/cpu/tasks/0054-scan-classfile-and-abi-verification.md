@@ -1,4 +1,4 @@
-# Task CPU0054: Verify current [Scan](../../../../glossary.md#term-cumulative-scan) ClassFile and historical [ABI](../../../../glossary.md#term-application-binary-interface-abi)
+# Task CPU0054: Verify current Scan ClassFile and historical [ABI](../../../../glossary.md#term-application-binary-interface-abi)
 
 ## Reader context
 
@@ -36,7 +36,7 @@ references, including poisoned inactive [padding](../../../../glossary.md#paddin
 
 No benchmark, [warmup](../../../../glossary.md#term-warmup), measured loop, performance ratio, [JIT](../../../../glossary.md#term-just-in-time-compilation-jit)-causality claim, [cache](../../../../glossary.md#term-cache) pin replacement,
 production/source-test/build edit, numerical policy change, native rebuild, [commit](../../../../glossary.md#term-commit) or push.
-Do not [resume](../../../../glossary.md#schema-serialization-and-checkpoint) or modify CPU0053's failed slot, frozen inputs or historical evidence.
+Do not resume or modify CPU0053's failed slot, frozen inputs or historical evidence.
 
 ## Contracts
 
@@ -45,7 +45,7 @@ and [Core invariants](../../../../../ARCHITECTURE.md#core-invariants).
 [Backend](../../../../glossary.md#backend) [owner](../../../../glossary.md#term-owner): [Concrete backend modules](../../../../architecture/contracts/backend-execution.md#concrete-backend-modules)<span data-glossary-navigation="true"> ([Concrete backend glossary](../../../../glossary.md#concrete-backend); [modules glossary](../../../../glossary.md#term-module))</span>,
 [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
 and [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling).
-[Scan](../../../../glossary.md#term-cumulative-scan) owner: [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic)
+Scan owner: [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic)
 and [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
 An old [artifact](../../../../glossary.md#term-artifact) may [run](../../../../glossary.md#term-run) only through the existing explicit diagnostic seam after its exact [ABI](../../../../glossary.md#term-application-binary-interface-abi) is
 proved; it must not enter production [cache](../../../../glossary.md#term-cache) [admission](../../../../glossary.md#term-admission).

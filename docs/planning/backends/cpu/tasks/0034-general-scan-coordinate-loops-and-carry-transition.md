@@ -1,4 +1,4 @@
-# Task CPU0034: General-[scan](../../../../glossary.md#term-cumulative-scan) [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) loops and [carry](../../../../glossary.md#term-carry) transition
+# Task CPU0034: General-scan [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) loops and [carry](../../../../glossary.md#term-carry) transition
 
 ## Reader context — historical integration boundary
 
@@ -31,7 +31,7 @@ The intended sequence is initial [binding](../../../../glossary.md#term-binding)
 
 ## [Scope](../../../../glossary.md#term-scope) and non-goals
 
-Use only existing [CPU](../../../../glossary.md#term-cpu) [scan](../../../../glossary.md#term-cumulative-scan) emission, derived [IR](../../../../glossary.md#term-intermediate-representation-ir) and [specialization](../../../../glossary.md#term-specialization)/[cache](../../../../glossary.md#term-cache) seams. No added or moved
+Use only existing [CPU](../../../../glossary.md#term-cpu) scan emission, derived [IR](../../../../glossary.md#term-intermediate-representation-ir) and [specialization](../../../../glossary.md#term-specialization)/[cache](../../../../glossary.md#term-cache) seams. No added or moved
 top-level production type, package, public [API](../../../../glossary.md#term-application-programming-interface-api), [backend](../../../../glossary.md#backend), [dependency](../../../../glossary.md#term-dependency), [AD](../../../../glossary.md#autograd) or execution layer.
 Preserve capability, predeclared resources, entry [application binary interface](../../../../glossary.md#term-application-binary-interface-abi) ([ABI](../../../../glossary.md#application-binary-interface-and-native-bridge)), temporal
 lifetimes and [run](../../../../glossary.md#term-run) isolation. No other families, fixed-scan redirection, low types, [vector](../../../../glossary.md#term-vector),
@@ -45,7 +45,7 @@ and other independent loops stay unchanged unless a concrete [coordinate](../../
 - [Backend execution](../../../../architecture/contracts/backend-execution.md): **[CPU](../../../../glossary.md#term-cpu) [backend](../../../../glossary.md#backend) routes**;
   **Performance evidence and optimization tooling**; **Profile-free [backend capability](../../../../glossary.md#backend-capability) and [identity](../../../../glossary.md#term-identity-meanings)**.
 - [Scan owner](../../../../architecture/contracts/recurrent-scan.md)<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>: **[General differentiable scan](../../../../glossary.md#general-differentiable-scan)**;
-  **[Canonical](../../../../glossary.md#term-canonical-form) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) ports and demand**; **Reverse [scan](../../../../glossary.md#term-cumulative-scan) and exact [primal](../../../../glossary.md#term-primal) [bindings](../../../../glossary.md#term-binding)**;
+  **[Canonical](../../../../glossary.md#term-canonical-form) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) ports and demand**; **Reverse scan and exact [primal](../../../../glossary.md#term-primal) [bindings](../../../../glossary.md#term-binding)**;
   **Traversal, empty domains and declared [qualification](../../../../glossary.md#term-qualification)**; **Qualification, performance and migration gates**.
 
 These plans add no architecture authority. Stop on missing/ambiguous contracts, incompatible
@@ -56,7 +56,7 @@ architecture, or required scope expansion; do not invent a layer or numerical pe
 - Depends on: CPU0033 and low-level native join Complete; Compiler0012 Complete as accepted
   compatibility baseline (including their already accepted predecessors/reviews/validation).<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - Conflicts with: all CPU general-scan emission/IR/cache identity, qualification/resources,
-  shared scan explanation/CPU guide/planning writes; none active at packet preparation.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [cache glossary](../../../../glossary.md#term-cache); [qualification glossary](../../../../glossary.md#term-qualification))</span>
+  shared scan explanation/CPU guide/planning writes; none active at packet preparation.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [cache glossary](../../../../glossary.md#term-cache); [qualification glossary](../../../../glossary.md#term-qualification))</span>
 - Parallel group: None; sole serial writer, no concurrent implementation/reviewer writes.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
   plus all 263 accepted dirty paths, empty index, then this three-file planning packet;
@@ -184,7 +184,7 @@ build or benchmark campaign unless a concrete expanded-[scope](../../../../gloss
 ## Documentation and review impact
 
 Independent serial Class C and recovery reviews finalized affected Javadocs under general/[API](../../../../glossary.md#term-application-programming-interface-api)
-profiles, the [scan](../../../../glossary.md#term-cumulative-scan) explainer's generated-code/[qualification](../../../../glossary.md#term-qualification) sections and the [CPU](../../../../glossary.md#term-cpu) guide's bounded-scan/
+profiles, the scan explainer's generated-code/[qualification](../../../../glossary.md#term-qualification) sections and the [CPU](../../../../glossary.md#term-cpu) guide's bounded-scan/
 entry/[validation](../../../../glossary.md#term-validation) sections. `ARCHITECTURE.md` and `backend-execution.md` record descriptive current
 v2 [identity](../../../../glossary.md#term-identity-meanings) only; no architecture rule/decision changed, so no [ADR](../../../../glossary.md#term-architecture-decision-record-adr) was required. Targeted glossary
 review found no new term. Local links/anchors and tracked/untracked whitespace passed; main owns closure.

@@ -440,7 +440,7 @@ available, and finish with AGENTS.md `Status: Complete`, or `Status: Incomplete`
 - Support all six represented types for `UNFOLD_AXIS`, but only [FLOAT64](../../../../glossary.md#term-float64)/[FLOAT32](../../../../glossary.md#term-float32)/[BFLOAT16](../../../../glossary.md#term-bfloat16) for both
   `UNFOLD2D` variants; [CPU](../../../../glossary.md#term-cpu) does not broaden the completed [Model](../../../../glossary.md#term-model) semantic [matrix](../../../../glossary.md#term-matrix-meanings).
 - For floating-only `UNFOLD2D`, direct zero and matching typed positive zero share identity; exact
-  padding bits shape compatibility.<span data-glossary-navigation="true"> ([positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [identity glossary](../../../../glossary.md#term-identity-meanings); [padding glossary](../../../../glossary.md#padding); [shape glossary](../../../../glossary.md#shape))</span>
+  padding bits shape compatibility.<span data-glossary-navigation="true"> ([positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [identity glossary](../../../../glossary.md#term-identity-meanings); [padding glossary](../../../../glossary.md#padding))</span>
 - Unequal ranks use compact variable-rank geometry; start decomposition is cold, flattened state
   uses hot odometers.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [decomposition glossary](../../../../glossary.md#term-decomposition))</span>
 - Static failures happen by [prepare](../../../../glossary.md#prepare) time; extraction adds no value-dependent partial-write policy.
@@ -493,7 +493,7 @@ test. It therefore reused the stabilized Java evidence rather than rerunning Jav
   all six represented types or one floating `UNFOLD2D` with either ordered attribute form.
 - `CpuDataMovementIr`, `CpuNonAffineMovementLowering.Geometry`, generated emission, and the scalar
   reference implement compact unequal-rank axis/NCHW mapping. Exact two-dimensional padding bits
-  shape artifact identity; concrete geometry remains cold.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [rank glossary](../../../../glossary.md#term-rank); [axis glossary](../../../../glossary.md#term-axis); [NCHW glossary](../../../../glossary.md#term-nchw); [padding glossary](../../../../glossary.md#padding); [shape glossary](../../../../glossary.md#shape); [artifact glossary](../../../../glossary.md#term-artifact); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  shape artifact identity; concrete geometry remains cold.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [rank glossary](../../../../glossary.md#term-rank); [axis glossary](../../../../glossary.md#term-axis); [NCHW glossary](../../../../glossary.md#term-nchw); [padding glossary](../../../../glossary.md#padding); [artifact glossary](../../../../glossary.md#term-artifact); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Preparation declares input then output with no workspace, scalar or parallel-scalar execution,
   and one schema-13 artifact. Existing cold binding rejects incompatible carriers, noncanonical
   BOOL input, and input/output overlap before writing.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [binding glossary](../../../../glossary.md#term-binding); [BOOL glossary](../../../../glossary.md#data-type--datatype))</span>

@@ -8,10 +8,10 @@ lowering fixes complete normalization slices, and `CpuSoftmaxEmitter` specialize
 body. `CpuSoftmaxInputValidator` enforces finite represented inputs and shifts before output
 mutation or worker submission, rather than introducing a NaN/infinity result policy.
 
-Here, Prepare selects typed heap/segment carrier and layout forms, finalizes artifacts, and binds
-immutable complete-slice entries; Runtime invokes them with zero workspace. Generated Class-File and
-hot-loop checks are the structural oracle. `CpuSoftmaxReferenceKernel` is the independent semantic
-oracle for stable numerical dataflow. The recorded cost rule includes direct implementation and full
+Here, CPU analysis selects structural heap/segment carrier and layout forms; finalization constructs
+an immutable prepared executable recipe. Runtime later calls the CPU binder on current run storage,
+creating a per-run bound invocation for complete slices with zero workspace. Generated Class-File and
+hot-loop checks are structural oracles; `CpuSoftmaxReferenceKernel` independently checks stable numerical dataflow. The recorded cost rule includes direct implementation and full
 generated-route retirement, not a speed comparison.
 
 Current-topic navigation (not a replacement for the historical record):

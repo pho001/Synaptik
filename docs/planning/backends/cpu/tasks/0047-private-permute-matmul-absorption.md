@@ -33,7 +33,7 @@ Reuse existing geometry, [bindings](../../../../glossary.md#term-binding), gener
 ## Non-goals
 
 No public [view](../../../../glossary.md#term-view-meanings) [aliasing](../../../../glossary.md#term-aliasing), general affine-chain absorption, symbolic/batched [transpose](../../../../glossary.md#term-transpose) [admission](../../../../glossary.md#term-admission),
-[Scan](../../../../glossary.md#term-cumulative-scan) changes, new [OpenBLAS](../../../../glossary.md#term-openblas) transpose [API](../../../../glossary.md#term-application-programming-interface-api), provider/native [ABI](../../../../glossary.md#term-application-binary-interface-abi) change, code generator/[schema](../../../../glossary.md#term-schema) change,
+Scan changes, new [OpenBLAS](../../../../glossary.md#term-openblas) transpose [API](../../../../glossary.md#term-application-programming-interface-api), provider/native [ABI](../../../../glossary.md#term-application-binary-interface-abi) change, code generator/[schema](../../../../glossary.md#term-schema) change,
 new tuning policy, performance campaign, [commit](../../../../glossary.md#term-commit) or push. Unsupported/observable cases remain split.
 The current provider takes [canonical](../../../../glossary.md#term-canonical-form) non-transposed [matrices](../../../../glossary.md#term-matrix-meanings): its selected native route may still
 need one declared input [canonicalization](../../../../glossary.md#occurrence-identity-and-canonical-form), never an extra preceding PERMUTE [buffer](../../../../glossary.md#term-buffer).
@@ -139,7 +139,7 @@ Documentation/Javadoc, glossary and actual-source review are complete; the CPU g
 three-[buffer](../../../../glossary.md#term-buffer) example, privacy barriers and native-copy limitation. Existing repeated logical
 MATMUL input-ID [admission](../../../../glossary.md#term-admission) is not broadened; backing-ID collisions keep a required copy. The current
 OpenBLAS provider can still require one [canonical](../../../../glossary.md#term-canonical-form) copy per input. General affine/symbolic absorption
-and the [residual](../../../../glossary.md#scan-residual-port-and-history-demand) [Scan](../../../../glossary.md#term-cumulative-scan) performance gap remain outside this repair. No benchmark, [commit](../../../../glossary.md#term-commit) or push ran.
+and the [residual](../../../../glossary.md#term-residual-meanings) Scan performance gap remain outside this repair. No benchmark, [commit](../../../../glossary.md#term-commit) or push ran.
 HEAD/origin/index and all 1,176 protected predecessor evidence files were preserved. Next: CPU0048.
 
 Changed files: the five production paths listed above; new `CpuMatmulTransposeAbsorptionTest`,
@@ -150,7 +150,7 @@ this new brief, CPU master and roadmap. No obsolete production type or API was r
 ## Standalone [publication](../../../../glossary.md#term-publication)
 
 The user selected publication of only CPU0047 on 2026-10-28. The isolated [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) is based on
-`6da23a0b42f015979a88f5e84416799f5ada3f40` and excludes the uncommitted general-[Scan](../../../../glossary.md#term-cumulative-scan),
+`6da23a0b42f015979a88f5e84416799f5ada3f40` and excludes the uncommitted general-Scan,
 BatchGeometry, Compiler0016 and CPU0046 changes. Static [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) needs no new source [dependency](../../../../glossary.md#term-dependency)
 from that series. Shared guide/glossary/master/roadmap files contain only the corresponding
 CPU0047 edits in this payload, not their other locally accepted changes.

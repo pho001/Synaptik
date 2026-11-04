@@ -1,4 +1,4 @@
-# Task CPU0061: [Scan](../../../../glossary.md#term-cumulative-scan) [feature](../../../../glossary.md#term-software-feature)-[contraction](../../../../glossary.md#contraction-dimension) affine addresses
+# Task CPU0061: Scan [feature](../../../../glossary.md#term-feature)-[contraction](../../../../glossary.md#contraction-dimension) affine addresses
 
 ## Reader context
 
@@ -24,7 +24,7 @@ Class C — generated hot-loop/[dataflow](../../../../glossary.md#term-dataflow)
 
 ## Goal
 
-ONE combined symbolic-B/[runtime](../../../../glossary.md#term-runtime)-length candidate: prove eligibility → replace [feature](../../../../glossary.md#term-software-feature)-K cursors with int-K affine addresses → confirm [Scan](../../../../glossary.md#term-cumulative-scan)/optimal-Java benefit → functional suites/retention.
+ONE combined symbolic-B/[runtime](../../../../glossary.md#term-runtime)-length candidate: prove eligibility → replace [feature](../../../../glossary.md#term-feature)-K cursors with int-K affine addresses → confirm Scan/optimal-Java benefit → functional suites/retention.
 
 ## [Scope](../../../../glossary.md#term-scope) and non-goals
 
@@ -36,7 +36,7 @@ ONE combined symbolic-B/[runtime](../../../../glossary.md#term-runtime)-length c
 
 - [Root scope index](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>: `Core invariants`, `Module-ownership routing` — generation [ownership](../../../../glossary.md#term-ownership-meanings), [immutable](../../../../glossary.md#term-immutable) preparations, [run state](../../../../glossary.md#run-state--runstate)/[identity](../../../../glossary.md#term-identity-meanings).
 - [Backend execution](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend))</span>: `CPU backend routes`, `Accepted ordinary symbolic-batch CPU contract`, `Performance evidence and optimization tooling` — selected [bindings](../../../../glossary.md#term-binding), optimal Java [oracle](../../../../glossary.md#term-test-oracle), checked access/diagnostic evidence.
-- [Scan owner](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [owner glossary](../../../../glossary.md#term-owner))</span>: `Actual first-order closure and arithmetic`, `Activity, raw identity and retained histories`, `First-order length-mode reverse`, `Qualification, performance and migration gates`, `Qualification and mechanism gates`, `Runtime preflight and implementation gates` — guarded actual reverse, represented arithmetic/resources.
+- [Scan owner](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic)<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>: `Actual first-order closure and arithmetic`, `Activity, raw identity and retained histories`, `First-order length-mode reverse`, `Qualification, performance and migration gates`, `Qualification and mechanism gates`, `Runtime preflight and implementation gates` — guarded actual reverse, represented arithmetic/resources.
 - Stop/report missing proof/conflict. Cursor wording describes v7; update retained v8 status, not arithmetic/architecture.
 
 ## Dependencies and integration
@@ -56,7 +56,7 @@ Paths below use `modules/backend/cpu/src/{main,test}/java/io/github/pho001/synap
 - Production: `main/.../internal/codegen/emit/CpuGeneralScanMatmulEmitter.java` (`emit`, relevant [Javadoc](../../../../glossary.md#term-javadoc)); `main/.../internal/ir/CpuGeneralScanIr.java` (`bakedSpecializationIdentity`, Javadoc); `main/.../internal/cache/CpuKernelSpecialization.java` (both [identity](../../../../glossary.md#term-identity-meanings)-stream Javadocs only).
 - Read-only: `CpuAccessPlan.BatchBinding`; `CpuGeneralScanEmitter.Shaped` (`batchStrides`, `longConstants`, `activeLoops`, `extentFact`, `loadByteFact`). No unapproved expansion.
 - Positive-only tests: `test/.../internal/codegen/emit/CpuSymbolicScanGeneratedKernelTest.java`; `test/.../internal/cache/{CpuKernelSpecializationTest,CpuGeneratedKernelArtifactStoreTest}.java`. Retain noncombined baseline resource.
-- Read-only `test/.../internal/codegen/emit/`: `CpuSymbolicLengthScanEquivalentJavaOracle.java` (`reverseFloat32` dX/dH), `CpuSymbolicLengthScanFixture.java`. E uses int-[feature](../../../../glossary.md#term-software-feature) affine addresses; emitter advances two long cursors.
+- Read-only `test/.../internal/codegen/emit/`: `CpuSymbolicLengthScanEquivalentJavaOracle.java` (`reverseFloat32` dX/dH), `CpuSymbolicLengthScanFixture.java`. E uses int-[feature](../../../../glossary.md#term-feature) affine addresses; emitter advances two long cursors.
 - Positive-only docs: root `Core invariants`, [backend](../../../../glossary.md#backend) `CPU backend routes`, `docs/backend-guide/cpu-backend.md` combined identity/CPU0060 sections, this brief. MAIN integrates; no [ADR](../../../../glossary.md#term-architecture-decision-record-adr)/redesign.
 
 ## Acceptance criteria
@@ -86,7 +86,7 @@ Positive-only task [arguments](../../../../glossary.md#term-argument) to Stage A
 :testing:backend-conformance:test --tests '*CpuGeneralScanConformanceTest' :testing:integration-tests:test --tests '*EngineCpuGeneralScanIntegrationTest'
 ```
 
-Cover [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) forward/actual reverse, both traversals; K=0/1/other widths,B=0/1/[feature](../../../../glossary.md#term-software-feature) collisions,T=0/zero/mixed lengths, poisoned padding, raw [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings)/saved sites,reuse, selected-bank/noncontiguous/zero-[stride](../../../../glossary.md#term-stride) fallbacks and CPU0060 row contractions. Assert inner-loop [shape](../../../../glossary.md#shape), stale-v7 rejection/v8 reuse, exact 20-case noncombined equality. Check links/anchors/whitespace/preservation and `git diff --check`.
+Cover [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) forward/actual reverse, both traversals; K=0/1/other widths,B=0/1/[feature](../../../../glossary.md#term-feature) collisions,T=0/zero/mixed lengths, poisoned padding, raw [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings)/saved sites,reuse, selected-bank/noncontiguous/zero-[stride](../../../../glossary.md#term-stride) fallbacks and CPU0060 row contractions. Assert inner-loop shape, stale-v7 rejection/v8 reuse, exact 20-case noncombined equality. Check links/anchors/whitespace/preservation and `git diff --check`.
 
 ## Documentation and review impact
 
@@ -117,7 +117,7 @@ Hegel independently approved the actual result, exact restoration and [planning]
 The published base, empty index and unrelated dirty work are preserved. No [commit](../../../../glossary.md#term-commit)/push occurred.
 Accepted v7 documentation/Javadocs remain accurate; planning-only closure records this negative
 result. No new terminology, glossary/[ADR](../../../../glossary.md#term-architecture-decision-record-adr) change or functional rerun is required for restored source.
-The [residual](../../../../glossary.md#scan-residual-port-and-history-demand) Java gap remains; any different candidate needs separate authorization, not a retry.
+The [residual](../../../../glossary.md#term-residual-meanings) Java gap remains; any different candidate needs separate authorization, not a retry.
 Completion below refers to the performance experiment/restoration; the implementation is Cancelled.
 
 Status: Complete

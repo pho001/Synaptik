@@ -1,4 +1,4 @@
-# Task CPU0055: Verified [Scan](../../../../glossary.md#term-cumulative-scan) versus Java measurement
+# Task CPU0055: Verified Scan versus Java measurement
 
 ## Reader context
 
@@ -27,7 +27,7 @@ and actual-result review are mandatory. No production change.
 
 ## Goal and [scope](../../../../glossary.md#term-scope)
 
-Measure the remaining symbolic-length actual reverse [Scan](../../../../glossary.md#term-cumulative-scan) gap on the accepted current source:
+Measure the remaining symbolic-length actual reverse Scan gap on the accepted current source:
 verify current bytes and each invocation tuple, then observe the fixed four-[target](../../../../glossary.md#term-target) schedule.
 Witness: [FLOAT32](../../../../glossary.md#term-float32), T4/F3/H2, original forward traversal and actual [Compiler](../../../../glossary.md#term-compiler)-generated opposite
 reverse, B7 then B32, length[row]=row%5, joint final-[carry](../../../../glossary.md#term-carry)/emission [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings). Target indices are
@@ -49,7 +49,7 @@ and [Core invariants](../../../../../ARCHITECTURE.md#core-invariants).
 [Backend](../../../../glossary.md#backend) [owner](../../../../glossary.md#term-owner): [Concrete backend modules](../../../../architecture/contracts/backend-execution.md#concrete-backend-modules)<span data-glossary-navigation="true"> ([Concrete backend glossary](../../../../glossary.md#concrete-backend); [modules glossary](../../../../glossary.md#term-module))</span>,
 [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span> and
 [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling).
-[Scan](../../../../glossary.md#term-cumulative-scan) owner: [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>,
+Scan owner: [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>,
 [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic) and
 [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
 Keep observation separate from production [admission](../../../../glossary.md#term-admission); stop on missing/ambiguous contracts.
@@ -59,7 +59,7 @@ Keep observation separate from production [admission](../../../../glossary.md#te
 - Depends on: CPU0045, Compiler0016, CPU0047 and accepted [CPU0054 Result](0054-scan-classfile-and-abi-verification.md#result) Complete; existing successful semantic/[module](../../../../glossary.md#term-module) evidence.
 - Conflicts with: any source/class/[fixture](../../../../glossary.md#term-fixture)/[oracle](../../../../glossary.md#term-test-oracle) writer, repository build or concurrent measurement.
 - Parallel group: None; one clean off-tree writer, serial [JVM](../../../../glossary.md#term-java-virtual-machine-jvm) bodies, read-only reviews only.
-- Common base revision: HEAD=origin/main `07a281edd3086efde2853211b71b48288db027e1` plus accepted dirty source `/private/tmp/synaptik-cpu-repairs.8TWk5O/cpu0055-base.json`, unchanged from `cpu0054-accepted.json` in that directory. The measured [Scan](../../../../glossary.md#term-cumulative-scan) remains local, not published by CPU0047.
+- Common base revision: HEAD=origin/main `07a281edd3086efde2853211b71b48288db027e1` plus accepted dirty source `/private/tmp/synaptik-cpu-repairs.8TWk5O/cpu0055-base.json`, unchanged from `cpu0054-accepted.json` in that directory. The measured Scan remains local, not published by CPU0047.
 - Integration order: MAIN final [Ready](../../../../glossary.md#term-ready)/frontier [release](../../../../glossary.md#term-release) → clean launcher preparation/[compile](../../../../glossary.md#compile) only → independent source/protocol/compile-evidence APPROVE → MAIN executable release → at most one untimed [preflight](../../../../glossary.md#term-preflight) → three serial fresh measured JVMs → independent actual-result review → MAIN closure.
 - Integration [validation](../../../../glossary.md#term-validation): CPU0055 frozen-input/[ABI](../../../../glossary.md#term-application-binary-interface-abi)/output/schedule/disposition [checkpoint](../../../../glossary.md#term-checkpoint) below, then MAIN preservation audit and shared-document Markdown checks; no repeated module/full suite without a concrete new risk.
 - Shared-document integration [owner](../../../../glossary.md#term-owner): MAIN; worker writes only the new off-tree root, not this brief/master/roadmap.
@@ -110,7 +110,7 @@ no repository [compilation](../../../../glossary.md#compiler-engine-and-executio
    streams. Never use CPU0053's simplistic v5→v4 identity-string equality as ABI proof.<span data-glossary-navigation="true"> ([binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata); [occurrence glossary](../../../../glossary.md#term-occurrence); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
 3. Before any G4 invocation, independently check ClassFile validity/static entry descriptor,
    19 ordered semantic slots/dtypes, each target's exact 202-long numeric pack and spans at
-   B7/B32 against retained G4 mapping. Own scratch must be 8<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [dtypes glossary](../../../../glossary.md#data-type--datatype); [target glossary](../../../../glossary.md#term-target))</span>*B bytes (56/256), range [0,2*B),
+   B7/B32 against retained G4 mapping. Own scratch must be 8*B bytes (56/256), range [0,2*B),
    T=4 and explicit B. Retain scalar bits, length facts and independent writable carriers/packs.
    G4 SHA-256 stays <span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar))</span>`beee86e2474d5a276a731726eff6b895c13d814b9f5788db65a58045ee60428c`;
    use only the existing authenticated hidden-class diagnostic seam, never cache admission.

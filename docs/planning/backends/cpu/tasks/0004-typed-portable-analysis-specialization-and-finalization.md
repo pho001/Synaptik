@@ -131,7 +131,7 @@ Model operation is advertised.
 - changing the CPU 0001 buffer/workspace allocation, representation, ownership, close, or worker
   lifecycle contracts;<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - changing the CPU 0002 schema, specialization equality/fingerprint, four-mode vocabulary,
-  generated entry shape, emitter ownership, Class-File API mechanism, or Vector build flags;<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [specialization glossary](../../../../glossary.md#term-specialization); [fingerprint glossary](../../../../glossary.md#term-fingerprint); [shape glossary](../../../../glossary.md#shape); [Class-File API glossary](../../../../glossary.md#term-class-file-api); [Vector glossary](../../../../glossary.md#term-vector))</span>
+  generated entry shape, emitter ownership, Class-File API mechanism, or Vector build flags;<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [specialization glossary](../../../../glossary.md#term-specialization); [fingerprint glossary](../../../../glossary.md#term-fingerprint); [Class-File API glossary](../../../../glossary.md#term-class-file-api); [Vector glossary](../../../../glossary.md#term-vector))</span>
 - changing the CPU 0003 artifact format, key, root trust boundary, publication, validation,
   single-flight, weak interning, corruption, or lifetime policy;<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [validation glossary](../../../../glossary.md#term-validation); [single-flight glossary](../../../../glossary.md#single-flight-and-least-recently-used-caching); [weak interning glossary](../../../../glossary.md#weak-reference-and-weak-interning))</span>
 - a tuning cache, compatible tuning-decision input, measurements, benchmarks, autotuning,
@@ -359,7 +359,7 @@ generic production invoker.
   size. It contains no executor, worker, route, target discovery, or ownership lifecycle.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - `CpuPortableAnalysisInputs` snapshots its supported Vector shapes in supplied order, rejects
   null/duplicate entries, and retains the exact non-null parallel configuration. An empty species
-  list permits scalar candidates only.<span data-glossary-navigation="true"> ([Vector glossary](../../../../glossary.md#term-vector); [shapes glossary](../../../../glossary.md#shape); [scalar glossary](../../../../glossary.md#term-scalar))</span>
+  list permits scalar candidates only.<span data-glossary-navigation="true"> ([Vector glossary](../../../../glossary.md#term-vector); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Candidate construction validates specialization, emitter, requirements, buffer uses,
   workspace uses, and binder in declaration order and snapshots every list.
 - The emitter [lowering](../../../../glossary.md#lowering) [fingerprint](../../../../glossary.md#term-fingerprint) must exactly equal the [specialization](../../../../glossary.md#term-specialization) lowering fingerprint.
@@ -436,7 +436,7 @@ generic production invoker.
 Automated tests must lock this order:
 
 1. parallel configuration: worker count, minimum range size;
-2. analysis inputs: supported-[shape](../../../../glossary.md#shape) list, indexed entries/duplicates, parallel configuration;
+2. analysis inputs: supported-shape list, indexed entries/duplicates, parallel configuration;
 3. candidate: specialization, emitter, lowering fingerprint match, requirements, uses, exact
    declaration-use association, binder;<span data-glossary-navigation="true"> ([specialization glossary](../../../../glossary.md#term-specialization); [lowering glossary](../../../../glossary.md#lowering); [fingerprint glossary](../../../../glossary.md#term-fingerprint))</span>
 4. preparer: context, CPU owner, candidate-source result, candidates in encounter order,

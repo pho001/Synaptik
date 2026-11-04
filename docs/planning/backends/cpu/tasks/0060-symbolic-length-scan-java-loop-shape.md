@@ -1,4 +1,4 @@
-# Task CPU0060: Symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) Java loop [shape](../../../../glossary.md#shape)
+# Task CPU0060: Symbolic-length Scan Java loop shape
 
 ## Reader context
 
@@ -26,7 +26,7 @@ and independent clean targeted code/documentation review are mandatory; MAIN own
 
 ## Goal
 
-Make combined symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) plus length-gated [Scan](../../../../glossary.md#term-cumulative-scan) follow optimal equivalent Java loop [shape](../../../../glossary.md#shape),
+Make combined symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) plus length-gated Scan follow optimal equivalent Java loop shape,
 without changing arithmetic or semantics. Cover [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) ([F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding)), forward and actual [Compiler](../../../../glossary.md#term-compiler) reverse,
 both source traversals. Derive generic proofs, never hardcode the reference's F=3/H=2 geometry.
 
@@ -67,7 +67,7 @@ No historical [fixture](../../../../glossary.md#term-fixture)/[oracle](../../../
   [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([Scope glossary](../../../../glossary.md#term-scope); [normative glossary](../../../../glossary.md#term-normative))</span>.
 - [Backend](../../../../glossary.md#backend) execution: [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
   and [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling).
-- Recurrent [Scan](../../../../glossary.md#term-cumulative-scan): [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic),
+- Recurrent Scan: [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic),
   [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>,
   [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>.
 
@@ -105,7 +105,7 @@ Paths use `modules/backend/cpu/src/{main,test}/java/io/github/pho001/synaptik/ba
   `CpuGeneralScanReductionEmitter.emitSymbolic`/`emitSymbolicFold`; active [contraction](../../../../glossary.md#contraction-dimension)/[singleton](../../../../glossary.md#term-singleton) paths.
 - `main/.../internal/ir/CpuGeneralScanIr.bakedSpecializationIdentity` and
   `main/.../internal/cache/CpuKernelSpecialization.{compatibilityBytes,classIdentityBytes}`: v7/[Javadoc](../../../../glossary.md#term-javadoc).
-- `test/.../internal/codegen/emit/CpuSymbolicScanGeneratedKernelTest` and focused general-[Scan](../../../../glossary.md#term-cumulative-scan) tests;
+- `test/.../internal/codegen/emit/CpuSymbolicScanGeneratedKernelTest` and focused general-Scan tests;
   `test/.../internal/cache/CpuKernelSpecializationTest`, `CpuGeneratedKernelArtifactStoreTest`.
 - Read-only E: `test/.../internal/codegen/emit/CpuSymbolicLengthScanEquivalentJavaOracle.java`;
   keep it and `CpuSymbolicLengthScanFixture` unchanged. Add cases in existing focused test [owners](../../../../glossary.md#term-owner).
@@ -154,8 +154,8 @@ Exactly ONE fresh MEASURED [JVM](../../../../glossary.md#term-java-virtual-machi
 CPU0059 mechanisms, B7/B32, 100 [warmup](../../../../glossary.md#term-warmup) + 300 measured rounds, 100 calls/action/round: 480000 calls.
 One attempt, 120-second deadline; raw prechecks run inside it, no standalone [preflight](../../../../glossary.md#term-preflight) JVM. MAIN
 freezes protocol/order/commands and obtains independent review before launch. This distinct CPU0060
-normal-fix validation grant does not [resume](../../../../glossary.md#schema-serialization-and-checkpoint) old grants. Reuse CPU0059 mechanics outside old roots,
-with three-way ABI verification and latest raw checks BEFORE overwrite/rerun. No ABI-[shape](../../../../glossary.md#shape) change,
+normal-fix validation grant does not resume old grants. Reuse CPU0059 mechanics outside old roots,
+with three-way ABI verification and latest raw checks BEFORE overwrite/rerun. No ABI-shape change,
 [Engine](../../../../glossary.md#term-engine)/full [forks](../../../../glossary.md#term-fork-meanings), retries, extra [JIT](../../../../glossary.md#term-just-in-time-compilation-jit) campaign or measurement cascade. Retain all [samples](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters)/limits:
 diagnostic evidence only, no parity proof, timing-based selection policy or JIT-cause claim.
 
@@ -203,6 +203,6 @@ affected Javadocs remain accurate. General, architecture, backend-guide, API/Jav
 profiles applied; targeted glossary review required no new term. No [ADR](../../../../glossary.md#term-architecture-decision-record-adr)/authority change was needed.
 Historical 3524/4136/2636-file checks and `git diff --check` pass; HEAD/origin/index and unrelated dirty
 files remain unchanged. Optional byte-fact derivation and broader dead setup, including the redundant
-dominated scalar-[cache](../../../../glossary.md#term-cache) [guard](../../../../glossary.md#term-guard), are deferred; the [residual](../../../../glossary.md#scan-residual-port-and-history-demand) Java gap remains open, not this task's parity claim.
+dominated scalar-[cache](../../../../glossary.md#term-cache) [guard](../../../../glossary.md#term-guard), are deferred; the [residual](../../../../glossary.md#term-residual-meanings) Java gap remains open, not this task's parity claim.
 
 Status: Complete

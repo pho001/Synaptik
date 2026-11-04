@@ -35,7 +35,7 @@ is the navigation point for present implementation rather than the archived type
 ## Purpose and status
 
 This CPU0066 proposal removes two implementations of the same [CPU](../../../glossary.md#term-cpu) math without changing what
-ordinary [graphs](../../../glossary.md#graph) or captured [Scan](../../../glossary.md#term-cumulative-scan) bodies [mean](../../../glossary.md#term-mean). It is non-authoritative [planning](../../../glossary.md#term-planning), not source-launch
+ordinary [graphs](../../../glossary.md#graph) or captured Scan bodies mean. It is non-authoritative [planning](../../../glossary.md#term-planning), not source-launch
 permission. The proposed serial stages are CPU0067 common [scalar](../../../glossary.md#term-scalar) bodies, CPU0068 qualified [vector](../../../glossary.md#term-vector)
 bodies, then CPU0069 worker integration. All are Draft; CPU0069 has only the bounded outline below.
 A body is the already captured [`CompiledGraphModel`](../../../glossary.md#compiled-graph--compiledgraphmodel), not another graph or [runtime](../../../glossary.md#term-runtime) instruction list.
@@ -54,7 +54,7 @@ Each row identifies the existing limitation and the common [owner](../../../glos
 |---|---|
 | `lowering/CpuGeneralScanLowering.analyzePointwise/analyzeShaped/analyzeSymbolic` | Keep whole-[occurrence](../../../glossary.md#term-occurrence)/binder checks, roles, demand and temporal resources. Delegate instruction/[shape](../../../glossary.md#shape)/[axis](../../../glossary.md#term-axis)/[MATMUL](../../../glossary.md#matrix-multiplication--matmul) [normalization](../../../glossary.md#term-normalization) to existing family lowerers; remove their duplicated [operation](../../../glossary.md#operation) cases. |
 | `lowering/CpuPartitionLowering.opcode/scalarImmediate/batchCanonical/batchAccess` | Shared [pointwise](../../../glossary.md#term-pointwise) instruction and access normalization, called with scoped local [descriptors](../../../glossary.md#term-descriptor)/ordinals or ordinary descriptors. No fabricated outer [`PrepareContext`](../../../glossary.md#prepare-context-preparecontext) for a body. |
-| `lowering/CpuMatmulLowering.lower`, `ir/CpuMatmulIr` | Factor a facts-only [rank-two](../../../glossary.md#axis-rank-scalar-vector-and-matrix) body seam, separate from ordinary entry/route selection. [Scan](../../../glossary.md#term-cumulative-scan) supplies effective [views](../../../glossary.md#term-view-meanings) and coefficient recipes, not an ordinary-[batch](../../../glossary.md#term-batch-machine-learning-and-hyperparameters) entry. |
+| `lowering/CpuMatmulLowering.lower`, `ir/CpuMatmulIr` | Factor a facts-only [rank-two](../../../glossary.md#axis-rank-scalar-vector-and-matrix) body seam, separate from ordinary entry/route selection. Scan supplies effective [views](../../../glossary.md#term-view-meanings) and coefficient recipes, not an ordinary-[batch](../../../glossary.md#term-batch-machine-learning-and-hyperparameters) entry. |
 | `lowering/CpuAggregateLowering`, `ir/CpuAggregateIr` | Common axis/domain/[SUM-to-Shape](../../../glossary.md#sum-to-shape) normalization and explicit reduction algorithm/resource requirements. Ordinary exact-state and Scan represented-sequential variants remain different. |
 | `codegen/emit/CpuClassFileKernelGenerator` [scalar](../../../glossary.md#term-scalar) body and `emitVectorBody`; `CpuScalarEmitter`, `CpuVectorInstructionEmitter`, `CpuLoopEmitter` | Extract common bound pointwise load/instruction/store composition; retain existing scalar/[vector](../../../glossary.md#term-vector) instruction math. Move reusable affine-nest/address proofs out of Scan into [binding](../../../glossary.md#term-binding)/loop seams. |
 | `codegen/emit/CpuMatmulEmitter.emit`, `emitOrdinaryBatch`, direct/tiled/vector forms | Entry adapters decode carriers/geometry/ranges, then common family body methods emit full-K math. Move Scan's indexed/cursor [contraction](../../../glossary.md#contraction-dimension) variants here; preserve direct/tiled ordinary forms and CPU0065 [TANH](../../../glossary.md#term-tanh). |
@@ -78,7 +78,7 @@ CPU0067 proposes exactly two new package-private final top-level generation-only
 - `CpuPointwiseBodyEmitter`: `emitScalar(CpuKernelIr ir, List<CpuKernelIr.Instruction> instructions,
   CpuBodyBindings bindings, int[] representedLocals, int[] coordinateLocals)`. This owns common
   load/instruction/store ordering; `CpuScalarEmitter` remains the arithmetic owner. CPU0068 adds
-  vector composition here using <span data-glossary-navigation="true"> ([owner glossary](../../../glossary.md#term-owner))</span>`CpuVectorInstructionEmitter`, not another [Scan](../../../glossary.md#term-cumulative-scan) [vector](../../../glossary.md#term-vector) emitter.
+  vector composition here using <span data-glossary-navigation="true"> ([owner glossary](../../../glossary.md#term-owner))</span>`CpuVectorInstructionEmitter`, not another Scan [vector](../../../glossary.md#term-vector) emitter.
 
 Two new nested facts live in existing `io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr`;
 proposed declaration surface (not implemented):
@@ -146,7 +146,7 @@ Preserve public/[fan-out](../../../glossary.md#term-fan-out)/demanded saved site
 shared [carry](../../../glossary.md#term-carry) ADD. No recomputation or cross-boundary [reassociation](../../../glossary.md#term-reassociation). Activity dominates both operand
 loads and dependent contributor math; SHARED time gating differs from ROW(0)/ROW(1) gating. Preserve
 raw inactive carry and positive-zero [padding](../../../glossary.md#padding); histories store at original time, including previous
-carry before the step. T=0, B=0, empty K and zero [features](../../../glossary.md#term-software-feature) remain distinct semantic cases.
+carry before the step. T=0, B=0, empty K and zero [features](../../../glossary.md#term-feature) remain distinct semantic cases.
 
 Move, do not discard, v9's direct stable entry carriers/temporal bases, explicit-B affine facts,
 coefficient-proved zero scratch bases, cell-scoped address sharing and [pointwise](../../../glossary.md#term-pointwise) prefixes,
@@ -157,12 +157,12 @@ old/new carry versions constrain scheduling. Do not enlarge scratch/copy work to
 Current [scope](../../../glossary.md#term-scope) is static all-valid F32/F64, symbolic all-valid F32 only, and static/symbolic length
 F32/F64, each with actual first-order siblings and existing dense/[scalar](../../../glossary.md#term-scalar)-read exceptions. A shared
 body recipe must not relax `CpuMatmulIr.batchGeometry`'s ordinary F32/direct-scalar/no-[epilogue](../../../glossary.md#term-epilogue) [guard](../../../glossary.md#term-guard).
-[Scan](../../../glossary.md#term-cumulative-scan) F64 coefficient [binding](../../../glossary.md#term-binding) is not ordinary symbolic F64 [MATMUL](../../../glossary.md#matrix-multiplication--matmul) [admission](../../../glossary.md#term-admission). Low types, arbitrary
+Scan F64 coefficient [binding](../../../glossary.md#term-binding) is not ordinary symbolic F64 [MATMUL](../../../glossary.md#matrix-multiplication--matmul) [admission](../../../glossary.md#term-admission). Low types, arbitrary
 [layouts](../../../glossary.md#layout), new body families, [Metal](../../../glossary.md#term-metal)/[OpenBLAS](../../../glossary.md#term-openblas) Scan, higher-order [AD](../../../glossary.md#autograd) and [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) migration remain excluded.
 
 ## [Vector](../../../glossary.md#term-vector) realization, then worker integration
 
-CPU0068 first qualifies single-thread [feature](../../../glossary.md#term-software-feature)-[lane](../../../glossary.md#term-lane) [pointwise](../../../glossary.md#term-pointwise) and full-K/N-vector [MATMUL](../../../glossary.md#matrix-multiplication--matmul) bodies
+CPU0068 first qualifies single-thread [feature](../../../glossary.md#term-feature)-[lane](../../../glossary.md#term-lane) [pointwise](../../../glossary.md#term-pointwise) and full-K/N-vector [MATMUL](../../../glossary.md#matrix-multiplication--matmul) bodies
 only where exact [contiguous](../../../glossary.md#term-contiguous) feature accesses and complete lane activity are proved. Reuse existing
 vector math/[TANH](../../../glossary.md#term-tanh) and [scalar](../../../glossary.md#term-scalar) tails. Do not vector-reduce sequential SUM or split K; transposed
 [batch](../../../glossary.md#term-batch-machine-learning-and-hyperparameters) contractions may remain scalar. Qualify saved/state sites independently: save exactly the
@@ -194,7 +194,7 @@ arbitrary barrier. Thus calls>workers or a cancelled unstarted party can [deadlo
   interruption <span data-glossary-navigation="true"> ([admission glossary](../../../glossary.md#term-admission))</span>**before** joining started waiters, including calls never started. Abort terminates
   every phase wait. Preserve deterministic range-index failures/suppression and restored interrupt
   status. No public asynchronous/cancellation API or new executor/pool is proposed.<span data-glossary-navigation="true"> ([asynchronous glossary](../../../glossary.md#term-asynchronous); [cancellation glossary](../../../glossary.md#term-cancellation); [API glossary](../../../glossary.md#term-application-programming-interface-api))</span>
-- Replace [Scan](../../../glossary.md#term-cumulative-scan)'s inline `budget.acquire(1)` on the parallel branch with the group's single N-permit
+- Replace Scan's inline `budget.acquire(1)` on the parallel branch with the group's single N-permit
   acquisition. No nested acquisition/submission. Zero work submits none; one participant runs
   inline. Preflight all produced lengths before Scan writes/submission. Check every selected
   segment/workspace with <span data-glossary-navigation="true"> ([Preflight glossary](../../../glossary.md#term-preflight))</span>`workersCanAccess`/`isAccessibleBy`, not coordinator accessibility alone.
@@ -209,7 +209,7 @@ arbitrary barrier. Thus calls>workers or a cancelled unstarted party can [deadlo
 These illustrate [binding](../../../glossary.md#term-binding), not [runtime](../../../glossary.md#term-runtime) callbacks, automatic [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) packing or a new [Model](../../../glossary.md#term-model) [API](../../../glossary.md#term-application-programming-interface-api).
 For a repeated-width [multilayer perceptron](../../../glossary.md#term-multilayer-perceptron-mlp) ([MLP](../../../glossary.md#neural-network-families)), callers already supply h0 `[B,H]`, distinct
 [weight](../../../glossary.md#term-weight) blocks in a [Tensor](../../../glossary.md#tensor) sequence W `[L,H,H]` and [bias](../../../glossary.md#term-bias) blocks b `[L,H]`. This is an actual
-existing low-level all-valid [Scan](../../../glossary.md#term-cumulative-scan), not conversion/packing of existing NN layer objects.
+existing low-level all-valid Scan, not conversion/packing of existing NN layer objects.
 With ordinary Tensor formals h `[B,H]`, wStep `[H,H]`, bStep `[H]`, source construction is:
 
 ```java
@@ -244,12 +244,12 @@ and lengths [2,1], the generated wrapper binds each original-time X [slice](../.
 common [MATMUL](../../../glossary.md#matrix-multiplication--matmul)/[pointwise](../../../glossary.md#term-pointwise) body. After t=0, h=[tanh(1),tanh(2)]; after t=1,
 h=[tanh(3+tanh(1)),tanh(2)] and the inactive second emission is +0. Previous-state histories
 precede updates. Reverse sibling binds saved primals/[seeds](../../../glossary.md#commit-release-distribution-log-and-seed-meanings) at original time with opposite traversal;
-it does not replay TANH. Vectorization needs [feature](../../../glossary.md#term-software-feature) [lanes](../../../glossary.md#term-lane), so this H=1 example may remain [scalar](../../../glossary.md#term-scalar).
+it does not replay TANH. Vectorization needs [feature](../../../glossary.md#term-feature) [lanes](../../../glossary.md#term-lane), so this H=1 example may remain [scalar](../../../glossary.md#term-scalar).
 
 ## Authority and launch gates
 
 CPU0067 remains Draft until **user** approval of all four named types/seams above (including nested
-`CpuAggregateIr.Body`/`Accumulation`), as required by [Scan](../../../glossary.md#term-cumulative-scan) **[Qualification](../../../glossary.md#term-qualification) and mechanism gates**
+`CpuAggregateIr.Body`/`Accumulation`), as required by Scan **[Qualification](../../../glossary.md#term-qualification) and mechanism gates**
 and the [backend](../../../glossary.md#backend) [owner](../../../glossary.md#term-owner); private generation-only types are not exempt and MAIN cannot self-approve.
 The packet needs exact packages/names/purposes/[signatures](../../../glossary.md#term-signature) plus the diagnostic budget in CPU0067.
 Reviewed [planning](../../../glossary.md#term-planning)/dependencies and MAIN acceptance are also necessary before [Ready](../../../glossary.md#term-ready). Extraction

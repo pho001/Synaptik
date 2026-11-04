@@ -55,7 +55,7 @@ analysis; [Runtime](../../../../glossary.md#term-runtime) receives only the sele
   reason: `INSUFFICIENT_MARGIN`, `CODE_SIZE_PRESSURE`, `LIVE_VALUE_PRESSURE`,
   `MATERIALIZATION_COST`, `SAFE_SPLIT_TIE`, or `UNCERTAIN_INPUT`.
 - `Selection` records selected, canonical-split, and 0008B-baseline identities; stable rank;
-  score/margin facts; and <span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank))</span>`PROFITABLE_FUSION`, `CANONICAL_SPLIT`, `TIE_FALLBACK`,
+  score/margin facts; and `PROFITABLE_FUSION`, `CANONICAL_SPLIT`, `TIE_FALLBACK`,
   `UNCERTAINTY_FALLBACK`, or `ENUMERATION_BUDGET_FALLBACK`.
 - `CandidateIdentity` contains, in stable unit order, relative member-node positions, dependency
   indices, portable IR structural keys, specializations, strategies, access regimes, relative
@@ -76,7 +76,7 @@ analysis; [Runtime](../../../../glossary.md#term-runtime) receives only the sele
   producer/member order, then horizontal pairs in stable left/right order. Deduplicate resulting
   candidates by typed identity and record each distinct source/pair attempt once.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [producer glossary](../../../../glossary.md#term-producer); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Rank only complete candidates that cover every node/publication exactly once and contain every
-  exact resource. Partial contraction paths or local kernels are never candidates.<span data-glossary-navigation="true"> ([Rank glossary](../../../../glossary.md#term-rank); [node glossary](../../../../glossary.md#node); [publication glossary](../../../../glossary.md#term-publication); [contraction glossary](../../../../glossary.md#contraction-dimension); [kernels glossary](../../../../glossary.md#kernel))</span>
+  exact resource. Partial contraction paths or local kernels are never candidates.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [publication glossary](../../../../glossary.md#term-publication); [kernels glossary](../../../../glossary.md#kernel))</span>
 - Preserve every 0008B legality rule and hard budget. A failed contraction emits a typed legality
   rejection and leaves its source topology valid. Failure of the canonical split fails analysis
   before declarations or decision facts.
@@ -138,7 +138,7 @@ analysis; [Runtime](../../../../glossary.md#term-runtime) receives only the sele
   baseline facts remain exact.<span data-glossary-navigation="true"> ([fused glossary](../../../../glossary.md#specialization-and-fusion); [pointwise glossary](../../../../glossary.md#term-pointwise))</span>
 - Rank qualifying candidates by score, materialized bytes, maximum code-size units, and maximum
   live values. Exact ties prefer more units then stable identity. If the tied best would be more
-  fused than canonical split, record <span data-glossary-navigation="true"> ([Rank glossary](../../../../glossary.md#term-rank); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>`SAFE_SPLIT_TIE` and select [canonical](../../../../glossary.md#term-canonical-form) split.
+  fused than canonical split, record <span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>`SAFE_SPLIT_TIE` and select [canonical](../../../../glossary.md#term-canonical-form) split.
 - Uncertain canonical split, any incomparable legal candidate, or incomplete enumeration selects
   canonical split. The exact 0008B baseline remains a marked candidate and may win, lose, or equal
   split; it is never mutated or omitted.
@@ -376,7 +376,7 @@ Do not stage, commit, or push. Update implementation sections/status only from a
 - Canonical maximally split seeds are the correctness fallback; exact 0008B maximal-legal output
   is a mandatory comparison/compatibility candidate, not a forced profitability winner.<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings))</span>
 - Complete enumeration is the closed existing contraction grammar within 64 candidates/256
-  attempts; exceeding either invalidates partial ranking.<span data-glossary-navigation="true"> ([ranking glossary](../../../../glossary.md#term-ranking))</span><span data-glossary-navigation="true"> ([contraction glossary](../../../../glossary.md#contraction-dimension))</span>
+  attempts; exceeding either invalidates partial ranking.<span data-glossary-navigation="true"> ([ranking glossary](../../../../glossary.md#term-ranking))</span>
 - Recognition is a fixed barrier, avoiding silent expansion of 0008C's two-unit association.
 - Conservative integer heuristics estimate structure without claiming measured time. The 32-point
   margin and 75%-of-hard-limit code/live ceilings reject marginal complex fusion; ties split.<span data-glossary-navigation="true"> ([fusion glossary](../../../../glossary.md#term-fusion))</span>
@@ -387,7 +387,7 @@ Do not stage, commit, or push. Update implementation sections/status only from a
 ## Known limitations
 
 - This is a structural [heuristic](../../../../glossary.md#term-heuristic), not measurement or a universal speedup claim.
-- Only existing [pointwise](../../../../glossary.md#term-pointwise) [contraction](../../../../glossary.md#contraction-dimension) varies; recognition/family execution does not expand.
+- Only existing [pointwise](../../../../glossary.md#term-pointwise) contraction varies; recognition/family execution does not expand.
 - [CPU](../../../../glossary.md#term-cpu) 0008E owns representation/[materialization](../../../../glossary.md#materialization) variants; tuning/[cache](../../../../glossary.md#term-cache)/[opaque](../../../../glossary.md#term-opaque) [handoff](../../../../glossary.md#term-handoff) is absent.
 - CPU 0009 retains capability/[conformance](../../../../glossary.md#term-conformance)/integration closure.
 
@@ -484,7 +484,7 @@ Do not stage, commit, or push. Update implementation sections/status only from a
   compatibility baseline unchanged. The sole typed operation-free topology seam reaches dominated
   65th-candidate and pending-257th-attempt cases.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation))</span>
 - `decompose(...)` and enumeration now consume the same typed contraction result. Explicit
-  topology and portable-IR family facts classify barriers; lower rejection is<span data-glossary-navigation="true"> ([contraction glossary](../../../../glossary.md#contraction-dimension); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
+  topology and portable-IR family facts classify barriers; lower rejection is<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
   `UNSUPPORTED_LOWERING` when no narrower typed fact exists. No exception-message, package-name,
   or other string dispatch remains.<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - Preparation evaluates legal complete candidates, preserves exact 0008C recognition associations

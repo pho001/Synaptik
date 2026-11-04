@@ -125,7 +125,7 @@ boundary. The worker group is [backend](../../../../glossary.md#backend)-private
 - Add focused tests for exact public shape, fail-closed capability, native allocation/alignment,
   zero size, lifetime and rollback compatibility, all six heap carriers, heap slices, native and
   mixed binding, access rejection, direct bound fields, range partitioning, cancellation,
-  interruption, failure suppression, concurrent submissions, and close.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [fail-closed glossary](../../../../glossary.md#term-fail-closed); [lifetime glossary](../../../../glossary.md#term-lifetime); [rollback glossary](../../../../glossary.md#term-rollback))</span>
+  interruption, failure suppression, concurrent submissions, and close.<span data-glossary-navigation="true"> ([fail-closed glossary](../../../../glossary.md#term-fail-closed); [lifetime glossary](../../../../glossary.md#term-lifetime); [rollback glossary](../../../../glossary.md#term-rollback))</span>
 - Finalize affected Javadocs, CPU backend guidance, glossary impact, and planning records through
   the required separate clean documentation-focused pass.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 
@@ -258,7 +258,7 @@ message `query` and otherwise returns `false`. The class has no [singleton](../.
 route list, diagnostic-reason result, or [mutable](../../../../glossary.md#term-mutable) field.
 
 All declarations in `io.github.pho001.synaptik.backend.cpu.execution` are package-private. The
-implementation must contain the following narrow roles and source-level [shape](../../../../glossary.md#shape); a [signature](../../../../glossary.md#term-signature) change
+implementation must contain the following narrow roles and source-level shape; a [signature](../../../../glossary.md#term-signature) change
 requires updating this task before implementation begins:
 
 ```java
@@ -819,7 +819,7 @@ acceptance criterion and the documentation pass succeed.
   test/backend-conformance/integration paths passed. A first status script assumed the value
   immediately followed the <span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [conformance glossary](../../../../glossary.md#term-conformance))</span>`## Status` heading; the corrected nonblank-line check passed task,
   master-plan, and roadmap synchronization. Public/package-private shape, forbidden mechanism,
-  stale-status, resolved Segment-content, and generated-page scans passed.<span data-glossary-navigation="true"> ([synchronization glossary](../../../../glossary.md#term-synchronization); [shape glossary](../../../../glossary.md#shape))</span>
+  stale-status, resolved Segment-content, and generated-page scans passed.<span data-glossary-navigation="true"> ([synchronization glossary](../../../../glossary.md#term-synchronization))</span>
 - Final coordinator audit found one stale current-state roadmap sentence that still called task
   0001 Ready. The clean documentation context corrected it to Complete while preserving the
   explicitly historical earlier planning-pass sentence, then reran the applicable five-file

@@ -442,7 +442,7 @@ That final suite must record suite/test counts and cover:
   rejection, concurrent submissions, cancellation, lowest-range-index primary failure,
   suppression identity/order, interrupt restoration, racing close, idempotent close, and worker
   termination;<span data-glossary-navigation="true"> ([cancellation glossary](../../../../glossary.md#term-cancellation); [idempotent glossary](../../../../glossary.md#term-idempotent))</span>
-- [artifact](../../../../glossary.md#term-artifact) [schema](../../../../glossary.md#term-schema)/hit/miss/incompatibility and direct one-entry generated-class [shape](../../../../glossary.md#shape); and
+- [artifact](../../../../glossary.md#term-artifact) [schema](../../../../glossary.md#term-schema)/hit/miss/incompatibility and direct one-entry generated-class shape; and
 - absence of vector gather, masked tails, hot dispatch, per-element/lane allocation, and Runtime or
   shared-service orchestration.<span data-glossary-navigation="true"> ([gather glossary](../../../../glossary.md#gather); [dispatch glossary](../../../../glossary.md#term-dispatch); [element glossary](../../../../glossary.md#term-element); [lane glossary](../../../../glossary.md#term-lane); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 

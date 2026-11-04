@@ -356,7 +356,7 @@ push. Update evidence and status only after that pass completes.
   plus incubating-Vector notices; it reported no warning from this task's added documentation.<span data-glossary-navigation="true"> ([Vector glossary](../../../../glossary.md#term-vector))</span>
   `git diff --check`, a trailing-whitespace scan of all three permitted planning files, the
   planning-link/anchor review, and the exact-path inventory check passed; the inventory is exactly
-  21 paths (3 planning, 11 production, and 7 tests).<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  21 paths (3 planning, 11 production, and 7 tests).
 
 - Planning/documentation review context: this independent clean-context correction. Read the
   governing architecture, planning, and documentation contracts; inspected the current diff and

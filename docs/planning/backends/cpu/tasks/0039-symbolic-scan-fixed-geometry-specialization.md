@@ -25,9 +25,9 @@ Class C — generated hot-path and [artifact](../../../../glossary.md#term-artif
 
 ## Goal
 
-Keep actual invocation [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) B dynamic while specializing every provably B-independent [Scan](../../../../glossary.md#term-cumulative-scan)
+Keep actual invocation [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) B dynamic while specializing every provably B-independent Scan
 [extent](../../../../glossary.md#term-extent), byte [stride](../../../../glossary.md#term-stride) and frame fact available in existing keyed recipes. Match optimal direct
-Java's loop/address [shape](../../../../glossary.md#shape) without changing fixed time T, [feature](../../../../glossary.md#term-software-feature) F or state H semantics.
+Java's loop/address shape without changing fixed time T, [feature](../../../../glossary.md#term-feature) F or state H semantics.
 
 ## [Scope](../../../../glossary.md#term-scope)
 
@@ -61,7 +61,7 @@ recorded pins: literal `1f`/`0f` must never become artificial memory reads. No w
 - [Backend](../../../../glossary.md#backend) execution — [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling)
   and [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>,
   including symbolic recipes, immutable preparation, fresh mutable run geometry and identity.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [mutable glossary](../../../../glossary.md#term-mutable); [run glossary](../../../../glossary.md#term-run))</span>
-- Recurrent [scan](../../../../glossary.md#term-cumulative-scan) — [Accepted symbolic-batch scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>,
+- Recurrent scan — [Accepted symbolic-batch scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>,
   including actual reverse, saved sites, empty domains and mechanism gates.
 
 Current contracts already permit this [specialization](../../../../glossary.md#term-specialization); no renewed design audit is required.
@@ -74,7 +74,7 @@ expansion; do not invent architecture. Narrow current-version [owner](../../../.
   [Prepare0014](../../../modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md#result),
   [CPU0037](0037-general-scan-dense-read-views.md#result); all Complete, including required reviews/gates.
 - Conflicts with: Scan emitter/IR/identity, packed geometry/resource and shared-document writers;
-  all inactive. Implementation and reviewer CLOSED; no competing writer.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  all inactive. Implementation and reviewer CLOSED; no competing writer.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Parallel group: None; clean implementation/review contexts were delegated serially and are closed.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
   plus accepted dirty work, captured by `/private/tmp/synaptik-dynamic-batch-cutover.Of4Q8D/cpu0039-pre-plan.json`.
@@ -128,7 +128,7 @@ Test base: `modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/
   artifacts and cover every baked fact; compatible B reuses the same actual class/handles.
   Canonical identity and static F32/F64/pointwise/fixed/ordinary keys AND bytes retain exact pins.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [artifacts glossary](../../../../glossary.md#term-artifact); [Canonical glossary](../../../../glossary.md#term-canonical-form); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [pointwise glossary](../../../../glossary.md#term-pointwise))</span>
 - Correctness/structure must pass; MAIN reports every bounded timing row/sample and residual gap
-  honestly. No universal parity guarantee, missing-C2/BLAS diagnosis or further campaign follows.<span data-glossary-navigation="true"> ([sample glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [C2 glossary](../../../../glossary.md#term-c2); [BLAS glossary](../../../../glossary.md#term-blas))</span>
+  honestly. No universal parity guarantee, missing-C2/BLAS diagnosis or further campaign follows.<span data-glossary-navigation="true"> ([sample glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters); [residual glossary](../../../../glossary.md#term-residual-meanings); [C2 glossary](../../../../glossary.md#term-c2); [BLAS glossary](../../../../glossary.md#term-blas))</span>
 
 ## [Validation](../../../../glossary.md#term-validation)
 

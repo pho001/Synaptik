@@ -1,4 +1,4 @@
-# Task 0007A1M: Scatter MIN [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
+# Task 0007A1M: Scatter MIN [residual](../../../../glossary.md#term-residual-meanings) parity
 
 ## Reader context
 
@@ -27,7 +27,7 @@ Complete
 
 ## Goal
 
-Correct exactly the persistent `S-GENERAL-MIN` generated/direct [residual](../../../../glossary.md#scan-residual-port-and-history-demand) through its cohesive
+Correct exactly the persistent `S-GENERAL-MIN` generated/direct [residual](../../../../glossary.md#term-residual-meanings) through its cohesive
 functional-scatter code-shaping [owner](../../../../glossary.md#term-owner), `CpuScatterEmitter`. Preserve the frozen [CPU](../../../../glossary.md#term-cpu) 0007A1C [INT64](../../../../glossary.md#data-type--datatype)
 `SCATTER_ND + MIN` copy-then-update semantics, duplicate tuples, non-[scalar](../../../../glossary.md#term-scalar) suffix, mixed carriers,
 general [layouts](../../../../glossary.md#layout), arbitrary legal [half-open](../../../../glossary.md#term-half-open-interval) output ranges, and unchanged typed general fallback
@@ -101,7 +101,7 @@ while passing the frozen five-[fork](../../../../glossary.md#term-fork-meanings)
   invokes only prepared direct carriers, cold geometry, and range bounds.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [validation glossary](../../../../glossary.md#term-validation); [artifact glossary](../../../../glossary.md#term-artifact); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Generated code must preserve the optimal clean Java copy-then-update algorithm, update order,
   hot-loop/dataflow shape, and avoidable-overhead profile while keeping the typed general-long
-  form for every unproved case.<span data-glossary-navigation="true"> ([dataflow glossary](../../../../glossary.md#term-dataflow); [shape glossary](../../../../glossary.md#shape))</span>
+  form for every unproved case.<span data-glossary-navigation="true"> ([dataflow glossary](../../../../glossary.md#term-dataflow))</span>
 - Benchmark observations accept or reject this bounded generated body and never select or mutate
   production settings.
 
@@ -135,7 +135,7 @@ Expected implementation paths:
   `CpuPartitionPreparerTest.java`, and `CpuPartitionFinalizerTest.java` only when schema advances;
   and<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema))</span>
 - CPU backend guide, glossary, this task, CPU 0007A1C, CPU master plan, roadmap, and the sole next
-  detailed residual task created only after this task completes.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [backend glossary](../../../../glossary.md#backend); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  detailed residual task created only after this task completes.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [backend glossary](../../../../glossary.md#backend); [residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 
 ## Maximum [scope](../../../../glossary.md#term-scope)
 
@@ -198,13 +198,13 @@ suites remain deferred to CPU 0009 or [CI](../../../../glossary.md#term-continuo
 - CPU 0006B1 and CPU 0007A0C supply functional-scatter semantics and typed generated bodies.
 - CPU 0007A1B supplies the range-owned scratch-free copy-then-update algorithm.
 - CPU 0007A1D supplies stable invocation-local segment [layout](../../../../glossary.md#layout) handling.
-- CPU 0007A1L is Complete at [schema](../../../../glossary.md#term-schema) 40 and supplies the accepted five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) frontier.
+- CPU 0007A1L is Complete at [schema](../../../../glossary.md#term-schema) 40 and supplies the accepted five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#term-residual-meanings) frontier.
 
 ## Follow-up tasks
 
 - [CPU 0007A1N](0007a1n-multi-axis-min-residual-parity.md) is the sole next [`Ready`](../../../../glossary.md#term-ready) task and owns
-  the retained `X-MIN-MULTI` [residual](../../../../glossary.md#scan-residual-port-and-history-demand) through the aggregate code-shaping boundary.
-- [Resume](../../../../glossary.md#schema-serialization-and-checkpoint) [CPU](../../../../glossary.md#term-cpu) 0007A1C closure only after the final persistent row closes.
+  the retained `X-MIN-MULTI` [residual](../../../../glossary.md#term-residual-meanings) through the aggregate code-shaping boundary.
+- Resume [CPU](../../../../glossary.md#term-cpu) 0007A1C closure only after the final persistent row closes.
 - CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective residual work.
 
 ## Architecture impact
@@ -246,7 +246,7 @@ Do not commit, push, or stage.
   persistent rather than a one-fork anomaly.<span data-glossary-navigation="true"> ([fork glossary](../../../../glossary.md#term-fork-meanings))</span>
 - This row is selected before `X-MIN-MULTI` by the frozen residual order and because its existing
   range-owned copy-then-update algorithm has one sole code-shaping owner. Multi-axis extrema has
-  a distinct selected-domain aggregate owner and algorithm risk.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [owner glossary](../../../../glossary.md#term-owner); [axis glossary](../../../../glossary.md#term-axis); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum))</span>
+  a distinct selected-domain aggregate owner and algorithm risk.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#term-residual-meanings); [owner glossary](../../../../glossary.md#term-owner); [axis glossary](../../../../glossary.md#term-axis); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum))</span>
 - No other residual shares the functional-scatter owner or copy-then-update algorithm, so this
   remains a one-row task.
 
@@ -335,6 +335,6 @@ Do not commit, push, or stage.
   schema 41; no new reusable term was introduced.<span data-glossary-navigation="true"> ([specialization glossary](../../../../glossary.md#term-specialization); [artifact glossary](../../../../glossary.md#term-artifact))</span>
 - Unresolved issues: only `X-MIN-MULTI` remains above the frozen parity gate.
 - Follow-up required: execute Ready CPU 0007A1N. CPU 0007A1C remains incomplete and CPU 0007A2
-  remains Draft/blocked until that final residual closes.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  remains Draft/blocked until that final residual closes.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 
 Status: Complete

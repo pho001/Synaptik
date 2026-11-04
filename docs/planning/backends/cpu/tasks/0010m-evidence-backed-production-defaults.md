@@ -119,7 +119,7 @@ when actual route, strategy, species, ranges, workers, materializations, or Open
 unavailable.
 
 `backends/cpu/evidence/cpu-0010m-defaults/manifest.json` retains the exact [scalar](../../../../glossary.md#term-scalar)-baseline commands
-and hashes. Its future section is not a measurement-[ready](../../../../glossary.md#term-ready) protocol: a separately reviewed task
+and hashes. Its future section is not a measurement-ready protocol: a separately reviewed task
 must seal exact CPU/OS/[JDK](../../../../glossary.md#term-java-development-kit-jdk)/species strata; every [operation](../../../../glossary.md#operation)/[topology](../../../../glossary.md#term-topology)/type/[shape](../../../../glossary.md#shape)/[layout](../../../../glossary.md#layout)/access/[carrier](../../../../glossary.md#term-storage-carrier)/
 data case; randomized interleaved order and [seed](../../../../glossary.md#term-seed); family aggregation and weighting; and the exact
 bootstrap resample count, [PRNG](../../../../glossary.md#graph-rng-state--graphrngstate), sidedness, and quantile convention before either configuration is
@@ -162,7 +162,7 @@ Completed worker checks after review remediation:
 - Ten changed Markdown files passed local-link, fence, final-newline, and trailing-whitespace
   validation; `git diff --check` passed.
 - Narrow independent Class C re-review — approved after verifying honest Git object naming, exact
-  order vocabulary, and the non-measurement-ready future acceptance framework.<span data-glossary-navigation="true"> ([ready glossary](../../../../glossary.md#term-ready))</span>
+  order vocabulary, and the non-measurement-ready future acceptance framework.
 - Final unchanged-worktree `./gradlew test` — `BUILD SUCCESSFUL`; 72 tasks: 3 executed, 37 from
   cache, and 32 up-to-date.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache))</span>
 - Final unchanged-worktree `./gradlew build` — `BUILD SUCCESSFUL`; 84 tasks: 11 executed and 73

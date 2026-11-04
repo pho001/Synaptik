@@ -1,4 +1,4 @@
-# [CPU](../../../../glossary.md#term-cpu) 0007A1I: Indexing [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
+# [CPU](../../../../glossary.md#term-cpu) 0007A1I: Indexing [residual](../../../../glossary.md#term-residual-meanings) parity
 
 ## Reader context
 
@@ -86,7 +86,7 @@ twenty-row performance pass.
   fork count, JVM flags, direct-clean-Java reference, or <span data-glossary-navigation="true"> ([dimensions glossary](../../../../glossary.md#dimension); [fork glossary](../../../../glossary.md#term-fork-meanings); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm))</span>`1.15x` gate.
 - Do not change public API, model semantics, lowering, resource ownership or size, Prepare/Runtime
   routing, dependencies, build structure, conformance, integration, Compile API, or Training API.<span data-glossary-navigation="true"> ([resource ownership glossary](../../../../glossary.md#term-resource-ownership))</span><span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [model glossary](../../../../glossary.md#term-model); [lowering glossary](../../../../glossary.md#lowering); [ownership glossary](../../../../glossary.md#term-ownership); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [conformance glossary](../../../../glossary.md#term-conformance); [Compile glossary](../../../../glossary.md#compile))</span>
-- Do not address [scalar](../../../../glossary.md#term-scalar) [partition](../../../../glossary.md#partition), affine, [slice](../../../../glossary.md#slice)-update, [scan](../../../../glossary.md#term-cumulative-scan), [extrema](../../../../glossary.md#saturation-pole-and-extremum), or other [residual](../../../../glossary.md#scan-residual-port-and-history-demand) rows.
+- Do not address [scalar](../../../../glossary.md#term-scalar) [partition](../../../../glossary.md#partition), affine, [slice](../../../../glossary.md#slice)-update, [scan](../../../../glossary.md#term-cumulative-scan), [extrema](../../../../glossary.md#saturation-pole-and-extremum), or other [residual](../../../../glossary.md#term-residual-meanings) rows.
 - Do not create a generic indexing framework, helper hierarchy, new [IR](../../../../glossary.md#term-intermediate-representation-ir), or native route.
 
 ## Architecture constraints
@@ -175,9 +175,9 @@ Do not repeat a successful Java suite in that pass unless executable Java behavi
 - Detailed [Ready](../../../../glossary.md#term-ready) [CPU 0007A1J](0007a1j-cumulative-scan-residual-parity.md) is the sole next task.
   It owns only persistent `C-SCAN-GENERAL` through `CpuScanEmitter`.
 - The other four persistent rows remain Draft and unassigned.
-- [Resume](../../../../glossary.md#schema-serialization-and-checkpoint) [CPU](../../../../glossary.md#term-cpu) 0007A1C closure only after all persistent frozen failures close.
+- Resume [CPU](../../../../glossary.md#term-cpu) 0007A1C closure only after all persistent frozen failures close.
 - CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective residual work,
-  including CPU 0007A1J.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  including CPU 0007A1J.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#term-residual-meanings))</span>
 
 ## Implementation prompt
 
@@ -262,6 +262,6 @@ inventory/[checksum](../../../../glossary.md#term-checksum), and whitespace resu
 - Unresolved issues: five deferred performance rows remain; A1C and A1D remain `Review needed`/
   Incomplete, and this task does not close the twenty-row comparison.
 - Follow-up required: execute Ready CPU 0007A1J, then select only evidence-backed residual owner
-  clusters; resume A1C only after all five rows close. CPU 0007A2 remains blocked.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [owner glossary](../../../../glossary.md#term-owner); [resume glossary](../../../../glossary.md#schema-serialization-and-checkpoint))</span>
+  clusters; resume A1C only after all five rows close. CPU 0007A2 remains blocked.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [residual glossary](../../../../glossary.md#term-residual-meanings); [owner glossary](../../../../glossary.md#term-owner))</span>
 
 Status: Complete

@@ -110,7 +110,7 @@ bounded choice among external read-boundary representation variants.
 - Assign final unit indices with stable Kahn ordering: repeatedly select the ready unit whose
   smallest member-node ordinal is lowest. Each unit records the strictly increasing indices of
   its direct producer units. The stored order must already satisfy every dependency; execution is
-  not permitted to discover or schedule dependencies dynamically.<span data-glossary-navigation="true"> ([ready glossary](../../../../glossary.md#term-ready); [dependency glossary](../../../../glossary.md#term-dependency))</span>
+  not permitted to discover or schedule dependencies dynamically.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency))</span>
 
 ### Legal vertical and horizontal [fusion](../../../../glossary.md#term-fusion)
 
@@ -124,12 +124,12 @@ bounded choice among external read-boundary representation variants.
   iteration domain, compatible result/input data type, compatible normalized access mapping, and
   no other dependency cycle after contraction. The fused IR must preserve the current operation
   order, typed intermediate semantics, scalar-power realization, canonical BOOL behavior, and
-  final stores.<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [partition glossary](../../../../glossary.md#partition); [graph glossary](../../../../glossary.md#graph); [data type glossary](../../../../glossary.md#data-type--datatype); [dependency glossary](../../../../glossary.md#term-dependency); [contraction glossary](../../../../glossary.md#contraction-dimension); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [scalar-power realization glossary](../../../../glossary.md#scalar-power-realization); [canonical glossary](../../../../glossary.md#term-canonical-form); [BOOL glossary](../../../../glossary.md#data-type--datatype))</span>
+  final stores.<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [partition glossary](../../../../glossary.md#partition); [graph glossary](../../../../glossary.md#graph); [data type glossary](../../../../glossary.md#data-type--datatype); [dependency glossary](../../../../glossary.md#term-dependency); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [scalar-power realization glossary](../../../../glossary.md#scalar-power-realization); [canonical glossary](../../../../glossary.md#term-canonical-form); [BOOL glossary](../../../../glossary.md#data-type--datatype))</span>
 - A horizontal edge is a CPU-private fusion relation between two dependency-independent
   pointwise units. It is eligible only when both are ready from the same predecessor set, have the
   same checked iteration domain and execution strategy, have disjoint outputs, neither consumes
   the other's output, and one combined pointwise IR can preserve both branches in stable member-
-  node order. Shared external inputs are deduplicated by <span data-glossary-navigation="true"> ([ready glossary](../../../../glossary.md#term-ready); [node glossary](../../../../glossary.md#node))</span>[`ValueId`](../../../../glossary.md#logical-valueid-versus-physical-memory-slot); final stores remain ordered by
+  node order. Shared external inputs are deduplicated by <span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node))</span>[`ValueId`](../../../../glossary.md#logical-valueid-versus-physical-memory-slot); final stores remain ordered by
   producer node and output ordinal.
 - Consider vertical pairs first in producer-unit/member-node order and then horizontal pairs in
   left-unit/right-unit order. After a successful contraction, restart vertical consideration from
@@ -165,7 +165,7 @@ bounded choice among external read-boundary representation variants.
 - A fusion-lowering exception, unsupported carrier/access combination, failed hard-budget proof,
   or exhausted fusion-attempt budget rejects only that contraction and retains the already valid
   split units. Failure of the maximally split baseline itself fails the partition before resource
-  declaration; there is no Runtime fallback and no partial plan.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [contraction glossary](../../../../glossary.md#contraction-dimension); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
+  declaration; there is no Runtime fallback and no partial plan.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 
 ### Exact hard budgets
 
@@ -174,7 +174,7 @@ The following are semantic/resource safety ceilings, not profitability scores:
 | Budget | Ceiling | Counting rule | On exceedance |
 | --- | ---: | --- | --- |
 | [Partition](../../../../glossary.md#partition) [nodes](../../../../glossary.md#node) | 8 | Complete compiled nodes, preserving the existing cap | Fail before declarations |
-| Final units | 8 | Stable computation units after [contraction](../../../../glossary.md#contraction-dimension) | Retain split; fail only if the baseline exceeds the node-derived cap |
+| Final units | 8 | Stable computation units after contraction | Retain split; fail only if the baseline exceeds the node-derived cap |
 | [Fan-out](../../../../glossary.md#term-fan-out) considered for [fusion](../../../../glossary.md#term-fusion) | 7 | Distinct in-partition consumers of one value | Materialize; vertical fusion requires exactly one |
 | Fusion attempts | 28 | Every tested vertical or horizontal unit pair, successful or rejected | Stop contracting and retain remaining split units |
 | Nodes per newly [fused](../../../../glossary.md#specialization-and-fusion) [pointwise](../../../../glossary.md#term-pointwise) unit | 8 | Member compiled nodes | Retain split |
@@ -422,7 +422,7 @@ names better match these exact owners. It may not add a public [`Graph`](../../.
   materialized barriers.<span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out); [fixture glossary](../../../../glossary.md#term-fixture); [producer glossary](../../../../glossary.md#term-producer); [buffers glossary](../../../../glossary.md#term-buffer); [Publication glossary](../../../../glossary.md#term-publication); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout))</span>
 - Hard indexing, live-value, generated-size, boundary, node, unit, and attempt budgets are tested
   at and immediately beyond their ceilings. A rejected contraction leaves the complete split
-  plan; it never loses a node, edge, output, workspace, or current supported route.<span data-glossary-navigation="true"> ([contraction glossary](../../../../glossary.md#contraction-dimension))</span>
+  plan; it never loses a node, edge, output, workspace, or current supported route.
 - Every cross-unit [`ValueId`](../../../../glossary.md#logical-valueid-versus-physical-memory-slot) is one ordinary buffer and never a workspace. CPU 0005D external
   materialization remains distinguishable and is disabled for multi-unit plans. Two workspace-
   requiring seed units receive exact unique requirement IDs and child-local selections.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [seed glossary](../../../../glossary.md#term-seed))</span>
@@ -447,7 +447,7 @@ names better match these exact owners. It may not add a public [`Graph`](../../.
 - Add focused decomposition tests for stable topology, disconnected ready seeds, vertical and
   horizontal fusion, diamond fan-out, publications, state/random and numerical-order barriers,
   affine/specialized barriers, unsupported baseline failure, deterministic repeatability, and
-  every hard-budget edge.<span data-glossary-navigation="true"> ([decomposition glossary](../../../../glossary.md#term-decomposition); [topology glossary](../../../../glossary.md#term-topology); [ready glossary](../../../../glossary.md#term-ready); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [fusion glossary](../../../../glossary.md#term-fusion); [fan-out glossary](../../../../glossary.md#term-fan-out))</span>
+  every hard-budget edge.<span data-glossary-navigation="true"> ([decomposition glossary](../../../../glossary.md#term-decomposition); [topology glossary](../../../../glossary.md#term-topology); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [fusion glossary](../../../../glossary.md#term-fusion); [fan-out glossary](../../../../glossary.md#term-fan-out))</span>
 - Extend preparation-plan/preparer/finalizer tests for per-unit facts, dependency validation,
   exact deduplicated buffers, unique workspace IDs, explicit carrier mapping, malformed resource
   sets, artifact order/count, and migrated Conv2d split behavior.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [validation glossary](../../../../glossary.md#term-validation); [buffers glossary](../../../../glossary.md#term-buffer); [carrier glossary](../../../../glossary.md#term-storage-carrier); [artifact glossary](../../../../glossary.md#term-artifact); [Conv2d glossary](../../../../glossary.md#convolution--conv2d))</span>
@@ -675,7 +675,7 @@ and final status only from actual results.
 
 - Added `CpuPartitionDagDecomposer` as the sole CPU-private owner of complete-partition validation,
   longest established seed selection, stable topological ordering, dependency indices, vertical-
-  first/horizontal-second contraction, and the task's hard pointwise fusion budgets.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [owner glossary](../../../../glossary.md#term-owner); [partition glossary](../../../../glossary.md#partition); [validation glossary](../../../../glossary.md#term-validation); [seed glossary](../../../../glossary.md#term-seed); [topological glossary](../../../../glossary.md#term-topological-order); [dependency glossary](../../../../glossary.md#term-dependency); [contraction glossary](../../../../glossary.md#contraction-dimension); [pointwise glossary](../../../../glossary.md#term-pointwise); [fusion glossary](../../../../glossary.md#term-fusion))</span>
+  first/horizontal-second contraction, and the task's hard pointwise fusion budgets.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [owner glossary](../../../../glossary.md#term-owner); [partition glossary](../../../../glossary.md#partition); [validation glossary](../../../../glossary.md#term-validation); [seed glossary](../../../../glossary.md#term-seed); [topological glossary](../../../../glossary.md#term-topological-order); [dependency glossary](../../../../glossary.md#term-dependency); [pointwise glossary](../../../../glossary.md#term-pointwise); [fusion glossary](../../../../glossary.md#term-fusion))</span>
 - Generalized ordinary pointwise lowering to deterministic DAG instruction order and multiple
   final stores while preserving existing instruction semantics and one-unit structural identity.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Generalized preparation to one through eight per-unit plans. Every unit retains its route,

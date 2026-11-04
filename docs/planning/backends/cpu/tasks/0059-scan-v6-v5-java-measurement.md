@@ -1,4 +1,4 @@
-# Task CPU0059: Bounded [Scan](../../../../glossary.md#term-cumulative-scan) v6/v5/Java entry comparison
+# Task CPU0059: Bounded Scan v6/v5/Java entry comparison
 
 ## Reader context
 
@@ -28,7 +28,7 @@ Use a clean off-tree executor and independent prelaunch and actual-result review
 ## Goal
 
 Compare current generated v6 (G6), retained generated v5 (G5), and unchanged optimal Java (E)
-for the actual [Compiler](../../../../glossary.md#term-compiler) reverse of the original-forward symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) family (`false`).
+for the actual [Compiler](../../../../glossary.md#term-compiler) reverse of the original-forward symbolic-length Scan family (`false`).
 Separate two entry mechanisms; this is entry-inclusive diagnostic evidence, not pure-[kernel](../../../../glossary.md#kernel) or [Engine](../../../../glossary.md#term-engine) end-to-end cost.
 
 ## [Scope](../../../../glossary.md#term-scope) and non-goals
@@ -45,7 +45,7 @@ native build, [commit](../../../../glossary.md#term-commit)/push, optimization, 
 
 - [Architecture root](../../../../../ARCHITECTURE.md#core-invariants): `Core invariants` and [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([Scope glossary](../../../../glossary.md#term-scope); [normative glossary](../../../../glossary.md#term-normative))</span>.
 - [Backend execution](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend))</span>: `CPU backend routes` and [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling).
-- [Recurrent scan](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>: `Qualification, performance and migration gates`, [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic), and [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
+- [Recurrent scan](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates): `Qualification, performance and migration gates`, [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic), and [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
 
 Read AGENTS, this brief, these exact headings, affected source and focused tests. Stop on ambiguity or conflict.
 
@@ -135,7 +135,7 @@ Preparation compiles only `Cpu0059ScanMeasurement.java` off-tree with the exact 
 Adapt a new `run.sh` with modes [`compile`](../../../../glossary.md#compile), `preflight preflight`, `measure measured-1` through `measured-3`;
 Freeze expanded commands, compiled bytes, original-to-repaired diff/[provenance](../../../../glossary.md#provenance) and attempt handling, then STOP.
 Fresh independent targeted prelaunch review checks the sole semantic delta, mechanical adaptations,
-freeze/compiled bytes, unchanged pins/[ABI](../../../../glossary.md#term-application-binary-interface-abi)/call [shape](../../../../glossary.md#shape)/schedule, zero-clock [preflight](../../../../glossary.md#term-preflight), limits and logging.
+freeze/compiled bytes, unchanged pins/[ABI](../../../../glossary.md#term-application-binary-interface-abi)/call shape/schedule, zero-clock [preflight](../../../../glossary.md#term-preflight), limits and logging.
 MAIN requires fresh preservation/conflict checks and a [release](../../../../glossary.md#term-release) bound to the new freeze [hash](../../../../glossary.md#term-hash) before any [run](../../../../glossary.md#term-run) mode.
 The release covers only the added preflight and, conditional on success, the original unused three slots; no retry/additional measurement.
 Use `node /private/tmp/synaptik-cpu0059.AB8i7S/preserve-inputs.mjs check` before/after execution and analysis.

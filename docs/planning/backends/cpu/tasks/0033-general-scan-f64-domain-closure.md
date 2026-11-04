@@ -1,4 +1,4 @@
-# Task CPU0033: General-[scan](../../../../glossary.md#term-cumulative-scan) [FLOAT64](../../../../glossary.md#term-float64) domain closure
+# Task CPU0033: General-scan [FLOAT64](../../../../glossary.md#term-float64) domain closure
 
 ## Reader context — historical integration boundary
 
@@ -25,7 +25,7 @@ and independent targeted code/documentation review are mandatory before main acc
 
 Complete [homogeneous](../../../../glossary.md#term-homogeneous) [FLOAT64](../../../../glossary.md#term-float64) ([F64](../../../../glossary.md#floating-point-precision-and-rounding)) forward and actual [Compiler](../../../../glossary.md#term-compiler)-generated first-order [automatic
 differentiation](../../../../glossary.md#autograd) ([AD](../../../../glossary.md#autograd)) reverse
-execution across the entire currently declared [CPU](../../../../glossary.md#term-cpu) [scan](../../../../glossary.md#term-cumulative-scan) algebra, not a [pointwise](../../../../glossary.md#term-pointwise)-only [slice](../../../../glossary.md#slice).
+execution across the entire currently declared [CPU](../../../../glossary.md#term-cpu) scan algebra, not a [pointwise](../../../../glossary.md#term-pointwise)-only [slice](../../../../glossary.md#slice).
 Reuse the emitted time loop: one qualified body → exact prepared resources → [run](../../../../glossary.md#term-run)-owned [bindings](../../../../glossary.md#term-binding).
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -40,7 +40,7 @@ RESHAPE, EXPAND_DIMS/SQUEEZE, [CONTIGUOUS](../../../../glossary.md#term-contiguo
 
 No [BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT16](../../../../glossary.md#term-float16), mixed [dtype](../../../../glossary.md#data-type--datatype), arbitrary all-[operation](../../../../glossary.md#operation) [admission](../../../../glossary.md#term-admission), wider boundary [layouts](../../../../glossary.md#layout),
 nested/control-flow scans, lengths/[padding](../../../../glossary.md#padding), [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/training/[persistence](../../../../glossary.md#term-persistence) [API](../../../../glossary.md#term-application-programming-interface-api) [widening](../../../../glossary.md#term-widening), [vector](../../../../glossary.md#term-vector)/parallel/
-[OpenBLAS](../../../../glossary.md#term-openblas) [scan](../../../../glossary.md#term-cumulative-scan) route, tuning, new [AD](../../../../glossary.md#autograd) [intermediate representation](../../../../glossary.md#term-intermediate-representation-ir) or execution [owner](../../../../glossary.md#term-owner). Preserve fixed
+[OpenBLAS](../../../../glossary.md#term-openblas) scan route, tuning, new [AD](../../../../glossary.md#autograd) [intermediate representation](../../../../glossary.md#term-intermediate-representation-ir) or execution [owner](../../../../glossary.md#term-owner). Preserve fixed
 four-dtype/layout and static routes. Do not reopen or re-approve completed [F32](../../../../glossary.md#floating-point-precision-and-rounding) tasks.
 
 ## Contracts
@@ -48,7 +48,7 @@ four-dtype/layout and static routes. Do not reopen or re-approve completed [F32]
 - [Root authority/index](../../../../../ARCHITECTURE.md#authority-incorporation-and-precedence),
   [Core invariants](../../../../../ARCHITECTURE.md#core-invariants), [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>
   and [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([Scope glossary](../../../../glossary.md#term-scope); [normative glossary](../../../../glossary.md#term-normative))</span>.
-- [Recurrent-scan — General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>, all subheadings: source/scopes, [residual](../../../../glossary.md#scan-residual-port-and-history-demand) demand, exact [primal](../../../../glossary.md#term-primal) [bindings](../../../../glossary.md#term-binding), traversal/empties and [qualification](../../../../glossary.md#term-qualification) gates.
+- [Recurrent-scan — General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>, all subheadings: source/scopes, [residual](../../../../glossary.md#scan-residual-port-and-history-demand) demand, exact [primal](../../../../glossary.md#term-primal) [bindings](../../../../glossary.md#term-binding), traversal/empties and [qualification](../../../../glossary.md#term-qualification) gates.
 - [Backend execution — CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend); [CPU glossary](../../../../glossary.md#term-cpu))</span> and [Profile-free backend capability and identity](../../../../architecture/contracts/backend-execution.md#profile-free-backend-capability-and-identity)<span data-glossary-navigation="true"> ([backend capability glossary](../../../../glossary.md#backend-capability); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
 - [Foundational modules — Profile-free capability queries](../../../../architecture/contracts/foundational-modules.md#profile-free-capability-queries)<span data-glossary-navigation="true"> ([modules glossary](../../../../glossary.md#term-module))</span> and [Profile-free numerical semantics](../../../../architecture/contracts/foundational-modules.md#profile-free-numerical-semantics)<span data-glossary-navigation="true"> ([Profile-free numerical semantics glossary](../../../../glossary.md#profile-free-numerical-semantics))</span>, including arithmetic-site [DAZ](../../../../glossary.md#term-daz)/[FTZ](../../../../glossary.md#term-ftz), exact/discrete, primitive, aggregate and composite rules.
 - [Compiler-owned automatic differentiation](../../../../architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation)<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [automatic differentiation glossary](../../../../glossary.md#autograd))</span>.
@@ -60,7 +60,7 @@ If a contract or required abstraction is missing/ambiguous, stop and request cla
 
 - Depends on: Model0034/0035, Planning0008, Compiler0011, Prepare0010, CPU0030–0032; all Complete.
 - Conflicts with: scan admission/lowering/IR/emission/binding/resources, generated compatibility,
-  numerics/status/ledger and shared docs; serialized.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [admission glossary](../../../../glossary.md#term-admission); [lowering glossary](../../../../glossary.md#lowering); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [binding glossary](../../../../glossary.md#term-binding))</span>
+  numerics/status/ledger and shared docs; serialized.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission); [lowering glossary](../../../../glossary.md#lowering); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [binding glossary](../../../../glossary.md#term-binding))</span>
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` + dirty authority/
   Model0034/0035, Planning0008, Compiler0011, Prepare0010, CPU0030–0032; accepted, uncommitted, preserved.
@@ -84,7 +84,7 @@ Change only needed existing seams below; no new top-level production type/packag
   reuse `CpuScalarEmitter`, `CpuMatmulEmitter`, `CpuCarrierEmitter`, `CpuClassFileKernelGenerator`.
 - `internal/executable/CpuGeneralScanPreparedExecutable`; `internal/prepare/{CpuPartitionPreparer,
   CpuPartitionPreparationPlan,CpuPartitionFinalizer}`; `internal/cache/{CpuKernelSpecialization,CpuGeneratorSchema}`.
-  Review existing memory/binding recipes; preserve segment-only scan entry and ownership.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [scan glossary](../../../../glossary.md#term-cumulative-scan); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
+  Review existing memory/binding recipes; preserve segment-only scan entry and ownership.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Read-only [Compiler](../../../../glossary.md#term-compiler) `ScanGradientRules`/`LinearAlgebraGradientRules`: ordinary derivative rules
   already cover F64; no Compiler production change expected. Stop if closure requires new algebra.<span data-glossary-navigation="true"> ([derivative glossary](../../../../glossary.md#term-derivative))</span>
 - [CPU](../../../../glossary.md#term-cpu) tests use the matching `src/test/java` packages: `CpuGeneralScanCapabilityTest`, [lowering](../../../../glossary.md#lowering)/
@@ -180,7 +180,7 @@ No root before [F64](../../../../glossary.md#floating-point-precision-and-roundi
 
 ## Documentation and review impact
 
-Root/[owner](../../../../glossary.md#term-owner) status, [CPU](../../../../glossary.md#term-cpu)/[scan](../../../../glossary.md#term-cumulative-scan) guides, [tensor](../../../../glossary.md#tensor)/[compile](../../../../glossary.md#compile) APIs, Javadocs/glossary finalized; no new semantics,
+Root/[owner](../../../../glossary.md#term-owner) status, [CPU](../../../../glossary.md#term-cpu)/scan guides, [tensor](../../../../glossary.md#tensor)/[compile](../../../../glossary.md#compile) APIs, Javadocs/glossary finalized; no new semantics,
 term/[ADR](../../../../glossary.md#term-architecture-decision-record-adr)/[dependency](../../../../glossary.md#term-dependency). Main owns shared integration; independent Class C code/docs APPROVE and final
 [Javadoc](../../../../glossary.md#term-javadoc) PASS. Architecture/dependency decisions still require stop/approval and owning tests.
 

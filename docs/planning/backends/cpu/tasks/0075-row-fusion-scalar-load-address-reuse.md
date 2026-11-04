@@ -29,14 +29,14 @@ Clean implementation and an independent targeted code/[Javadoc](../../../../glos
 
 ## Goal
 
-Replace affected ordinary/general-[Scan](../../../../glossary.md#term-cumulative-scan) [scalar](../../../../glossary.md#term-scalar) row emission with within-row external-load reuse
+Replace affected ordinary/general-Scan [scalar](../../../../glossary.md#term-scalar) row emission with within-row external-load reuse
 and [constant](../../../../glossary.md#term-constant) affine address folding/sharing: generic reuse, not F3/H2 hardcoding or old/new emitters.
 
 ## [Scope](../../../../glossary.md#term-scope) and non-goals
 
 - Existing F32/F64 scalar and parallel-scalar row bodies where already admitted; ordinary array
   and checked-segment eligibility, Scan checked segments only. Keep static, named-B, length and
-  combined scopes: ordinary symbolic F64 MATMUL/all-valid symbolic F64 Scan remain unqualified.<span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [scalar glossary](../../../../glossary.md#term-scalar); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul))</span>
+  combined scopes: ordinary symbolic F64 MATMUL/all-valid symbolic F64 Scan remain unqualified.<span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [scalar glossary](../../../../glossary.md#term-scalar); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul))</span>
 - Only existing private emitter/binder, specialization and necessary preparer/lowering proof
   owners change. No new top-level production type, common helper seam/signature, runtime object,
   entry/helper ABI parameter, public policy, API, numerical rule, global schema or projection.
@@ -62,7 +62,7 @@ Read the root [scope](../../../../glossary.md#term-scope) index and these exact 
   [CPU0075 selective scalar load and address reuse](../../../../architecture/contracts/backend-execution.md#cpu0075-selective-scalar-load-and-address-reuse)<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar))</span>.
 - [Backend execution — Accepted ordinary symbolic-batch CPU contract](../../../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [CPU glossary](../../../../glossary.md#term-cpu))</span>
   — retain existing named-B eligibility and numeric binding.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding))</span>
-- [Scan](../../../../glossary.md#term-cumulative-scan) [owner](../../../../glossary.md#term-owner) — [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>,
+- Scan [owner](../../../../glossary.md#term-owner) — [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>,
   [CPU0074 selected terminal grouping exception](../../../../architecture/contracts/recurrent-scan.md#cpu0074-selected-terminal-grouping-exception),
   [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>,
   [First-order length-mode reverse](../../../../architecture/contracts/recurrent-scan.md#first-order-length-mode-reverse),
@@ -136,7 +136,7 @@ Comparison uses `CpuRowFusionSimdParallelTimingTest.ordinary()/scan()` and uncha
    ordered 28 MUL/22 ADD/2 SUB sites and seven retained row stores, terminal publication and
    separate exact bias SUM. Scan analogously removes proved duplicates while retaining ordered
    24 MUL/24 ADD/2 SUB, five row stores and twelve distinct after-row per-time carry ADDs in
-   the existing actual combined fixture. Generic fixtures beyond F3/H2 must exercise reuse.<span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [capture glossary](../../../../glossary.md#term-capture-meanings); [publication glossary](../../../../glossary.md#term-publication); [bias glossary](../../../../glossary.md#term-bias); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [carry glossary](../../../../glossary.md#term-carry); [fixture glossary](../../../../glossary.md#term-fixture))</span>
+   the existing actual combined fixture. Generic fixtures beyond F3/H2 must exercise reuse.<span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [capture glossary](../../../../glossary.md#term-capture-meanings); [publication glossary](../../../../glossary.md#term-publication); [bias glossary](../../../../glossary.md#term-bias); [carry glossary](../../../../glossary.md#term-carry); [fixture glossary](../../../../glossary.md#term-fixture))</span>
 5. Preserve raw/special/cancellation behavior and producer-ordered complete length preflight,
    B=0/1, T=0, empty/all-inactive and mixed lengths, poisoned inactive sources, saved histories,
    +0 padding, singleton/no-axis raw movement, alias rejection and concurrent mixed-B reuse.
@@ -160,7 +160,7 @@ no-local-copy assertions. The completed focused command was:
 ```
 
 Approved protocol, now exhausted: exactly one [JVM](../../../../glossary.md#term-java-virtual-machine-jvm) with an external 90-second watchdog; four
-[F32](../../../../glossary.md#floating-point-precision-and-rounding) cases (ordinary/actual [Scan](../../../../glossary.md#term-cumulative-scan) reverse, B32/B256, F3/H2, Scan T=4). A is authentic old [bytecode](../../../../glossary.md#term-bytecode),
+[F32](../../../../glossary.md#floating-point-precision-and-rounding) cases (ordinary/actual Scan reverse, B32/B256, F3/H2, Scan T=4). A is authentic old [bytecode](../../../../glossary.md#term-bytecode),
 B the replacement, C unchanged independent Java. A/B use fresh hidden handles, identical raw
 [ABI](../../../../glossary.md#term-application-binary-interface-abi)/spreader wrappers, read-only saved inputs and separate writable outputs. Entry resets are
 inside each call; cold [binding](../../../../glossary.md#term-binding)/inspection/equality controls are outside windows. C's different
@@ -195,7 +195,7 @@ Status: Complete — independent final APPROVE, 0 open P1/P2; MAIN owning gate p
 - Changed five production [owners](../../../../glossary.md#term-owner), three test/harness files and eight Markdown docs; no new production type/seam.
 - Root/affine/store-[epoch](../../../../glossary.md#term-epoch-meanings) reuse, last-use typed pool and LONG offset retain cold 128-slot/checked fallback.
 - SUM-address P1 fixed/closed; nine typed/static/admitted-symbolic B1/3/7 [regression](../../../../glossary.md#term-regression) scenarios passed.
-- Ordinary loads 32→20, MUL/ADD/SUB 28/22/2, stores 7; [Scan](../../../../glossary.md#term-cumulative-scan) gets 27→22, math 24/24/2, stores 5, [carry](../../../../glossary.md#term-carry) ADDs 12 unchanged.
+- Ordinary loads 32→20, MUL/ADD/SUB 28/22/2, stores 7; Scan gets 27→22, math 24/24/2, stores 5, [carry](../../../../glossary.md#term-carry) ADDs 12 unchanged.
 - Peak ordinary duplicate intervals 4; live-slot bounds ordinary 82/Scan 98, distinct from max_locals 87/128 and HW registers.
 - Both [identity](../../../../glossary.md#term-identity-meanings) streams stale only affected [scalar](../../../../glossary.md#term-scalar) [artifacts](../../../../glossary.md#term-artifact); historical resources and [SIMD](../../../../glossary.md#simd)/nonregional controls retained.
 - Focused command above: 83 tests, no failures/errors/skips; later P1 regression and four-case/eight-SIMD [preflight](../../../../glossary.md#term-preflight) passed.

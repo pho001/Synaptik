@@ -2,10 +2,10 @@
 
 ## Reader context — historical integration boundary
 
-This record introduces a native route inside the CPU backend, not a new backend. CPU preparation is
-the caller of the low-level OpenBLAS provider: common CPU lowering has already determined the matrix
-operation, and the provider leaf only loads symbols, controls threads and performs the selected
-matrix call. Here ‘leaf’ means a dependency endpoint, not a Tensor input. The composition owner
+This record introduces a native route inside the CPU backend, not a new backend. The CPU backend is
+the caller of the low-level OpenBLAS provider: CPU preparation selects and finalizes the matrix route;
+the per-run `BoundInvocation` executes the provider's GEMM call. The provider loads symbols and controls
+threads. Here ‘leaf’ means a dependency endpoint, not a Tensor input. The composition owner
 lends the live library to prepared work; Runtime owns each run's buffers and executes the fixed
 recipe. The initial one-input-copy and single-thread limits below belong to this milestone; later
 integration stages must not be read back into its evidence.
@@ -479,7 +479,7 @@ During implementation, use the focused affected-[module](../../../../glossary.md
 
 The [CPU](../../../../glossary.md#term-cpu) suite must include selector/config/plan invariants, preparation/finalization,
 representation and exact resource declarations, composite sequencing, [binding](../../../../glossary.md#term-binding)/failure-before-
-write, fake provider invocation, [lifecycle](../../../../glossary.md#lifecycle)/thread drift, inventory/public [shape](../../../../glossary.md#shape), and unchanged
+write, fake provider invocation, [lifecycle](../../../../glossary.md#lifecycle)/thread drift, inventory/public shape, and unchanged
 portable fallback coverage. The [backend](../../../../glossary.md#backend)-[conformance](../../../../glossary.md#term-conformance) suite must include the two-type direct-route
 preparation/finalization/binding/execution case above. The architecture suite must enforce the
 exact new test-only [dependency](../../../../glossary.md#term-dependency) surface. All ordinary tests require no native access or installed

@@ -24,7 +24,7 @@ Class C conservatively: generated-code hot-path evidence; clean audit and indepe
 
 ## Goal
 
-Compare current symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) computation stage by stage with optimal direct equivalent Java:
+Compare current symbolic-length Scan computation stage by stage with optimal direct equivalent Java:
 source intent → ClassFile facts → existing just-in-time [compiler](../../../../glossary.md#term-compiler) ([JIT](../../../../glossary.md#term-just-in-time-compilation-jit)) evidence, without inferring speed from code size.
 Use [F32](../../../../glossary.md#floating-point-precision-and-rounding), T=4/F=3/H=2, actual Compiler-generated reverse at B=7 and B=32; retain [runtime](../../../../glossary.md#term-runtime) T,
 actual [scalar](../../../../glossary.md#term-scalar) operands, checked unaligned access, represented arithmetic and the same semantic algorithm.
@@ -41,7 +41,7 @@ Do not reopen closed measurement budgets or audit predecessor histories. CPU0055
 - [ARCHITECTURE.md — Core invariants](../../../../../ARCHITECTURE.md#core-invariants) and [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([Scope glossary](../../../../glossary.md#term-scope); [normative glossary](../../../../glossary.md#term-normative))</span>.
 - [Backend execution — CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend); [CPU glossary](../../../../glossary.md#term-cpu))</span>.
 - [Backend execution — Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling).
-- [Recurrent scan — Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [Qualification glossary](../../../../glossary.md#term-qualification))</span>.
+- [Recurrent scan — Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>.
 - [Recurrent scan — Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic).
 - [Recurrent scan — Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
 
@@ -102,7 +102,7 @@ only and own separate off-tree outputs; MAIN owns shared plans, with serial repo
   causal speed claim from code size, or universal parity claim. Do not treat missing log events as proof of absence.<span data-glossary-navigation="true"> ([JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit); [inlining glossary](../../../../glossary.md#term-inlining); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm); [compile glossary](../../../../glossary.md#compile); [log glossary](../../../../glossary.md#term-log))</span>
 - Give bounded actionable recommendations: one preferred proven code-shape opportunity if supported, with exact site,
   semantic constraints and why direct Java avoids it; otherwise state the precise missing evidence. Cost/speed remains unproved
-  unless existing evidence proves it. Recommendations grant neither implementation nor further measurement approval.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
+  unless existing evidence proves it. Recommendations grant neither implementation nor further measurement approval.
 - Independent reviewer checks actual sources/artifacts and evidence claims, resolves findings, writes the durable report,
   and records approval/limitations. MAIN alone accepts closure and synchronizes shared planning records.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 
@@ -124,7 +124,7 @@ that report, [CPU](../../../../glossary.md#term-cpu) master and roadmap changed;
 Current G/E have 952/660 instructions and 2147/1406 code bytes. In the admitted [F32](../../../../glossary.md#floating-point-precision-and-rounding) witness,
 represented arithmetic, length reads, [tensor](../../../../glossary.md#tensor)/work-bank accesses and body traversal counts match;
 four generated pack loads occur once per invocation, not inside the body loops.
-Proved code-[shape](../../../../glossary.md#shape) opportunity: two accesses add a [constant](../../../../glossary.md#term-constant)-zero scratch base, 44/244 additions
+Proved code-shape opportunity: two accesses add a [constant](../../../../glossary.md#term-constant)-zero scratch base, 44/244 additions
 at B7/B32. Inactive dW/dU paths advance cursors 340/1340 times; E skips those address expressions,
 but G saves active-path multiplications. Neither observation proves native cost or a speed gain.
 Existing [logs](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings): 34 [target](../../../../glossary.md#term-target) tasks, 28 successful [C2](../../../../glossary.md#term-c2) including six normal-entry versions; all normal

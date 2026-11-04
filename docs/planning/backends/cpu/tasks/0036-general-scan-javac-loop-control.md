@@ -1,4 +1,4 @@
-# Task CPU0036: General-[scan](../../../../glossary.md#term-cumulative-scan) javac loop control
+# Task CPU0036: General-scan javac loop control
 
 ## Reader context — historical integration boundary
 
@@ -24,7 +24,7 @@ independent clean code/documentation review completed serially, with main integr
 
 ## Goal
 
-Canonicalize generated shaped/[MATMUL](../../../../glossary.md#matrix-multiplication--matmul) general-[scan](../../../../glossary.md#term-cumulative-scan) time and coordinate loop control toward
+Canonicalize generated shaped/[MATMUL](../../../../glossary.md#matrix-multiplication--matmul) general-scan time and coordinate loop control toward
 `javac` top-tested `for` loops, without changing the mathematical algorithm or memory strategy.
 Compare production Class-Files and one bounded matched-work campaign; improvement is not assumed.
 
@@ -59,7 +59,7 @@ Read `AGENTS.md`, this brief, affected source/tests and these exact headings; pl
 - [Backend](../../../../glossary.md#backend) [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes).
 - Backend [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling).
 - Backend [Profile-free backend capability and identity](../../../../architecture/contracts/backend-execution.md#profile-free-backend-capability-and-identity)<span data-glossary-navigation="true"> ([backend capability glossary](../../../../glossary.md#backend-capability); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
-- [Scan](../../../../glossary.md#term-cumulative-scan) [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>.
+- Scan [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>.
 - Scan [Canonical residual ports and demand](../../../../architecture/contracts/recurrent-scan.md#canonical-residual-ports-and-demand)<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>.
 - Scan [Reverse scan and exact primal bindings](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal); [bindings glossary](../../../../glossary.md#term-binding))</span>.
 - Scan [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>.
@@ -72,7 +72,7 @@ Stop and report missing/ambiguous contracts or any required expansion; do not in
 - Depends on: CPU0035 Complete (accepted 2026-10-23), including completed CPU0034,
   CPU0033/low-level join, Model0034/0035, Planning0008, Compiler0011/0012 and Prepare0010 baseline.
 - Conflicts with: any scan emitter/IR/staged identity/resource owner or shared-document writer;
-  no conflicting executor active at preparation. Other CPU/Checkpoint/NN gates stay held.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [identity glossary](../../../../glossary.md#term-identity-meanings); [resource owner glossary](../../../../glossary.md#ownership-borrowing-and-lease); [CPU glossary](../../../../glossary.md#term-cpu); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
+  no conflicting executor active at preparation. Other CPU/Checkpoint/NN gates stay held.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [identity glossary](../../../../glossary.md#term-identity-meanings); [resource owner glossary](../../../../glossary.md#ownership-borrowing-and-lease); [CPU glossary](../../../../glossary.md#term-cpu); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - Parallel group: None; serial writers, no concurrent implementation/documentation mutation.
 - Common base revision: HEAD = origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
   plus all 270 accepted dirty paths; not merged predecessors. Archive:
@@ -103,7 +103,7 @@ Production Java below is in `modules/backend/cpu/src/main/java/io/github/pho001/
   — both existing identity streams and their accurate Javadocs, no global schema bump.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [schema glossary](../../../../glossary.md#term-schema))</span>
 - Matching [CPU](../../../../glossary.md#term-cpu) test tree: `CpuGeneralScanGeneratedKernelTest`, `CpuGeneralScanTimingTest`,
   `CpuKernelSpecializationTest`, `CpuGeneratedKernelArtifactStoreTest`; existing scan execution,
-  lowering/preparation tests as needed. New test resources only for real v3 artifacts/provenance.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [lowering glossary](../../../../glossary.md#lowering); [artifacts glossary](../../../../glossary.md#term-artifact); [provenance glossary](../../../../glossary.md#provenance))</span>
+  lowering/preparation tests as needed. New test resources only for real v3 artifacts/provenance.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [artifacts glossary](../../../../glossary.md#term-artifact); [provenance glossary](../../../../glossary.md#provenance))</span>
 - Read-only `CpuGeneralScanCleanJavaOracle.java`: keep exact matched
   `broadcastForwardFloat64B4H8` unchanged (215 [bytecode](../../../../glossary.md#term-bytecode) bytes/28 locals); generic [oracle](../../../../glossary.md#term-test-oracle) unchanged.
 - Main's existing `testing/backend-conformance/.../CpuGeneralScanConformanceTest.java` and
@@ -173,7 +173,7 @@ output checks/class/identity and separate cold-generation, definition/first-entr
 
 Independent clean code/docs and final evidence reviews reused successful executable evidence.
 Main-owned current facts are updated in `ARCHITECTURE.md`, [backend](../../../../glossary.md#backend)-execution contract,
-general-[differentiable](../../../../glossary.md#derivative-and-chain-rule)-[scan](../../../../glossary.md#term-cumulative-scan) explanation and [CPU](../../../../glossary.md#term-cpu) backend guide; affected Javadocs finalized.
+general-[differentiable](../../../../glossary.md#derivative-and-chain-rule)-scan explanation and [CPU](../../../../glossary.md#term-cpu) backend guide; affected Javadocs finalized.
 Reduction/[oracle](../../../../glossary.md#term-test-oracle) Javadocs remain accurate unchanged; no glossary term, policy, [ADR](../../../../glossary.md#term-architecture-decision-record-adr) or [dependency](../../../../glossary.md#term-dependency)
 change. [Planning](../../../../glossary.md#term-planning)/general profiles apply here. No unrelated changes, [commit](../../../../glossary.md#term-commit)/push or successor.
 

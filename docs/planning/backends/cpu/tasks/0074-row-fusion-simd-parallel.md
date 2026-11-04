@@ -34,13 +34,13 @@ One cohesive [CPU](../../../../glossary.md#term-cpu) capability; clean implement
 
 Extend CPU0073's selected row-map/multiple-terminal regions from [scalar](../../../../glossary.md#term-scalar) to [SIMD](../../../../glossary.md#simd) ([single
 instruction, multiple data](../../../../glossary.md#simd)), parallel-scalar and parallel-SIMD, reusing existing math [owners](../../../../glossary.md#term-owner).
-Keep the emitted [Scan](../../../../glossary.md#term-cumulative-scan) time loop, one [RunState](../../../../glossary.md#run-state--runstate) and separate per-active-time [carry](../../../../glossary.md#term-carry) ADDs.
+Keep the emitted Scan time loop, one [RunState](../../../../glossary.md#run-state--runstate) and separate per-active-time [carry](../../../../glossary.md#term-carry) ADDs.
 The [source-bound proposal](../row-fusion-simd-parallel-proposal.md) records seams, resources,
 numerical limits and the accepted authority map; it is not authority itself.
 
 ## [Scope](../../../../glossary.md#term-scope)
 
-The rows below bound eligible [fused](../../../../glossary.md#specialization-and-fusion) regions, not every [operation](../../../../glossary.md#operation) or whole [Scan](../../../../glossary.md#term-cumulative-scan). Each new
+The rows below bound eligible [fused](../../../../glossary.md#specialization-and-fusion) regions, not every [operation](../../../../glossary.md#operation) or whole Scan. Each new
 realization needs its own complete [binding](../../../../glossary.md#term-binding) and forward/actual-reverse [qualification](../../../../glossary.md#term-qualification).
 
 | Existing domain | Arithmetic | New realizations when proved |
@@ -53,7 +53,7 @@ realization needs its own complete [binding](../../../../glossary.md#term-bindin
 
 Retain CPU0073 scalar as baseline/fallback. Ordinary arrays/MemorySegments and Scan's checked
 MemorySegments retain existing eligibility; no new [carrier](../../../../glossary.md#term-storage-carrier)/[layout](../../../../glossary.md#layout)/[dtype](../../../../glossary.md#data-type--datatype). Vectorize bounded
-[feature](../../../../glossary.md#term-software-feature)/output cells inside one active row, with [masks](../../../../glossary.md#term-boolean-mask) for feature tails and ordered feature K.
+[feature](../../../../glossary.md#term-feature)/output cells inside one active row, with [masks](../../../../glossary.md#term-boolean-mask) for feature tails and ordered feature K.
 Primary actual F3/H2 saved-[primal](../../../../glossary.md#term-primal) [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn) reverse must select and execute each new region realization
 under explicit eligible configuration, including mixed lengths. Qualify a genuinely fused forward
 [fixture](../../../../glossary.md#term-fixture) separately (a forward-only SHARED-[carry](../../../../glossary.md#term-carry) body may qualify). Ordinary RNN forward
@@ -61,8 +61,8 @@ under explicit eligible configuration, including mixed lengths. Qualify a genuin
 
 ## Non-goals
 
-No general [pointwise](../../../../glossary.md#term-pointwise)-fuser repair, blanket all-[operation](../../../../glossary.md#operation) [Scan](../../../../glossary.md#term-cumulative-scan) vectorization, new public numerical
-mode/profile/certification, implicit [FMA](../../../../glossary.md#term-fused-multiply-add-fma)/[TF32](../../../../glossary.md#term-tf32)/lower [precision](../../../../glossary.md#term-precision), [feature](../../../../glossary.md#term-software-feature)-K or standalone [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)-K
+No general [pointwise](../../../../glossary.md#term-pointwise)-fuser repair, blanket all-[operation](../../../../glossary.md#operation) Scan vectorization, new public numerical
+mode/profile/certification, implicit [FMA](../../../../glossary.md#term-fused-multiply-add-fma)/[TF32](../../../../glossary.md#term-tf32)/lower [precision](../../../../glossary.md#term-precision), [feature](../../../../glossary.md#term-feature)-K or standalone [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)-K
 [reassociation](../../../../glossary.md#term-reassociation), exact ordinary SUM/[MEAN](../../../../glossary.md#term-mean) change, across-time [carry](../../../../glossary.md#term-carry) promotion, low types, wider
 [layouts](../../../../glossary.md#layout), [OpenBLAS](../../../../glossary.md#term-openblas)/native route, new executor/global Job/pool/cohort framework, interpreter,
 per-op [runtime](../../../../glossary.md#term-runtime) [lookup](../../../../glossary.md#term-lookup), per-B [cache](../../../../glossary.md#term-cache), T-fold code/[buffers](../../../../glossary.md#term-buffer), mandatory Job reuse or [commit](../../../../glossary.md#term-commit)/push.
@@ -76,7 +76,7 @@ selects eligible work cold; adding capability does not force workers on B7/B32.
 - [Backend](../../../../glossary.md#backend) [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>,
   [CPU0073 accepted row-map and multiple-terminal reduction fusion](../../../../architecture/contracts/backend-execution.md#cpu0073-accepted-row-map-and-multiple-terminal-reduction-fusion)<span data-glossary-navigation="true"> ([fusion glossary](../../../../glossary.md#term-fusion))</span>,
   [Accepted ordinary symbolic-batch CPU contract](../../../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>.
-- [Scan](../../../../glossary.md#term-cumulative-scan) [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>,
+- Scan [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>,
   [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates),
   [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic),
   [Qualification and mechanism gates](../../../../architecture/contracts/recurrent-scan.md#qualification-and-mechanism-gates),
@@ -100,7 +100,7 @@ Stop on ambiguity or additional types/seams; implementation stays within this ac
 - Depends on: CPU0073 Complete; retained CPU0070–0072, CPU0064/0065,
   Compiler0015/0016 and Prepare0015 Complete baselines; authority accepted by MAIN receipt below.
 - Conflicts with: held CPU0048–0052; common emission, Scan binding/resources/identity,
-  worker/budget ownership and shared authority/documents. Pointwise audit findings stay outside.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [binding glossary](../../../../glossary.md#term-binding); [identity glossary](../../../../glossary.md#term-identity-meanings); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [Pointwise glossary](../../../../glossary.md#term-pointwise))</span>
+  worker/budget ownership and shared authority/documents. Pointwise audit findings stay outside.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [identity glossary](../../../../glossary.md#term-identity-meanings); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [Pointwise glossary](../../../../glossary.md#term-pointwise))</span>
 - Parallel group: None; exclusive serial writer, independent audit read-only.
 - Common base revision: HEAD=origin/main `07a281edd3086efde2853211b71b48288db027e1`
   plus accepted dirty base, index empty; preserve the authentic CPU0073 2565-path inventory.
@@ -133,7 +133,7 @@ All production paths below are relative to `modules/backend/cpu/src/main/java/io
   behavior; exact signatures are in the CPU contract. Policy stays in the unit, not IR/Facts/spec.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument); [signatures glossary](../../../../glossary.md#term-signature); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
 - Existing `CpuVectorInstructionEmitter`, `CpuVectorMath`, `CpuLoopEmitter`, `CpuCarrierEmitter`,
   `CpuMatmulEmitter`, `CpuAggregateEmitter` — reuse, including checked masked F32/F64 byte access
-  through <span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>`CpuCarrierEmitter.vectorLoadBytes/vectorStoreBytes` for selected [Scan](../../../../glossary.md#term-cumulative-scan)/ordinary partial scratch.
+  through <span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>`CpuCarrierEmitter.vectorLoadBytes/vectorStoreBytes` for selected Scan/ordinary partial scratch.
 - `internal/executable/CpuPreparedExecutable.bindCompatible/bindOrdinaryBatch/Invocation`,
   `CpuGeneralScanPreparedExecutable.Invocation` plus nested `StepDispatch`, `CpuWorkerGroup.execute`,
   `CpuConcurrencyBudget.Lease` — cold [run](../../../../glossary.md#term-run) [binding](../../../../glossary.md#term-binding), borrowed reservation, join and ordered merge.
@@ -207,7 +207,7 @@ Evidence root: `/private/tmp/synaptik-cpu0074-run.brjyRN` (relative [artifact](.
 
 - Final post-fix [CPU](../../../../glossary.md#term-cpu): 1438 tests, 0 failures/errors, 55 skips, 6m8s; [Javadoc](../../../../glossary.md#term-javadoc) PASS, 94 historical warnings (`main-final-cpu-javadoc.log`). Historical module2 is superseded.
 - [Engine](../../../../glossary.md#term-engine) 27 PASS/[conformance](../../../../glossary.md#term-conformance) 17 PASS: `main-integration-receipts.txt` and its named [logs](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings). Focused 99/0 failures/errors/1 opt-in skip: `impl.VJzWki/short-ordinary-frozen/`.
-- Retention: 356 authentic [scalar](../../../../glossary.md#term-scalar) controls; all 32 final ClassFiles match reviewed [capture](../../../../glossary.md#term-capture-meanings), all 8 [Scan](../../../../glossary.md#term-cumulative-scan) B pairs identical; all 512 source/resources match the accepted comment freeze.
+- Retention: 356 authentic [scalar](../../../../glossary.md#term-scalar) controls; all 32 final ClassFiles match reviewed [capture](../../../../glossary.md#term-capture-meanings), all 8 Scan B pairs identical; all 512 source/resources match the accepted comment freeze.
 - MAIN preservation: original 2565 paths present, current 2574; 34 existing changes + 9 new = 43 scoped paths, zero unexpected/missing. [Scope](../../../../glossary.md#term-scope): 17 CPU production + 7 CPU tests + 3 resources + 2 conformance + 14 docs; new files: 3 docs, 3 tests, 3 resources. HEAD=origin/main `07a281e`, index empty.
 - Sole performance root: `/private/tmp/synaptik-cpu0074-measure.zow14d`; `REPORT.txt`/`REPORT.json`, `samples.csv`, `JIT-SUMMARY.txt`, `JIT-NMETHODS.json`, `INTERPRETATION.txt`. Exit 0: 256 windows (64 warm/192 measured), 32 pairs; no censor/failure/retry/extra [fork](../../../../glossary.md#term-fork-meanings).
 - Raw generated/Java [median](../../../../glossary.md#term-median) ratios 1.016–296.438 are [nonstationary](../../../../glossary.md#term-nonstationary): no steady-state parity, universal speedup or stable strategy [ranking](../../../../glossary.md#term-ranking); profitability remains unqualified.

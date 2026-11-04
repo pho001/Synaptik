@@ -1,4 +1,4 @@
-# Task CPU0029: Recurrent [scan](../../../../glossary.md#term-cumulative-scan) [scalar](../../../../glossary.md#term-scalar) type and [layout](../../../../glossary.md#layout) coverage
+# Task CPU0029: Recurrent [scan](../../../../glossary.md#term-fixed-recurrent-scan) [scalar](../../../../glossary.md#term-scalar) type and [layout](../../../../glossary.md#layout) coverage
 
 ## Reader context — historical integration boundary
 
@@ -43,7 +43,7 @@ Complete direct-Java [scalar](../../../../glossary.md#term-scalar) fixed [runtim
 ## Non-goals
 
 No [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt)/backward/tape, static [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) migration, NN/Data workflow [widening](../../../../glossary.md#term-widening), [Metal](../../../../glossary.md#term-metal)/[CUDA](../../../../glossary.md#term-cuda), [vector](../../../../glossary.md#term-vector)/parallel/
-native [scan](../../../../glossary.md#term-cumulative-scan), active-row packing, tuning/default changes, public or primitive APIs, [Engine](../../../../glossary.md#term-engine)
+native [scan](../../../../glossary.md#term-fixed-recurrent-scan), active-row packing, tuning/default changes, public or primitive APIs, [Engine](../../../../glossary.md#term-engine)
 orchestration, [dependency](../../../../glossary.md#term-dependency)/format changes, generated scan, generic loop/region infrastructure,
 new execution protocol or speculative abstraction. No architecture/authority edits.
 
@@ -54,7 +54,7 @@ Read these exact authoritative headings, not completed task histories:
 
 - Root [Core invariants](../../../../../ARCHITECTURE.md#core-invariants), [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>,
   [Explicit non-goals](../../../../../ARCHITECTURE.md#explicit-non-goals), [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
-- Recurrent [scan](../../../../glossary.md#term-cumulative-scan) [Fixed recurrent scan without graph regions](../../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>
+- Recurrent [scan](../../../../glossary.md#term-fixed-recurrent-scan) [Fixed recurrent scan without graph regions](../../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>
   and all five subheadings: [Fixed family and current Model surface](../../../../architecture/contracts/recurrent-scan.md#fixed-family-and-current-model-surface)<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model))</span>,
   [Static Shape and runtime-value boundary](../../../../architecture/contracts/recurrent-scan.md#static-shape-and-runtime-value-boundary)<span data-glossary-navigation="true"> ([Shape glossary](../../../../glossary.md#shape))</span>,
   [Valid lengths, traversal, and outputs](../../../../architecture/contracts/recurrent-scan.md#valid-lengths-traversal-and-outputs),
@@ -80,7 +80,7 @@ Stop on missing/conflicting/ambiguous authority; do not invent numerical rules. 
 
 ## Dependencies and integration
 
-- Depends on: CPU0028 and CPU0022, Complete ([scan](../../../../glossary.md#term-cumulative-scan) baseline and existing low working-site policy).
+- Depends on: CPU0028 and CPU0022, Complete ([scan](../../../../glossary.md#term-fixed-recurrent-scan) baseline and existing low working-site policy).
 - Conflicts with: scan admission/lowering/kernel/binding/resources, numerical policy, current
   ledger and shared explanatory/planning edits; serialize these scopes.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission); [lowering glossary](../../../../glossary.md#lowering); [kernel glossary](../../../../glossary.md#kernel); [binding glossary](../../../../glossary.md#term-binding))</span>
 - Parallel group: None; sole serial [CPU](../../../../glossary.md#term-cpu) workstream, no concurrent writer authorized.
@@ -112,7 +112,7 @@ Preserve user-owned `THIRD_PARTY_NOTICES.md` and
   No common execution protocol or per-element dtype dispatch.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [element glossary](../../../../glossary.md#term-element); [dtype glossary](../../../../glossary.md#data-type--datatype); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - Read `RecurrentScanKind`, `LayoutDescriptor`/`LayoutGeometry`, `BFloat16Bits`/`Float16Bits`,
   `CpuMatmulReferenceKernel`, `CpuScalarReferenceKernel.lowActivation`/scan sigmoid.
-  Reuse conversions/math, not boxed execution, emitters or a matmul protocol.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [sigmoid glossary](../../../../glossary.md#term-sigmoid))</span>
+  Reuse conversions/math, not boxed execution, emitters or a matmul protocol.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-fixed-recurrent-scan); [sigmoid glossary](../../../../glossary.md#term-sigmoid))</span>
 - Extend `CpuRecurrentScanLoweringTest`/`CpuRecurrentScanExecutionTest`; add test-only
   `internal/route/portable/CpuRecurrentScanCleanJavaOracle.java` and
   `internal/route/portable/CpuRecurrentScanScalarTimingTest.java`.
@@ -135,7 +135,7 @@ Preserve user-owned `THIRD_PARTY_NOTICES.md` and
 3. Binding reads no runtime lengths. Execution rechecks access and validates all logically strided
    lengths after producers, before padding/state copies/any scan write. Last-row -1/T+1/
    Long.MAX_VALUE leaves every sibling unchanged, then repaired invocation/preparation is reusable.
-   Earlier producers need not roll back. Poisoned gaps must not be mistaken for length values.<span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [padding glossary](../../../../glossary.md#padding); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+   Earlier producers need not roll back. Poisoned gaps must not be mistaken for length values.<span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [padding glossary](../../../../glossary.md#padding); [scan glossary](../../../../glossary.md#term-fixed-recurrent-scan))</span>
 4. Preserve original-time placement, reverse valid-prefix order, exact +0 padding and empty T/B.
    Gather zero-length/zero-time initial states raw (NaN payload, -0, subnormal) into final states.
    Padded NaN/Inf never enters dots/gates/updates. Each role gets offset/strided/zero-stride tests
@@ -195,7 +195,7 @@ JAVA_HOME=/Users/phujka/Library/Java/JavaVirtualMachines/openjdk-26.0.1/Contents
 ## Documentation and review impact
 
 Update affected [CPU](../../../../glossary.md#term-cpu) Javadocs, CPU guide's `Fixed recurrent forward execution`, boundary explanation's
-`Fixed recurrent scan handoff`, fixed-[scan](../../../../glossary.md#term-cumulative-scan) glossary/current execution claims and
+`Fixed recurrent scan handoff`, fixed-[scan](../../../../glossary.md#term-fixed-recurrent-scan) glossary/current execution claims and
 `docs/api/tensor-api.md#fixed-recurrent-scan-expressions`. Review running-models/[graph](../../../../glossary.md#graph)-[checkpoint](../../../../glossary.md#term-checkpoint) CPU
 claims; no [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/[API](../../../../glossary.md#term-application-programming-interface-api)/[persistence](../../../../glossary.md#term-persistence)/training [widening](../../../../glossary.md#term-widening). Apply general + [backend](../../../../glossary.md#backend)/API profiles and targeted
 glossary search. Independent Class C review checks final
@@ -217,7 +217,7 @@ review: **APPROVE**, zero P1/P2 findings; 499 link checks complete. Main's root 
 - Reviewed tests: `CpuRecurrentScanExecutionTest`, `CpuRecurrentScanLoweringTest`, `CpuInternalPackageInventoryTest`,
   `CpuRecurrentScanCleanJavaOracle`, `CpuRecurrentScanScalarTimingTest`, `CpuRecurrentScanConformanceTest`,
   `LowPrecisionCapabilityLedgerTest`, `EngineCpuRecurrentScanIntegrationTest`; current v2 changes only the
-  three CPU scan low answers (117 true per low type); historical v1, Metal and unrelated dirty files unchanged.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [Metal glossary](../../../../glossary.md#term-metal))</span>
+  three CPU scan low answers (117 true per low type); historical v1, Metal and unrelated dirty files unchanged.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-fixed-recurrent-scan); [Metal glossary](../../../../glossary.md#term-metal))</span>
 - Reused successful executor commands below with [JDK](../../../../glossary.md#term-java-development-kit-jdk) 26.0.1 and escalated [cache](../../../../glossary.md#term-cache) access; no reviewer reruns:
 
 ```bash

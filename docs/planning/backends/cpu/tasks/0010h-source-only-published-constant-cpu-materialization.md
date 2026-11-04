@@ -146,7 +146,7 @@ The new [CPU](../../../../glossary.md#term-cpu) composition entry must preserve 
 4. construct the existing positional preparation, retaining its current CPU boundary-analysis
    validation order;
 5. scan final graph values in encounter order and correlate exact constant-source, graph-input,
-   graph-output/publication, node-use, and logical-requirement facts;<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [graph glossary](../../../../glossary.md#graph); [constant glossary](../../../../glossary.md#term-constant); [publication glossary](../../../../glossary.md#term-publication); [node glossary](../../../../glossary.md#node))</span>
+   graph-output/publication, node-use, and logical-requirement facts;<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [constant glossary](../../../../glossary.md#term-constant); [publication glossary](../../../../glossary.md#term-publication); [node glossary](../../../../glossary.md#node))</span>
 6. for each required value, reject a dynamic [Shape](../../../../glossary.md#shape), unresolved [layout](../../../../glossary.md#layout), or layout unequal to
    `LayoutDescriptor.contiguous(shape)`, in that order;
 7. reject scalar/descriptor type disagreement, then derive checked byte size and element-width
@@ -361,7 +361,7 @@ validation after executable Java stabilizes:
 ./gradlew :backends:cpu:test :modules:engine:test
 ```
 
-Focused tests must cover supported public [shape](../../../../glossary.md#shape); direct integration preparation; exact source-only
+Focused tests must cover supported public shape; direct integration preparation; exact source-only
 eligibility and [graph](../../../../glossary.md#graph)-value order; exact reference [handoff](../../../../glossary.md#term-handoff); sole-[partition](../../../../glossary.md#partition) rejection; [canonical](../../../../glossary.md#term-canonical-form),
 dynamic, unresolved, non-canonical, [scalar](../../../../glossary.md#term-scalar), zero-[element](../../../../glossary.md#term-element), and [overflow](../../../../glossary.md#term-overflow) geometry; all six data
 types; prepared recipe shape; initial validity; sequential and concurrent per-[run](../../../../glossary.md#term-run) representation
@@ -423,7 +423,7 @@ All prerequisites are complete and the task is actionable.
 ## Documentation-focused clean-context pass
 
 After executable Java and focused tests stabilize, hand the exact diff, baseline dirty status,
-test evidence, source-only eligibility/geometry decisions, public-[shape](../../../../glossary.md#shape) result, and [lifecycle](../../../../glossary.md#lifecycle)
+test evidence, source-only eligibility/geometry decisions, public-shape result, and [lifecycle](../../../../glossary.md#lifecycle)
 [ownership](../../../../glossary.md#term-ownership-meanings) analysis to a distinct clean documentation-focused context. It must read the General,
 [API](../../../../glossary.md#term-application-programming-interface-api)/[Javadoc](../../../../glossary.md#term-javadoc), and [Planning](../../../../glossary.md#term-planning) profiles and finalize affected Javadocs, `docs/api/public-api.md`, the
 [CPU](../../../../glossary.md#term-cpu) [backend](../../../../glossary.md#backend) guide, and planning evidence.
