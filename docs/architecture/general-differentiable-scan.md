@@ -26,6 +26,30 @@ body's declared inputs to an [occurrence](../glossary.md#term-occurrence)'s actu
 derivative, a saved file and an executable [backend route](../glossary.md#backend-route) are separate admissions, not four names
 for the same support claim.
 
+### Follow the template, actual values and execution separately
+
+The application (or an NN recurrent component) constructs storage-free formal Tensors,
+builds one `ScanBody` from them, then calls `Scan.apply` with actual initial carries, sequences
+and invariants. These calls describe a loop; neither reads the actual values or executes a
+Java callback at every time step. A formal is a leaf because it has no producing expression,
+not because it owns a buffer. Undeclared outer leaves must be explicit invariants, so the body
+cannot silently capture the application's weight storage.
+
+Compiler receives the outer expression through Engine and captures the body's independent
+scope, constructing selected reverse expressions first when requested. Shared Prepare calls
+backend analysis with that body description and demanded saved-value roles. CPU finalization
+emits reusable loop code; Runtime later supplies one run's representations. Actual input
+storage remains borrowed through result closure; writable carries, staging and demanded
+histories belong to that run, not the reusable body. The
+[copy/borrow table](../explanation/ownership.md#which-call-borrows-or-copies) and
+[CPU's current Scan composition](../backend-guide/cpu-backend.md#current-general-scan-composition)
+connect the source abstraction to physical execution.
+
+The task-numbered passages below preserve their individual source/qualification checkpoints.
+In particular, a historical bounded CPU body inventory is not today's complete provider domain,
+and a cold file-format admission is not an execution guarantee.
+
+
 ```text
 Model: source body + original canonical result/residual wrappers
   -> Compiler: first-order reverse Tensor body, then one combined scoped capture
@@ -208,6 +232,7 @@ import java.util.Optional;
 
 public final class ScanSourceShapes {
     private static Tensor leaf(Shape shape) {
+        // A storage-free placeholder has no producer; it can serve a formal or an outer input.
         return TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
                 shape.isFullyStatic() ? Optional.of(LayoutDescriptor.contiguous(shape))
                         : Optional.empty(), false));
@@ -217,10 +242,13 @@ public final class ScanSourceShapes {
         for (Dimension batch : List.of(new StaticDimension(32), new DynamicDimension("Rows"))) {
             Shape row = Shape.ofDimensions(batch, new StaticDimension(16));
             Tensor h = leaf(row), step = leaf(row);
+            // Keep body-local inputs distinct from the outer actual input placeholders below.
             ScanBody body = new ScanBody(List.of(h), List.of(step), List.of(),
                     List.of(h.add(step).tanh()), List.of(h));
             Shape sequence = Shape.ofDimensions(new StaticDimension(10), batch, new StaticDimension(16));
+            // Scan.apply describes repetition; no numerical step executes in this program.
             ScanResult result = Scan.apply(List.of(leaf(row)), List.of(leaf(sequence)), List.of(), body, false);
+            // Inspect metadata only: symbolic Rows intentionally has no numeric layout yet.
             System.out.println(result.outputs().getFirst().descriptor().shape());
             System.out.println(result.outputs().getFirst().descriptor().layout().isPresent());
         }
@@ -372,6 +400,14 @@ The declared [weight](../glossary.md#term-weight) formal closes the body; using 
 Multiplication produces a step temporary and addition updates [carry](../glossary.md#term-carry). The same nextCarry value
 also fills the emission role. Forward traversal gives:
 
+For the mathematical reading, use zero-based time $t\in\{0,1\}$, initial scalar state
+$h_0=0$, sequence values $x_0=1,x_1=2$, and invariant scalar weight $w=2$.
+Let $p_t=x_tw$, $h_{t+1}=h_t+p_t$ and emission $e_t=h_{t+1}$.
+Then $h_1=2$, $h_2=6$, and $(e_0,e_1)=(2,6)$. The values are dimensionless and finite.
+This real-number recurrence explains the table; the executed FLOAT32 body retains separate
+multiplication/addition rounding sites. It grants no new empty, padded or non-finite domain.
+
+
 | Original time | Previous h | xStep | p | Next h / emission |
 |---|---|---|---|---|
 | 0 | 0 | 1 | 2 | 2 |
@@ -384,10 +420,14 @@ step/[invariant](../glossary.md#term-invariant) inputs suffice; latent h/p/nextC
 
 ### Joint [seeds](../glossary.md#commit-release-distribution-log-and-seed-meanings), reverse body and result
 
-Conceptually select `L = finalCarry + sum(emissions) = 14`: final-[carry](../glossary.md#term-carry) [seed](../glossary.md#term-seed) is `1`, per-step
-emission seeds are `[1,1]`. [Compiler](../glossary.md#term-compiler) combines these roles once for this [scan](../glossary.md#term-cumulative-scan), before the single
-combined [capture](../glossary.md#term-capture-meanings). The reverse sibling traverses original indices `1,0` with [cotangent](../glossary.md#cotangent) carry `g=1`
-and [weight](../glossary.md#term-weight)-sum carry `s=0`, using registered outer initializers through carry formals:
+Treat final carry as output role $f=h_2$ and emissions as separate output roles $e_0,e_1$.
+Select $L(f,e)=f+\sum_{t=0}^{1}e_t=6+2+6=14$.
+At this output boundary, $\partial L/\partial f=1$ and each $\partial L/\partial e_t=1$.
+These are separate seeds even though $e_1$ and $f$ have the same numerical state.
+Compiler combines them before one capture. The reverse sibling visits original time indices
+$1,0$, starting with carry sensitivity $g=1$ and weight-contribution accumulator $s=0$.
+In the pseudocode below `localG` adds the current emission's seed to the sensitivity from
+later steps; `nextS` accumulates weight contributions in that reverse traversal order.
 
 ```text
 localG = g + emissionSeedStep
@@ -397,8 +437,10 @@ nextS = s + localG * xStep
 emit dXStep at the original time index
 ```
 
-At time 1, localG is `2`, dX is `4`, nextG is `2` and nextS is `4`. At time 0, localG is `3`,
-dX is `6`, nextG is `3` and nextS is `7`. Thus dInitialCarry=`3`, dSequence=`[6,4]` and dWeight=`7`.
+At $t=1$, the combined sensitivity is $2$, giving $dX_1=2w=4$ and weight contribution
+$2x_1=4$. At $t=0$, it is $3$, giving $dX_0=3w=6$ and contribution $3x_0=3$.
+Thus $\partial L/\partial h_0=3$, $\partial L/\partial x=(6,4)$ in original time order,
+and $\partial L/\partial w=4+3=7$.
 The result demonstrates original-index emissions, joint seeds and ordered [parameter](../glossary.md#term-parameter) accumulation,
 not [backend](../glossary.md#backend) execution or a proof for all floating inputs. Compiler tests independently compare
 three-step reverse-scan [derivatives](../glossary.md#term-derivative) with [gradients](../glossary.md#term-gradient) of ordinary [unrolled](../glossary.md#backpropagation-through-time-and-recurrent-state) [Tensor](../glossary.md#tensor) expressions in
@@ -408,11 +450,15 @@ term afterward; [identity](../glossary.md#term-identity-meanings) sharing must n
 
 ### [Nonlinear](../glossary.md#term-nonlinear) variation: exact saved output
 
-Replace nextCarry with `y = tanh(h + xStep*wStep)`. Existing [derivative](../glossary.md#term-derivative) algebra uses
-`g * (one - y*y)`. Every [primal](../glossary.md#term-primal) operand in the formula must bind from its exact original [Tensor](../glossary.md#tensor)
-to a reverse formal; y therefore demands its [canonical](../glossary.md#term-canonical-form) [residual](../glossary.md#scan-residual-port-and-history-demand) history, rather than recomputing
-[tanh](../glossary.md#term-tanh). Previous [carry](../glossary.md#term-carry) is available through its own residual when a formula needs it, saved before
-the step. [Constants](../glossary.md#term-constant) such as TANH/[SIGMOID](../glossary.md#term-sigmoid) oneLike close through explicit non-[gradient](../glossary.md#term-gradient) [invariant](../glossary.md#term-invariant)
+For a nonlinear variation let $z=h+x_{\mathrm{step}}w_{\mathrm{step}}$ and $y=\tanh z$.
+For finite real $z$, the chain rule gives incoming sensitivity $g$ times
+$dy/dz=1-y^2$, namely $g(1-y^2)$. In actual derivative Tensor algebra, `one - y*y`
+retains its declared typed multiplication/subtraction sites; it is not an exact real identity
+that authorizes recomputing a differently rounded $y$.
+Every primal operand must bind from its exact original Tensor to a reverse formal.
+The saved $y$ therefore demands its canonical residual history rather than replaying TANH.
+Previous carry is available through its own residual, saved before the step when a formula needs it.
+Constants such as TANH/SIGMOID `oneLike` close through explicit non-gradient invariant
 formals bound to [Compiler](../glossary.md#term-compiler)-created outer registered splats; expand remains ordinary algebra.
 Zero [seeds](../glossary.md#commit-release-distribution-log-and-seed-meanings)/[accumulator](../glossary.md#accumulator-type) initializers use registered outer splats/expressions, not free body [leaves](../glossary.md#term-leaf).
 Reverse residuals themselves remain history-free unless separately demanded. This variation

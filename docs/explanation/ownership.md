@@ -29,6 +29,28 @@ flowchart TD
     COPY --> DETACHED[Detached HostTensorValue: independent of these owners]
 ```
 
+## Which call borrows or copies?
+
+The participant making a call is its **caller**; the component receiving it is its **callee**.
+Ownership means responsibility for keeping a resource usable and eventually releasing it, not
+merely having a Java reference. Follow these boundaries rather than assuming every Tensor call
+copies values:
+
+| Caller → callee | What crosses the call | Copy or borrow, and until when? |
+|---|---|---|
+| Application → `TensorFactory` flat import | Descriptor and flat primitive values | Import copies the values into independent heap storage; the original array is not the Tensor's live storage. |
+| Application → owned `Model` builder | Supplied parameter Tensors | The builder copies supplied parameter state into private Model state before expression construction; training changes that copy. |
+| Application → `Engine.compile` → Compiler | Requested output expressions | Compiler reads expression structure and descriptors; compilation does not acquire the input Arena or execute the expressions. |
+| Application, or NN's execution component → `Engine.run` / `runValues` | Current stored input values | Execution borrows storage; its owner keeps it live and quiescent until the resulting `RunResult` closes. |
+| Result consumer → `RunResult.materialize` | One live publication and a byte ceiling | Materialization copies canonical host bytes; the returned `HostTensorValue` is independent of the run. |
+
+A **leaf** is a Tensor without a producing expression, not a synonym for allocated data.
+A storage-free input prototype is also a leaf. A derived Tensor has a producer even before it
+has any computed values. This distinction explains why compilation can inspect a program
+without reading input bytes. See [the execution stage handoffs](packages/execution.md#who-supplies-the-expressions-and-what-is-a-leaf)
+and [the Tensor storage boundary](packages/model.md#tensor-host-storage).
+
+
 ## What each [owner](../glossary.md#term-owner) protects
 
 | Value or owner | What it owns or retains | Your obligation |

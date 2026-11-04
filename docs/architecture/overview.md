@@ -2,7 +2,9 @@
 
 This document explains the architecture defined by the authoritative [`ARCHITECTURE.md`](../../ARCHITECTURE.md). It summarizes the system without replacing the contract.
 
-The overview describes the intended complete system. Only the initial [model](../glossary.md#term-model) value foundations are implemented; consult the [roadmap](../planning/roadmap.md) before treating a named [module](../glossary.md#term-module) or type as available.
+The layer descriptions cover implemented and planned responsibilities, not a uniform support
+promise. The [current support domains](../backend-guide/production-support.md#status-and-interpretation)
+separate CPU/Metal execution evidence from planned CUDA work and from cold persistence support.
 
 ## High-level architecture
 
@@ -37,6 +39,20 @@ Each stage answers a different kind of question:
 3. **Run** executes only the already-[prepared schedule](../glossary.md#prepared-schedule--preparedschedule). It handles inputs and [mutable](../glossary.md#term-mutable) state without repeating [graph optimization](../glossary.md#forward-graph-optimization), backend discovery, [lowering](../glossary.md#lowering), or [kernel](../glossary.md#kernel) selection.
 
 This separation keeps compile-time reasoning independent of physical [buffers](../glossary.md#term-buffer), keeps concrete implementation selection inside backends, and keeps the [runtime](../glossary.md#term-runtime) [hot path](../glossary.md#term-hot-path) free of [`Operation`](../glossary.md#operation) and `CompiledNode`.
+
+### Who calls each stage?
+
+An application calls `Model.compute`, or uses `Engine.compile`, `prepare` and `run` explicitly.
+In the Model path, NN makes those Engine calls internally. Engine delegates expression capture
+to Compiler, passes immutable compile recipes to shared Prepare, and invokes Runtime with the
+prepared schedule and this call's stored inputs. Prepare calls each selected backend's analysis
+and finalization; Runtime later invokes the resulting executable, not the semantic graph.
+
+Compilation reads descriptions rather than taking ownership of input memory. Prepared owners
+retain reusable executable resources; each `RunResult` protects one run's resources and borrowed
+inputs. Explicit materialization creates independent host values. The
+[call-by-call ownership table](../explanation/ownership.md#which-call-borrows-or-copies) explains
+why these are three different lifetimes, not three copies of the same Tensor.
 
 ## [Lifecycle](../glossary.md#lifecycle) summary
 

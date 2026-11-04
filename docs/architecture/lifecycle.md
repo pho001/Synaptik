@@ -18,6 +18,22 @@ repeated during execution. **[Admission](../glossary.md#term-admission)** is per
 input checks. A **[preflight](../glossary.md#term-preflight)** checks the facts available before a later [side effect](../glossary.md#term-side-effect); **[fail-closed](../glossary.md#term-fail-closed)**
 means an unsupported or unproved case rejects rather than guessing a route or silently changing it.
 
+### Participants at the public boundary
+
+The application calls `Model.compute` or the explicit Engine APIs. In the Model workflow, NN's
+execution component is the caller of Engine; Engine in turn calls Compiler, shared Prepare and
+Runtime. Compiler receives output expressions and descriptors, Prepare receives immutable
+recipes, and Runtime receives a prepared schedule plus this invocation's concrete inputs.
+These are handoffs of different information, not repeated execution of the same stage.
+
+Input storage is not transferred by compilation. During execution its owner keeps it live and
+quiescent until `RunResult.close()`. Model's convenience detaches outputs and closes that result
+internally; explicit Engine users do so themselves. Supplied builder parameters are copied into
+private Model state before any of these runs. The
+[ownership table](../explanation/ownership.md#which-call-borrows-or-copies) separates these cases,
+including storage-free leaves and heap Tensors that require no deterministic close.
+
+
 ## State across the [lifecycle](../glossary.md#lifecycle)
 
 Synaptik deliberately separates three kinds of state:

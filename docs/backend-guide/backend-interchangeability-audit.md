@@ -6,6 +6,21 @@ Reader navigation: [backend capability](../glossary.md#backend-capability),
 [numerical semantics](../glossary.md#profile-free-numerical-semantics), and
 [general Scan](../glossary.md#general-differentiable-scan).
 
+> **Čtenářský kontext přidaný při redakční revizi:** původní audit a jeho důkazy níže
+> zůstávají historickým záznamem. Aplikace volá Engine (případně jej volá NN za aplikaci);
+> Compiler se přes Planning ptá provideru na popisy operandů a výsledků, nikoli na jejich
+> aktuální čísla. Prepare potom ověřuje realizaci celého oddílu grafu a běh pracuje se skutečnými
+> buffery. Kladná odpověď provideru tedy sama nezaručuje přípravu ani správný numerický výsledek.
+> Vlastník vstupní paměti ji udržuje živou do uzavření výsledku; explicitní materializace
+> vytváří nezávislou hostitelskou kopii. Výraz „leaf“ označuje Tensor bez produkujícího výrazu,
+> nikoli nutně alokovaná data. Podrobný výklad hranic volání a kopií je v
+> [tabulce vlastnictví](../explanation/ownership.md#which-call-borrows-or-copies);
+> rozdíl metadat, přípravy a běhu vysvětluje
+> [capability provider](capability-provider.md#who-asks-the-question).
+> Aktuální opravy čtěte v [oddílu 15](#15-navazující-opravy-a-aktuální-hranice)
+> spolu s [rozsahem produkčních důkazů](production-support.md#status-and-interpretation),
+> ne jako zpětnou změnu výsledků původního auditu.
+
 ## 1. Závěr a platnost
 
 **[CPU](../glossary.md#term-cpu) a [Metal](../glossary.md#term-metal) nejsou plně zaměnitelné ani pro [FLOAT32](../glossary.md#term-float32).** Shoda názvů operací a úspěšné katalogové reprezentanty neznamenají shodu všech [tvarů](../glossary.md#shape), layoutů, hodnotových domén, gradientových uzávěrů a připravených programů.

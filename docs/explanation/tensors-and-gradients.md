@@ -25,9 +25,13 @@ Changing its [batch](../glossary.md#term-batch-machine-learning-and-hyperparamet
 
 ## [Layout](../glossary.md#layout) says which stored [element](../glossary.md#term-element) an index references
 
-A **layout** maps logical [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix) to element offsets. For a [canonical](../glossary.md#term-canonical-form) [contiguous](../glossary.md#term-contiguous) `[2,3]`
-[FLOAT32](../glossary.md#term-float32) [matrix](../glossary.md#term-matrix-meanings), row [stride](../glossary.md#term-stride) is three elements and column stride is one. Element `[1,2]` is at
-`1*3 + 2*1 = 5`, hence byte offset `5*4 = 20`. An offset is not a [Tensor](../glossary.md#tensor) [identity](../glossary.md#term-identity-meanings).
+A **layout** maps logical coordinates to element offsets. For a canonical contiguous
+$2\times3$ FLOAT32 matrix, let $r\in\{0,1\}$ be the row and $c\in\{0,1,2\}$ the column.
+With zero starting offset and strides of three and one **elements**, respectively,
+the element position is $p(r,c)=3r+c$. Each FLOAT32 element occupies four bytes, so the
+byte offset is $b(r,c)=4p(r,c)$. At $(r,c)=(1,2)$, $p=5$ and $b=20$ bytes.
+This checked integer address calculation is not floating-point arithmetic, and an offset is
+not a Tensor identity.
 
 A [transpose](../glossary.md#term-transpose) can describe different index geometry without changing the meaning of the underlying
 values. Whether execution needs a physical copy is a separate preparation/[backend](../glossary.md#backend) question.
@@ -70,11 +74,20 @@ different rule: adding a broadcast axis does not repair an invalid [matrix](../g
 
 ## The first training step
 
-For inputs `X=[1,3]`, [targets](../glossary.md#term-target) `T=[2,6]` and [scalar](../glossary.md#term-scalar) [weight](../glossary.md#term-weight) `w=0`, each [prediction](../glossary.md#term-prediction) is `y_i=x_i*w`.
-The [objective](../glossary.md#term-objective) is the **sum**, not mean, of squared errors. The table follows one forward and
-reverse pass, before the [optimizer](../glossary.md#term-optimizer) mutates the weight.
+Let $x_i$ be input, $t_i$ target, and $y_i=x_iw$ prediction for sample $i\in\{1,2\}$.
+The scalar weight is $w$, with $x=(1,3)$, $t=(2,6)$ and initially $w=0$.
+For finite real values, the **sum**, not mean, of squared errors and its derivative are
 
-| [Sample](../glossary.md#term-sample-machine-learning-and-hyperparameters) | Input x | Target t | Prediction y | Error y−t | Squared error | Contribution 2x(y−t) to dL/dw |
+$$
+L(w)=\sum_{i=1}^{2}(x_iw-t_i)^2,\qquad
+\frac{dL}{dw}=\sum_{i=1}^{2}2(x_iw-t_i)x_i.
+$$
+
+Each derivative contribution multiplies the error's sensitivity $2(y_i-t_i)$ by the
+prediction's sensitivity $dy_i/dw=x_i$. The table follows this chain rule before the optimizer
+mutates the weight; the data and predictions are dimensionless teaching values.
+
+| Sample $i$ | Input $x_i$ | Target $t_i$ | Prediction $y_i$ | Error $y_i-t_i$ | Squared error | Contribution $2x_i(y_i-t_i)$ to $dL/dw$ |
 |---|---:|---:|---:|---:|---:|---:|
 | First | 1 | 2 | 0 | -2 | 4 | -4 |
 | Second | 3 | 6 | 0 | -6 | 36 | -36 |
@@ -93,11 +106,13 @@ flowchart TD
     PRED --> WEIGHT[Weight sensitivity: multiply by each input, then sum]
 ```
 
-[SGD](../glossary.md#term-stochastic-gradient-descent-sgd) applies `new_weight = old_weight - learning_rate * gradient`. The project's `Sgd(0.05)` gives
-`0 - 0.05*(-40) = 2`, so a fresh forward pass produces `[2,6]` and zero squared error on this [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters).
-These deliberately chosen numbers teach one update. They do not show that this [learning rate](../glossary.md#term-learning-rate)
-converges for arbitrary data, that lower [precision](../glossary.md#term-precision) has the same result, or that fitting one batch
-generalizes to unseen data.
+SGD subtracts the gradient scaled by learning rate $\eta>0$:
+$w_{\mathrm{new}}=w-\eta\,dL/dw$. With the project's `Sgd(0.05)`,
+$w_{\mathrm{new}}=0-0.05(-40)=2$. A fresh forward pass therefore predicts $(2,6)$ and has
+zero squared error on this batch. The formulas above are real-number reasoning; execution uses
+typed FLOAT32 rounding at the declared sites, not arbitrary algebraic reassociation.
+The chosen case does not establish convergence for arbitrary data, equivalent lower-precision
+behavior, or handling of NaN/infinity. Fitting one batch does not establish generalization.
 
 With a [mean](../glossary.md#term-mean)-squared objective the initial loss and gradient would both be divided by two. Reusing
 the same learning rate would give a different update. If you change the reduction, reason about

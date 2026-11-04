@@ -4,6 +4,18 @@
 
 This guide explains where a concrete implementation route is selected. No [backend](../glossary.md#backend) or [prepare](../glossary.md#prepare) implementation exists yet.
 
+### Reading the planned description against the implementation
+
+The “no implementation” sentence above records this guide's original planning checkpoint;
+it is not the current repository status. The
+[CPU route pipeline](../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) and
+[Metal preparation stages](../explanation/packages/metal.md#2-lower-once-declare-resources-then-compile)
+explain implemented callers and resources. Shared Prepare calls the chosen backend's analysis
+with immutable partition descriptions; backend finalization returns executable recipes after
+slot assignment. Runtime calls those recipes with each run's bound storage, not with a request
+to choose a new route. CUDA remains planned.
+
+
 [Planning](../glossary.md#term-planning) chooses [backend ownership](../glossary.md#backend-ownership). During prepare, the owning backend chooses a [kernel](../glossary.md#kernel) or executable route:
 
 ```text
@@ -45,7 +57,14 @@ it does not use a generic [parameter](../glossary.md#term-parameter) map or inte
 selects the appropriate generator. Reuse is keyed by a [canonical workload signature](../glossary.md#canonical-workload-signature) containing
 the exact semantic, data, layout, policy, and [target](../glossary.md#term-target)-compatibility facts.
 
-For a [matrix multiplication](../glossary.md#matrix-multiplication--matmul) `[64, 128] × [128, 32]`, the output has `64 × 32 = 2,048` values and performs `64 × 128 × 32 = 262,144` multiply contributions. Such size facts may help [CPU](../glossary.md#term-cpu) prepare compare routes. No threshold or performance promise is currently defined.
+For a matrix product $A\in\mathbb R^{m\times k}$ and $B\in\mathbb R^{k\times n}$,
+$m,n,k$ are non-negative integer row, output-column and contracted-feature counts. There are
+$mn$ output cells and $mnk$ multiply contributions. With $(m,k,n)=(64,128,32)$, those counts
+are $2048$ cells and $262144$ contributions. This counts mathematical work, not bytes,
+instructions or elapsed time; it does not authorize reassociating rounded products/sums.
+If $m$ or $n$ is zero there are no output cells; if $k=0$ each output has no multiply
+contributors. Actual route admission and empty identities remain family-specific.
+These counts may inform cold CPU comparisons but establish no threshold or speed promise.
 
 ## Failure and diagnostics
 

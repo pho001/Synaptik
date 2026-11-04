@@ -31,6 +31,27 @@ smallest-sufficient v1–v6 bytes remain unchanged. FP8 [NN](../glossary.md#neur
 model.v2/SYNMOD02, definition SYNDEF02 and whole-model.v2 formats. These source formats
 do not persist a compiled plan, [optimizer](../glossary.md#term-optimizer) continuation or new [runtime](../glossary.md#term-runtime) execution policy.
 
+### Choose a reading path before a route
+
+For a whole-framework call, Engine sends immutable Compiler output to shared Prepare.
+Prepare calls CPU analysis with a partition-local description, assigns the declared storage
+slots, then calls CPU finalization. Runtime later calls the resulting executable with fresh
+run representations. CPU receives actual arrays/segments at binding, not during semantic
+capability reporting. The [CPU package pipeline](../explanation/packages/cpu.md#read-the-pipeline-before-the-packages)
+shows why these stages cannot be collapsed into a per-element interpreter.
+
+Read generated code and fixed recurrence as **different routes**. Generated units turn selected
+typed IR into verified class bytes and a hidden-class entry point. The retained direct Java
+RNN/GRU/LSTM route executes existing Java loops without that generation or artifact lookup.
+Both can later be JIT-compiled by the JVM. Neither a class-cache hit nor a native library proves
+which route a particular invocation used.
+
+This long guide retains task-era foundations and evidence under their existing headings.
+Those receipts describe their recorded implementation, not a new qualification of current
+source. Use [production support](production-support.md#status-and-interpretation) for evidence
+scope, then the relevant family section for geometry and value guards.
+
+
 ## Ordinary named-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) [CPU](../glossary.md#term-cpu) execution
 
 Here **[homogeneous](../glossary.md#term-homogeneous)** means that the numerical [graph](../glossary.md#graph) uses one common floating type. A named
@@ -334,8 +355,13 @@ The physical [slice](../glossary.md#slice) base and logical layout offset are in
 with offset 3 and stride 2 read elements 3 and 5: their storage span is 6, not their logical count 2.
 Poisoned gaps are never lengths. An empty layout has span zero and never accesses its unused offset.
 
-Analysis declares every sibling output and `2 * gates * H * workingBytes` bytes of row projection scratch
-before slot assignment, independent of `T` or length values. Empty time/[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) needs no scratch.
+For positive time and batch sizes, analysis declares every sibling output and
+$S=2gHq$ bytes of row-projection scratch before slot assignment. Here $g$ is the cell's
+gate count, $H>0$ its hidden width, and $q$ the working bytes per value.
+For an LSTM with $g=4$, $H=3$ and FLOAT32 work ($q=4$ bytes), $S=96$ bytes:
+two projection rows are retained, not one scratch allocation per time step.
+The checked integer byte count is independent of sequence length $T$ and runtime valid-length
+values. Empty time or batch needs no scratch.
 Working width and [alignment](../glossary.md#term-alignment) are 8 bytes for FLOAT64 and 4 otherwise. FLOAT64 uses double arithmetic
 without [denormal](../glossary.md#subnormal-daz-ftz-overflow-and-underflow) flushing; FLOAT32 retains its rounded primitive sites. Each low type decodes
 exactly and works/accumulates in FLOAT32, without [narrowing](../glossary.md#term-narrowing) projections, contributors or gates.
@@ -541,9 +567,11 @@ public final class OneDnnExample {
     public static void main(String[] args) {
         Tensor left = ones(16, 64);
         Tensor right = ones(64, 32);
+        // The arrays remain live while the result borrows its input Tensors.
         try (Engine engine = configured(Path.of(args[0]));
                 var prepared = engine.prepare(engine.compile(List.of(left.matmul(right))));
                 RunResult result = engine.run(prepared, List.of(left, right))) {
+            // Detach while the publication is live; try-with-resources closes result first.
             var value = result.materialize(result.publications().get(0), 16L * 32 * Float.BYTES);
             System.out.println(value.bytes().getFloat()); // 64.0
         }
@@ -551,6 +579,7 @@ public final class OneDnnExample {
 
     private static Engine configured(Path library) {
         try (Engine.Builder builder = Engine.builder()) {
+            // Ownership transfer makes Engine responsible for the opened integration.
             return builder.takeOwnership(
                     CpuBackendIntegration.openOneDnn(library, OneDnnApi.AUTO)).build();
         }
@@ -564,6 +593,7 @@ public final class OneDnnExample {
                 new TensorDescriptor(DataType.FLOAT32, shape,
                         Optional.of(LayoutDescriptor.contiguous(shape)), false),
                 Optional.empty(),
+                // This wrapper borrows data directly; unlike flat import it does not copy it.
                 Optional.of(new MemorySegmentStorage(
                         DataType.FLOAT32, data.length, MemorySegment.ofArray(data))));
     }
@@ -1456,17 +1486,23 @@ or fuse through an established specialized [occurrence](../glossary.md#term-occu
 shows that enumeration is incomplete, selection ignores the partial [ranking](../glossary.md#term-ranking) and returns canonical
 split.
 
-Every legal complete topology receives checked integer facts. For one candidate, the score is:
+Every legal complete topology receives checked integer facts. Let $U$ be its total unit count,
+$Q$ its indivisible non-pointwise unit count, $\mathcal B$ its cross-unit buffers and
+$\mathcal P$ its pointwise units. For buffer $b$, $B_b\ge0$ is its referenced byte count.
+For unit $p$, $C_p$, $I_p$ and $L_p$ are non-negative generated-code complexity units,
+indexing-complexity units and simultaneously live value counts. The dimensionless score is
 
-```text
-64 * final unit count
-+ sum over cross-unit buffers (16 + min(4096, ceil(referenced bytes / 4096)))
-+ sum over pointwise units (
-     generated-code units
-   + indexing-complexity units
-   + 8 * max(0, simultaneously-live values - 8))
-+ 32 * indivisible non-pointwise unit count
-```
+$$
+S=64U+\sum_{b\in\mathcal B}\left(16+\min\left(4096,\left\lceil\frac{B_b}{4096}\right\rceil\right)\right)
++\sum_{p\in\mathcal P}\left(C_p+I_p+8\max(0,L_p-8)\right)+32Q.
+$$
+
+The divisor $4096$ is in bytes per block; rounding upward counts touched size blocks, not
+milliseconds. For two pointwise units, one 4096-byte cross-unit buffer,
+$\sum_{p\in\mathcal P}(C_p+I_p)=10$,
+no unit above eight live values, and $Q=0$, the score is $128+17+10=155$ points.
+Empty sums contribute zero; checked overflow makes a score unavailable rather than wrapping.
+This example explains the weighting, not a claim that those facts identify a selectable plan.
 
 The score is a structural [heuristic](../glossary.md#term-heuristic), not measured time. A [fused](../glossary.md#specialization-and-fusion) alternative is comparable only
 when its largest pointwise unit has at most 48 generated-code units and 12 simultaneously live
@@ -2113,12 +2149,12 @@ occurrence map is `[0, 0]`.
 The semantic effect is copy-base-then-replace selected positions, although the generated body
 realizes that effect in one output-domain pass: each result [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) selects either the
 corresponding base value or the unique mapped update value and writes once. Both inputs remain
-unchanged. `SliceAttrs` supplies distinct normalized [axes](../glossary.md#term-axis) and [finite](../glossary.md#term-finite) coordinate sequences:
-
-```text
-baseCoordinate = start + updateCoordinate * step
-0 <= updateCoordinate < length
-```
+unchanged. `SliceAttrs` supplies distinct normalized axes and finite integer coordinate
+sequences. On one selected axis, let $s$ be the start coordinate, $d$ the signed step and
+$\ell\ge0$ the update length. Update index $u\in\{0,\ldots,\ell-1\}$ maps to base coordinate
+$b(u)=s+ud$. For $s=4,d=-2,\ell=2$, update positions $0,1$ map to base positions $4,2$.
+An empty update length has no such coordinate; checked integer bounds, not floating rounding,
+determine whether the complete sequence is admitted.
 
 Positive, negative, and non-unit steps are supported. A length-one sequence may legally retain
 `Long.MIN_VALUE` because no second coordinate or absolute step is needed. Unselected axes use
@@ -2184,11 +2220,15 @@ The generated class embeds the selected scatter family, represented type, reduct
 accesses, target mapping, and output store. For `NONE`, `ADD`, `MIN`, `MAX`, and integral `MUL`,
 each invocation first copies the base values in its owned [half-open](../glossary.md#term-half-open-interval) output range, then traverses
 the complete logical update-scalar domain once in row-major order. It derives each target's logical
-output ordinal and applies the update only when that ordinal belongs to the range. A range of
-length `R` with `U` update scalars therefore performs `O(R + U)` generated work; `W` disjoint
-worker ranges perform `O(outputCount + W * U)` total work. Each worker still writes only its own
-output coordinates, so duplicate reductions retain canonical update order without atomics, locks,
-cross-range partials, or a merge step.
+output ordinal and applies the update only when that ordinal belongs to the range.
+Let $R$ be a range's output-cell count, $U$ the logical update-scalar count, $W$ the number of
+disjoint worker ranges and $O$ the total output-cell count. After validation, these modes do
+$\mathcal O(R+U)$ generated work per range and $\mathcal O(O+WU)$ across workers:
+each worker copies its cells and scans all updates. For $O=8,U=3,W=2$, the main traversals
+visit eight base cells and six update candidates, not merely eight plus three.
+These integer work counts are not timings and exclude the separate validation passes;
+empty domains retain their validation rules. Each worker writes only its own coordinates,
+so duplicate reductions keep canonical update order without atomics, locks or a merge step.
 
 Cold-proved dense [rank-one](../glossary.md#axis-rank-scalar-vector-and-matrix) [heap](../glossary.md#term-heap)-array forms narrow universal bounds and bases once and retain
 integer loop and address state. Segment, mixed-carrier, arbitrary-layout, large-range, and
@@ -2298,11 +2338,13 @@ the former per-add narrowing defect under the existing
 it adds neither capability nor a new [denormal](../glossary.md#subnormal-daz-ftz-overflow-and-underflow) policy. Compact-source selection still excludes
 both low formats, so their expanded input [buffers](../glossary.md#term-buffer) remain real storage boundaries.
 
-For example, one BFLOAT16 output receiving stored contributions `1`, `2^-8`, `2^-8` has FP32
-partial sums `1`, `1 + 2^-8`, `1 + 2^-7`. The single final result is BFLOAT16 bits `0x3f81`.
-Narrowing after each add would instead lose both increments and produce `0x3f80`. For FLOAT16,
-the analogous contributors `1`, `2^-11`, `2^-11` produce `0x3c01`, not `0x3c00`. These witnesses
-distinguish the repaired arithmetic; they do not change contributor membership or geometry.
+For one BFLOAT16 output, take finite stored contributions $1,2^{-8},2^{-8}$.
+The FLOAT32 partial sums are $1$, $1+2^{-8}$ and $1+2^{-7}$; one final narrowing produces
+BFLOAT16 bits `0x3f81`. Narrowing after each add would lose both half-ULP increments under
+ties-to-even and produce `0x3f80` instead. For FLOAT16, contributions $1,2^{-11},2^{-11}$
+analogously produce `0x3c01`, not `0x3c00`. These exact binary fractions demonstrate the
+rounding boundary; they are not a real-number reassociation licence or a non-finite-domain rule.
+Contributor membership and geometry are unchanged.
 
 The repair retains the shared ordinary geometry-generic traversal. In general `FOLD2D`, that
 fallback scans logical input occurrences and repeats channel/kernel-coordinate decoding inside
@@ -2799,13 +2841,24 @@ a general speed or profitability guarantee.
 This [CPU](../glossary.md#term-cpu)-only physical [lowering](../glossary.md#lowering) removes private [buffers](../glossary.md#term-buffer) from two exact ordinary-[operation](../glossary.md#operation)
 [graphs](../glossary.md#graph) constructed by [Compiler](../glossary.md#term-compiler) [automatic differentiation](../glossary.md#autograd). It does not add a public operation,
 construct [gradients](../glossary.md#term-gradient) in CPU, or change the [forward softmax family](#current-stable-softmax-family).
-Here `g` is the incoming [cotangent](../glossary.md#cotangent) (the gradient supplied by the downstream calculation), and
-`y` or `logY` is the exact stored forward output:
+For one nonempty feature slice with $n>0$ positions $i,j\in\{1,\ldots,n\}$, let $L$ be
+the scalar downstream objective. Let $g_i=\partial L/\partial y_i$ be the incoming cotangent,
+$y_i$ a stored softmax output,
+and $\ell_i$ a stored log-softmax output (using $g_i=\partial L/\partial\ell_i$ for that case).
+If $x_i$ is the corresponding forward input, the real-number derivative forms are
 
-```text
-softmax:      y * (g - SUM(g * y, axis, keepDimensions=true))
-log-softmax:  g - EXP(logY) * SUM(g, axis, keepDimensions=true)
-```
+$$
+\text{softmax:}\quad \frac{\partial L}{\partial x_i}
+=y_i\left(g_i-\sum_{j=1}^{n}g_jy_j\right),
+\qquad
+\text{log-softmax:}\quad \frac{\partial L}{\partial x_i}
+=g_i-\exp(\ell_i)\sum_{j=1}^{n}g_j.
+$$
+
+The display teaches the dependence on every position in the slice; execution retains the
+specific rounded MUL, SUM, SUB and EXP sites described below, not an unrounded dot product.
+NaN/infinity follow those primitive rules, rather than a claim that the real derivative exists
+there. Empty domains retain ordinary operation semantics, not this nonempty derivation.
 
 Preparation recognizes exact operand/use edges, not [node](../glossary.md#node) adjacency, names or mathematical
 equivalence. The following conditions must all hold; the table describes this [specialization](../glossary.md#term-specialization),
@@ -2842,12 +2895,12 @@ Backward operands follow ordinary primitive rules, including NaNs and [infinitie
 inherit forward softmax's [finite](../glossary.md#term-finite)-input validator. The forward [producer](../glossary.md#term-producer) still validates before
 any of its consumers write.
 
-For a concrete FLOAT32 [rank-one](../glossary.md#axis-rank-scalar-vector-and-matrix) example, stored `y = [0.25, 0.75]` and `g = [2, -1]` produce
-rounded products `[0.5, -0.75]` and exact SUM `-0.25`. The second pass subtracts that rounded SUM
-to obtain `[2.25, -0.75]`, then multiplies by `y` to publish `[0.5625, -0.5625]`. These dyadic
-values are exactly representable. The result is the gradient with respect to the softmax input;
-it is not a new [normalization](../glossary.md#term-normalization) of `g`. Publishing the product intermediate would prevent its
-removal even though this numerical result stays the same.
+For a FLOAT32 rank-one worked case, stored $y=(0.25,0.75)$ and $g=(2,-1)$ give products
+$(0.5,-0.75)$ and sum $-0.25$. Subtracting this sum gives $(2.25,-0.75)$;
+multiplication by $y$ publishes $(0.5625,-0.5625)$. These dyadic values are exactly representable,
+so the arithmetic also illustrates the declared rounded sequence without hidden real-number
+residuals. The result is sensitivity to the softmax input, not a new normalization of $g$.
+Publishing the product intermediate would prevent its removal despite the same final numbers.
 
 `CpuSoftmaxBackwardIr` retains the fixed formula, normalized physical [bindings](../glossary.md#term-binding) and existing
 aggregate state facts. `CpuSoftmaxBackwardEmitter` composes existing scalar, [carrier](../glossary.md#term-storage-carrier) and exact-SUM
@@ -3727,12 +3780,15 @@ successful post-execution [validation](../glossary.md#term-validation) for the o
 
 #### Geometry example
 
-An input `[1, 4, 5, 5]`, [weight](../glossary.md#term-weight) `[6, 2, 3, 3]`, [bias](../glossary.md#term-bias) `[6]`, two groups, [stride](../glossary.md#term-stride) 2, [padding](../glossary.md#padding) 1,
-and [dilation](../glossary.md#term-dilation) 1 is valid. The effective [kernel](../glossary.md#kernel) is `1 * (3 - 1) + 1 = 3`, so each output [spatial](../glossary.md#term-spatial-axes)
-[extent](../glossary.md#term-extent) is `floor((5 + 2 * 1 - 3) / 2) + 1 = 3`. The result [Shape](../glossary.md#shape) is `[1, 6, 3, 3]`; each output
-[channel](../glossary.md#term-channel) reads exactly the two input channels belonging to its group. Changing groups to four
-would be invalid for this weight/output-channel geometry because six output channels are not
-divisible by four.
+For input `[1,4,5,5]`, weight `[6,2,3,3]`, bias `[6]` and two groups, the input has four
+channels and the output six; each output channel reads the two input channels in its group.
+For either spatial axis, let $I=5$ count input cells, $K=3$ kernel positions, $D=1$ dilation,
+$P=1$ padding cells per side and $S=2$ stride. The effective kernel span is
+$E=D(K-1)+1=3$ cells, and the floor-counted output extent is
+$O=\lfloor(I+2P-E)/S\rfloor+1=\lfloor(5+2-3)/2\rfloor+1=3$.
+The result shape is `[1,6,3,3]`. These are checked integer geometry calculations, not
+floating convolution arithmetic. Four groups would be invalid here because six output channels
+are not divisible by four; the formula alone does not prove group admission.
 
 [Schema](../glossary.md#term-schema) 51 adds the direct [Conv2d](../glossary.md#convolution--conv2d) [identity](../glossary.md#term-identity-meanings): ordered promoted types, intrinsic-bias presence,
 stride, padding, dilation, groups, direct algorithm version, legal [epilogue](../glossary.md#term-epilogue), access plans, [carrier](../glossary.md#term-storage-carrier)
@@ -3781,12 +3837,13 @@ any output/input overlap fails closed.
 
 #### [Conv3d](../glossary.md#conv3d--ncdhw) geometry example
 
-For input `[1, 4, 5, 5, 5]`, [weight](../glossary.md#term-weight) `[6, 2, 3, 3, 3]`, [bias](../glossary.md#term-bias) `[6]`, two groups, [stride](../glossary.md#term-stride)
-`[2, 2, 2]`, [padding](../glossary.md#padding) `[1, 1, 1]`, and [dilation](../glossary.md#term-dilation) `[1, 1, 1]`, each effective [kernel](../glossary.md#kernel) [extent](../glossary.md#term-extent) is
-`1 * (3 - 1) + 1 = 3`. Each output [spatial](../glossary.md#term-spatial-axes) extent is
-`floor((5 + 2 * 1 - 3) / 2) + 1 = 3`, so the result [Shape](../glossary.md#shape) is `[1, 6, 3, 3, 3]`. Each output
-[channel](../glossary.md#term-channel) reads the two input channels in its group. This example demonstrates geometry and group
-isolation; it does not claim [vector](../glossary.md#term-vector)/native execution or cross-[backend](../glossary.md#backend) bitwise [identity](../glossary.md#term-identity-meanings).
+For input `[1,4,5,5,5]`, weight `[6,2,3,3,3]`, bias `[6]` and two groups, use stride
+`[2,2,2]`, padding `[1,1,1]` and dilation `[1,1,1]`. Apply the
+[preceding integer geometry formula](#geometry-example) independently to depth, height and width:
+each has effective kernel span $E=1(3-1)+1=3$ and output extent
+$O=\lfloor(5+2-3)/2\rfloor+1=3$. The result is `[1,6,3,3,3]`.
+Each output channel reads its group's two input channels. This teaches geometry and group
+isolation, not vector/native selection or a cross-backend floating bitwise guarantee.
 
 [Schema](../glossary.md#term-schema) 52 adds direct grouped [NCDHW](../glossary.md#conv3d--ncdhw) Conv3d identity: ordered boundary/result types, intrinsic-bias
 presence, [rank](../glossary.md#term-rank)-five stride/padding/dilation/groups, algorithm version, access plans, [carrier](../glossary.md#term-storage-carrier)
@@ -4159,14 +4216,20 @@ arbitrary checked non-negative [strides](../glossary.md#term-stride), including 
 be [injective](../glossary.md#term-injective). Each boundary independently accepts its exact primitive [heap](../glossary.md#term-heap)-array [carrier](../glossary.md#term-storage-carrier) or a
 native-order [`MemorySegment`](../glossary.md#term-memorysegment), including mixed input/output carrier forms.
 
-For either [spatial axis](../glossary.md#spatial-axes-channels-and-window-sampling), the route computes the effective [kernel](../glossary.md#kernel) and output [extent](../glossary.md#term-extent) literally:
+For either spatial axis, let $I\ge0$ be the input extent, $K>0$ the kernel-position count,
+$D>0$ dilation, $P\ge0$ symmetric padding and $S>0$ stride, all integers measured in cells
+or cell steps. On admitted geometry, effective span $E$, numerator $N$ and output extent $O$ are
 
-```text
-effectiveKernel = dilation * (kernel - 1) + 1
-numerator       = input + 2 * padding - effectiveKernel
-output          = floor(numerator / stride) + 1
-output          = ceil(numerator / stride) + 1  // when ceil mode is true
-```
+$$
+E=D(K-1)+1,\qquad N=I+2P-E,\qquad
+O=\begin{cases}
+\lfloor N/S\rfloor+1,&\text{floor mode},\\
+\lceil N/S\rceil+1,&\text{ceil mode}.
+\end{cases}
+$$
+
+The rounding symbols count window positions; they are not floating-point rounding sites.
+The formula does not bypass checked size/domain admission or clamp an invalid extent.
 
 All arithmetic and address spans are checked. Ceil mode retains the literal symmetric padded
 grid; CPU does not discard a terminal window merely because its start lies in trailing [padding](../glossary.md#padding).
@@ -4730,6 +4793,7 @@ the exact name `openblas` to a compatible 32-bit-`blasint` build.
 import io.github.pho001.synaptik.backend.provider.openblas.OpenBlasLibrary;
 
 try (OpenBlasLibrary library = OpenBlasLibrary.open("openblas")) {
+    // Loading binds symbols only; it neither runs GEMM nor qualifies a CPU route.
     if (!library.isOpen()) {
         throw new IllegalStateException("unexpected closed OpenBLAS handle");
     }
@@ -4765,12 +4829,13 @@ Each successful open returns a fresh Java owner backed by a shared [Foreign Func
 lookup lifetime. It does not promise physical unloading, because the JDK, operating system, or
 another owner may retain the same process library. A later native call must not [race](../glossary.md#term-race) closure.
 
-The handle exposes no native address or Foreign Function and Memory (FFM) handle. It now exposes
-`sgemm` and `dgemm` for one already-normalized product:
-
-```text
-C[m,n] = alpha * (A[m,k] x B[k,n]) + beta * C[m,n]
-```
+The handle exposes no native address or Foreign Function and Memory handle. Its `sgemm` and
+`dgemm` calls request the mathematical update $C_{\mathrm{new}}=\alpha AB+\beta C_{\mathrm{old}}$.
+Here $A$ is $m\times k$, $B$ is $k\times n$, $C$ is $m\times n$, $m,n,k$ are non-negative
+integer dimensions, and $\alpha,\beta$ are typed scalar coefficients.
+For $A=(1,2)$, $B=(3,4)^\mathsf{T}$, $m=n=1$, $k=2$, $\alpha=1$ and $\beta=0$,
+the real-number result is $11$. This interpretation is not an accuracy/ordering guarantee
+for an arbitrary installed binary; the exact call and empty-domain rules remain below.
 
 `A`, `B`, and `C` begin at byte offset zero in caller-owned native segments. They use dense
 [row-major](../glossary.md#term-row-major), non-transposed geometry; `A` and `B` may be read-only, while `C` must be writable and
@@ -4812,6 +4877,7 @@ try (OpenBlasLibrary library = OpenBlasLibrary.open("openblas")) {
         library.setThreadCount(1);
         // Perform coordinated OpenBLAS work while the requested count is installed.
     } finally {
+        // Restore while this handle is still live; close alone does not restore thread state.
         library.setThreadCount(original);
     }
 }
@@ -4841,6 +4907,7 @@ try (Arena matrices = Arena.ofConfined();
     MemorySegment b = matrices.allocate(4L * 3L * Float.BYTES, Float.BYTES);
     MemorySegment c = matrices.allocate(2L * 3L * Float.BYTES, Float.BYTES);
 
+    // The provider borrows these segments for the call and leaves Arena cleanup to us.
     library.sgemm(2, 3, 4, 1.0f, a, b, 0.0f, c);
 }
 ```
@@ -6018,16 +6085,20 @@ class GeneralScanExample {
                 Optional.of(LayoutDescriptor.contiguous(s)), false);
     }
     public static void main(String[] args) {
+        // These producer-free formals describe one step; they intentionally have no storage.
         Tensor h = TensorFactory.create(descriptor(1));
         Tensor previous = TensorFactory.create(descriptor(1));
         Tensor step = TensorFactory.create(descriptor(1));
+        // Both next carries read the old h, before either carry is replaced.
         ScanBody body = new ScanBody(List.of(h, previous), List.of(step), List.of(),
                 List.of(h.add(step), h), List.of());
         Tensor initial = TensorFactory.fromFlatArray(descriptor(1), Optional.empty(), new float[] {1});
         Tensor old = TensorFactory.fromFlatArray(descriptor(1), Optional.empty(), new float[] {100});
         Tensor sequence = TensorFactory.fromFlatArray(descriptor(3, 1), Optional.empty(), new float[] {2,4,8});
         ScanResult scan = Scan.apply(List.of(initial, old), List.of(sequence), List.of(), body, false);
+        // Bind the template to actual values; this constructs an expression, not a time loop here.
         try (Engine engine = Engine.standard()) {
+            // Engine owns the temporary execution; compute returns detached host snapshots.
             var values = engine.compute(scan.finalCarry());
             System.out.println(values.get(0).bytes().getFloat()); // 15.0
             System.out.println(values.get(1).bytes().getFloat()); // 7.0

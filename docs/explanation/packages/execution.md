@@ -34,7 +34,7 @@ information or owned resources that survive it.
 flowchart TD
     accTitle: Information retained across execution stages
     accDescr: Expressions become compile recipes, then analyzed and assigned prepared resources, one run state, live publications and finally independent host values.
-    EXPR["Tensor expressions and caller-owned leaves"] --> COMP["Compiler with Planning: graph, owners and logical recipes"]
+    EXPR["Application or NN builds expressions from input and state Tensors"] --> COMP["Compiler with Planning: graph, owners and logical recipes"]
     COMP --> ANALYZE["Prepare: backend analysis"]
     ANALYZE --> ASSIGN["Shared slot assignment"]
     ASSIGN --> FINAL["Backend finalization: executable, schedule and creation recipes"]
@@ -43,6 +43,30 @@ flowchart TD
     RUN --> RESULT["Completed publications in a closeable RunResult"]
     RESULT --> HOST["Explicit materialization: independent HostTensorValue"]
 ```
+
+### Who supplies the expressions, and what is a leaf?
+
+For a direct Engine call, the application constructs an expression such as `left.matmul(right)`
+and passes its output Tensor to `Engine.compile(...)`. Engine calls Compiler with those roots.
+For `Model.compute(...)`, NN's internal execution component makes the Engine calls on the
+application's behalf, using the Model's retained output expressions. Thus “caller” names the
+component making a particular call, not invariably the application.
+
+A **leaf Tensor** has no producing expression: Compiler cannot follow a producer back to further
+operands. It may be an input prototype that describes future values without storing any, or a
+stored weight supplied at the graph boundary. A derived matrix-product Tensor instead records
+its producer and operands; constructing it does not multiply the stored numbers. See
+[Tensor provenance and storage](model.md#tensor-provenance-and-storage) and the
+[caller/callee distinction](../../glossary.md#caller-callee-and-the-call-boundary).
+
+Compilation consumes these descriptions; it does not take responsibility for releasing their
+input storage. Later `Engine.run` or `Engine.runValues` borrows current input storage, which must
+stay alive and free from conflicting mutation until the returned `RunResult` closes. This is
+not a blanket copy-on-call rule. By contrast, NN's owned Model builder **copies supplied
+parameters into private Model state** before building its expressions. Ordinary heap Tensors
+do not need `close()`; a caller-created native Arena does. The
+[ownership walkthrough](../ownership.md#which-call-borrows-or-copies) names these distinct
+boundaries and their release duties.
 
 | Term | What it means here | What it is not |
 |---|---|---|
@@ -74,17 +98,23 @@ program, prerequisites and commands belong to the [examples](../../examples/READ
 Use the [canonical](../../glossary.md#term-canonical-form) `LearningJourney` [Model](../../glossary.md#term-model): [FLOAT32](../../glossary.md#term-float32) input `X` of [shape](../../glossary.md#shape) `[2,1]` with values `[1,3]`,
 a supplied [gradient](../../glossary.md#term-gradient)-eligible [weight](../../glossary.md#term-weight) `W` of shape `[1,1]` initially `0`, no [bias](../../glossary.md#term-bias), and [target](../../glossary.md#term-target) `[2,6]`.
 Model copies the supplied weight into its owned [parameter](../../glossary.md#term-parameter) state. The [prediction](../../glossary.md#term-prediction) is
-`X @ transpose(W)`; the [objective](../../glossary.md#term-objective) is the **SUM** of squared errors, not their [mean](../../glossary.md#term-mean).
+$Y=XW^\mathsf{T}$; the objective is the **sum** of squared errors, not their mean.
+Here $X$ and $Y$ are two-row, one-column matrices, $W=[w]$ is a one-by-one weight matrix,
+and $x_i,t_i,y_i$ denote input, target and prediction for sample $i\in\{1,2\}$.
+For finite real values the objective and its weight derivative are
 
-```text
-prediction at W=0:             [0,0]
-errors:                        [-2,-6]
-objective:                     4 + 36 = 40
-weight gradient:               2 * ((-2)*1 + (-6)*3) = -40
-Sgd(0.05) update:               W = 0 - 0.05*(-40) = 2
-prediction after the update:   [2,6]
-fresh same-shape input [2,4]:   [4,8]
-```
+$$
+L(w)=\sum_{i=1}^{2}(x_iw-t_i)^2,\qquad
+\frac{dL}{dw}=2\sum_{i=1}^{2}x_i(x_iw-t_i).
+$$
+
+With $x=(1,3)$, $t=(2,6)$ and $w=0$, predictions are $(0,0)$, errors are $(-2,-6)$,
+$L=4+36=40$, and $dL/dw=2((-2)\cdot1+(-6)\cdot3)=-40$.
+SGD with learning rate $\eta=0.05$ applies $w_{\mathrm{new}}=w-\eta\,dL/dw=2$.
+That new weight predicts $(2,6)$; fresh input $(2,4)$ predicts $(4,8)$.
+These are a real-number derivation of the teaching case, not permission to reorder FLOAT32
+operations. The actual implementation retains its typed rounding sites; non-finite inputs and
+other geometries do not inherit a guarantee from this example.
 
 [Compiler](../../glossary.md#term-compiler) constructs the gradient expression; [backend](../../glossary.md#backend) code executes it; Training applies the [SGD](../../glossary.md#term-stochastic-gradient-descent-sgd)
 update. [Runtime](../../glossary.md#term-runtime) neither differentiates nor owns the [optimizer](../../glossary.md#term-optimizer). Reusing `[2,4]` changes values,
@@ -235,10 +265,13 @@ it is not a retained [Tensor](../../glossary.md#tensor) [batch](../../glossary.m
 
 The objective selects the first encountered minimum-[median](../../glossary.md#term-median) candidate. Budget records validate
 positive candidate limits, non-negative warmups and positive odd timed [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters) counts. Complete-plan
-bounds are independent of local-workload bounds; later [admission](../../glossary.md#term-admission) checks the actual candidate count
-`N` against `N * (1 + W + S)` executions, including correctness, warmups and timed samples, plus
-an aggregate correctness-byte ceiling. Null components, invalid counts and an empty model-plan
-cache path reject construction.
+bounds are independent of local-workload bounds. Let $N$ be the actual positive candidate count,
+$W$ the non-negative warmup count per candidate, and $S$ the positive odd timed-sample count.
+Later admission accounts for
+$E=N(1+W+S)$ executions: one correctness execution, $W$ warmups and $S$ timed samples per candidate.
+For $N=2$, $W=1$, $S=3$, $E=10$ calls are required, before considering the separate aggregate
+correctness-byte ceiling. These are integer counts, not elapsed-time estimates.
+Null components, invalid counts and an empty model-plan cache path reject construction.
 
 **Relations and state.** [Engine](../../glossary.md#term-engine) joins this declarative policy with model identity and live
 representative inputs, then composes the tuning tool and selected [backend](../../glossary.md#backend)'s opaque handoffs.

@@ -5,9 +5,12 @@
 
 ## One computation, several different responsibilities
 
-The learning [model](../glossary.md#term-model) predicts `Y = X × transpose(W)`. `X` has [shape](../glossary.md#shape) `[2,1]`: two independent [samples](../glossary.md#term-sample-machine-learning-and-hyperparameters),
-one [feature](../glossary.md#term-feature) each. `W` is `[1,1]`, initially zero. There is no [bias](../glossary.md#term-bias). The [targets](../glossary.md#term-target) `[2,6]` correspond
-to inputs `[1,3]`, so the intended relationship is `y = 2x`.
+The learning model predicts $Y=XW^\mathsf{T}$. Here $X$ is a $2\times1$ matrix:
+two independent samples, one feature each. The $1\times1$ weight matrix $W$ initially contains
+zero; there is no bias. Input values $(1,3)$ have targets $(2,6)$, so the intended
+dimensionless teaching relationship is $y=2x$. The
+[gradient walkthrough](tensors-and-gradients.md#the-first-training-step) defines the indexed loss
+and distinguishes real-number reasoning from actual FLOAT32 evaluation.
 
 A **[Tensor](../glossary.md#tensor)** describes typed values and, for a derived result, how to compute them. The [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context)
 **Model** owns the layer composition and its private working [parameters](../glossary.md#term-parameter). An **[Engine](../glossary.md#term-engine)** arranges
@@ -56,6 +59,13 @@ The layer constructs ordinary [matrix](../glossary.md#term-matrix-meanings)-prod
 checks meaning and shape but does not execute the product. A derived tensor's [provenance](../glossary.md#provenance) connects
 it to a [producer](../glossary.md#term-producer) and ordered operands. The [compiler](../glossary.md#term-compiler) will later turn that expression structure
 into [graph](../glossary.md#graph)-local values and [nodes](../glossary.md#node); it does not reuse tensor IDs as physical memory positions.
+
+At this boundary the application calls the builder, while the builder calls Tensor operations
+to construct descriptions. Later the Model's internal execution state calls Engine on the
+application's behalf. A **leaf** has no producing expression to follow; input prototypes are
+leaves even when they have no values yet. A supplied stored weight is another leaf, but its
+builder-created private copy, not the application's original storage, is used for training.
+See [which calls copy or borrow](ownership.md#which-call-borrows-or-copies).
 
 Source: [`ModelBuilder`](../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/ModelBuilder.java),
 [`Model`](../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)<span data-glossary-navigation="true"> ([Model glossary](../glossary.md#term-model))</span>,

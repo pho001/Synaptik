@@ -233,6 +233,24 @@ The public Java surface contains `MetalCapabilityProvider`, `MetalBackendConfigu
 finalizers, schedules, executable recipes, the structural route catalog, prepared-route [identity](../glossary.md#term-identity-meanings),
 test-only route forcing, native handles, [Objective-C](../glossary.md#native-packaging-and-platform-vocabulary) objects, and MPSGraph types remain internal.
 
+### Follow the storage boundary, not just the method name
+
+The application opens a configured integration and transfers it to Engine's builder. Engine
+calls shared Prepare; Prepare calls Metal analysis/finalization with descriptions and assigned
+slots. At run setup, Engine asks Metal's ingress adapter to wrap current host inputs.
+That adapter copies host bytes into Metal-owned representations while retaining, but never
+closing, the supplied storage. Runtime then borrows the selected backend representations.
+Thus “borrow” at Runtime does not mean host-to-device ingress made no copy.
+
+The input storage owner still keeps it live and quiescent through the open result's borrow.
+Prepared executable/pipeline resources and run buffers retain context child leases, so closing
+the context owner cannot unload the native library beneath a live child. Synchronous native
+completion ends computation, not the `RunResult` lifetime or a prepared splat's already-issued
+read-only child binding. See the
+[Java-to-MTLBuffer ownership diagram](../explanation/packages/metal.md#ownership-from-java-to-mtlbuffer)
+and [per-call copy/borrow table](../explanation/ownership.md#which-call-borrows-or-copies).
+
+
 ### Completion and [device](../glossary.md#term-device) [topology](../glossary.md#term-topology)
 
 A **[command queue](../glossary.md#term-command-queue)** accepts submitted [GPU](../glossary.md#term-gpu) work. A **[command buffer](../glossary.md#term-command-buffer)** records one group of
@@ -290,7 +308,10 @@ distinct non-physical identities. The first is an abstract availability slot, th
 [trace](../glossary.md#trace) correlation token, and the third a session-[compatibility identity](../glossary.md#identity-meanings-and-algebraic-identities) that makes no stable-device
 claim. No mapping among them is implied. [ABI](../glossary.md#term-application-binary-interface-abi) 7 and the thirteen native exports are fixed. The
 route-bearing image is schema22 with a 124-byte header, and coordinated workload/exact-policy/
-candidate/compatibility/route/[codec](../glossary.md#term-codec) identities are43. Every stale identity fails closed.
+candidate/compatibility/route/codec identities are version 45, as defined by
+[`MetalNegTuningBatch`](../../modules/backend/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegTuningBatch.java)
+and [`MetalNegTuningCodec`](../../modules/backend/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegTuningCodec.java).
+Every stale identity fails closed.
 Tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-[module](../glossary.md#term-module) contract for completion/failure,
@@ -898,11 +919,14 @@ The public [Engine](../glossary.md#term-engine) path for a supported [Metal](../
 MetalBackendConfiguration configuration =
         new MetalBackendConfiguration(nativeLibrary.toAbsolutePath());
 try (Engine.Builder builder = Engine.builder()) {
+    // Transfer the opened integration's cleanup duty; Metal never discovers itself at run time.
     builder.takeOwnership(MetalBackendIntegration.open(configuration));
     try (Engine engine = builder.build()) {
+        // Compile describes negation; prepare fixes its supported route before current values run.
         CompiledGraph graph = engine.compile(List.of(input.neg()));
         try (PreparedExecution prepared = engine.prepare(graph);
                 RunResult result = engine.run(prepared, List.of(input))) {
+            // Copy while the result is open; the detached value need not retain device buffers.
             HostTensorValue value =
                     result.materialize(result.publications().getFirst(), maximumBytes);
         }

@@ -25,6 +25,19 @@ A **[descriptor](../glossary.md#term-descriptor)** describes a value's numerical
 it is not the stored data itself. Consequently, supporting one [FLOAT32](../glossary.md#term-float32) [matrix multiplication](../glossary.md#matrix-multiplication--matmul)
 does not imply supporting every [matrix](../glossary.md#term-matrix-meanings) size, storage mapping, low-[precision](../glossary.md#term-precision) type or [derivative](../glossary.md#term-derivative).
 
+### Who asks the question?
+
+The application asks Engine to compile output expressions. Compiler constructs one immutable
+query for each final node, then calls Planning's owner-selection collaboration. Planning calls
+each eligible provider's `supports(query)`; the provider receives **descriptors**, not the
+application's stored samples. It returns a Boolean, not an executable or ownership of memory.
+The query copies list membership while retaining immutable descriptor/operation references.
+No input Arena is borrowed by this question. Later Prepare and run admission establish the
+resource and value facts that this descriptor-only answer cannot prove. See
+[the staged handoff](partition-preparer.md#ownership-and-lifecycle) and
+[the actual Engine value-binding boundary](../architecture/lifecycle.md#current-public-engine-lifecycle).
+
+
 ## Prerequisites and current contracts
 
 A provider implementation depends inward on the current [planning](../glossary.md#term-planning), [model](../glossary.md#term-model), and [backend](../glossary.md#backend)-contract
@@ -97,6 +110,7 @@ import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import java.util.Map;
 
+// These declarations name hypothetical devices; they do not open a CUDA implementation.
 BackendId cuda = new BackendId("cuda");
 BackendDeviceId cudaZero = new BackendDeviceId(cuda, "0");
 BackendDeviceId metalZero = new BackendDeviceId(new BackendId("metal"), "0");
@@ -130,6 +144,7 @@ import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
 import io.github.pho001.synaptik.backend.contract.BackendRequirement;
 import io.github.pho001.synaptik.backend.contract.DeviceClassRequirement;
 
+// A requirement restricts later eligibility; it does not select or allocate a device.
 BackendRequirement exactBackend = new BackendIdRequirement(cuda);
 BackendRequirement exactDevice = new BackendDeviceIdRequirement(cudaZero);
 BackendRequirement acceleratorClass =
@@ -146,6 +161,7 @@ family. Current [`BackendIntent`](../glossary.md#backend-intent--backendintent) 
 ```java
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 
+// Optionality is explicit; neither value performs discovery or capability queries.
 BackendIntent unconstrained = BackendIntent.unconstrained();
 BackendIntent requireCuda = BackendIntent.requiring(exactBackend);
 ```
@@ -243,6 +259,7 @@ final class IllustrativeCpuCapabilities implements BackendCapabilityProvider {
     @Override
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
+        // Examine immutable metadata only: no tensor values or route selection belong here.
         return query.operation().kind() == BinaryArithmeticKind.ADD
                 && query.inputs().stream()
                         .allMatch(input -> input.dataType() == DataType.FLOAT32)
@@ -254,6 +271,7 @@ final class IllustrativeCpuCapabilities implements BackendCapabilityProvider {
 TensorDescriptor matrix =
         new TensorDescriptor(DataType.FLOAT32, Shape.of(2, 3), Optional.empty(), false);
 Operation add = new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE);
+// Repeating matrix preserves two operand positions without allocating matrix values.
 OperationCapabilityQuery query =
         new OperationCapabilityQuery(add, List.of(matrix, matrix), List.of(matrix));
 

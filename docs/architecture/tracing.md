@@ -52,14 +52,17 @@ The implemented public foundation consists of:
 - the trace-local correlation identifiers described below; and
 - `BackendPreparationOutcome` and `BackendInvocationOutcome`, the first concrete payloads.
 
-The current envelope has this exact component [shape](../glossary.md#shape):
+The current envelope has the following Java record components. “Components” means named
+record fields, not a Tensor's axis extents or storage layout:
 
 ```java
 public record TraceEvent<T extends TracePayload>(
+        // The producer supplies correlation and stage facts; this record emits nothing.
         TraceEventId id,
         TracePhase phase,
         TraceLevel level,
         long monotonicNanos,
+        // Retain detached diagnostic data, not a live backend resource or Tensor.
         T payload
 ) {}
 ```
@@ -251,7 +254,11 @@ Trace [producers](../glossary.md#term-producer) exist throughout the architectur
 [planning](../glossary.md#term-planning), [compiler](../glossary.md#term-compiler), [prepare](../glossary.md#prepare), [runtime](../glossary.md#term-runtime), [engine](../glossary.md#term-engine), or concrete [backends](../glossary.md#backend), using trace types could
 introduce reverse dependencies or cycles.
 
-Keeping `modules/trace` as a [DTO](../glossary.md#data-transfer-object--dto)-only [leaf](../glossary.md#term-leaf) lets later layers share diagnostic contracts while
-[ownership](../glossary.md#term-ownership-meanings) and business logic remain in the producing layer. Architecture tests should enforce
-this leaf boundary; see [Dependency Rules](dependency-rules.md)<span data-glossary-navigation="true"> ([Dependency glossary](../glossary.md#term-dependency))</span> and
+Keeping `modules/trace` as a DTO-only dependency leaf means Trace needs no higher execution
+layer. This is different from a Tensor leaf, which has no producing expression. Producers
+construct diagnostic records and consumers retain those records, while resource ownership and
+business logic remain in the producing layer. The record retains component references rather
+than copying arbitrary payload objects; producers must supply immutable detached payloads.
+Architecture tests should enforce this dependency boundary; see
+[Dependency Rules](dependency-rules.md#trace-is-a-dependency-leaf) and
 [ADR 0003: Typed trace DTOs](../design/decisions/0003-typed-trace-dtos.md)<span data-glossary-navigation="true"> ([ADR glossary](../glossary.md#term-architecture-decision-record-adr))</span>.

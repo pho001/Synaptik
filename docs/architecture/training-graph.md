@@ -15,6 +15,42 @@ to an output; a **[seed](../glossary.md#term-seed)** is its starting value. A **
 a derivative formula. Combining the graphs means the compiler can see both computations;
 it does not move [optimizer](../glossary.md#term-optimizer) updates or derivative-rule [ownership](../glossary.md#term-ownership-meanings) into a [backend](../glossary.md#backend).
 
+### Who requests, constructs and applies a gradient?
+
+The application configures an objective through NN's owned Model, or opens a `TrainingSession`
+directly. Training calls public Engine compilation with the scalar objective expression and
+ordered parameter targets. Engine delegates to Compiler, which constructs derivative Tensor
+expressions **before capture**. Those expressions are descriptions, not gradient arrays.
+Backend preparation realizes the combined graph; a later run produces actual objective and
+gradient publications. Training copies them while the result is open, closes that result, then
+stages and validates the parameter update.
+
+Training borrows Engine and admitted parameter storage; it owns optimizer slots and its
+preparation. An owned NN Model additionally owns private parameter copies and any native state
+it acquired. Neither Compiler nor a backend takes over the optimizer. The
+[update transaction](../explanation/packages/extensions-tools.md#where-an-update-becomes-a-transaction)
+explains why a failed late gradient check cannot partially commit an ordinary training step.
+Earlier fixed-recurrence rejection notes below retain their staged implementation context;
+use [current support evidence](../backend-guide/production-support.md#status-and-interpretation)
+for later qualified derivative routes rather than inferring them from a forward cell name.
+
+### A scalar chain-rule example
+
+For finite real, dimensionless input $x$, weight $w$ and target $t$, let $y=xw$ and
+$L=(y-t)^2$. Then
+
+$$
+\frac{dL}{dw}=\frac{dL}{dy}\frac{dy}{dw}=2(y-t)x.
+$$
+
+With $x=3$, $t=6$, $w=0$, the contribution is $2(0-6)3=-36$.
+In a two-sample squared-error **sum**, contributions add; they are not averaged.
+The [full worked update](../explanation/tensors-and-gradients.md#the-first-training-step)
+adds the other sample to obtain $-40$. This real-number derivation teaches the dependency;
+actual typed operations preserve their rounding sites, and unsupported derivative/value domains
+still reject. It does not extend the bounded derivative order.
+
+
 ## [Owned Model](../glossary.md#model-module-buffer-and-scan-distinctions) consumer
 
 An owned [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [`Model`](../glossary.md#term-model) configures one pure [scalar objective](../glossary.md#loss) on its fixed output expressions and

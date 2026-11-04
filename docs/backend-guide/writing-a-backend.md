@@ -16,6 +16,27 @@ them. A **[kernel](../glossary.md#kernel)** is an executable computation routine
 implementation choice. Integrating a backend therefore means supplying [ownership](../glossary.md#term-ownership-meanings), preparation,
 storage and cleanup together, not merely making one numerical function callable.
 
+### Name the integration callers
+
+The application opens a CPU/Metal integration and transfers it to Engine's builder. Engine
+supplies that integration's collaborators to shared Prepare. Prepare calls backend analysis
+with descriptions, assigns requirements, then calls backend finalization with the exact slots.
+Runtime later calls creators and binds executables against **one invocation's physical
+representations**. There is no call from a generated element loop back to Engine to discover
+a service.
+
+Resource ownership follows successful handoffs, not Java visibility. The finalizer owns
+acquisitions until successful return; Prepare owns rollback until it constructs the Runtime
+prepared owner. Runtime owns each run's created buffers but borrows its input representations.
+The application (or NN Model) retains the underlying input-storage duty until result closure.
+See [the resource transaction](../architecture/runtime-prepare-backend-boundary.md#the-staged-prepare-handoff)
+and [which API copies versus borrows](../explanation/ownership.md#which-call-borrows-or-copies).
+Examples below are focused illustrative contracts, not complete backend implementations.
+Their initial empty-resource CPU checkpoint does not describe every later native CPU route;
+the [CPU preparation atlas](../explanation/packages/cpu.md#read-the-pipeline-before-the-packages)
+separates generated/direct Java work from native persistent resources.
+
+
 ## Prerequisites
 
 Read the authoritative [`ARCHITECTURE.md`](../../ARCHITECTURE.md), [module boundaries](../architecture/module-boundaries.md), [dependency rules](../architecture/dependency-rules.md)<span data-glossary-navigation="true"> ([dependency glossary](../glossary.md#term-dependency))</span>, and the [concrete backend](../glossary.md#concrete-backend)'s master plan. A [backend](../glossary.md#backend) [module](../glossary.md#term-module) may depend on shared contracts but must not depend on [engine](../glossary.md#term-engine).
@@ -88,6 +109,7 @@ final class CompiledBackendExecutable implements PreparedResource {
 }
 
 CompiledBackendExecutable compiled = new CompiledBackendExecutable(nativeHandle);
+// Successful return transfers this resource; the finalizer must not independently close it later.
 BackendPartitionFinalizationResult result =
         new BackendPartitionFinalizationResult(executable, List.of(compiled));
 ```
@@ -150,17 +172,20 @@ final class CpuWorkspace implements WorkspaceRepresentation {
 
 final class CpuBufferCreator implements PreparedRepresentationPlan.BufferCreator {
     @Override public CpuBuffer create() {
+        // Runtime invokes this per run, so mutable storage cannot be shared by preparations.
         return new CpuBuffer();
     }
 }
 
 final class CpuWorkspaceCreator implements PreparedRepresentationPlan.WorkspaceCreator {
     @Override public CpuWorkspace create() {
+        // Scratch belongs to the new RunState, not to this reusable creator object.
         return new CpuWorkspace();
     }
 }
 
 PreparedRepresentationPlan representationPlan =
+        // This is a recipe only: constructing it invokes none of the creators.
         new PreparedRepresentationPlan(
                 plan,
                 List.of(
@@ -246,6 +271,7 @@ final class CpuExecutable extends PreparedExecutable {
             BufferRepresentation[] buffers,
             WorkspaceRepresentation[] workspaces) {
         return new CpuInvocation(
+                // Cold checked binding captures direct resources for the later hot action.
                 state, (CpuBuffer) buffers[0], (CpuWorkspace) workspaces[0]);
     }
 }
@@ -320,6 +346,7 @@ final class CpuPreparedBufferTransfer extends PreparedBufferTransfer {
             BufferRepresentation source,
             BufferRepresentation destination) {
         return new CpuBufferTransfer(
+                // The destination already exists; binding must not allocate or choose a route.
                 state, (CpuBuffer) source, (CpuBuffer) destination);
     }
 }
@@ -362,6 +389,7 @@ PreparedSchedule.PublicationStep publication =
         new PreparedSchedule.PublicationStep(
                 new PreparedPublication(plan, 0, 1, 0));
 PreparedSchedule schedule =
+        // Repetition means two executions, not two cleanup owners for the same executable.
         new PreparedSchedule(
                 plan, List.of(creation, occurrence, occurrence, transfer, publication));
 ```
@@ -411,6 +439,7 @@ result [aliases](../glossary.md#aliasing-and-arena) do not duplicate cleanup bec
 
 ```java
 try (Engine.Builder builder = Engine.builder()) {
+    // Transfer cleanup duty before compilation; no Runtime discovery is involved.
     builder.takeOwnership(CpuBackendIntegration.open());
     builder.takeOwnership(MetalBackendIntegration.open(metalConfiguration));
     try (Engine engine = builder.build()) {

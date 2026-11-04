@@ -75,10 +75,16 @@ The [CPU](../../glossary.md#term-cpu) discussion assumes that workflow is using 
 | --- | --- |
 | [FLOAT32](../../glossary.md#term-float32) input `[2,1]` with values `[1,3]`; supplied [gradient](../../glossary.md#term-gradient)-eligible [weight](../../glossary.md#term-weight) `[1,1]` initially `0`; no [bias](../../glossary.md#term-bias) | `prediction = input @ transpose(weight)`. Model copies the supplied [parameter](../../glossary.md#term-parameter); CPU does not own the [optimizer](../../glossary.md#term-optimizer)'s parameter state. |
 | First [prediction](../../glossary.md#term-prediction) | `[0,0]`; each output [contraction](../../glossary.md#contraction-dimension) has `K=1`. Generated [MATMUL](../../glossary.md#matrix-multiplication--matmul) preserves exactly one typed product, without an extra [identity](../../glossary.md#term-identity-meanings) ADD or [FMA](../../glossary.md#term-fused-multiply-add-fma). |
-| [Target](../../glossary.md#term-target) `[2,6]`; squared-error SUM | `(0-2)^2 + (0-6)^2 = 40`. CPU lowers the actual [graph](../../glossary.md#graph) produced by the [objective](../../glossary.md#term-objective) and [Compiler](../../glossary.md#term-compiler), not a hard-coded training algorithm. |
-| Compiler-produced first-order weight gradient | `2*((0-2)*1 + (0-6)*3) = -40`. CPU executes the [derivative](../../glossary.md#term-derivative) operations through the same qualified ordinary machinery. |
-| `Sgd(0.05)` step | Training updates `weight = 0 - 0.05*(-40) = 2`; CPU is not the [SGD](../../glossary.md#term-stochastic-gradient-descent-sgd) [owner](../../glossary.md#term-owner). |
+| Target `(2,6)`; squared-error SUM | $(-2)^2+(-6)^2=40$. CPU lowers the actual objective/Compiler graph, not a hard-coded training algorithm. |
+| Compiler-produced first-order weight gradient | $2((-2)\cdot1+(-6)\cdot3)=-40$. CPU executes the derivative operations through qualified ordinary machinery. |
+| `Sgd(0.05)` step | Training gives $w_{\mathrm{new}}=0-0.05(-40)=2$; CPU does not own SGD. |
 | Repeated prediction; fresh input `[2,4]` with the same [signature](../../glossary.md#term-signature) | `[2,6]`, then `[4,8]`. Prepared code must bind current storage, not [cache](../../glossary.md#term-cache) the initial weight or an earlier run's values. |
+
+The table uses the finite dimensionless teaching case, not arbitrary floating-point algebra.
+The [indexed derivation](../tensors-and-gradients.md#the-first-training-step) defines its
+weight, sample indices and learning rate. Typed execution preserves each required rounded site;
+sharing a generated class neither freezes current inputs nor erases an intermediate rounding.
+
 
 The forward `K=1` product is excluded from both native MATMUL routes. A changed example with more
 [features](../../glossary.md#term-software-feature) would change `K`, but that alone would still not guarantee native selection: exact [dtype](../../glossary.md#data-type--datatype),
@@ -559,11 +565,23 @@ failing a required oneDNN integration is not silently repaired by the tutorial's
 [OpenBlasGemmInvocation][provider-gemm] validates and invokes normalized calls;
 [OpenBlasThreadControl][provider-threads] exposes thread utilities.
 
-**Mechanism and boundary.** A call computes one dense [row-major](../../glossary.md#term-row-major) non-transposed
-`C[m,n] = alpha*(A[m,k] @ B[k,n]) + beta*C[m,n]` for [FLOAT32](../../glossary.md#term-float32) or [FLOAT64](../../glossary.md#term-float64). Segments start at byte
-offset zero. The provider does not interpret Config, [Tensor](../../glossary.md#tensor) [graphs](../../glossary.md#graph), [layouts](../../glossary.md#layout), batching, packing,
-costs, fallback or [backend ownership](../../glossary.md#backend-ownership). CPU depends on this provider, never the reverse. In
-particular, a successful raw [GEMM](../../glossary.md#general-matrix-multiplication--gemm) call does not establish production CPU route [qualification](../../glossary.md#term-qualification).
+**Mechanism and boundary.** The CPU route calls the provider with normalized dense,
+row-major non-transposed segments, not Tensors or a graph. For non-negative integer dimensions
+$m,n,k$, inputs $A\in\mathbb R^{m\times k}$, $B\in\mathbb R^{k\times n}$, existing
+$C\in\mathbb R^{m\times n}$ and scalar coefficients $\alpha,\beta$, its mathematical request is
+
+$$
+C^{\mathrm{new}}_{ij}=\alpha\sum_{q=0}^{k-1}A_{iq}B_{qj}+\beta C^{\mathrm{old}}_{ij},
+\qquad 0\le i<m,\quad0\le j<n.
+$$
+
+For $m=n=1,k=2$, $A=(1,2)$, $B=(3,4)^\mathsf T$, $\alpha=1,\beta=0$, the requested result
+is $11$. This is the real-number meaning, not a numerical guarantee for arbitrary installed
+OpenBLAS binaries. Segments begin at byte offset zero; FLOAT32/FLOAT64 remain distinct typed
+calls. The provider does not interpret Config, Tensor layouts, packing, costs, fallback or
+backend ownership. CPU depends on the provider, not the reverse; a successful raw GEMM call
+does not establish production route qualification. The empty/$k=0$ cases below keep their
+actual native-call rules rather than being inferred from this positive example.
 
 **Resources, errors and invariants.** The library handle owns a shared-[arena](../../glossary.md#term-arena) [lookup](../../glossary.md#term-lookup) [lifetime](../../glossary.md#term-lifetime), not
 caller [matrix](../../glossary.md#term-matrix-meanings) memory. Calls retain, allocate, copy, reinterpret and close no caller segments.

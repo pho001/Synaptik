@@ -19,6 +19,13 @@ planning chooses CUDA ownership
   -> runtime invokes the prepared executable
 ```
 
+The intended callers are shared Prepare (passing an owned partition's descriptions and assigned
+slots) and Runtime (invoking the completed executable with current representations). There is
+no implemented CUDA callee to accept either handoff today. In particular, constructing an ID
+named `"cuda"` does not load a driver, allocate device memory or transfer ownership.
+The [implemented CPU/Metal handoff](../architecture/runtime-prepare-backend-boundary.md#start-with-one-value-crossing-the-boundary)
+provides the comparison; it is not evidence that CUDA already has matching resource leases.
+
 [Planning](../glossary.md#term-planning) must not reference CUDA kernel classes, and [runtime](../glossary.md#term-runtime) must not discover CUDA or choose a kernel. Public [`Tensor`](../glossary.md#tensor) state must not become CUDA [residency](../glossary.md#residency) state.
 
 ## Native and resource prerequisites

@@ -22,6 +22,22 @@ flowchart TD
 
 Read the upper arrows as semantic relationships, not execution. A [Tensor](../../glossary.md#tensor) has stable expression origin even when its [borrowed](../../glossary.md#ownership-borrowing-and-lease) storage is replaced or cleared. [Capture](../../glossary.md#term-capture-meanings) creates [graph](../../glossary.md#graph)-local [identities](../../glossary.md#term-identity-meanings); it does not turn a Tensor into a [node](../../glossary.md#node). The bottom arrow concerns [host](../../glossary.md#term-host) memory only, not a [device](../../glossary.md#term-device) allocation or [prepared executable](../../glossary.md#prepared-executable--preparedexecutable).
 
+### Who constructs these objects?
+
+An application, an NN layer's `forward` method, or Compiler's derivative builder calls Tensor
+operations with operand Tensors. The callee checks descriptors and returns new **descriptions**
+of derived results; it does not evaluate the operands or take ownership of their storage.
+Compiler later follows producer links to capture the requested computation. A Tensor with no
+producer is a **leaf**: it can be a storage-free input declaration as well as a stored parameter.
+Thus the diagram's “caller-owned memory” applies only when storage was actually supplied.
+
+For a `MemorySegmentStorage` constructor, the caller supplies the native segment and keeps its
+Arena alive; the wrapper borrows that segment without copying or closing it. Flat primitive-array
+import is a different boundary that copies values into heap storage. The owned NN Model builder
+then copies supplied parameters into its own private state; that is not a property of every
+Tensor operation. The [call-by-call ownership table](../ownership.md#which-call-borrows-or-copies)
+explains when these borrowed bytes must remain available.
+
 The [operation](../../glossary.md#operation)-family sections below share a specific boundary: kind and attributes are [immutable](../../glossary.md#term-immutable) semantic values consumed by Tensor construction and [Compiler](../../glossary.md#term-compiler) inspection. They do not own operand memory, [gradients](../../glossary.md#term-gradient), [kernels](../../glossary.md#kernel), [runtime](../../glossary.md#term-runtime) scratch, or [backend capability](../../glossary.md#backend-capability). Family-specific guards and input/output relationships differ; those differences are the reason for separate packages. Public Tensor methods are the application composition surface. Package-private `Tensor*Expressions` helpers are implementation details, not supported application [API](../../glossary.md#term-application-programming-interface-api). A source-valid expression is not proof of differentiation, [serialization](../../glossary.md#term-serialization), or [backend](../../glossary.md#backend) execution support.
 
 An **[occurrence](../../glossary.md#term-occurrence)** is one particular [producer](../../glossary.md#term-producer) or port position, not just a formula name.
@@ -37,9 +53,16 @@ This [trace](../../glossary.md#trace) connects the [canonical](../../glossary.md
 The program supplies [FLOAT32](../../glossary.md#term-float32) input `[2,1]` containing `[1,3]`, a [gradient](../../glossary.md#term-gradient)-eligible [weight](../../glossary.md#term-weight) `[1,1]` containing zero, no [bias](../../glossary.md#term-bias), and [target](../../glossary.md#term-target) `[2,1]` containing `[2,6]`. The public builder copies the supplied weight into [model](../../glossary.md#term-model)-owned [parameter](../../glossary.md#term-parameter) state; that [ownership](../../glossary.md#term-ownership-meanings) is above this [Model module](../../glossary.md#model-module-buffer-and-scan-distinctions).
 
 1. `linear(weight)` describes `input @ transpose(weight)`. [Transpose](../../glossary.md#term-transpose) is a `PERMUTE` with [axes](../../glossary.md#term-axis) `[1,0]`; [MATMUL](../../glossary.md#matrix-multiplication--matmul) contracts the [feature](../../glossary.md#term-feature) axes. Its result [descriptor](../../glossary.md#term-descriptor) is FLOAT32 `[2,1]`, not a computed array.
-2. `squaredErrorSum` explicitly constructs `prediction.sub(target)`, `error.mul(error)` and `.sum()`: [binary](../../glossary.md#term-binary-descriptor-and-metadata) arithmetic followed by [aggregate reduction](../../glossary.md#aggregate-reduction). Initial [prediction](../../glossary.md#term-prediction) is `[0,0]` and [objective](../../glossary.md#term-objective) is `4+36=40`. A first-class [loss](../../glossary.md#loss)-family [occurrence](../../glossary.md#term-occurrence) is an alternative representation of this teaching objective, not the occurrence used by LearningJourney.
+2. `squaredErrorSum` constructs `prediction.sub(target)`, `error.mul(error)` and `.sum()`:
+   binary arithmetic followed by aggregate reduction. At the initial zero weight, predictions
+   are $(0,0)$ and the sum is $4+36=40$. A first-class loss-family occurrence is an alternative
+   representation, not the occurrence used by LearningJourney.
 3. The [Compiler](../../glossary.md#term-compiler) [captures](../../glossary.md#term-capture-meanings) [producer](../../glossary.md#term-producer) occurrences and assigns NodeIds and ValueIds. It owns [automatic differentiation](../../glossary.md#autograd). `requiresGrad` in a descriptor requests eligibility; no gradient field is installed on Tensor.
-4. The weight [sensitivity](../../glossary.md#term-sensitivity) is `2*((0-2)*1 + (0-6)*3) = -40`. `Sgd(0.05)` updates the weight to `0 - 0.05*(-40) = 2`. Training/[NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) owns that state transition, not an [operation](../../glossary.md#operation)-kind enum or Tensor [provenance](../../glossary.md#provenance).
+4. For finite real teaching inputs, the weight sensitivity is
+   $2((-2)\cdot1+(-6)\cdot3)=-40$; `Sgd(0.05)` gives $w_{\mathrm{new}}=0-0.05(-40)=2$.
+   [The full derivation](../tensors-and-gradients.md#the-first-training-step) defines the sample
+   indices and rounding boundary. Training/NN owns this state transition, not an operation enum
+   or Tensor provenance.
 5. Re-execution predicts `[2,6]`; fresh values `[2,4]` under the same `[2,1]` [signature](../../glossary.md#term-signature) predict `[4,8]`. Replacing values is different from changing [shape](../../glossary.md#shape): a mismatching static signature is an error, not implicit recompilation.
 
 The direct expression path therefore exercises datatype, shape, [layout](../../glossary.md#layout), storage, tensor, [graph](../../glossary.md#graph), operation, operation.layout, operation.linalg, operation.[elementwise](../../glossary.md#term-elementwise).binary and operation.reduction. Compiler constructs [derivative](../../glossary.md#term-derivative) algebra from those expressions before [capture](../../glossary.md#term-capture-meanings); this trace does not promise an exact optimized [node](../../glossary.md#node) [decomposition](../../glossary.md#term-decomposition). The loss family is an alternative, and other families below are intentionally absent from this tiny [linear](../../glossary.md#term-linear-meanings) example.
@@ -68,11 +91,22 @@ Shape transformations consume dimensions and return dimensions; they do not bind
 
 Important entry points: [LayoutDescriptor](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/layout/LayoutDescriptor.java), [LayoutGeometry](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/layout/LayoutGeometry.java), and [LayoutKind](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/layout/LayoutKind.java).
 
-Layout describes resolved [element](../../glossary.md#term-element) geometry, not memory [ownership](../../glossary.md#term-ownership-meanings). For a [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) `i`, the element position is `storageOffset + sum(i[axis]*stride[axis])`. [Strides](../../glossary.md#term-stride) and offsets are in **elements**, not bytes. A [descriptor](../../glossary.md#term-descriptor) holds copied strides, derived classification, an explicit [view](../../glossary.md#term-view-meanings) flag, and [referenced span](../../glossary.md#referenced-element-span); it does not retain the originating [Shape](../../glossary.md#shape) or a storage object.
+Layout describes resolved element geometry, not memory ownership. For rank $r\ge0$, let
+$i_a$ be the logical coordinate on axis $a\in\{0,\ldots,r-1\}$, with
+$0\le i_a<d_a$ for axis extent $d_a$. With storage offset $o$ and stride $s_a$, the
+element position is $p=o+\sum_{a=0}^{r-1}i_as_a$. Offsets and strides are in **elements**,
+not bytes. For a zero-offset $2\times3$ matrix with strides $(3,1)$, coordinate $(1,2)$
+reads element $5$. For rank zero the sum is empty and the scalar reads $o$; an empty axis has
+no legal coordinate. This is checked integer geometry, not rounded floating arithmetic.
+A descriptor holds copied strides, derived classification, a view flag and referenced span;
+it retains neither the originating Shape nor storage. See
+[the geometry walkthrough](../tensors-and-gradients.md#layout-says-which-stored-element-an-index-references).
 
 Only fully static shapes admit numeric layouts. Stride count must equal [rank](../../glossary.md#term-rank); strides and offset are nonnegative; repeating a [dimension](../../glossary.md#dimension) larger than one with stride zero requires `isView=true`. Geometry arithmetic is checked. Empty geometry references no elements, while [scalar](../../glossary.md#term-scalar) geometry references one. [Canonical](../../glossary.md#term-canonical-form) [contiguity](../../glossary.md#storage-mapping-contiguity-and-injectivity) and [alias](../../glossary.md#aliasing-and-arena) [metadata](../../glossary.md#term-metadata) answer different questions: a view may have [contiguous](../../glossary.md#term-contiguous) geometry without owning storage. TensorDescriptor separately validates the layout against its paired Shape.
 
 LearningJourney's dense [host](../../glossary.md#term-host) inputs use resolved geometry. Its [weight](../../glossary.md#term-weight) [transpose](../../glossary.md#term-transpose) describes a view mapping; this does not itself attach the weight's storage to the fresh result [Tensor](../../glossary.md#tensor). Most computed expression layouts may remain unresolved until later [inference](../../glossary.md#term-inference)/[materialization](../../glossary.md#materialization) decisions.
+
+<a id="tensor-host-storage"></a>
 
 ## io.github.pho001.synaptik.[model](../../glossary.md#term-model).storage
 
@@ -81,6 +115,8 @@ Important entry points: [HostTensorStorage](../../../modules/model/src/main/java
 This is the [borrowed](../../glossary.md#ownership-borrowing-and-lease) [host](../../glossary.md#term-host)-memory boundary. `MemorySegmentStorage` retains an exact caller-supplied [JDK](../../glossary.md#term-java-development-kit-jdk) [MemorySegment](../../glossary.md#term-memorysegment), logical [dtype](../../glossary.md#data-type--datatype), physical [element](../../glossary.md#term-element) capacity, and checked byte size. It neither allocates nor copies nor closes the segment. Its constructor requires nonnegative capacity, exact `capacity * byteWidth == segment.byteSize()`, and an initially live [scope](../../glossary.md#term-scope). Zero capacity requires a live zero-byte segment. It makes no [alignment](../../glossary.md#term-alignment) or byte-order promise and does not itself check a [Tensor](../../glossary.md#tensor)'s [layout](../../glossary.md#layout).
 
 The caller must keep the [arena](../../glossary.md#term-arena) alive and obey its thread-access/read-only policy. [Metadata](../../glossary.md#term-metadata) remains readable after closure, but accessing the dead segment fails under JDK rules. Tensor association validates compatibility separately; synchronized reference replacement does not synchronize underlying memory writes. Logical element count, referenced layout span, and physical capacity must not be conflated. LearningJourney's input/[target](../../glossary.md#term-target)/[weight](../../glossary.md#term-weight) values eventually need host values, but [operation](../../glossary.md#operation) construction alone does not read them. [Device](../../glossary.md#term-device) storage and native [buffers](../../glossary.md#term-buffer) belong elsewhere; there is no native component in `modules/model`.
+
+<a id="tensor-provenance-and-storage"></a>
 
 ## io.github.pho001.synaptik.[model](../../glossary.md#term-model).[tensor](../../glossary.md#tensor)
 

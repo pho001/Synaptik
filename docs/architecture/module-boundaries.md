@@ -18,6 +18,23 @@ execution domain; it does not give that backend ownership of the caller's input 
 The [execution atlas comparison](../explanation/packages/execution.md#the-distinctions-to-keep-while-reading)
 separates logical values, physical representations, recipes and [leases](../glossary.md#term-lease).
 
+### Read responsibilities separately from delivery checkpoints
+
+The module sections below include staged implementation notes, such as initial fixed-scan
+backward rejection and earlier cold-format limits. Read those task-numbered notes as checkpoints,
+not as overrides of later qualified routes. The
+[current support/evidence guide](../backend-guide/production-support.md#status-and-interpretation)
+and [Scan explanation](general-differentiable-scan.md#purpose-and-mental-model) distinguish
+current admission from the retained development chronology.
+
+For one concrete collaboration, the application calls `Model.compute`; NN calls Engine;
+Engine calls Compiler with expressions, shared Prepare with immutable recipes, and Runtime with
+prepared work plus current values. Prepare calls backend analysis and finalization; Runtime
+calls already-bound executables. No reverse module dependency is needed for these returned
+values. The [call-by-call ownership table](../explanation/ownership.md#which-call-borrows-or-copies)
+explains why this call chain does not transfer the application's input Arena to every callee.
+
+
 ## Accepted symbolic-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) [ownership](../glossary.md#term-ownership-meanings)
 
 In this section, B is a named [batch dimension](../glossary.md#batch-dimension) whose numeric size is supplied for each [run](../glossary.md#term-run).
@@ -381,6 +398,7 @@ right-only type without a compatibility [alias](../glossary.md#aliasing-and-aren
 the fluent form is:
 
 ```java
+// Declare how existing values are organized; the builder neither transposes nor copies them.
 var batch = PaddedSequenceBatch.builder(values)
         .timeMajor().rightPadded().validLengths(3, 2, 1).build();
 ```

@@ -86,6 +86,30 @@ one candidate is no worse on either count and better on at least one. **[Nondomi
 neither candidate has established that advantage. These counts are not timings, and an opaque
 framework is one whose internal work is not directly visible through this boundary.
 
+### Comparing counts without inventing a time estimate
+
+For qualified candidates $a$ and $b$, let $D_a,D_b\ge0$ count compute dispatches and
+$M_a,M_b\ge0$ be peak route-owned temporary bytes, measured or established over the same
+invocation boundary. Candidate $a$ dominates $b$ exactly when
+
+$$
+D_a\le D_b,\qquad M_a\le M_b,\qquad
+(D_a<D_b\ \text{or}\ M_a<M_b).
+$$
+
+For example, $(D_a,M_a)=(1,0)$ dominates $(D_b,M_b)=(2,4096)$.
+But $(1,4096)$ versus $(2,0)$ is a tradeoff: neither dominates, and the rule supplies no
+winner. These are integer counts and bytes, not rounded numerical results or nanoseconds.
+Without observation of an opaque route's actual internal work, its missing counts cannot be
+substituted with graph-node counts. The example does not supply such missing evidence.
+
+The caller of the optional workflow is Engine; it supplies candidates/actions from the selected
+backend to `tools/tuning`, which compares evidence without interpreting backend-private plans.
+Trials own fresh execution resources and detach correctness values before closing each result.
+The [complete-plan correctness boundary](#correctness-fallback-and-runtime-boundary)
+explains why a retained correctness reference is bytes, not a borrowed device buffer.
+
+
 When multiple nondominated survivors remain, selection waits for an explicitly authorized,
 controlled comparative environment and protocol. Timing collected on an uncontrolled local
 developer [device](../glossary.md#term-device) may be retained as diagnostic history only. It never qualifies a candidate,

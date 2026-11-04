@@ -15,6 +15,23 @@ gives those declarations stable positions in a shared memory plan; **finalizatio
 selected executable against those positions. Declaring a 64-byte workspace is not allocating
 64 bytes, and a slot number is not a memory address.
 
+### Who calls whom, and why?
+
+Engine calls shared `GraphPreparation.prepare(...)` with the complete immutable compile recipe
+and explicit backend collaborators. Shared Prepare calls `analyze(context)` on each selected
+backend; the context contains graph descriptions and resource roles, not current input bytes.
+After all analyses agree, shared Prepare assigns slots and calls each backend's
+`finalizePartition(...)` with that exact assignment. This ordering prevents a backend from
+creating executable state against storage positions that another analysis later changes.
+
+Analysis owns a decision, not an input allocation. Finalization owns newly acquired persistent
+resources until successful return, then shared Prepare owns rollback until the completed Runtime
+prepared owner accepts them. Per-run allocations happen later through creation recipes.
+The [resource transaction explanation](../architecture/runtime-prepare-backend-boundary.md#the-staged-prepare-handoff)
+and [result/input lifetimes](../explanation/ownership.md#which-call-borrows-or-copies) explain
+the two sides without defining a second contract.
+
+
 Prepare also exposes a separate cold transport for a complete backend-owned [tuning candidate](../glossary.md#candidate-batch)
 [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) and an optional backend-owned selected decision. The transport keeps both values typed and
 ties them to one exact planned partition, but it is not part of [`PrepareContext`](../glossary.md#prepare-context-preparecontext), analysis,
@@ -192,7 +209,8 @@ Assume shared [Prepare](../glossary.md#prepare) has constructed a `PrepareContex
 
 - the operation has one [FLOAT32](../glossary.md#term-float32) input and one FLOAT32 output;
 - both values have fully static [Shape](../glossary.md#shape) `[2, 3]`;
-- each direct CPU representation therefore needs `2 × 3 × 4 = 24` bytes;
+- each direct CPU representation needs $2\cdot3\cdot4=24$ bytes: six logical FLOAT32 elements
+  at four bytes per element, with canonical dense geometry assumed here;
 - the projected lists contain the exact partition nodes, unique values, and one matching logical
   memory requirement per projected value;<span data-glossary-navigation="true"> ([partition glossary](../glossary.md#partition); [nodes glossary](../glossary.md#node))</span>
 - the context has no logical-splat [constants](../glossary.md#term-constant); and
@@ -233,6 +251,7 @@ final class CpuPreparer
         ValueId inputId = dag.externalInputs().getFirst().valueId();
         ValueId outputId = dag.localSinks().getFirst().outputs().getFirst();
         CpuPlan plan = new CpuPlan("vector", 4);
+        // Declare requirements now; shared Prepare assigns slots before any executable exists.
 
         return new BackendPartitionAnalysis<>(
                 context.partition(),
@@ -280,8 +299,8 @@ allocate memory, create an executable, perform a measurement, or execute the [op
 
 ### Optional [opaque](../glossary.md#term-opaque) candidate transport
 
-The following current [API](../glossary.md#term-application-programming-interface-api) [shape](../glossary.md#shape) illustrates the separate transport. The records are illustrative
-[backend](../glossary.md#backend)-owned values; their fields are invisible through the method-free shared roles.
+The following current API example illustrates the separate transport. The records are
+illustrative backend-owned values; shared method-free roles do not expose their fields.
 
 ```java
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff;
@@ -292,6 +311,7 @@ import java.util.Optional;
 
 record CpuCandidates(List<String> routes) implements BackendTuningCandidateBatch {
     CpuCandidates {
+        // Copy list membership because shared code retains this opaque candidate object.
         routes = List.copyOf(routes);
     }
 }
@@ -350,6 +370,7 @@ import java.util.List;
 
 final class CpuExecutable extends PreparedExecutable {
     CpuExecutable(PreparedMemoryPlan memoryPlan) {
+        // This teaching recipe has no selections and intentionally cannot execute.
         super(memoryPlan, List.of(), List.of());
     }
 
@@ -389,6 +410,7 @@ final class CpuFinalizer implements BackendPartitionFinalizer<CpuPlan> {
     @Override
     public BackendPartitionFinalizationResult finalizePartition(
             BackendPartitionFinalization<CpuPlan> finalization) {
+        // Finalization must realize the analyzed route, not silently choose another one.
         if (!finalization.analysis().plan().route().equals("vector")) {
             throw new IllegalArgumentException("unexpected example route");
         }
@@ -410,6 +432,7 @@ var outputRequirement =
 var workspaceRequirement =
         (PreparationResourceRequirement.Workspace) analysis.requirements().get(2);
 
+// Slots name planned positions; constructing them allocates no buffer or workspace.
 BufferSlot inputSlot = new BufferSlot(0);
 BufferSlot outputSlot = new BufferSlot(1);
 WorkspaceSlot workspaceSlot = new WorkspaceSlot(0);
@@ -470,6 +493,7 @@ PartitionPreparation<CpuInputs, CpuPlan> cpuPreparation =
 PreparedScheduleAssembler assembler = context -> assembleExampleSchedule(context);
 
 PreparedExecution execution =
+        // The assembler describes order; physical creation is deferred until a run.
         GraphPreparation.prepare(artifacts, List.of(cpuPreparation), assembler);
 ```
 

@@ -23,6 +23,21 @@ records which implementation and environment were checked. A **catalog** exercis
 cases; an independent **[numerical oracle](../glossary.md#adr-ci-and-qualification)** calculates an expected answer without reusing the
 implementation being checked. Passing a catalog and agreeing with an [oracle](../glossary.md#term-test-oracle) are different claims.
 
+### How to use a row for your program
+
+Start from the complete requested computation, including any Compiler-generated derivatives.
+The application calls Engine (or NN calls it internally); Compiler asks Planning's providers
+about each actual operation and ordered descriptors. A “supported” metadata answer does not
+copy input values, own the input Arena, or guarantee that later physical/value checks succeed.
+Prepare must realize the whole partition, and the run must validate its current data.
+
+Use [the capability call boundary](capability-provider.md#who-asks-the-question) to interpret a
+provider answer, [staged preparation](partition-preparer.md#who-calls-whom-and-why) to interpret
+resource admission, and [ownership and copies](../explanation/ownership.md#which-call-borrows-or-copies)
+to choose a safe result lifetime. Historical receipts below keep their original source hashes,
+commands and outcomes; this reading guidance does not re-execute or requalify them.
+
+
 ## Common Java [CPU](../glossary.md#term-cpu) domain
 
 [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) abbreviate the [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) storage formats; [BF16](../glossary.md#floating-point-precision-and-rounding)/[F16](../glossary.md#floating-point-precision-and-rounding) abbreviate [BFLOAT16](../glossary.md#term-bfloat16)/[FLOAT16](../glossary.md#term-float16).

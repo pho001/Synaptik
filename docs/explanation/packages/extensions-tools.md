@@ -38,7 +38,15 @@ different from a repository/build module.
 
 ### The example carried through this atlas
 
-The [tutorial](../../tutorials/index.md) and [LearningJourney example](../../examples/README.md) use [FLOAT32](../../glossary.md#term-float32) input `[2,1]` with values `[1,3]`, one supplied [gradient](../../glossary.md#term-gradient)-eligible [weight](../../glossary.md#term-weight) `[1,1]` initially `0`, and no [bias](../../glossary.md#term-bias). [Prediction](../../glossary.md#term-prediction) is `input @ transpose(weight)`. Against [target](../../glossary.md#term-target) `[2,6]`, squared-error **SUM** starts at `40`; its weight gradient is `-40`. `Sgd(0.05)` changes the owned weight to `2`, giving prediction `[2,6]`; fresh input `[2,4]` then gives `[4,8]`.
+The tutorial and [LearningJourney example](../../examples/README.md) use FLOAT32 input `[2,1]`
+with values $(1,3)$, one supplied gradient-eligible `[1,1]` weight $w=0$, and no bias.
+Predictions are $y_i=x_iw$ for inputs $x_i$ and samples $i\in\{1,2\}$; targets $t_i$ are $(2,6)$.
+The squared-error **sum** is $L=\sum_{i=1}^{2}(y_i-t_i)^2=40$, with
+$dL/dw=-40$. SGD with learning rate $\eta=0.05$ gives $w-\eta\,dL/dw=2$,
+predicting $(2,6)$ and then $(4,8)$ for fresh $(2,4)$.
+These are finite, dimensionless real-number teaching values, not permission to reorder
+FLOAT32 sites. The [complete gradient walkthrough](../tensors-and-gradients.md#the-first-training-step)
+defines each contribution and the sum-versus-mean distinction.
 
 These are explanatory arithmetic, not measurements from running this page. The important [ownership](../../glossary.md#term-ownership-meanings) detail is that the [owned Model](../../glossary.md#model-module-buffer-and-scan-distinctions) copies the supplied weight: training changes its private [parameter](../../glossary.md#term-parameter), not the caller's original [tensor](../../glossary.md#tensor). The package sections explain where each part belongs and explicitly identify packages not used by this path.
 
@@ -116,7 +124,11 @@ Gradient modes distinguish [gradient accumulation](../../glossary.md#term-gradie
 
 The session owns its preparation, private [seed](../../glossary.md#term-seed) arena and [optimizer state](../../glossary.md#term-optimizer-state), but borrows [Engine](../../glossary.md#term-engine) and parameter storage. One operation is admitted at a time; busy/closed admission precedes [argument](../../glossary.md#term-argument) validation. Close waits, cleans owned resources, and leaves [borrowed](../../glossary.md#ownership-borrowing-and-lease) [owners](../../glossary.md#term-owner) alone. [Detached](../../glossary.md#detached-model-results) `TrainingStep` and [TrainingState](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingState.java) snapshots remain readable after closure. Restoring an in-memory state validates configuration, paths/[schema](../../glossary.md#term-schema), counters, slot widths and finite contents before installation; it is not a disk [checkpoint](../../glossary.md#term-checkpoint) facility.
 
-**In the example:** the objective is `0-2` squared plus `0-6` squared, hence `40`; the gradient is `2*(-2)*1 + 2*(-6)*3 = -40`. SGD computes `0 - 0.05*(-40) = 2`. Training performs the update only after all execution/[materialization](../../glossary.md#materialization)/validation succeeds. It does not choose NN train/[eval mode](../../glossary.md#inference-and-evaluation) or [backend](../../glossary.md#backend) [kernels](../../glossary.md#kernel). See the [training contract](../../architecture/contracts/extensions-training.md#modulestraining).
+**In the example:** the errors are $-2,-6$, so $L=(-2)^2+(-6)^2=40$ and
+$dL/dw=2(-2)\cdot1+2(-6)\cdot3=-40$. SGD gives $0-0.05(-40)=2$.
+Training performs that update only after all execution, materialization and validation succeed.
+It does not choose NN train/eval mode or backend kernels. See the
+[training contract](../../architecture/contracts/extensions-training.md#modulestraining).
 
 ## io.github.pho001.synaptik.[checkpoint](../../glossary.md#term-checkpoint).[artifact](../../glossary.md#term-artifact)
 
@@ -188,7 +200,17 @@ reusable decision. These measurements choose among already allowed candidates, n
 
 Workload tuning groups compatible occurrences while retaining context and [weights](../../glossary.md#term-weight), reuses compatible explicit-[cache](../../glossary.md#term-cache) entries, preflights miss/candidate/execution budgets, and measures misses through a caller-supplied complete-candidate action. Integer median elapsed nanoseconds selects a winner; backend codecs authenticate the decision against each exact [occurrence](../../glossary.md#term-occurrence) [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters). Measurement deduplication does not erase occurrence weighting or permit reusing a decision against an unauthenticated batch.
 
-Complete-plan tuning handles a bounded complete [candidate batch](../../glossary.md#candidate-batch) rather than repeating local route search. A persistent hit is decoded/authenticated before reuse and avoids candidate enumeration/execution. On a miss it preflights `N * (1 + W + S)` complete executions for N candidates, W warmups and S samples. All caller-owned exact correctness comparisons finish before timing; then median selection preserves encounter order on ties. A clean mismatch has a distinct `CorrectnessMismatchException`; [callback](../../glossary.md#term-callback) execution/cleanup failures keep their original exceptions.
+Complete-plan tuning handles a bounded complete candidate batch, not another local route search.
+A persistent hit is authenticated before reuse and avoids candidate enumeration/execution.
+On a miss, let integer $N>0$ count candidates, integer $W\ge0$ count warmups per candidate
+and positive odd integer $S$ count timed samples per candidate.
+The integer execution budget is $E=N(1+W+S)$, including one
+correctness action per candidate. For $N=2,W=1,S=3$, $E=10$ complete executions are required.
+Engine supplies the correctness/execution callbacks and owns their fresh preparations/results;
+the tuning tool calls them but does not borrow their device buffers as evidence.
+All exact correctness comparisons finish before timing. Median selection preserves encounter
+order on ties; a clean mismatch has `CorrectnessMismatchException`, while callback execution
+or cleanup failures retain their original exceptions. These counts are not a timing estimate.
 
 Backend collaboration interfaces supply compatibility identities, candidates and [opaque](../../glossary.md#term-opaque) codecs; measurement/correctness callbacks own actual execution and cleanup. The tooling does not discover backends, extract a Model itself, define [graph](../../glossary.md#graph) semantics, [prepare](../../glossary.md#prepare) [kernels](../../glossary.md#kernel), orchestrate [Runtime](../../glossary.md#term-runtime), or serialize an executable. It collaborates with Prepare's typed handoffs without exposing private backend vocabulary as a universal setting.
 

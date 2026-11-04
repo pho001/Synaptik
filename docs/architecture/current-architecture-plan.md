@@ -19,6 +19,23 @@ Those files are normative only within their stated scopes. This file and all oth
 documents outside `contracts/` are explanatory. They do not replace the contract or report
 implementation completion.
 
+## Choose an explanation by the question
+
+- **Who calls what, and which values cross the call?** Start with
+  [one program through the framework](../explanation/framework.md#1-build-meaning-and-privately-owned-state),
+  then [the public lifecycle](lifecycle.md#participants-at-the-public-boundary).
+- **Does the next stage receive a recipe or actual bytes?** Read
+  [the execution handoffs](../explanation/packages/execution.md#who-supplies-the-expressions-and-what-is-a-leaf)
+  and [the Prepare/backend boundary](runtime-prepare-backend-boundary.md#start-with-one-value-crossing-the-boundary).
+- **Who must close the memory?** Read
+  [the copy/borrow table](../explanation/ownership.md#which-call-borrows-or-copies), not just
+  the module's design responsibility.
+- **Can this exact graph run now?** Consult
+  [production support and its evidence limits](../backend-guide/production-support.md#status-and-interpretation).
+  The detailed status narrative below retains task-era numerical counts and compatibility
+  versions; those checkpoints are not a substitute for the focused current backend guide.
+
+
 Focused architecture documentation:
 
 - [Overview](overview.md)

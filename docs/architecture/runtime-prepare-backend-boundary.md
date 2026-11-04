@@ -9,6 +9,29 @@ backend scratch rather than a transferable [graph value](../glossary.md#graph-va
 needed by the receiving boundary. **[Opaque](../glossary.md#term-opaque)** means shared code can retain and transport a
 backend's plan without interpreting its private fields.
 
+## Start with one value crossing the boundary
+
+Suppose Compiler assigns a producer to CPU and a consumer to Metal. Engine passes the immutable
+recipe to shared Prepare, which calls each backend analyzer with only its partition's
+descriptions. A single logical value can receive one slot with **two representation positions**:
+one CPU buffer and one Metal buffer. Backend finalizers receive those exact assigned positions;
+they do not allocate one invocation's writable output.
+
+At run setup Runtime calls the prepared creation recipes, then binds a transfer to the actual
+CPU and Metal representations. The transfer copies the bytes before the Metal consumer uses
+them; merely reserving both positions did not make both copies valid. The logical value remains
+the same value throughout. See [explicit composition and cold routing](#current-explicit-engine-composition-and-cold-routing)
+for the qualified transfer domain, and [Metal ingress versus borrowing](../backend-guide/metal-backend.md#follow-the-storage-boundary-not-just-the-method-name)
+for why an internal Runtime borrow and a host-to-device copy are different boundaries.
+
+Two lifetimes protect different resources. Runtime's prepared-execution lease permits a
+synchronous invocation to use reusable code/resources and ends before that call returns.
+The returned result's lease keeps run resources and input borrows alive until result close.
+Neither lease is a copy of the output; [explicit materialization](../explanation/ownership.md#explicit-engine-use)
+creates the independent value. The detailed inventory below describes these mechanisms rather
+than adding another runner or ownership contract.
+
+
 Runtime currently implements the [immutable](../glossary.md#term-immutable) [`BufferSlot`](../glossary.md#buffer-slot--bufferslot) and [`WorkspaceSlot`](../glossary.md#workspace-slot--workspaceslot) [identities](../glossary.md#term-identity-meanings),
 [`PreparedMemoryPlan`](../glossary.md#prepared-memory-plan--preparedmemoryplan) final slot geometry, [nominal](../glossary.md#term-nominal) [buffer](../glossary.md#term-buffer)/workspace representation roles,
 [borrowed](../glossary.md#ownership-borrowing-and-lease)/run-owned buffer [bindings](../glossary.md#term-binding), immutable prepared representation origins and backend-owned
