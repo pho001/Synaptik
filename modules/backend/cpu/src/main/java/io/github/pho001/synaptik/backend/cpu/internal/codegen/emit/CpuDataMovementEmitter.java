@@ -2468,7 +2468,7 @@ final class CpuDataMovementEmitter {
                     "longBitsToDouble", MethodTypeDesc.ofDescriptor("(J)D"));
             case FLOAT32 -> code.loadConstant((int) bits).invokestatic(ClassDesc.of("java.lang.Float"),
                     "intBitsToFloat", MethodTypeDesc.ofDescriptor("(I)F"));
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.loadConstant((int) bits);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.loadConstant((int) bits);
             case INT64 -> code.loadConstant(bits);
         }
     }
@@ -2477,7 +2477,7 @@ final class CpuDataMovementEmitter {
         switch (type) {
             case FLOAT64 -> code.dstore(local);
             case FLOAT32 -> code.fstore(local);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.istore(local);
             case INT64 -> code.lstore(local);
         }
     }

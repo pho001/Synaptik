@@ -412,7 +412,7 @@ final class CpuAffineCopyEmitter {
             case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
             case INT32 -> "JAVA_INT_UNALIGNED";
             case INT64 -> "JAVA_LONG_UNALIGNED";
-            case BOOL -> "JAVA_BYTE";
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "JAVA_BYTE";
         };
     }
 
@@ -423,7 +423,7 @@ final class CpuAffineCopyEmitter {
             case BFLOAT16, FLOAT16 -> TypeKind.SHORT.upperBound();
             case INT32 -> TypeKind.INT.upperBound();
             case INT64 -> TypeKind.LONG.upperBound();
-            case BOOL -> TypeKind.BYTE.upperBound();
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> TypeKind.BYTE.upperBound();
         };
     }
 
@@ -433,7 +433,7 @@ final class CpuAffineCopyEmitter {
         int value = code.allocateLocal(switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
-            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
         });
         int index = code.allocateLocal(TypeKind.INT);
@@ -455,7 +455,7 @@ final class CpuAffineCopyEmitter {
         switch (type) {
             case FLOAT64 -> code.dstore(value);
             case FLOAT32 -> code.fstore(value);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(value);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.istore(value);
             case INT64 -> code.lstore(value);
         }
         carriers.store(type, specialization.carrierPattern().get(1), 1, resultAddress, value, true);

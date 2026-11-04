@@ -54,6 +54,64 @@ class CpuSignedVariadicMovementTest {
         }
     }
 
+    @Test void fp8AffineAndPaddingReplayEveryByteAcrossCarrierDirections() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
+            try (Arena arena = Arena.ofConfined()) {
+                Shape shape = Shape.of(256);
+                var input = CpuNonAffineMovementLoweringTest.descriptor(type, shape,
+                        LayoutDescriptor.of(shape, new long[] {2}, 1, true));
+                var dense = CpuNonAffineMovementLoweringTest.descriptor(type, shape);
+                var affine = CpuNonAffineMovementLoweringTest.context(new Operation(SliceKind.SLICE,
+                        new SliceAttrs(List.of(0L), List.of(256L), List.of(0))),
+                        List.of(0), List.of(input), dense);
+                var source = arena.allocate(514, 1);
+                source.fill((byte) 0x55);
+                byte[] expected = new byte[256];
+                for (int i = 0; i < 256; i++) {
+                    expected[i] = (byte) i;
+                    source.setAtIndex(ValueLayout.JAVA_BYTE, 1+2L*i, (byte) i);
+                }
+                byte[] before = source.toArray(ValueLayout.JAVA_BYTE);
+                var copied = arena.allocate(256, 1);
+                invoke(affine, List.of(source, copied), 0, 256);
+                assertArrayEquals(expected, copied.toArray(ValueLayout.JAVA_BYTE), type.toString());
+                byte[] heapResult = new byte[256];
+                var segmentToHeap = new PrepareContext<>(affine.partition(), affine.nodes(), affine.values(),
+                        affine.memoryRequirements(), affine.constants(), new CpuPartitionAnalysisInputs(false,
+                                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.BYTE_ARRAY)));
+                invokeGenerated(segmentToHeap, List.of(source, heapResult), 0, 256);
+                assertArrayEquals(expected, heapResult);
+                copied.fill((byte) 0x5a);
+                var heapToSegment = new PrepareContext<>(affine.partition(), affine.nodes(), affine.values(),
+                        affine.memoryRequirements(), affine.constants(), new CpuPartitionAnalysisInputs(false,
+                                List.of(CarrierAccess.BYTE_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
+                invokeGenerated(heapToSegment, List.of(before.clone(), copied), 0, 256);
+                assertArrayEquals(expected, copied.toArray(ValueLayout.JAVA_BYTE));
+
+                Shape paddedShape = Shape.of(260);
+                var paddedDescriptor = CpuNonAffineMovementLoweringTest.descriptor(type, paddedShape,
+                        LayoutDescriptor.of(paddedShape, new long[] {2}, 2, true));
+                var literal = type == DataType.FLOAT8_E4M3
+                        ? io.github.pho001.synaptik.model.datatype.ScalarValue.float8E4m3Bits((byte) 255)
+                        : io.github.pho001.synaptik.model.datatype.ScalarValue.float8E5m2Bits((byte) 255);
+                var padding = CpuNonAffineMovementLoweringTest.context(new Operation(PadKind.PAD,
+                        new PadAttrs(List.of(2L), List.of(2L), literal)),
+                        List.of(0), List.of(input), paddedDescriptor);
+                var padded = arena.allocate(525, 1);
+                padded.fill((byte) 0x5a);
+                invoke(padding, List.of(source, padded), 0, 129);
+                invoke(padding, List.of(source, padded), 129, 260);
+                for (int i = 0; i < 525; i++) {
+                    int logical = (i - 2) / 2;
+                    int raw = i >= 2 && i <= 520 && (i & 1) == 0
+                            ? logical < 2 || logical >= 258 ? 255 : logical - 2 : 0x5a;
+                    assertEquals(raw, Byte.toUnsignedInt(padded.getAtIndex(ValueLayout.JAVA_BYTE, i)),
+                            type + " physical=" + i);
+                }
+                assertArrayEquals(before, source.toArray(ValueLayout.JAVA_BYTE), "borrowed source");
+            }
+    }
+
     @Test void signedEmptyAndSingletonDoNotInventNegativeStorageOrOverflow() throws Throwable {
         for (long length : new long[]{0, 1}) {
             var context = CpuNonAffineMovementLoweringTest.context(new Operation(SliceKind.SLICE,
