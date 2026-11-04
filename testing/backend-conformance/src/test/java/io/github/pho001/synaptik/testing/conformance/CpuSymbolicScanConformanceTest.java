@@ -5,6 +5,9 @@ import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.*;
 import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.*;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering.Facts;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.*;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -30,7 +33,7 @@ class CpuSymbolicScanConformanceTest {
             var unit = analysis.plan().units().getFirst(); var facts = unit.runtimeFacts().generalScan().orElseThrow();
             var spec = unit.portablePlan().specialization(); var generator = new CpuClassFileKernelGenerator();
             byte[] bytes = generator.generateClassBytes(spec,unit.portablePlan().kernelIr());
-            var entry = generator.defineClassBytes(spec, unit.portablePlan().kernelIr(), bytes).entryPoint().asSpreader(0,MemorySegment[].class,unit.boundaryValues().size()+1);
+            var entry = generator.defineClassBytes(spec, unit.portablePlan().kernelIr(), bytes).entryPoint();
             for (int batch : new int[]{32,7,1,32,0,3,4}) try (var arena = Arena.ofConfined()) {
                 var args = new ArrayList<MemorySegment>();
                 for (int p = 0; p < facts.batchBindings().size(); p++) args.add(arena.allocate(
@@ -40,7 +43,9 @@ class CpuSymbolicScanConformanceTest {
                 for (int row = 0; row < batch; row++) lengths.setAtIndex(ValueLayout.JAVA_LONG,row,row%5);
                 for (int p = 0; p < 3; p++) for (long i = 0; i < args.get(p).byteSize()/type.byteWidth(); i++) put(type,args.get(p),i,p == 2 ? .25 : .5);
                 long[] pack = facts.pack(batch); assertEquals(batch,pack[pack.length-1]);
-                entry.invokeExact(args.toArray(MemorySegment[]::new),pack,0L,pack[1]);
+                var bound = bindDirect(entry, facts, spec, args, batch);
+                bound.execute();
+                bound.execute(); // The same helper packs and scratch must reset for a repeated entry call.
                 int reads = facts.ir().scalarReads().size();
                 for (int row = 0; row < batch; row++) for (int col = 0; col < 3; col++) {
                     assertEquals(.5+(row%5)*.5,get(type,args.get(reads),row*3+col));
@@ -77,7 +82,7 @@ class CpuSymbolicScanConformanceTest {
             for (int batch : new int[] {64,40,1,64,0,3,4}) try (var arena = Arena.ofConfined()) {
                 var args = new ArrayList<MemorySegment>();
                 for (var binding : facts.batchBindings()) args.add(arena.allocate(binding.bind(batch).referencedElementSpan()*4,4));
-                args.add(arena.allocate(facts.geometry().workspaceSize().byteSize(batch),4));
+                args.add(arena.allocate(facts.geometry().workspaceSize().byteSize(batch),8));
                 assertEquals(48,args.get(2).byteSize(),"shared parameter backing is independent of batch");
                 for (int p = 0; p < 3; p++) for (int i = 0; i < args.get(p).byteSize()/4; i++)
                     args.get(p).setAtIndex(ValueLayout.JAVA_FLOAT,i,(i%7-3)*(p+1)*.03125f);
@@ -90,11 +95,76 @@ class CpuSymbolicScanConformanceTest {
                         expected[row*3+col] += sum; history[(t*batch+row)*3+col] = sum;
                     }
                 }
-                MethodHandle entry = artifact.entryPoint().asSpreader(0,MemorySegment[].class,args.size());
-                long[] packed = facts.pack(batch); entry.invokeExact(args.toArray(MemorySegment[]::new),packed,0L,packed[1]);
+                var bound = bindDirect(artifact.entryPoint(), facts, specialization, args, batch);
+                long[] packed = facts.pack(batch); assertEquals(batch, packed[packed.length-1]);
+                bound.execute();
+                bound.execute();
                 assertArrayEquals(expected,args.get(3).toArray(ValueLayout.JAVA_FLOAT));
                 assertArrayEquals(history,args.get(4).toArray(ValueLayout.JAVA_FLOAT));
             }
+        }
+    }
+
+    /**
+     * Binds the generated owner's actual entry ABI, including ordinary helper packs and control storage.
+     * The MATMUL/ADD body in these fixtures has no indexing or scatter validator cursors.
+     * @param entry authenticated generated entry for {@code specialization}
+     * @param facts retained actual-batch Scan geometry and ordinary helper recipes
+     * @param specialization retained generated helper inventory
+     * @param segments typed outer boundaries followed by the complete declared workspace
+     * @param batch actual nonnegative batch coordinate for this invocation
+     * @return exclusively owned entry arguments reusable without repacking or replacing scratch
+     */
+    private static DirectScan bindDirect(MethodHandle entry, Facts facts, CpuKernelSpecialization specialization,
+            List<MemorySegment> segments, long batch) {
+        if (facts.ir().composition().isEmpty()) return new DirectScan(
+                entry.asSpreader(0, MemorySegment[].class, segments.size()), segments.toArray(MemorySegment[]::new),
+                facts.pack(batch), null, null, null, facts.geometry().time(), batch);
+        var composition = facts.ir().composition().orElseThrow();
+        int boundaries = facts.batchBindings().size(), units = composition.units().size(), values = composition.values().size();
+        var workspace = segments.getLast();
+        long roots = composition.activity().map(a -> (long) a.carries().size() + a.seedFormals().size()).orElse(0L);
+        long rows = composition.lengthAware()
+                ? composition.boundaryMappings().get(composition.lengthRead()).bind(batch).extents().getFirst() : batch;
+        var control = workspace.asSlice(composition.workspaceSize().byteSize(batch),
+                Math.multiplyExact(1 + roots, 16 + rows));
+        var operands = Arrays.copyOf(segments.toArray(MemorySegment[]::new), boundaries + units);
+        var packs = new long[units + 3 * values + 4 * units][];
+        Arrays.fill(packs, new long[0]);
+        for (var value : composition.values()) {
+            var access = value.access().bind(batch);
+            int position = units + 3 * value.ordinal();
+            packs[position] = access.extents().stream().mapToLong(Long::longValue).toArray();
+            packs[position + 1] = access.effectiveStrides().stream().mapToLong(Long::longValue).toArray();
+            packs[position + 2] = new long[access.extents().size()];
+        }
+        for (int u = 0; u < units; u++) {
+            var unit = composition.units().get(u); var emission = specialization.compositionUnits().get(u);
+            var ordinary = facts.ordinaryUnits().get(u);
+            var lowered = ordinary.batchGeometry().isPresent() ? ordinary.batchGeometry().orElseThrow().bind(batch) : ordinary;
+            long[] bases = new long[unit.boundaries().size()];
+            for (int b = 0; b < bases.length; b++) {
+                var value = composition.values().get(unit.boundaries().get(b));
+                bases[b] = value.offset().byteSize(batch) / value.descriptor().dataType().byteWidth();
+            }
+            long[] geometry = CpuPreparedExecutable.packGeometry(lowered, emission.specialization(), bases, batch);
+            packs[u] = Arrays.copyOf(geometry, geometry.length + emission.resets().size() + 1);
+            for (int r = 0; r < emission.resets().size(); r++)
+                packs[u][geometry.length + r] = geometry[emission.resets().get(r).cell()];
+            packs[u][packs[u].length - 1] = lowered.elementCount();
+            long start = emission.scratchOffset().byteSize(batch);
+            long end = u + 1 == units ? workspace.byteSize() : specialization.compositionUnits().get(u + 1).scratchOffset().byteSize(batch);
+            operands[boundaries + u] = workspace.asSlice(start, end - start);
+        }
+        return new DirectScan(entry, operands, null, packs, workspace, control, facts.geometry().time(), batch);
+    }
+
+    /** Invocation-owned resources for either the original ranged entry or the ordinary composite entry. */
+    private record DirectScan(MethodHandle entry, MemorySegment[] operands, long[] geometry, long[][] packs,
+            MemorySegment workspace, MemorySegment control, long time, long batch) {
+        private void execute() throws Throwable {
+            if (packs == null) entry.invokeExact(operands, geometry, 0L, geometry[1]);
+            else entry.invokeExact(operands, packs, workspace, control, time, batch);
         }
     }
 
