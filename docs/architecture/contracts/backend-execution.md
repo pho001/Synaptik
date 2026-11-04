@@ -1436,71 +1436,47 @@ the current CPU low-arithmetic restriction.
 
 ### CPU0078 temporary low-arithmetic lock
 
-The CPU-only availability cutover implements the user's retain/freeze/lock decision after
-independent production, fixture and resource reviews. [ADR0060](../../design/decisions/0060-temporary-cpu-low-arithmetic-admission-lock.md)
-explains the choice; [CPU0078](../../planning/backends/cpu/tasks/0078-temporary-low-arithmetic-lock.md#result)
-records the passed affected gate and actual rejection/retention/F32-master workflows.
-No low implementation or shared Model semantic/type/storage contract is removed; broader release
-acceptance remains separate.
+CPU0078 records the historical retain/freeze/lock decision and its unchanged historical
+qualification in [ADR0060](../../design/decisions/0060-temporary-cpu-low-arithmetic-admission-lock.md)
+and [CPU0078](../../planning/backends/cpu/tasks/0078-temporary-low-arithmetic-lock.md#result).
+The subsequent user-approved CPU low-precision parity decision supersedes its admission lock;
+its old negative capability answers are not current authority.
 
-Reject BFLOAT16/FLOAT16 numerical operand roles even when the result is promoted: tensor/scalar
-ADD/SUB/MUL/DIV/POW and numerical unary composites; MATMUL/convolution; numerical/statistical/
-masked/cumulative reductions; average pooling; normalization, loss, attention and dropout scaling;
-floating scatter ADD/MUL; CPU zero-initialized fold ADD; and fixed RNN/GRU/LSTM computation.
-POW's selected IDENTITY/POSITIVE_ONE realization, T/B=0 or all-inactive lengths do not bypass
-semantic admission. CPU FoldIr always adds from positive zero; no new raw/singleton alternative.
+### CPU low-precision parity cutover
 
-Preserve existing exact ABS/NEG/SIGN/FLOOR/CEIL/RELU/clamp, MIN/MAX including reduction/scatter,
-comparison/classification/WHERE, ordering/arg-extrema/max pooling, affine/movement/indexing/
-replacement, original graph literals, casts/conversions, state/mask and INT32/INT64/BOOL semantics.
-Their generated backward still needs independently legal operations. Low-containing storage is
-not itself prohibited: explicit low -> F32 CAST -> F32 computation and final storage conversion,
-including Training-owned F32 master/candidate updates, remain available. No implicit emulated-low
-CPU route, runtime unlock flag/profile/policy object or low-capability expansion.
+BFLOAT16, FLOAT16, FLOAT8_E4M3 and FLOAT8_E5M2 numerical execution must reuse the ordinary
+CPU capability, lowering, IR, preparation, generated bodies, retained plans and invocation owners.
+Remove obsolete CPU0078 admission methods/callers and lock-only tests rather than retaining
+an always-true shim or a runtime policy switch. Keep exact geometry, layout, gradient, alias,
+resource and lifecycle checks. The Model low-precision and OFP8 contracts own arithmetic and
+conversion; restored code is not qualified merely because it was retained behind the lock.
 
-Use existing owners only; no new/moved production type/package/facade/dependency. One
-CpuPointwiseOpcode.usesFloatingArithmetic() distinguishes numerical sites for floating operands
-from exact operations. Generalize existing package-private CpuPartitionLowering.opcode to
-OperationKind and migrate its Lowering/GeneralScanLowering/DagDecomposer callers. Its three
-new public-static, unsupported backend-internal cold methods are:
+The target is functional parity with existing CPU F32/F64 operation families, including actual
+Compiler first-order AD, ordinary/fixed/length-aware Scan, supported symbolic geometry, repeated
+training and source/value persistence. FP8 stores bytes, not BOOL or short aliases. Working
+arithmetic and accumulators are F32, with one final declared output narrowing. Existing exact
+and discrete paths preserve all raw bits. No separate interpreter, helper-dispatch executor,
+vendor AD, backend registry, numerical selector or execution-time fallback is authorized.
 
-```java
-boolean permitsLowPrecisionUse(OperationCapabilityQuery query)
-void requirePermittedLowPrecisionUse(CpuPortableKernelIr ir)
-void requirePermittedLowPrecisionUse(CpuKernelSpecialization specialization, CpuKernelIr ir)
-```
+oneDNN remains a cold-selected CPU realization. Typed native recipes authenticate each input
+and output dtype, referenced span, origin, carrier alignment and scratch requirement. Strict F32
+working/accumulation is required for low inputs. Native destination conversion is usable only
+when it proves Model rounding; otherwise declare an F32 result workspace and perform the exact
+final narrowing without erasing a logical output or saved boundary. This is not permission to
+promote FP8 inputs into F32 inputs and advertise native FP8 execution.
 
-These are declaration excerpts, not application API or runnable snippets. The query predicate
-never constructs a lowerer, calls provider.supports or re-enters recurrent/general-Scan analysis.
-Share the one opcode mapping; use actual instruction operand ordinals/virtual types, not blanket
-low-boundary rejection. Narrow read-only semantic discriminator access is authorized on existing
-encoding owners: CpuAggregateIr/CpuPool2dIr/CpuPool3dIr.encodedKind(CpuKernelIr),
-CpuScatterIr.encodedReduction(CpuKernelIr), CpuRandomIr.encodedFamily(CpuKernelIr), returning
-their existing kind/reduction/family enums. Share with existing emitter parsing where needed;
-no general decoder/registry, geometry reconstruction or decode-record allocation for admission.
+Primitive and Graph availability are independent. In pinned oneDNN 3.14, Graph MATMUL does not
+admit FP8, and CPU native F64 is unavailable. FP8 primitives require a supported x86 target;
+unavailable native configurations select the ordinary CPU candidate before execution. No native
+FP8 execution is claimed on Arm, no native availability is inferred from dtype enum tags, and no
+relaxed/low accumulator mode is used. Existing bare-MATMUL native geometry restrictions remain
+until independently qualified; OpenBLAS stays F32/F64-only.
 
-Direct byte definition cleanly becomes defineClassBytes(CpuKernelSpecialization, CpuKernelIr,
-byte[]); migrate every caller, remove the two-argument bypass. Authenticate actual emitted facts:
-typed MATMUL encoding/key agrees with the envelope and both represented operands are checked.
-Existing class-shape-only verification remains non-executing and does not change the trusted-local-
-byte threat model. Allowed emitted bytes/entry ABI/identities remain unchanged; no arbitrary
-global schema bump. Integral-only partial reduction retains its existing floating exclusion.
-
-Independent current admission is mandatory before source folding/fusion, direct/recognized
-MATMUL lowering, analyze/analyzeSelected/completePlanCandidates resource/candidate work, and
-retained finalization of semantic units AND substituted representation portable plans before
-copies/children/native setup. ArtifactStore rejects before weak/persisted hits, outside persisted
-catches; policy rejection never becomes cache miss/regeneration. Fresh generation and direct
-definition independently check. Fixed lowering/preparation/executable construction reject before
-empty-domain/scratch decisions or low-kernel construction. OpenBLAS stays F32/F64-only.
-
-Reject low CpuConstantWriteIr/constant-write-v1 at typed/envelope/retained admission: these are
-SUM-derived counts with erased numerical source roles, not original graph-literal initialization.
-Shared Prepare's original low literals remain. Keep all admission outside hot loops, with no
-unnecessary allocation/copying; add no provenance merely to rescue this temporary optimization.
-Current v2 ledger records actual CPU answers; historical v1 and all Metal rows remain unchanged.
-Actual unsupported/retained-bit/storage/F32-workflow and stale-cache witnesses, complete unaffected
-neural regressions and independent code/Javadoc review precede acceptance.
+Affected low numerical artifacts and new FP8 recipes need selective append-only compatibility
+identities. Preserve unchanged F32/F64 and exact raw recipes, retained ABI and generated bytes.
+Qualify representations, ties/overflow/underflow, NaN/infinity/zero signs, contributor and mask
+domains, native/ordinary execution, actual AD, resource lifetimes and transaction rollback.
+Positive native evidence and unsupported-target rejection evidence are separate claims.
 
 ### General Scan ordinary-unit realization
 

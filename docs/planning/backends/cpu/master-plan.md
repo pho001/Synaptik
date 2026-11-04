@@ -53,11 +53,11 @@ CPU does not own Tensor semantics, global compilation, shared slots, Runtime pol
 measurement/cache mutation, Engine composition, or Metal/CUDA routes. It creates no separate CPU
 backends, inferred relaxed numerics, or platform-label-selected vendor routes.
 
-The [first-release product target](../../production-release-goal.md#java-cpu-target) requires
-equal F32/F64 support and a temporary lock on Java CPU BF16/FP16 floating computation, retaining
-the existing implementation without expanding it. Shared types, storage, raw transfers,
-conversions and discrete semantics remain. CPU0078's reviewed CPU-only authority is accepted;
-implementation/qualification follow its Ready packet. Later unlocking needs an explicit decision.
+The user approved full CPU BF16/F16/OFP8 functional parity plus occurrence-specific oneDNN
+acceleration, superseding the earlier first-release low-arithmetic lock. Both OFP8 formats use
+the ordinary CPU path when the native library lacks an implementation; no F32-input conversion
+is relabeled as native FP8. The root and owning numerical/backend contracts define this cutover.
+Implementation and independent review/consumer qualification are the current authorized frontier.
 
 The production installation check also repaired unconditional Vector API species queries in
 scalar preparation and MATMUL discovery. A plain-JVM consumer now computes actual FLOAT32/

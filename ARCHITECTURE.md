@@ -311,28 +311,30 @@ The following invariants must remain true:
   not acquire arithmetic latitude. Finite arithmetic tolerances qualify backend routes only in
   tests, never Compiler transformations or runtime decisions.
 - Denormals-are-zero (DAZ) at named floating arithmetic primitive inputs and flush-to-zero (FTZ)
-  at named primitive results are permitted for FLOAT32, BFLOAT16, and FLOAT16, including low
-  multiplication, but forbidden for FLOAT64. DAZ uses same-signed zero without changing stored
+  at named primitive results are permitted for FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, and
+  FLOAT8_E5M2, including low multiplication, but forbidden for FLOAT64. DAZ uses same-signed zero without changing stored
   bits; FTZ obeys the family's existing zero-sign rule. Neither applies at stored comparison,
   extrema/winner, raw movement, cast, selection, index/mask/state, or exact unary ABS, NEG, SIGN,
   FLOOR, CEIL, and RELU sites. Composite and generated-gradient formulas inherit only their
   named arithmetic sites' permissions; they gain no blanket output tolerance.
-- Model-level `FLOAT16` value, promotion, cast, factory, backend, and execution semantics are active
-  at appended ordinal 6. `FLOAT16` and `BFLOAT16` are distinct storage types; direct mixed-low
-  execution is unavailable, and explicit casts establish a `FLOAT32` boundary. Homogeneous low
-  arithmetic uses `FLOAT32` working/accumulator values and one final ties-to-even narrowing. Raw
+- Model-level `FLOAT16` semantics remain at ordinal 6; `FLOAT8_E4M3` and `FLOAT8_E5M2`
+  append ordinals 7 and 8 without changing existing identities. Each low format is a distinct
+  storage type. Unlike low floating types promote to `FLOAT32`; a `FLOAT64` operand promotes
+  to `FLOAT64`. CPU execution follows that promotion; Metal capability remains independent.
+  Homogeneous low arithmetic uses `FLOAT32` working/accumulator values and one final ties-to-even narrowing. Raw
   storage/movement, mapping, guards, predicates, indices, masks, state, selection, casts,
   public/saved values, and final conversion remain exact. The family declares arithmetic
   zero-sign, and NaN class/domain rules; NaN payload/sign are not accuracy requirements.
   Operation-local reassociation/FMA and fusion across only unobservable single-use intermediates
   are permitted, never across public, saved, fan-out, predicate, index, mask, selection, or state
   boundaries.
-- The first-release Java CPU BFLOAT16/FLOAT16 arithmetic lock retains the implementation without
-  expansion, while preserving shared types, storage/raw movement/conversion, exact/discrete roles
-  and explicit F32-working workflows. [The CPU0078 owner](docs/architecture/contracts/backend-execution.md#cpu0078-temporary-low-arithmetic-lock)
-  defines independent source/direct/retained/cache admission and its exact internal cold seams.
-  This is CPU-only backend availability, not changed Model semantics or a numerical selector;
-  Metal's independently qualified low capability remains active. Unlocking needs a later decision.
+- The user-approved CPU low-precision parity cutover supersedes the temporary CPU0078
+  BFLOAT16/FLOAT16 arithmetic lock. BFLOAT16, FLOAT16 and both OFP8 types use the existing
+  CPU owners for numerical, exact, derivative, recurrent and symbolic execution. There is no
+  runtime unlock flag, second AD/executor or hidden quantization scale. Native oneDNN is
+  an occurrence-specific acceleration of this CPU capability, not its availability condition.
+  Unsupported native configurations use the ordinary CPU plan selected before execution.
+  Metal gains no FP8 capability or changed numerical permissions from this CPU cutover.
 - Floating scatter MUL combines its base and every addressed update exactly once; a rounded
   multiplication tree is permitted, including intermediate overflow and ensuing NaN. Integral
   modular multiplication and unaddressed raw cells remain exact.

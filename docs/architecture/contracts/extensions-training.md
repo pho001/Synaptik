@@ -1472,12 +1472,12 @@ Rules:
   storage use and must not replace membership, bindings or storage associations while the session
   is open.
 - The public session supports a scalar `FLOAT32` or `FLOAT64` objective and connected, non-empty
-  `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` parameters with fully static, dense-contiguous,
+  floating parameters, including BFLOAT16, FLOAT16, FLOAT8_E4M3 and FLOAT8_E5M2, with fully static, dense-contiguous,
   offset-zero, non-view descriptors and exact-capacity writable native host storage accessible to
   every thread that operates on the session. Every parameter has a strictly positive element count
   and finite initial values; rejection occurs during capture before cotangent-seed allocation,
-  compilation, or preparation. BFLOAT16 and FLOAT16 parameters retain private FLOAT32 masters and
-  publish one narrowed logical value only after a successful update. Parameter storage is updated
+  compilation, or preparation. Every low parameter type retains a private FLOAT32 master and
+  publishes one correctly narrowed logical value only after a successful update. Parameter storage is updated
   in place so compiled Tensor identities remain stable. JVM-heap, read-only,
   confined-to-another-thread, device-only, empty, integral, BOOL, and non-finite parameter storage
   are outside the update domain and fail before compile or mutation.

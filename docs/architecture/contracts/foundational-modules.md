@@ -206,8 +206,8 @@ removing a selector.
 
 #### Family formulas and unary sites
 
-Every current unary kind retains its formula for each accepted BFLOAT16, FLOAT16, FLOAT32, and
-FLOAT64 type. ABS and NEG perform exact represented sign clearing/inversion. SIGN, FLOOR, CEIL,
+Every current unary kind retains its formula for each accepted floating type, including both
+OFP8 types below. ABS and NEG perform exact represented sign clearing/inversion. SIGN, FLOOR, CEIL,
 and RELU retain their exact represented-value family rules. Those six sites never use arithmetic
 DAZ/FTZ. RECIPROCAL is one division at the declared working dtype, not an implicit reciprocal
 estimate. LOG, LOG1P, EXP, EXPM1, ERF, SQRT, and TANH retain their mathematical function, domain,
@@ -254,6 +254,7 @@ grants no universal choice of zero sign.
 | FLOAT32 | Permitted | Permitted |
 | BFLOAT16 | Permitted, including multiplication | Permitted, including multiplication |
 | FLOAT16 | Permitted, including multiplication | Permitted, including multiplication |
+| FLOAT8_E4M3 / FLOAT8_E5M2 | Permitted at F32 working sites | Permitted at F32 working sites |
 | FLOAT64 | Forbidden | Forbidden |
 
 This permission does not attach to an operation output merely because it is floating. Neither
@@ -345,7 +346,7 @@ family's working dtype, subtract `m` from each represented `x_i`, and include ea
 `EXP(x_i-m)` contributor exactly once in the sum using the aggregate floor. An implementation
 may recompute a shifted exponential when producing its output, without adding a sum contributor. The
 shift, exponential result, and aggregate accumulation are FLOAT64 for FLOAT64 inputs and FLOAT32
-for FLOAT32, BFLOAT16, and FLOAT16 inputs. The resulting sum is positive and finite when all
+for FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, and FLOAT8_E5M2 inputs. The resulting sum is positive and finite when all
 working shifts are finite. SOFTMAX divides each shifted exponential by that sum; LOG_SOFTMAX
 subtracts `LOG(sum)` from each working shift. Each output is then published in its input dtype,
 with a single final ties-to-even narrowing for a low output. LOG_SOFTMAX does not take the
@@ -392,16 +393,16 @@ an algebraic rewrite, omitted contributor, or new provider capability.
 
 #### Model low-precision contract
 
-The Model-level `FLOAT16` type and its value, promotion, cast, and factory semantics are active.
-CPU and Metal backend wire/schema/identity/provider/route/runtime support is active for the
-documented exact and arithmetic occurrence domains. This subsection owns their allowed results; it
-does not imply an unlisted occurrence, a direct mixed BFLOAT16/FLOAT16 operation, or generated
-backward ownership beyond the separately admitted primitive closure.
+The Model-level FLOAT16, BFLOAT16 and OFP8 types own value, promotion, cast and factory
+semantics independently of native availability. CPU low-precision parity is authorized by the
+user; Metal retains its independently qualified BFLOAT16/FLOAT16 domain and rejects FP8.
+This subsection defines allowed results, not an inference of support from another dtype or a
+permission to replace Compiler-owned derivatives with vendor AD.
 
-`FLOAT16` and `BFLOAT16` are distinct, incomparable storage types. A mixed
-`FLOAT16`/`BFLOAT16` floating operation promotes to `FLOAT32`; either low type combined with
-`FLOAT32` promotes to `FLOAT32`, and a combination containing `FLOAT64` promotes to `FLOAT64`. A
-homogeneous low-precision occurrence retains its declared low output type.
+FLOAT16, BFLOAT16, FLOAT8_E4M3 and FLOAT8_E5M2 are distinct storage types. An operation
+with unlike low floating types promotes to FLOAT32; any FLOAT32 operand promotes low types
+to FLOAT32, and a FLOAT64 operand promotes to FLOAT64. Homogeneous low occurrences retain
+their declared low output type. CPU follows this promotion; other backends qualify independently.
 
 Kind, attributes, arity, descriptors, Shape/layout mapping, raw storage and movement, contributor
 domain, guards, predicates, indices, masks, state transitions, selection, ordering, casts, public
@@ -451,6 +452,40 @@ actual backend occurrence capability without interpreting numerical semantics. B
 must fail closed if its route is unqualified. Changed route, generated-artifact, native, and tuning
 identities are append-only and must reject stale serialized or cached input; the implementation
 cutover assigns exact new versions.
+
+#### OFP8 representation and operation boundaries
+
+`FLOAT8_E4M3` and `FLOAT8_E5M2` are differentiable one-byte OFP8 storage types appended
+after FLOAT16. E4M3 has sign/exponent/fraction widths 1/4/3, bias 7, signed zero, gradual
+subnormals, maximum finite magnitude 448, and NaN encodings 0x7f/0xff; it has no infinity.
+E5M2 has widths 1/5/2, bias 15, signed zero, gradual subnormals, maximum finite magnitude
+57344, infinity encodings 0x7c/0xfc, and NaNs with exponent 31 and nonzero fraction.
+
+Numerical conversion is non-saturating round-to-nearest ties-to-even. E5M2 overflow produces
+signed infinity; E4M3 out-of-range rounding and infinity input produce canonical NaN 0x7f.
+Narrowed NaNs canonicalize to 0x7f for E4M3 and 0x7e for E5M2. Direct FLOAT64 and integer
+casts round to the destination without an intervening lossy FLOAT32 conversion. Exact same-type
+casts, raw factories, movement, scalar metadata and persistence preserve every stored bit.
+Widening represents the original value and preserves represented NaN sign/payload where the
+destination permits it; no numeric conversion changes a raw import.
+
+Each ordinary operation uses its existing formula with FLOAT32 working values and accumulators,
+then one final FP8 narrowing at each public/saved/ordinary operation-result boundary. There is
+no implicit scale, clipping, dynamic range calibration, stochastic rounding or loss scaler.
+An E4M3 result whose mathematical/working class is infinity consequently narrows to NaN,
+including empty floating extrema and function poles. Nonempty extrema still select an exact
+original represented winner; an unrepresentable infinity identity must not poison that selection.
+Masks, indices, comparison, RNG state and raw paths do not acquire arithmetic latitude.
+
+Existing Compiler AD, Scan and fixed recurrent owners are reused with their original rounding
+boundaries. FP8 coefficients for precision-sensitive normalization/attention metadata may use
+FLOAT32, just as FLOAT16 metadata does. Training uses FLOAT32 masters for all low parameter
+types and rejects nonfinite represented candidates transactionally. Its objective remains an
+explicit scalar FLOAT32/FLOAT64 value; conversion to that objective is visible in the graph.
+Generic source/value persistence appends new dtype IDs without changing any old dtype ID or
+old accepted bytes; new FP8 wire domains are separately versioned. FP8 does not authorize a
+new backend, graph compiler, execution owner or Metal native wire value.
+
 
 ### `modules/config`
 
