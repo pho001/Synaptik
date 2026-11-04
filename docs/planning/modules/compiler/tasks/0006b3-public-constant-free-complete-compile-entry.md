@@ -202,7 +202,7 @@ Manual validation:
   remain package-private;
 - inspect delegation to confirm one call with `CompileTimeConstantGraph.Ingress.empty()` and no
   other behavior;
-- [scan](../../../../glossary.md#term-cumulative-scan) [Compiler](../../../../glossary.md#term-compiler) production imports and [Gradle](../../../../glossary.md#term-gradle) files for forbidden outward dependencies;
+- scan [Compiler](../../../../glossary.md#term-compiler) production imports and [Gradle](../../../../glossary.md#term-gradle) files for forbidden outward dependencies;
 - validate changed Markdown links, anchors, headings, fences, trailing whitespace, and newline at
   end of file;<span data-glossary-navigation="true"> ([end of file glossary](../../../../glossary.md#text-encoding-and-file-boundaries))</span>
 - confirm the implementation stays within nine paths and changes no code outside Compiler.
@@ -307,7 +307,7 @@ evidence, reused by this documentation context because no executable Java change
   package-private and retain their signatures.<span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature))</span>
 - [Bytecode](../../../../glossary.md#term-bytecode) inspection confirmed exactly one `CompileTimeConstantGraph.Ingress.empty()` call and
   one `GraphCompiler.compile(...)` call, with no other port behavior.
-- The forbidden outward-import [scan](../../../../glossary.md#term-cumulative-scan) and `git diff --check` passed in the implementation context.
+- The forbidden outward-import scan and `git diff --check` passed in the implementation context.
 
 Documentation context `01a09f0c-b9cc-79a0-8881-4d48818daa6e` independently reviewed the final
 source, both new tests, the delegate/privacy implementation, architecture and documentation

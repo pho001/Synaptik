@@ -100,7 +100,7 @@ families, workload buckets, profile units, or backend tuning vocabulary.
   This is the exact current internal failure. It is not a public compiler exception and must not
   be translated into a default or fallback backend in this task.
 - For a non-empty eligible list, scan the complete availability-snapshot list in caller encounter
-  order:<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  order:
   1. reject the first null snapshot at index `i` with `NullPointerException` message
      `availabilitySnapshots[i]`;
   2. use the snapshot's already non-null `backendId()` as its association key; and
@@ -325,7 +325,7 @@ then existing provider order. It defines no numeric score or future cost combina
 | 6 | first eligible ID without an equal snapshot | `IllegalArgumentException("missing availability snapshot for backendId: <value>")` |
 
 Top-level validation always completes before stage 4. Stage 4 occurs before any list-[element](../../../../glossary.md#term-element) read.
-For a non-empty candidate set, the complete snapshot [scan](../../../../glossary.md#term-cumulative-scan) and duplicate validation finish before
+For a non-empty candidate set, the complete snapshot scan and duplicate validation finish before
 the first missing-association check or preference comparison. Preference comparison begins only
 after all eligible [identities](../../../../glossary.md#term-identity-meanings) have a matching snapshot.
 
@@ -508,7 +508,7 @@ Manual final checks are limited to risks not better locked by tests:
 - generated public Javadoc boundary, balanced Markdown fences, links/anchors, final newlines, and
   trailing whitespace.
 
-No manual `javap`, separate [bytecode](../../../../glossary.md#term-bytecode) inspection, or source-import [scan](../../../../glossary.md#term-cumulative-scan) is required: ordinary
+No manual `javap`, separate [bytecode](../../../../glossary.md#term-bytecode) inspection, or source-import scan is required: ordinary
 [compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names) plus the focused reflection/[API](../../../../glossary.md#term-application-programming-interface-api)-[shape](../../../../glossary.md#shape) and forbidden-surface tests cover those risks.
 No [architecture test](../../../../glossary.md#term-architecture-test) or repository-wide suite is run by habit because this task adds one internal
 planning selector with no dependency, public API, architecture boundary, shared build, [concrete

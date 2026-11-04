@@ -127,7 +127,7 @@ git diff --name-only -- '*.java' '*.gradle' '*.gradle.kts'
 git diff --check
 ```
 
-The Java/[Gradle](../../../../glossary.md#term-gradle) [scan](../../../../glossary.md#term-cumulative-scan) must be empty and the path audit must equal the four-file allowlist. If the
+The Java/[Gradle](../../../../glossary.md#term-gradle) scan must be empty and the path audit must equal the four-file allowlist. If the
 temporary Markdown validator is absent, create an equivalent validator outside the repository.
 Review reuses successful focused-test evidence unless executable behavior changes and reruns final
 documentation, size, [scope](../../../../glossary.md#term-scope), and whitespace checks.
@@ -163,7 +163,7 @@ confirmed the finalizer is public and the Engine composition is package-private.
 [Planning](../../../../glossary.md#term-planning) profiles were applied; architecture, ADRs, guides, other glossary terms, [Javadoc](../../../../glossary.md#term-javadoc), tests,
 [Gradle](../../../../glossary.md#term-gradle), and executable behavior require no change because the edit reconciles documentation with
 existing source and contracts. The Markdown validator accepted all four files; the brief measured
-152 lines and 8,593 bytes, the Java/Gradle [scan](../../../../glossary.md#term-cumulative-scan) was empty, the
+152 lines and 8,593 bytes, the Java/Gradle scan was empty, the
 path audit contained exactly the four allowed files, and `git diff --check` passed. No unresolved
 issue or follow-up remains.
 

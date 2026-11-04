@@ -37,7 +37,7 @@ Implements accepted authority, without an architecture or [dependency](../../../
 ## Goal
 
 Deliver a tested [Planning](../../../../glossary.md#term-planning) capability foundation that forwards a complete [immutable](../../../../glossary.md#term-immutable) compiled [scan
-body](../../../../glossary.md#backpropagation-through-time-and-recurrent-state), ordered [descriptors](../../../../glossary.md#term-descriptor) and demand to a whole-[occurrence](../../../../glossary.md#term-occurrence) provider. Not [scan](../../../../glossary.md#term-cumulative-scan) execution.
+body](../../../../glossary.md#backpropagation-through-time-and-recurrent-state), ordered [descriptors](../../../../glossary.md#term-descriptor) and demand to a whole-[occurrence](../../../../glossary.md#term-occurrence) provider. Not [scan](../../../../glossary.md#general-differentiable-scan) execution.
 
 ## [Scope](../../../../glossary.md#term-scope)
 
@@ -72,7 +72,7 @@ Do not reopen that decision; stop only on genuine new ambiguity or required scop
 
 - Depends on: Planning0001–0007 Complete; accepted Model0034/0035 Complete, uncommitted.
 - Conflicts with: query/provider/ownership API and shared scan/planning document edits; none active.
-  Preserve all 136 preexisting dirty paths, including Model source/tests, <span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [scan glossary](../../../../glossary.md#term-cumulative-scan); [planning glossary](../../../../glossary.md#term-planning); [Model glossary](../../../../glossary.md#term-model))</span>`THIRD_PARTY_NOTICES.md`,
+  Preserve all 136 preexisting dirty paths, including Model source/tests, <span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [scan glossary](../../../../glossary.md#general-differentiable-scan); [planning glossary](../../../../glossary.md#term-planning); [Model glossary](../../../../glossary.md#term-model))</span>`THIRD_PARTY_NOTICES.md`,
   CPU cast oracle and untracked Superseded Compiler0010.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [oracle glossary](../../../../glossary.md#term-test-oracle))</span>
 - Parallel group: None; sole writer, serial clean code executor then independent clean code/docs review.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
@@ -116,7 +116,7 @@ file edits to main before touching them; do not broaden [scope](../../../../glos
    three-argument and four-argument empty construction for provider false. Scan header/body/descriptor
    mismatches likewise remain representable for provider false; add no such inference or backend
    qualification to the query. The applicability guard prevents old CPU/Metal providers that ignore
-   the attachment from accepting an ordinary supported operation carrying a scan body; no backend edits.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [backend glossary](../../../../glossary.md#backend); [qualification glossary](../../../../glossary.md#term-qualification); [guard glossary](../../../../glossary.md#term-guard); [CPU glossary](../../../../glossary.md#term-cpu); [Metal glossary](../../../../glossary.md#term-metal); [scan body glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state))</span>
+   the attachment from accepting an ordinary supported operation carrying a scan body; no backend edits.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#general-differentiable-scan); [backend glossary](../../../../glossary.md#backend); [qualification glossary](../../../../glossary.md#term-qualification); [guard glossary](../../../../glossary.md#term-guard); [CPU glossary](../../../../glossary.md#term-cpu); [Metal glossary](../../../../glossary.md#term-metal); [scan body glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state))</span>
 3. Existing Model construction owns graph closure, role coverage, increasing in-range demand and
    nested-body rejection (<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [graph glossary](../../../../glossary.md#graph))</span>`CompiledScanBody`), plus attachment kind/header/formal/role cardinalities
    (`CompiledNode`). Apart from criterion 2's applicability guard, do not duplicate/weaken those checks.
@@ -193,7 +193,7 @@ main-owned. This mechanical closure changes no Java, Javadoc, terminology or aut
 - Fourth `Optional<CompiledScanBody>` component, retained three-argument constructor, exact immutable
   references/ordered snapshots and post-signature non-scan-present-body guard satisfy criteria 1–3.
   Empty-body Scan and header/descriptor mismatch remain representable for provider false; complete
-  body plus loop-binder qualification has no child-inference shortcut. No demand algorithm/numerical rule.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument); [immutable glossary](../../../../glossary.md#term-immutable); [signature glossary](../../../../glossary.md#term-signature); [scan glossary](../../../../glossary.md#term-cumulative-scan); [guard glossary](../../../../glossary.md#term-guard); [descriptor glossary](../../../../glossary.md#term-descriptor); [qualification glossary](../../../../glossary.md#term-qualification); [inference glossary](../../../../glossary.md#term-inference))</span>
+  body plus loop-binder qualification has no child-inference shortcut. No demand algorithm/numerical rule.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument); [immutable glossary](../../../../glossary.md#term-immutable); [signature glossary](../../../../glossary.md#term-signature); [scan glossary](../../../../glossary.md#general-differentiable-scan); [guard glossary](../../../../glossary.md#term-guard); [descriptor glossary](../../../../glossary.md#term-descriptor); [qualification glossary](../../../../glossary.md#term-qualification); [inference glossary](../../../../glossary.md#term-inference))</span>
 - Plato: exact focused command above PASS, 35 tests. Final combined module test/Javadoc command above
   PASS, 73 tests, zero failures/errors/skips/Javadoc warnings; executable code then frozen (six files).<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - Final independent Feynman APPROVE: no executable blocker/change. Final

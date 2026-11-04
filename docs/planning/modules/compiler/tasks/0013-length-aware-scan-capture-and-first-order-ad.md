@@ -1,4 +1,4 @@
-# Task Compiler0013: Length-aware [Scan](../../../../glossary.md#term-cumulative-scan) [capture](../../../../glossary.md#term-capture-meanings) and first-order [AD](../../../../glossary.md#autograd)
+# Task Compiler0013: Length-aware [Scan](../../../../glossary.md#general-differentiable-scan) [capture](../../../../glossary.md#term-capture-meanings) and first-order [AD](../../../../glossary.md#autograd)
 
 > **Editorial reading key — not part of the historical record.**
 >
@@ -36,7 +36,7 @@ Read AGENTS.md and root [Scope-indexed normative contracts](../../../../../ARCHI
 - Root [Core lifecycle](../../../../../ARCHITECTURE.md#core-lifecycle)<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle))</span>, [Core invariants](../../../../../ARCHITECTURE.md#core-invariants),
   [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>, [Documentation authority and architecture updates](../../../../../ARCHITECTURE.md#documentation-authority-and-architecture-updates),
   [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
-- Recurrent-[scan](../../../../glossary.md#term-cumulative-scan) [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>:
+- Recurrent-[scan](../../../../glossary.md#general-differentiable-scan) [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>:
   [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities),
   [Canonical residual ports and demand](../../../../architecture/contracts/recurrent-scan.md#canonical-residual-ports-and-demand)<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>,
   [Reverse scan and exact primal bindings](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal); [bindings glossary](../../../../glossary.md#term-binding))</span>,
@@ -61,7 +61,7 @@ Status: [length plan](../../../length-aware-general-scan.md). Stop on contract a
 
 - Depends on: Complete Model0037/0038, Compiler0011, Planning0008; preserve Compiler0012 cold baseline.
 - Conflicts with: scan API/roles, Compiler capture/AD/demand/query/cold, Prepare/CPU/codec,
-  NN0032 and shared-document writers; none active, serial only.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Compiler glossary](../../../../glossary.md#term-compiler); [capture glossary](../../../../glossary.md#term-capture-meanings); [AD glossary](../../../../glossary.md#autograd); [Prepare glossary](../../../../glossary.md#prepare); [CPU glossary](../../../../glossary.md#term-cpu); [codec glossary](../../../../glossary.md#term-codec))</span>
+  NN0032 and shared-document writers; none active, serial only.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#general-differentiable-scan); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Compiler glossary](../../../../glossary.md#term-compiler); [capture glossary](../../../../glossary.md#term-capture-meanings); [AD glossary](../../../../glossary.md#autograd); [Prepare glossary](../../../../glossary.md#prepare); [CPU glossary](../../../../glossary.md#term-cpu); [codec glossary](../../../../glossary.md#term-codec))</span>
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus the
   accepted uncommitted tree (302 dirty paths / 2429 Git-listed files); not merged predecessors.
@@ -147,11 +147,11 @@ Java prefix: `modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/
 
 | Case | Required evidence in this task |
 |---|---|
-| B=F/1/0; T=0; empty [features](../../../../glossary.md#term-software-feature) | Roles/history geometry, whole empty-body checks, O(body) [graph](../../../../glossary.md#graph) size. |
+| B=F/1/0; T=0; empty [features](../../../../glossary.md#term-feature) | Roles/history geometry, whole empty-body checks, O(body) [graph](../../../../glossary.md#graph) size. |
 | B=1; q=a.matmul(w) SHARED[1,H]; xStep ROW0[1,1]; next=h.add(q).add(xStep.matmul(q)) | q gets direct ROW and terminal-SHARED [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) terms: keepDims [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) SUM the incoming ROW BEFORE append/accumulation, keep SHARED unchanged; upstream a/w adjoints remain SHARED, no [target](../../../../glossary.md#term-target)-[shape](../../../../glossary.md#shape) [heuristic](../../../../glossary.md#term-heuristic). |
 | Final/emission/joint/repeated [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); two carries | primalBindings, positional sums, zero/one [bindings](../../../../glossary.md#term-binding), false flags. |
 | Unused/nongrad sequences; ties | Check all positions; ROW zeros and lockstep pruning. |
-| Malformed roles/lengths/feedback; unrelated bad [scan](../../../../glossary.md#term-cumulative-scan) | Independent [inference](../../../../glossary.md#term-inference)/pre-allocation failures, no new rejection policy. |
+| Malformed roles/lengths/feedback; unrelated bad [scan](../../../../glossary.md#general-differentiable-scan) | Independent [inference](../../../../glossary.md#term-inference)/pre-allocation failures, no new rejection policy. |
 
 ## [Validation](../../../../glossary.md#term-validation)
 
@@ -173,12 +173,12 @@ git diff --check
 Mappings: [CPU](../../../../glossary.md#term-cpu) `modules/backend/cpu` (:[backends](../../../../glossary.md#backend):cpu), Checkpoint `modules/checkpoint`
 (:extensions:checkpoint). Report non-[Compiler](../../../../glossary.md#term-compiler) executable/[guard](../../../../glossary.md#term-guard) edits before expanding [scope](../../../../glossary.md#term-scope).
 Evidence proves construction/roles and retained rejection, not [runtime](../../../../glossary.md#term-runtime) length validation/skipping,
-poisoned-[padding](../../../../glossary.md#padding) execution or speed. [Oracle](../../../../glossary.md#term-test-oracle).[scan](../../../../glossary.md#term-cumulative-scan) remains all-valid. No root/native/performance gate;
+poisoned-[padding](../../../../glossary.md#padding) execution or speed. [Oracle](../../../../glossary.md#term-test-oracle).[scan](../../../../glossary.md#general-differentiable-scan) remains all-valid. No root/native/performance gate;
 reuse source-matched evidence. Execution/[conformance](../../../../glossary.md#term-conformance) join belongs to later [owners](../../../../glossary.md#term-owner).
 
 ## Documentation and review impact
 
-Finalize [Compiler](../../../../glossary.md#term-compiler)/[Model](../../../../glossary.md#term-model) [Scan](../../../../glossary.md#term-cumulative-scan) Javadocs, root/scoped facts, three [API](../../../../glossary.md#term-application-programming-interface-api) references, scan/training/[module](../../../../glossary.md#term-module)
+Finalize [Compiler](../../../../glossary.md#term-compiler)/[Model](../../../../glossary.md#term-model) [Scan](../../../../glossary.md#general-differentiable-scan) Javadocs, root/scoped facts, three [API](../../../../glossary.md#term-application-programming-interface-api) references, scan/training/[module](../../../../glossary.md#term-module)
 explanations, glossary and six active plans. Keep cold/[Prepare](../../../../glossary.md#prepare)/[CPU](../../../../glossary.md#term-cpu)/[codec](../../../../glossary.md#term-codec)/v5/[NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) closed; no API/[ADR](../../../../glossary.md#term-architecture-decision-record-adr)/
 authority/[dependency](../../../../glossary.md#term-dependency) redesign. Independent review reuses tests; MAIN integrates.
 

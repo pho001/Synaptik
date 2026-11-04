@@ -32,7 +32,7 @@ The [ADR](../../../../glossary.md#term-architecture-decision-record-adr) defines
 Extend only StaticResultLogicalLayoutClosure's second [topological](../../../../glossary.md#term-topological-order) phase and its [Javadoc](../../../../glossary.md#term-javadoc)/tests.
 Reuse existing LayoutInference and closeValue. Preserve inferred [dtype](../../../../glossary.md#data-type--datatype)/[Shape](../../../../glossary.md#shape), existing exact
 views, [gradient](../../../../glossary.md#term-gradient) flags, source/caller [descriptors](../../../../glossary.md#term-descriptor), IDs, [topology](../../../../glossary.md#term-topology), constraints and sidecars. Do not
-change raw [inference](../../../../glossary.md#term-inference), [Model](../../../../glossary.md#term-model), [VJP](../../../../glossary.md#term-vector-jacobian-product-vjp) math, source reconstruction, wire, scoped [Scan](../../../../glossary.md#term-cumulative-scan) [admission](../../../../glossary.md#term-admission), the
+change raw [inference](../../../../glossary.md#term-inference), [Model](../../../../glossary.md#term-model), [VJP](../../../../glossary.md#term-vector-jacobian-product-vjp) math, source reconstruction, wire, scoped Scan [admission](../../../../glossary.md#term-admission), the
 family-wide [canonical](../../../../glossary.md#term-canonical-form) classifier or [backend capability](../../../../glossary.md#backend-capability). CPU0079 and Metal0081 own consumers.
 
 ## [Ownership](../../../../glossary.md#term-ownership-meanings) and integration

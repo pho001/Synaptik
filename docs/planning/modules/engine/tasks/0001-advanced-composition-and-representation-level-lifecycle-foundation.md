@@ -281,7 +281,7 @@ Type placement:
 - `io.github.pho001.synaptik.engine.AdvancedPreparedExecution` - public opaque owner-bound
   prepared handle; Engine owns its package-private construction and delegate access.
 - `io.github.pho001.synaptik.engine.AdvancedRunResult` - public lifecycle-only result wrapper that
-  coordinates exactly-once Runtime-result cleanup with Engine closure.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  coordinates exactly-once Runtime-result cleanup with Engine closure.
 - `io.github.pho001.synaptik.engine.EngineBackendComposition` - package-private exact
   collaboration needed by the current Engine orchestration and fake lifecycle tests.
 - `io.github.pho001.synaptik.engine.CpuEngineBackendComposition` - package-private adapter over the
@@ -576,7 +576,7 @@ Manual and structural validation:
   Config, Model storage, and Runtime representation types;<span data-glossary-navigation="true"> ([compile glossary](../../../../glossary.md#compile); [fixture glossary](../../../../glossary.md#term-fixture); [Model glossary](../../../../glossary.md#term-model))</span>
 - inspect `javap -public` for the four public Engine types and confirm the exact surface, opaque
   handle constructors, and absence of inward delegates;<span data-glossary-navigation="true"> ([opaque glossary](../../../../glossary.md#term-opaque))</span>
-- [scan](../../../../glossary.md#term-cumulative-scan) Engine production and test sources for forbidden `.internal` imports, reflective/discovery
+- scan Engine production and test sources for forbidden `.internal` imports, reflective/discovery
   mechanisms, service/registry/global state, raw types, unchecked casts, and Tensor execution or
   backward additions;<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - verify `modules/engine/build.gradle.kts` changed only by the exact direct Model and Planning

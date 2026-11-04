@@ -1,4 +1,4 @@
-# Task Compiler0015: Symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) [inference](../../../../glossary.md#term-inference), first-order [AD](../../../../glossary.md#autograd) and scoped [binding](../../../../glossary.md#term-binding)
+# Task Compiler0015: Symbolic-length [Scan](../../../../glossary.md#general-differentiable-scan) [inference](../../../../glossary.md#term-inference), first-order [AD](../../../../glossary.md#autograd) and scoped [binding](../../../../glossary.md#term-binding)
 
 > **Editorial reading key — not part of the historical record.**
 >
@@ -17,13 +17,13 @@ Complete — MAIN accepted the exact [Compiler](../../../../glossary.md#term-com
 
 ## Change class
 
-Class C — scoped [validation](../../../../glossary.md#term-validation), [automatic differentiation](../../../../glossary.md#autograd) ([AD](../../../../glossary.md#autograd)) and [binding](../../../../glossary.md#term-binding) cross a durable [Compiler](../../../../glossary.md#term-compiler)/[Scan](../../../../glossary.md#term-cumulative-scan)
+Class C — scoped [validation](../../../../glossary.md#term-validation), [automatic differentiation](../../../../glossary.md#autograd) ([AD](../../../../glossary.md#autograd)) and [binding](../../../../glossary.md#term-binding) cross a durable [Compiler](../../../../glossary.md#term-compiler)/[Scan](../../../../glossary.md#general-differentiable-scan)
 contract. Clean implementation and independent source/docs review are mandatory within this task.
 
 ## Goal
 
 Combine one named [batch dimension](../../../../glossary.md#batch-dimension) B with discrete [runtime](../../../../glossary.md#term-runtime) [INT64](../../../../glossary.md#data-type--datatype)[B] lengths for [general Scan](../../../../glossary.md#general-differentiable-scan):
-fixed time T/[features](../../../../glossary.md#term-software-feature), [homogeneous](../../../../glossary.md#term-homogeneous) [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) [inference](../../../../glossary.md#term-inference), actual first-order opposite-traversal
+fixed time T/[features](../../../../glossary.md#term-feature), [homogeneous](../../../../glossary.md#term-homogeneous) [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) [inference](../../../../glossary.md#term-inference), actual first-order opposite-traversal
 sibling [AD](../../../../glossary.md#autograd) and complete fresh scoped all-port BatchBindingPlan [admission](../../../../glossary.md#term-admission), without execution support.
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -37,7 +37,7 @@ Size exception above 15 KB: keep this capability's inference, actual [AD](../../
 
 No [Model](../../../../glossary.md#term-model) executable/semantic change, new [API](../../../../glossary.md#term-application-programming-interface-api)/type/protocol, [Runtime](../../../../glossary.md#term-runtime)/[Prepare](../../../../glossary.md#prepare)/[CPU](../../../../glossary.md#term-cpu)/[Engine](../../../../glossary.md#term-engine) enablement,
 geometry [memo](../../../../glossary.md#cache-and-memoization), resource/history allocation, cold [capture](../../../../glossary.md#term-capture-meanings)/reconstruction/copy, [persistence](../../../../glossary.md#term-persistence)/v5,
-[NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training/fluent migration, fixed-[scan](../../../../glossary.md#term-cumulative-scan) [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt), variable T/[features](../../../../glossary.md#term-feature), low/mixed types, higher-order,
+[NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training/fluent migration, fixed-[scan](../../../../glossary.md#general-differentiable-scan) [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt), variable T/[features](../../../../glossary.md#term-feature), low/mixed types, higher-order,
 native/[backend](../../../../glossary.md#backend)/emitter changes or performance campaign. Do not copy legacy implementation.
 
 ## Contracts
@@ -50,7 +50,7 @@ native/[backend](../../../../glossary.md#backend)/emitter changes or performance
   [`modules/compiler`](../../../../architecture/contracts/compiler-autograd.md#modulescompiler) and
   [Compile lifecycle](../../../../architecture/contracts/compiler-autograd.md#compile-lifecycle)<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile))</span>, including
   `Bounded general-scan cold reconstruction` (still closed for length mode).
-- Sole [Scan](../../../../glossary.md#term-cumulative-scan) semantic owner: [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
+- Sole [Scan](../../../../glossary.md#general-differentiable-scan) semantic owner: [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
   specifically `Source body, attachments and scoped identities`, `Canonical residual ports and
   demand`, `Reverse scan and exact primal bindings` (independent [capture](../../../../glossary.md#term-capture-meanings)/saved-site obligations).
 - Symbolic intersection: [Accepted symbolic-batch scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan),
@@ -77,7 +77,7 @@ Header/row/activity/[AD](../../../../glossary.md#autograd) rules, algorithms, AP
 - Depends on: Complete Model0041/0044, Compiler0011/0013/0014, Planning0008 and the retained
   Prepare0013 ordinary binding baseline; frozen pre-Java Meitner APPROVE and MAIN acceptance satisfied.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding))</span>
 - Conflicts with: all writers to Scan semantics/status, Compiler inference/AD/binding/capture,
-  Model Scan Javadoc, or shared planning/docs; none active under MAIN's sole-serial-writer handoff.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [Compiler glossary](../../../../glossary.md#term-compiler); [inference glossary](../../../../glossary.md#term-inference); [AD glossary](../../../../glossary.md#autograd); [capture glossary](../../../../glossary.md#term-capture-meanings); [Model glossary](../../../../glossary.md#term-model); [Javadoc glossary](../../../../glossary.md#term-javadoc); [planning glossary](../../../../glossary.md#term-planning); [handoff glossary](../../../../glossary.md#term-handoff))</span>
+  Model Scan Javadoc, or shared planning/docs; none active under MAIN's sole-serial-writer handoff.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#general-differentiable-scan); [Compiler glossary](../../../../glossary.md#term-compiler); [inference glossary](../../../../glossary.md#term-inference); [AD glossary](../../../../glossary.md#autograd); [capture glossary](../../../../glossary.md#term-capture-meanings); [Model glossary](../../../../glossary.md#term-model); [Javadoc glossary](../../../../glossary.md#term-javadoc); [planning glossary](../../../../glossary.md#term-planning); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Parallel group: None; serial contexts, no concurrent write worktree required.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus ALL
   accepted dirty work, not merged predecessors; preserve the baseline described below.
@@ -97,7 +97,7 @@ and its 2480-path copies, not HEAD-only diffs; independent review uses the sourc
 Production prefix: `modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/`.
 
 - `ScanBodyInference.java`: `infer`, `validateRows`, `rowResult`, `checkRow`, fixed-feature checks;
-  replace static numeric row comparisons with independently proved Dimension provenance.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-software-feature); [Dimension glossary](../../../../glossary.md#dimension); [provenance glossary](../../../../glossary.md#provenance))</span>
+  replace static numeric row comparisons with independently proved Dimension provenance.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-feature); [Dimension glossary](../../../../glossary.md#dimension); [provenance glossary](../../../../glossary.md#provenance))</span>
 - `ScanGradientRules.java`: [`preflight`](../../../../glossary.md#term-preflight), `sourceRoles`, `rowRole`, `apply`, `stackedShape` and
   existing row-constant/zero closures; remove only the admitted symbolic-length restriction.<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant))</span>
 - `BatchBindingPlan.java`: [`prepare`](../../../../glossary.md#prepare), `indexValidity`, `bind`, `Binding.descriptor`; first test
@@ -127,12 +127,12 @@ Production prefix: `modules/compiler/src/main/java/io/github/pho001/synaptik/com
 - Prove the full bounded row algebra: right-aligned singleton SHARED broadcasting; transpose and
   allowed MATMUL roles; feature SUM/sumToShape restoration; explicit row SUM stays terminal even
   at B=1; equal-axis sumToShape preserves ROW. No terminal feedback to rows/emissions, SHARED-to-ROW
-  invention or shared-carry leakage. Each suffix carry is its own distinct exact old.add(contribution).<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-software-feature))</span><span data-glossary-navigation="true"> ([singleton glossary](../../../../glossary.md#term-singleton); [broadcasting glossary](../../../../glossary.md#broadcasting); [transpose glossary](../../../../glossary.md#term-transpose); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [carry glossary](../../../../glossary.md#term-carry))</span>
+  invention or shared-carry leakage. Each suffix carry is its own distinct exact old.add(contribution).<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-feature))</span><span data-glossary-navigation="true"> ([singleton glossary](../../../../glossary.md#term-singleton); [broadcasting glossary](../../../../glossary.md#broadcasting); [transpose glossary](../../../../glossary.md#term-transpose); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [carry glossary](../../../../glossary.md#term-carry))</span>
 - Before derivative Tensor IDs, whole-original preflight retains all-carry/all-original-sequence
   ROW(0) restriction, even unused/non-gradient/unrelated branches and T=0. Preserve residual-root,
   unsupported-rule, fixed-scan, generated-shared-carry differentiation and higher-order/createGraph
   rejection. Broader forward admission does not relax those guards. Preserve Model validation
-  before canonical output IDs; do not promise ID rollback for later capture/inference failures.<span data-glossary-navigation="true"> ([derivative glossary](../../../../glossary.md#term-derivative); [Tensor glossary](../../../../glossary.md#tensor); [preflight glossary](../../../../glossary.md#term-preflight); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [scan glossary](../../../../glossary.md#term-cumulative-scan); [admission glossary](../../../../glossary.md#term-admission); [Model glossary](../../../../glossary.md#term-model); [validation glossary](../../../../glossary.md#term-validation); [rollback glossary](../../../../glossary.md#term-rollback); [capture glossary](../../../../glossary.md#term-capture-meanings); [inference glossary](../../../../glossary.md#term-inference))</span>
+  before canonical output IDs; do not promise ID rollback for later capture/inference failures.<span data-glossary-navigation="true"> ([derivative glossary](../../../../glossary.md#term-derivative); [Tensor glossary](../../../../glossary.md#tensor); [preflight glossary](../../../../glossary.md#term-preflight); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [scan glossary](../../../../glossary.md#general-differentiable-scan); [admission glossary](../../../../glossary.md#term-admission); [Model glossary](../../../../glossary.md#term-model); [validation glossary](../../../../glossary.md#term-validation); [rollback glossary](../../../../glossary.md#term-rollback); [capture glossary](../../../../glossary.md#term-capture-meanings); [inference glossary](../../../../glossary.md#term-inference))</span>
 - Actual opposite-traversal siblings cover final-only/emission-only/joint seeds, two carries,
   false-flag flow, disconnected zeros, tied roles/roots and cross-occurrence sums. Load exact saved
   TANH/SIGMOID, never replay; normalize each SHARED-target term before accumulation. No B×parameter banks.<span data-glossary-navigation="true"> ([seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [occurrence glossary](../../../../glossary.md#term-occurrence); [TANH glossary](../../../../glossary.md#term-tanh); [SIGMOID glossary](../../../../glossary.md#term-sigmoid); [parameter glossary](../../../../glossary.md#term-parameter))</span>
@@ -182,13 +182,13 @@ MAIN alone owns this one [metadata](../../../../glossary.md#term-metadata)-[guar
 
 No root [run](../../../../glossary.md#term-run) by default: no [dependency](../../../../glossary.md#term-dependency)/build/[runtime](../../../../glossary.md#term-runtime)/[backend](../../../../glossary.md#backend) behavior change. No emitter/native/
 performance runs. Review reuses successful tests unless executable changes/evidence gaps require
-a rerun. Generate final Compiler [Javadoc](../../../../glossary.md#term-javadoc) after final edits; allowed [Scan](../../../../glossary.md#term-cumulative-scan) comment edits require [Model](../../../../glossary.md#term-model)
+a rerun. Generate final Compiler [Javadoc](../../../../glossary.md#term-javadoc) after final edits; allowed [Scan](../../../../glossary.md#general-differentiable-scan) comment edits require [Model](../../../../glossary.md#term-model)
 Javadoc once, not Model tests. Validate links/anchors/terms/whitespace and `git diff --check`;
 compare final [ownership](../../../../glossary.md#term-ownership-meanings) to the dirty baseline, not HEAD alone.
 
 ## Documentation and review impact
 
-Independent review reconciles 13 delegated Markdown paths, [Model](../../../../glossary.md#term-model) [Scan](../../../../glossary.md#term-cumulative-scan) status comments and helper [Javadoc](../../../../glossary.md#term-javadoc);
+Independent review reconciles 13 delegated Markdown paths, [Model](../../../../glossary.md#term-model) [Scan](../../../../glossary.md#general-differentiable-scan) status comments and helper [Javadoc](../../../../glossary.md#term-javadoc);
 production worker Javadocs stay unchanged. General/architecture/[planning](../../../../glossary.md#term-planning)/[API](../../../../glossary.md#term-application-programming-interface-api)/example profiles apply; no new [ADR](../../../../glossary.md#term-architecture-decision-record-adr).
 
 ## Result

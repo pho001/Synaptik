@@ -15,7 +15,7 @@
 
 Complete — MAIN integrated seventeen exact source/test paths after independent primitive,
 structured and construction reviews, affected gates and actual numerical/lexical/[metadata](../../../../glossary.md#term-metadata)
-consumers. Final independent source/evidence/documentation APPROVE0; no new [Scan](../../../../glossary.md#term-cumulative-scan) [admission](../../../../glossary.md#term-admission) follows.
+consumers. Final independent source/evidence/documentation APPROVE0; no new [Scan](../../../../glossary.md#general-differentiable-scan) [admission](../../../../glossary.md#term-admission) follows.
 
 ## Goal, class and authority
 
@@ -24,7 +24,7 @@ real [Tensor](../../../../glossary.md#tensor) expressions or prove the same cons
 The [Compiler AD owner](../../../../architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation)<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [owner glossary](../../../../glossary.md#term-owner))</span>
 and [Model guard owner](../../../../architecture/contracts/foundational-modules.md#modulesmodel)<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [guard glossary](../../../../glossary.md#term-guard))</span> remain authoritative.
 [ADR0061](../../../../design/decisions/0061-general-scan-ordinary-unit-composition.md) records the broader
-composition direction; this task does not widen any [Scan](../../../../glossary.md#term-cumulative-scan) source/[inference](../../../../glossary.md#term-inference)/[AD](../../../../glossary.md#autograd)/[backend](../../../../glossary.md#backend)/wire gate.
+composition direction; this task does not widen any [Scan](../../../../glossary.md#general-differentiable-scan) source/[inference](../../../../glossary.md#term-inference)/[AD](../../../../glossary.md#autograd)/[backend](../../../../glossary.md#backend)/wire gate.
 
 ## Construction contract
 
@@ -48,7 +48,7 @@ composition direction; this task does not widen any [Scan](../../../../glossary.
 - A synchronous per-created-operation observation seam, for metadata and optional real Tensor
   materialization, may carry future compile-local coordinate/activity facts. It is not another
   semantic graph, registry, persisted certificate, executor, numerical language or Tensor state.
-  Cover primal-only generated operations too; ordinary unobserved construction needs no observer allocation.<span data-glossary-navigation="true"> ([synchronous glossary](../../../../glossary.md#term-synchronous); [materialization glossary](../../../../glossary.md#materialization); [carry glossary](../../../../glossary.md#term-carry); [compile glossary](../../../../glossary.md#compile); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [graph glossary](../../../../glossary.md#graph); [registry glossary](../../../../glossary.md#term-registry); [certificate glossary](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions); [observer glossary](../../../../glossary.md#term-observer))</span>
+  Cover primal-only generated operations too; ordinary unobserved construction needs no observer allocation.<span data-glossary-navigation="true"> ([synchronous glossary](../../../../glossary.md#term-synchronous); [materialization glossary](../../../../glossary.md#materialization); [compile glossary](../../../../glossary.md#compile); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [graph glossary](../../../../glossary.md#graph); [registry glossary](../../../../glossary.md#term-registry); [certificate glossary](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions); [observer glossary](../../../../glossary.md#term-observer))</span>
 - Reuse existing argument normalization/guards. If the canonical metadata facade lacks a necessary
   shared raw-argument guard, report that exact prerequisite before copying normalization logic.
   No prototype Tensor, reflection into private constructors, sampled B or compatibility shim.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument); [facade glossary](../../../../glossary.md#term-facade); [guard glossary](../../../../glossary.md#term-guard); [prototype glossary](../../../../glossary.md#term-prototype))</span>
@@ -56,7 +56,7 @@ composition direction; this task does not widen any [Scan](../../../../glossary.
   sites use rank-minus-1/2/3; pooling's two ARG_MAX sites use the candidate's last axis (rank four).
   Preserve identical canonical operations, without copying general negative-axis normalization.<span data-glossary-navigation="true"> ([axes glossary](../../../../glossary.md#term-axis); [rank glossary](../../../../glossary.md#term-rank))</span>
 - Stochastic and joint Scan owners remain on their existing paths. Remove obsolete ordinary-only
-  overloads/callers after cutover; do not keep a parallel old formula implementation.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  overloads/callers after cutover; do not keep a parallel old formula implementation.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#general-differentiable-scan))</span>
 
 ## Files, integration and [validation](../../../../glossary.md#term-validation)
 
@@ -124,4 +124,4 @@ Exact source and evidence: `compiler0017b-main-integration.json`,
 `compiler0017b-runtime-artifact-evidence.json`, `compiler0017b-metadata-construction-evidence.json`
 and retained failed/successful gate [logs](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings) in the production-[run](../../../../glossary.md#term-run) directory. This is ordinary
 construction parity, not a [finite](../../../../glossary.md#term-finite) selected-demand proof, structural [cotangent](../../../../glossary.md#cotangent) activity plan,
-typed [Scan](../../../../glossary.md#term-cumulative-scan) [AD](../../../../glossary.md#autograd), physical composition, cold/wire [widening](../../../../glossary.md#term-widening), low-compute unlock or complete [release](../../../../glossary.md#term-release).
+typed [Scan](../../../../glossary.md#general-differentiable-scan) [AD](../../../../glossary.md#autograd), physical composition, cold/wire [widening](../../../../glossary.md#term-widening), low-compute unlock or complete [release](../../../../glossary.md#term-release).

@@ -82,7 +82,7 @@ The new [prepared representation plan](../../../../glossary.md#prepared-represen
 - [kernels](../../../../glossary.md#kernel), schedule execution, a runner, or automatic validity changes around execution
 - hidden coherence, implicit write-back, dirty-state policy, or automatic [synchronization](../../../../glossary.md#term-synchronization)
 - creation, eviction, replacement, or removal after [`RunState`](../../../../glossary.md#run-state--runstate) construction
-- [lazy](../../../../glossary.md#term-lazy-evaluation) allocation, [pooling](../../../../glossary.md#term-pooling), caching, reuse, [aliasing](../../../../glossary.md#term-aliasing), or [lifetime](../../../../glossary.md#term-lifetime)/interference analysis
+- [lazy](../../../../glossary.md#term-lazy-evaluation) allocation, pooling, caching, reuse, [aliasing](../../../../glossary.md#term-aliasing), or [lifetime](../../../../glossary.md#term-lifetime)/interference analysis
 - physical access, addresses, native handles, backend/device inspection, or concrete physical
   representation classes in Runtime<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [device glossary](../../../../glossary.md#term-device))</span>
 - broad allocators, factories, managers, registries, services, service locators, discovery, or a
@@ -121,7 +121,7 @@ The new [prepared representation plan](../../../../glossary.md#prepared-represen
 - Prepared recipes remain immutable, reusable, and thread-safe. Every active run receives one
   distinct mutable <span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [thread-safe glossary](../../../../glossary.md#term-thread-safe); [mutable glossary](../../../../glossary.md#term-mutable))</span>[`RunState`](../../../../glossary.md#run-state--runstate) and distinct [run](../../../../glossary.md#term-run)-owned [callback](../../../../glossary.md#term-callback) results.
 - Runtime owns prepared representation coordinates, per-run orchestration, ownership, logical
-  validity/residency, rollback, cleanup, and run isolation.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [residency glossary](../../../../glossary.md#residency); [rollback glossary](../../../../glossary.md#term-rollback))</span>
+  validity/residency, rollback, cleanup, and run isolation.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [residency glossary](../../../../glossary.md#residency); [rollback glossary](../../../../glossary.md#term-rollback))</span>
 - Concrete backend modules implement creator callbacks and physical representation classes. They
   own allocation, release, transfer, and access mechanics. Runtime invokes but never interprets
   them.<span data-glossary-navigation="true"> ([Concrete backend glossary](../../../../glossary.md#concrete-backend); [modules glossary](../../../../glossary.md#term-module); [release glossary](../../../../glossary.md#term-release))</span>
@@ -156,7 +156,7 @@ No package is added, moved, or removed.
 Type placement:
 
 - `runtime.resource.PreparedRepresentationPlan` — Runtime owns reusable backend-neutral
-  coordinates and callback roles; concrete backends supply implementations.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [callback glossary](../../../../glossary.md#term-callback))</span>
+  coordinates and callback roles; concrete backends supply implementations.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [callback glossary](../../../../glossary.md#term-callback))</span>
 - Its nested preparation variants and creators — meaningful only inside that plan, so they do not
   become five more top-level types.
 - `runtime.run.RunStateCreation` — package-private cold operation for the future Runtime runner,
@@ -253,7 +253,7 @@ runs.
 4. scan buffer positions: require each inner list non-null and non-empty, then each preparation
    non-null in representation order;
 5. [snapshot](../../../../glossary.md#term-snapshot) each inner list and then the outer list; and
-6. [scan](../../../../glossary.md#term-cumulative-scan) workspace creators for null in order, then snapshot.
+6. scan workspace creators for null in order, then snapshot.
 
 Exact failures:
 
@@ -304,7 +304,7 @@ Exact order:
 1. require `representationPlan`, then `callerInputs` non-null;
 2. count caller-input occurrences without invoking callbacks;
 3. require exact caller-input count;
-4. [scan](../../../../glossary.md#term-cumulative-scan) all caller inputs for null and repeated exact [identity](../../../../glossary.md#term-identity-meanings);
+4. scan all caller inputs for null and repeated exact [identity](../../../../glossary.md#term-identity-meanings);
 5. traverse buffer preparations, retaining caller inputs as [`BORROWED`](../../../../glossary.md#ownership-borrowing-and-lease) or invoking creators and
    retaining results as `RUN_OWNED`;
 6. invoke workspace creators in order and retain every result as [run](../../../../glossary.md#term-run)-owned;
@@ -526,7 +526,7 @@ behavior or records a concrete risk.
 
 - [Runtime](../../../../glossary.md#term-runtime) 0001–0006 — Complete.
 - Prepare 0001–0002 — Complete; they establish geometry and dense resource coordinates, but
-  Runtime imports none of their types.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  Runtime imports none of their types.
 - [ADR](../../../../glossary.md#term-architecture-decision-record-adr) 0011 — Accepted and sufficient for this [ownership](../../../../glossary.md#term-ownership-meanings)/creation/validity split.
 - Existing Runtime dependencies and Java 26 build contract — unchanged.
 
@@ -536,7 +536,7 @@ tracing, and tuning are not dependencies.
 ## Follow-up tasks
 
 - Runtime 0008 remains Draft for explicit transfer/materialization steps using these coordinates
-  and validity mutations.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  and validity mutations.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization))</span>
 - [Runtime](../../../../glossary.md#term-runtime) 0009 remains Draft for [publication](../../../../glossary.md#term-publication)/result associations and [ownership](../../../../glossary.md#term-ownership-meanings) transitions.
 - Runtime 0010 remains Draft for cold schedule consumption, caller input handoff, binding,
   execution, and explicit validity transitions.<span data-glossary-navigation="true"> ([handoff glossary](../../../../glossary.md#term-handoff); [binding glossary](../../../../glossary.md#term-binding))</span>

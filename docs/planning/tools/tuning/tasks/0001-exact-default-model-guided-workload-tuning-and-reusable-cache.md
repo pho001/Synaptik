@@ -111,7 +111,7 @@ their [ownership](../../../../glossary.md#term-ownership-meanings), or their typ
 - Define `Occurrence<C, D>` as one exact handoff, one positive occurrence weight, and one
   non-empty opaque context fingerprint. Require the input handoff's selected decision to be empty;
   output handoffs carry the selected backend decision. Retain exact partition and batch
-  references and snapshot only request-owned collections and byte sequences.<span data-glossary-navigation="true"> ([handoff glossary](../../../../glossary.md#term-handoff); [occurrence glossary](../../../../glossary.md#term-occurrence); [weight glossary](../../../../glossary.md#term-weight); [fingerprint glossary](../../../../glossary.md#term-fingerprint); [carry glossary](../../../../glossary.md#term-carry); [partition glossary](../../../../glossary.md#partition); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [snapshot glossary](../../../../glossary.md#term-snapshot))</span>
+  references and snapshot only request-owned collections and byte sequences.<span data-glossary-navigation="true"> ([handoff glossary](../../../../glossary.md#term-handoff); [occurrence glossary](../../../../glossary.md#term-occurrence); [weight glossary](../../../../glossary.md#term-weight); [fingerprint glossary](../../../../glossary.md#term-fingerprint); [partition glossary](../../../../glossary.md#partition); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [snapshot glossary](../../../../glossary.md#term-snapshot))</span>
 - Define `Budget` with positive maximum distinct cache misses, positive maximum candidates per
   miss, non-negative warmup count, and a positive odd timed-sample count. The task has no wall-
   clock cutoff: it validates the complete deduplicated work and every complete candidate count
@@ -361,7 +361,7 @@ its reuse contract. If another path, production type, package, [module](../../..
    loads and models. Model/profile identity never changes workload-cache matching.<span data-glossary-navigation="true"> ([weight glossary](../../../../glossary.md#term-weight); [Model glossary](../../../../glossary.md#term-model); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 6. The complete cache is loaded and validated before candidate enumeration or execution. Every
    specified corruption/size/schema/duplicate/truncation/checksum/trailing-byte case fails without
-   measurement or file mutation.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero); [checksum glossary](../../../../glossary.md#term-checksum))</span>
+   measurement or file mutation.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [checksum glossary](../../../../glossary.md#term-checksum))</span>
 7. An exact well-formed compatible cache hit calls backend decoding once, executes and enumerates
    no candidate, returns the decoded selected decision for every occurrence, and records only its
    compact summary as <span data-glossary-navigation="true"> ([cache hit glossary](../../../../glossary.md#cache-and-memoization); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>`CACHE_HIT` evidence.
@@ -445,7 +445,7 @@ test coverage; this task changes no backend or end-to-end execution behavior.
 - Prepare 0004 — Complete and authoritative for the method-free opaque batch/decision roles and
   exact-partition typed handoff.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [opaque glossary](../../../../glossary.md#term-opaque); [partition glossary](../../../../glossary.md#partition); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 - JDK filesystem, channel, checksum/digest, monotonic-clock, and atomic-move APIs already available
-  to the tool module.<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [channel glossary](../../../../glossary.md#term-channel); [checksum glossary](../../../../glossary.md#term-checksum); [digest glossary](../../../../glossary.md#term-digest); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
+  to the tool module.<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [checksum glossary](../../../../glossary.md#term-checksum); [digest glossary](../../../../glossary.md#term-digest); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
 - Explicit caller composition supplies stable model/profile fingerprints, the typed backend
   collaboration, and one complete comparable cold candidate execution action.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [backend glossary](../../../../glossary.md#backend))</span>
 

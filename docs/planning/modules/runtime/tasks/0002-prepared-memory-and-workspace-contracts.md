@@ -119,7 +119,7 @@ unique final slot geometry needed by that policy; it does not itself inspect ana
   requirement coverage validation, or source-to-slot association<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - [backend](../../../../glossary.md#backend) finalization or changes to Prepare production/test code
 - physical storage, allocation, deallocation, bytes ownership, storage handles, addresses,
-  pooling, aliasing, reuse, liveness, interference intervals, or resource lifetimes<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [pooling glossary](../../../../glossary.md#term-pooling); [aliasing glossary](../../../../glossary.md#term-aliasing); [liveness glossary](../../../../glossary.md#term-liveness))</span>
+  pooling, aliasing, reuse, liveness, interference intervals, or resource lifetimes<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [aliasing glossary](../../../../glossary.md#term-aliasing); [liveness glossary](../../../../glossary.md#term-liveness))</span>
 - [device](../../../../glossary.md#term-device) [identity](../../../../glossary.md#term-identity-meanings), placement, [residency](../../../../glossary.md#residency), transfer, [materialization](../../../../glossary.md#materialization), or backend representation
 - `RuntimeSlotTable`, access tables, per-[run](../../../../glossary.md#term-run) [bindings](../../../../glossary.md#term-binding), [`RunState`](../../../../glossary.md#run-state--runstate), input binding, or run results
 - [`PreparedExecutable`](../../../../glossary.md#prepared-executable--preparedexecutable), `PreparedUnit`, [`PreparedPartition`](../../../../glossary.md#prepared-partition--preparedpartition), [`PreparedSchedule`](../../../../glossary.md#prepared-schedule--preparedschedule),
@@ -489,7 +489,7 @@ repository completion status.
 - Explicit canonical constructors and accessors provide complete contract Javadocs while adding
   no members beyond the ordinary record surface locked by the focused tests.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form))</span>
 - Documentation consistently describes the Runtime carrier as current, Prepare assignment and
-  association as planned, and physical allocation/per-run access as later Runtime/backend work.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [carrier glossary](../../../../glossary.md#term-storage-carrier); [run glossary](../../../../glossary.md#term-run); [backend glossary](../../../../glossary.md#backend))</span>
+  association as planned, and physical allocation/per-run access as later Runtime/backend work.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [run glossary](../../../../glossary.md#term-run); [backend glossary](../../../../glossary.md#backend))</span>
 
 ## Known limitations
 
@@ -583,7 +583,7 @@ repository completion status.
     status.
   - The backend partition-preparer guide and Prepare master/task remain analysis-focused and
     correctly defer assignment/finalization; they need no executable example or contract change
-    for a dependency-neutral Runtime result carrier.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+    for a dependency-neutral Runtime result carrier.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition))</span>
   - Runtime and Prepare Gradle files need no change because no module edge was added; root Java 26
     configuration remains sufficient.
   - Architecture tests need no update because dependency directions and prohibited semantic

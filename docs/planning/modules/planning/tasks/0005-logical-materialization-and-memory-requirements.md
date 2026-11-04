@@ -86,7 +86,7 @@ or byte-size fields.
   2. null `descriptor` -> `NullPointerException("descriptor")`;
   3. null `producerPartition` -> `NullPointerException("producerPartition")`;
   4. null `consumerPartitions` -> `NullPointerException("consumerPartitions")`;
-  5. [scan](../../../../glossary.md#term-cumulative-scan) consumer partitions in encounter order and reject the first null at index `i` with
+  5. scan consumer partitions in encounter order and reject the first null at index `i` with
      `NullPointerException("consumerPartitions[i]")`;
   6. reject the first later equal duplicate at index `i` with
      `IllegalArgumentException("consumerPartitions[i] duplicates <PlannedPartition diagnostic text>")`;
@@ -301,7 +301,7 @@ or byte-size fields.
   devices, preparers, executable units, routes, kernels, storage, or runtime resources.<span data-glossary-navigation="true"> ([kernels glossary](../../../../glossary.md#kernel); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - `TensorDescriptor` is the current backend-neutral logical size carrier. Dynamic dimensions,
   unresolved layouts, and backend-specific physical representation make concrete byte size an
-  invalid universal field at this boundary.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [dimensions glossary](../../../../glossary.md#dimension); [layouts glossary](../../../../glossary.md#layout))</span>
+  invalid universal field at this boundary.<span data-glossary-navigation="true"> ([dimensions glossary](../../../../glossary.md#dimension); [layouts glossary](../../../../glossary.md#layout))</span>
 - [Graph](../../../../glossary.md#graph)-output status is a logical preservation obligation only. The [compiler](../../../../glossary.md#term-compiler)-owned future
   `PublicationPlan` owns `PublicationBinding`, owning-graph validation, publication policy, and
   the later publication handoff.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [publication glossary](../../../../glossary.md#term-publication); [handoff glossary](../../../../glossary.md#term-handoff))</span>

@@ -1,4 +1,4 @@
-# Task 0017: Typed all-[PURE](../../../../glossary.md#term-pure) [Scan](../../../../glossary.md#term-cumulative-scan) demand, first-order proof and compiled activity
+# Task 0017: Typed all-[PURE](../../../../glossary.md#term-pure) [Scan](../../../../glossary.md#general-differentiable-scan) demand, first-order proof and compiled activity
 
 > **Editorial reading key — not part of the historical record.**
 >
@@ -26,7 +26,7 @@ This is component [qualification](../../../../glossary.md#term-qualification), n
 - **Conflicts with:** no other Compiler/Planning/Model/Checkpoint source writer. CPU0081 owns
   Prepare/CPU and non-Compiler context/query migrations; MAIN alone owns shared docs, build/release
   inventory, integration and every command. No overlapping writers or shared semantic redesign.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [Model glossary](../../../../glossary.md#term-model); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [Prepare glossary](../../../../glossary.md#prepare); [CPU glossary](../../../../glossary.md#term-cpu); [release glossary](../../../../glossary.md#term-release))</span>
-- **Parallel group:** general-[scan](../../../../glossary.md#term-cumulative-scan)-full-ordinary-2026-11-01.
+- **Parallel group:** general-[scan](../../../../glossary.md#general-differentiable-scan)-full-ordinary-2026-11-01.
 - **Common base revision:** HEAD07a281edd3086efde2853211b71b48288db027e1 PLUS every accepted dirty
   file in `/var/folders/z2/kdt1_wq1213732bs4wkhfrh40000gq/T/synaptik-production-run.gloed_6d/fullscan-ready-source.json`.
   Historical2610-file preservation remains separate and unchanged.
@@ -46,7 +46,7 @@ named [manifest](../../../../glossary.md#term-manifest) before workers start. Wo
 
 ## Goal and engineering contract
 
-Class C. Replace the retained [homogeneous](../../../../glossary.md#term-homogeneous)/closed [Scan](../../../../glossary.md#term-cumulative-scan) [inference](../../../../glossary.md#term-inference) and [AD](../../../../glossary.md#autograd) gates with per-value
+Class C. Replace the retained [homogeneous](../../../../glossary.md#term-homogeneous)/closed [Scan](../../../../glossary.md#general-differentiable-scan) [inference](../../../../glossary.md#term-inference) and [AD](../../../../glossary.md#autograd) gates with per-value
 ordinary semantics, [finite](../../../../glossary.md#term-finite) selected root/[target](../../../../glossary.md#term-target) demand, pre-ID construction proof and structural
 [cotangent](../../../../glossary.md#cotangent) activity. Cover all-valid and length mode together. Reuse existing [Model](../../../../glossary.md#term-model) guards,
 independent [Compiler](../../../../glossary.md#term-compiler) inference, first-order coverage, contribution orchestration and the SAME
@@ -60,7 +60,7 @@ Fixed recurrence/higher-order and the declared [Conv3d](../../../../glossary.md#
 
 ## Authority and prerequisites
 
-Read root Core [lifecycle](../../../../glossary.md#lifecycle)/invariants/[dependency](../../../../glossary.md#term-dependency)/index authority; recurrent-[scan](../../../../glossary.md#term-cumulative-scan) source/header,
+Read root Core [lifecycle](../../../../glossary.md#lifecycle)/invariants/[dependency](../../../../glossary.md#term-dependency)/index authority; recurrent-[scan](../../../../glossary.md#general-differentiable-scan) source/header,
 per-value, [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), activity/history, [qualification](../../../../glossary.md#term-qualification) and reverse sections; [Compiler](../../../../glossary.md#term-compiler) [AD](../../../../glossary.md#autograd)/[artifacts](../../../../glossary.md#term-artifact);
 [Planning](../../../../glossary.md#term-planning)/[Prepare](../../../../glossary.md#prepare) neutral capability/projection; [CPU](../../../../glossary.md#term-cpu) execution [ownership](../../../../glossary.md#term-ownership-meanings); ADR0061. Plans and reports
 are not authority. MAIN coordinates those existing [normative](../../../../glossary.md#term-normative) [owners](../../../../glossary.md#term-owner) and independent review before
@@ -119,7 +119,7 @@ for unrequested/discrete/length positions; tied actual identities never collapse
 - Replace blanket D(SCAN) in BOTH outer route passes with one shared finite source-plan classifier.
   Preserve ordinary D/ND/FC, ND-only versus disconnected ZERO/ERROR, public seed/target eligibility,
   residual and higher-order rejection. Unsupported original Conv3d/fixed work remains a whole-
-  lexical-inventory exclusion, including unrelated/dead/empty branches.<span data-glossary-navigation="true"> ([SCAN glossary](../../../../glossary.md#term-cumulative-scan); [ND glossary](../../../../glossary.md#term-nd); [target glossary](../../../../glossary.md#term-target); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw))</span>
+  lexical-inventory exclusion, including unrelated/dead/empty branches.<span data-glossary-navigation="true"> ([SCAN glossary](../../../../glossary.md#general-differentiable-scan); [ND glossary](../../../../glossary.md#term-nd); [target glossary](../../../../glossary.md#term-target); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw))</span>
 - Compute exact finite-T carry relations: T=0 identity only; T=1 has no second transition;
   bound carry powers/prefix unions rather than unrestricted closure. Length mode qualifies every
   valid row prefix L in [0,T], both traversals and inactive identity. No T-sized derivative graph,
@@ -210,7 +210,7 @@ No [Tensor](../../../../glossary.md#tensor), formula, numerical [cotangent](../.
   Do not add a ninth CompileArtifacts component or Model attachment.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument))</span>
 - Capture optionally observes actual formal/source producer to local ValueId/NodeId correspondence
   at existing assignment sites. Expansion drafts are keyed by the GENERATED containing Scan
-  producer, not a reused body template. Finish each plan against its exact captured local graph.<span data-glossary-navigation="true"> ([Capture glossary](../../../../glossary.md#term-capture-meanings); [producer glossary](../../../../glossary.md#term-producer); [ValueId glossary](../../../../glossary.md#logical-valueid-versus-physical-memory-slot); [NodeId glossary](../../../../glossary.md#nodeid); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  producer, not a reused body template. Finish each plan against its exact captured local graph.<span data-glossary-navigation="true"> ([Capture glossary](../../../../glossary.md#term-capture-meanings); [producer glossary](../../../../glossary.md#term-producer); [ValueId glossary](../../../../glossary.md#logical-valueid-versus-physical-memory-slot); [NodeId glossary](../../../../glossary.md#nodeid); [Scan glossary](../../../../glossary.md#general-differentiable-scan))</span>
 - [OperationCapabilityQuery](../../../../glossary.md#operation-capability-query--operationcapabilityquery) adds fifth component `Optional<ScanActivityPlan> scanActivityPlan`.
   Migrate all body-bearing four-argument callers; ordinary three-argument construction retains its
   intentional empty attachment semantics. Correct stale body-query Javadocs.
@@ -228,8 +228,8 @@ MAIN owns shared authority, exact interfaces, source contexts, integration, docs
 [Compiler](../../../../glossary.md#term-compiler) source [slice](../../../../glossary.md#slice) owns Compiler orchestration/proof/[capture](../../../../glossary.md#term-capture-meanings)/rebuilds, [Planning](../../../../glossary.md#term-planning) neutral type/query,
 required [Model](../../../../glossary.md#term-model)/header changes and independent cold/[codec](../../../../glossary.md#term-codec) protection. CPU0081 slice owns [Prepare](../../../../glossary.md#prepare)
 projection/context transport, all [CPU](../../../../glossary.md#term-cpu) physical/codegen/validator/[binding](../../../../glossary.md#term-binding) work and context-copy callers
-including [Metal](../../../../glossary.md#term-metal) tuning; no Metal [Scan](../../../../glossary.md#term-cumulative-scan) grant. Both use the frozen neutral names/accessors above.
-[Coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) actual shared-file ownership before launch; no overlapping writers.
+including [Metal](../../../../glossary.md#term-metal) tuning; no Metal [Scan](../../../../glossary.md#general-differentiable-scan) grant. Both use the frozen neutral names/accessors above.
+Coordinate actual shared-file ownership before launch; no overlapping writers.
 
 Independent design/authority review -> MAIN [Ready](../../../../glossary.md#term-ready)/exact dirty [snapshot](../../../../glossary.md#term-snapshot) and clean contexts -> complete
 source slices (workers NO commands/builds/tests/formatters/native/git) -> independent source/[Javadoc](../../../../glossary.md#term-javadoc)
@@ -247,7 +247,7 @@ review -> MAIN affected gates plus actual changed-path consumers -> integrated a
 - Distinguish uniformly impossible T=1 cross-occurrence routes from T=2 any-prefix retained
   channels. Published zero and explicit zero have the same consuming-root presence; local missing
   channels remain absent. Cover materialized-zero FC/ND, another target retaining a shared channel,
-  independent lengths and cross-row outer mixing. Do not infer same-row mapping from equal extents.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [ND glossary](../../../../glossary.md#term-nd); [target glossary](../../../../glossary.md#term-target); [channel glossary](../../../../glossary.md#term-channel))</span>
+  independent lengths and cross-row outer mixing. Do not infer same-row mapping from equal extents.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [ND glossary](../../../../glossary.md#term-nd); [target glossary](../../../../glossary.md#term-target))</span>
 - Scoped [metadata](../../../../glossary.md#term-metadata)/source guards reject `[B,2] -> [B,3]` without sampled B. Valid all-valid
   `[2,B] -> [B,2]` retains ordinary element order; the length ROW-moving counterpart still needs
   contributor proof. Hidden symbols, deferred family relations and fixed-feature overflow stay checked.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [feature glossary](../../../../glossary.md#term-feature); [overflow glossary](../../../../glossary.md#term-overflow))</span>

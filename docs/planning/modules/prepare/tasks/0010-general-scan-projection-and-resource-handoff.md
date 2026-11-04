@@ -28,7 +28,7 @@ Class C — scoped compiled-body projection and analysis/resource/finalization b
 
 ## Goal
 
-Deliver validated general-[scan](../../../../glossary.md#term-cumulative-scan) facts to one [partition](../../../../glossary.md#partition) [owner](../../../../glossary.md#term-owner) through existing [Prepare](../../../../glossary.md#prepare) contracts:
+Deliver validated general-[scan](../../../../glossary.md#general-differentiable-scan) facts to one [partition](../../../../glossary.md#partition) [owner](../../../../glossary.md#term-owner) through existing [Prepare](../../../../glossary.md#prepare) contracts:
 exact compiled body and ordered demand → [backend](../../../../glossary.md#backend) analysis declarations → shared assigned slots
 → backend finalization. Prepare validates the [handoff](../../../../glossary.md#term-handoff); it does not execute or differentiate bodies.
 
@@ -39,7 +39,7 @@ exact compiled body and ordered demand → [backend](../../../../glossary.md#bac
 - Validate fully static body-local descriptors independently of outer value IDs, ordered formal/
   actual and role/result descriptor associations, and final outer-port demand before analysis.<span data-glossary-navigation="true"> ([descriptors glossary](../../../../glossary.md#term-descriptor))</span>
 - Exercise the existing exact resource-declaration/assignment/finalization path with bounded
-  test collaborators; preserve ordinary and fixed recurrent-scan behavior.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  test collaborators; preserve ordinary and fixed recurrent-scan behavior.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#general-differentiable-scan))</span>
 
 ## Non-goals
 
@@ -47,7 +47,7 @@ No [automatic differentiation](../../../../glossary.md#autograd) ([AD](../../../
 loop, [backend capability](../../../../glossary.md#backend-capability) [widening](../../../../glossary.md#term-widening), concrete-[backend](../../../../glossary.md#backend) [dependency](../../../../glossary.md#term-dependency), body flattening/partitioning,
 new [graph](../../../../glossary.md#graph)/body representation, [runtime](../../../../glossary.md#term-runtime) tape/session/executor, [mutable](../../../../glossary.md#term-mutable) prepared [run state](../../../../glossary.md#run-state--runstate), [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context),
 [padding](../../../../glossary.md#padding), [persistence](../../../../glossary.md#term-persistence), native build or performance campaign. No generic proof framework or fake CPU
-loop implementation. Physical history allocation/stores and real [scan](../../../../glossary.md#term-cumulative-scan) execution belong to CPU.
+loop implementation. Physical history allocation/stores and real [scan](../../../../glossary.md#general-differentiable-scan) execution belong to CPU.
 
 ## Contracts
 
@@ -61,7 +61,7 @@ Read the [root scope index](../../../../../ARCHITECTURE.md#scope-indexed-normati
   [Prepare lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle),
   [Run lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#run-lifecycle)<span data-glossary-navigation="true"> ([Run glossary](../../../../glossary.md#term-run))</span>
   for immutable prepared versus run-owned resource state and ownership transfer.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
-- Recurrent [scan](../../../../glossary.md#term-cumulative-scan): [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
+- Recurrent [scan](../../../../glossary.md#general-differentiable-scan): [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
   including `Source body, attachments and scoped identities`, `Canonical residual ports and demand`,
   `Traversal, empty domains and declared qualification`, and `Qualification, performance and migration gates`.
 - Foundational [modules](../../../../glossary.md#term-module): [Profile-free capability queries](../../../../architecture/contracts/foundational-modules.md#profile-free-capability-queries).
@@ -79,7 +79,7 @@ These contracts own semantics; ambiguity/conflict requires clarification, not ar
   merged predecessors; preserve the complete dirty working tree, including unrelated edits.
 - Integration order: accepted upstream → independently approved plan/main acceptance → separately
   authorized clean implementation → independent Class C code/docs approval → main checkpoint below.
-- Integration [validation](../../../../glossary.md#term-validation): **Prepare0010 scoped-[scan](../../../../glossary.md#term-cumulative-scan) [handoff](../../../../glossary.md#term-handoff) compatibility [checkpoint](../../../../glossary.md#term-checkpoint)**, commands below.
+- Integration [validation](../../../../glossary.md#term-validation): **Prepare0010 scoped-[scan](../../../../glossary.md#general-differentiable-scan) [handoff](../../../../glossary.md#term-handoff) compatibility [checkpoint](../../../../glossary.md#term-checkpoint)**, commands below.
 - Shared-document integration [owner](../../../../glossary.md#term-owner): main; closure writer owns only the nine authorized [planning](../../../../glossary.md#term-planning) records.
 
 Historical [admission](../../../../glossary.md#term-admission) 2026-10-22: [Ready](../../../../glossary.md#term-ready) at sole [authorized frontier](../../../../glossary.md#term-authorized-frontier), predecessors Complete,
@@ -92,7 +92,7 @@ Next [CPU](../../../../glossary.md#term-cpu) [F32](../../../../glossary.md#float
 Paths are repository-relative; Java prefix is `io.github.pho001.synaptik.`.
 - `modules/prepare/src/main/java/.../prepare/analysis/PrepareContext.java`: canonical and
   compatibility constructors; bounded private validation within this existing owner. Scan-local
-  descriptor lookup never shares the outer <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [validation glossary](../../../../glossary.md#term-validation); [owner glossary](../../../../glossary.md#term-owner); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [descriptor glossary](../../../../glossary.md#term-descriptor); [lookup glossary](../../../../glossary.md#term-lookup))</span>`values`/logical-requirement map.
+  descriptor lookup never shares the outer <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [validation glossary](../../../../glossary.md#term-validation); [owner glossary](../../../../glossary.md#term-owner); [Scan glossary](../../../../glossary.md#general-differentiable-scan); [descriptor glossary](../../../../glossary.md#term-descriptor); [lookup glossary](../../../../glossary.md#term-lookup))</span>`values`/logical-requirement map.
 - `.../prepare/analysis/PartitionDag.java`: existing constructor, [`nodes`](../../../../glossary.md#node), port occurrences and
   adjacency retain outer topology only; attachment transport already works, no new representation.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology))</span>
 - `modules/prepare/src/main/java/.../prepare/GraphPreparation.java`: `project`, private `Projection`
@@ -110,7 +110,7 @@ Paths are repository-relative; Java prefix is `io.github.pho001.synaptik.`.
 
 ## Acceptance criteria
 
-1. Projection retains exact [scan](../../../../glossary.md#term-cumulative-scan) [node](../../../../glossary.md#node), body and local [graph](../../../../glossary.md#graph) [identities](../../../../glossary.md#term-identity-meanings), ordered `nextCarry`,
+1. Projection retains exact [scan](../../../../glossary.md#general-differentiable-scan) [node](../../../../glossary.md#node), body and local [graph](../../../../glossary.md#graph) [identities](../../../../glossary.md#term-identity-meanings), ordered `nextCarry`,
    `emissions`, `residuals`, and `demandedOutputIndices`. No port deduplication, body flattening,
    local nodes in outer DAG adjacency, or body-local values in outer logical resource inventories.<span data-glossary-navigation="true"> ([DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag))</span>
 2. Before any analyzer runs, reject dynamic local descriptors, formal/actual dtype/shape/gradient/
@@ -182,7 +182,7 @@ zero failures/errors/skips, not fresh execution; source-checking test inputs unc
 Integration PASS, 3 s, 42 tasks (3 executed/39 UP-TO-DATE): fresh 5 tests/1 suite, zero failures/
 errors/skips. Combined `git diff --check` PASS. Existing [FFM](../../../../glossary.md#term-ffm) native-access/incubator-[vector](../../../../glossary.md#term-vector) warnings
 are not Javadoc warnings and require no [scope](../../../../glossary.md#term-scope) fix. No root/native/performance campaign here;
-real [scan](../../../../glossary.md#term-cumulative-scan) [conformance](../../../../glossary.md#term-conformance) and the single native-enabled root `test javadoc` remain at the low-level join.
+real [scan](../../../../glossary.md#general-differentiable-scan) [conformance](../../../../glossary.md#term-conformance) and the single native-enabled root `test javadoc` remain at the low-level join.
 
 ## Documentation and review impact
 
@@ -203,7 +203,7 @@ Main owns shared explanations/[planning](../../../../glossary.md#term-planning).
   `GraphPreparationTest`, `BackendPartitionFinalizationHandoffTest`, `BackendPartitionFinalizationTest`,
   `analysis/PrepareContextTest` and `analysis/PartitionDagTest`; eight Java files, no added types/files.
 - Worker 61 focused/79 module tests + zero-warning Javadoc PASS; exact commands and fresh/reused
-  main compilation, architecture and fixed-scan integration evidence are above.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  main compilation, architecture and fixed-scan integration evidence are above.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names); [scan glossary](../../../../glossary.md#general-differentiable-scan))</span>
 - Huygens final Class C code/docs APPROVE, zero P1/P2; Java unchanged; main [checkpoint](../../../../glossary.md#term-checkpoint) accepted 2026-10-22.
 - Documentation: 12 factual status/boundary updates across `ARCHITECTURE.md`, scoped contracts,
   `docs/architecture/`, `docs/backend-guide/partition-preparer.md` and `docs/glossary.md`;

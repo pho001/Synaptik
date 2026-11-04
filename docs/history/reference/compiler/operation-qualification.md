@@ -241,7 +241,7 @@ remain statements of their original checkpoints.
 > all-role and selected-target execution is qualified in the production matrix. Compiler retains
 > symbolic Dimensions, but ordinary public named-B Conv3d admission is not widened. Pool3d now
 > supports qualified static CPU FLOAT32/FLOAT64 and Metal FLOAT32 first-order training;
-> CPU low arithmetic and Scan higher-order restrictions remain unchanged.<span data-glossary-navigation="true"> ([Pool3d glossary](../../../glossary.md#pool3d--ncdhw-pooling); [Scan glossary](../../../glossary.md#term-cumulative-scan))</span>
+> CPU low arithmetic and Scan higher-order restrictions remain unchanged.<span data-glossary-navigation="true"> ([Pool3d glossary](../../../glossary.md#pool3d--ncdhw-pooling))</span>
 > `Tensor.maxPool2d(attrs)` is current first-class [NCHW](../../../glossary.md#term-nchw) maximum-[pooling](../../../glossary.md#term-pooling) [model](../../../glossary.md#term-model) construction. One
 > `MAX_POOL2D` occurrence records exact ordered input `[input]`, `MaxPool2dAttrs`, one output at
 > index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions, and

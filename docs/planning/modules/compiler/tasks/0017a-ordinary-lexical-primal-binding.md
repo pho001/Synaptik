@@ -14,7 +14,7 @@
 ## Status
 
 Complete — nine reviewed source files integrated against frozen preimages. Independent combined
-source/[Javadoc](../../../../glossary.md#term-javadoc) review APPROVE0; MAIN's [Compiler](../../../../glossary.md#term-compiler)/retained-[Scan](../../../../glossary.md#term-cumulative-scan) gate and all unchanged lexical/
+source/[Javadoc](../../../../glossary.md#term-javadoc) review APPROVE0; MAIN's [Compiler](../../../../glossary.md#term-compiler)/retained-[Scan](../../../../glossary.md#general-differentiable-scan) gate and all unchanged lexical/
 ordinary numerical consumers passed. No new Scan [admission](../../../../glossary.md#term-admission) or mathematical rule is claimed.
 
 ## Change class
@@ -67,7 +67,7 @@ producers, reconstruct forward [activations](../../../../glossary.md#term-activa
 
 No changes to AutogradPreflight, FirstOrderGradientCoverage, ScanBodyInference/ScanGradientRules
 [admission](../../../../glossary.md#term-admission), [Model](../../../../glossary.md#term-model)/header/row facts, [Prepare](../../../../glossary.md#prepare)/[CPU](../../../../glossary.md#term-cpu)/[Metal](../../../../glossary.md#term-metal), wire/cold or [runtime](../../../../glossary.md#term-runtime) demand/proof protocols.
-Stochastic operations remain outside [Scan](../../../../glossary.md#term-cumulative-scan) purity and are not broadened by this task. Ordinary
+Stochastic operations remain outside [Scan](../../../../glossary.md#general-differentiable-scan) purity and are not broadened by this task. Ordinary
 unsupported, selected-target, disconnected and higher-order behavior stays exactly as before.
 
 ## Files and [ownership](../../../../glossary.md#term-ownership-meanings)
@@ -87,7 +87,7 @@ MAIN owns shared contracts/plans/[API](../../../../glossary.md#term-application-
 ## Dependencies and integration
 
 - Depends on: completed existing ordinary AD and bounded Scan rule protocol, Compiler0018 and
-  current practical RNN baseline; actual before witness; independent bounded plan/Ready review.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn))</span>
+  current practical RNN baseline; actual before witness; independent bounded plan/Ready review.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#general-differentiable-scan); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn))</span>
 - Conflicts with: ordinary gradient-rule/dispatcher writers. Later typed/demand/closure proof and
   row-source consumers wait for this refactor integration. CPU0078/Metal0080 files are disjoint.<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Parallel group: [RELEASE](../../../../glossary.md#term-release)-LEXICAL-[AD](../../../../glossary.md#autograd); exact A/B file split and resolver [signatures](../../../../glossary.md#term-signature) above.
@@ -105,7 +105,7 @@ All 18 unchanged lexical cases pass actual [VJP](../../../../glossary.md#term-ve
 including all floating input roles and all three public BatchNorm training roots. Fresh [detached](../../../../glossary.md#detached-model-results)
 [primal](../../../../glossary.md#term-primal) values, not a replayed forward source [graph](../../../../glossary.md#graph), must feed the constructed [derivative](../../../../glossary.md#term-derivative) graph.
 Retained SUM controls still pass; ordinary [identity](../../../../glossary.md#term-identity-meanings)-resolver requests and existing bounded
-[Scan](../../../../glossary.md#term-cumulative-scan)/recurrent workflows do not change their mathematics/ordering/types. Meaningful existing
+[Scan](../../../../glossary.md#general-differentiable-scan)/recurrent workflows do not change their mathematics/ordering/types. Meaningful existing
 regressions remain; add permanent tests only for plausible semantic identity/saved-primal defects
 using existing numerical conventions, not source [topology](../../../../glossary.md#term-topology)/name/forwarding assertions.
 
@@ -121,7 +121,7 @@ MAIN verified existing ordinary [AD](../../../../glossary.md#autograd) and Compi
 `07a281edd3086efde2853211b71b48288db027e1` plus the accepted dirty [snapshot](../../../../glossary.md#term-snapshot) in
 `compiler0017a-base.json`, shared by two isolated contexts. MAIN alone integrates shared documents
 and both reviewed source slices before Compiler/[Javadoc](../../../../glossary.md#term-javadoc)/jar and actual lexical/ordinary [regression](../../../../glossary.md#term-regression)
-checks. CPU0078/Metal0080 source is disjoint. No broader typed/row/[Scan](../../../../glossary.md#term-cumulative-scan) capability is admitted.
+checks. CPU0078/Metal0080 source is disjoint. No broader typed/row/[Scan](../../../../glossary.md#general-differentiable-scan) capability is admitted.
 
 ## Result
 
@@ -136,7 +136,7 @@ jar and [CPU](../../../../glossary.md#term-cpu) tests matching CpuGeneralScan/Cp
 | Gate | Passed | Skipped |
 |---|---:|---:|
 | Compiler | 413 | 0 |
-| Selected existing CPU [Scan](../../../../glossary.md#term-cumulative-scan) tests | 216 | 20 |
+| Selected existing CPU [Scan](../../../../glossary.md#general-differentiable-scan) tests | 216 | 20 |
 
 No failures/errors. All 20 CPU skip names are retained in gate evidence; they are not passing
 executions. No timing/native-memory/performance conclusion follows.

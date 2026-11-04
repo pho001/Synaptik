@@ -114,7 +114,7 @@ nested type, close method, equality override, [Tensor](../../../../glossary.md#t
 
 `objective()` is the [scalar](../../../../glossary.md#term-scalar) forward [occurrence](../../../../glossary.md#term-occurrence). `gradients().get(i)` is the first [derivative](../../../../glossary.md#term-derivative) for
 exact requested `targets.get(i)`. The list and values are [immutable](../../../../glossary.md#term-immutable), resource-free, and readable
-after [Engine](../../../../glossary.md#term-engine) and caller storage close. A distinct [carrier](../../../../glossary.md#term-storage-carrier) is required because a combined list
+after [Engine](../../../../glossary.md#term-engine) and caller storage close. A distinct carrier is required because a combined list
 would give position zero a different role; a richer request/[publication](../../../../glossary.md#term-publication) hierarchy adds no current
 need. Ordinary [signatures](../../../../glossary.md#term-signature) continue to expose only Engine, [Model](../../../../glossary.md#term-model), and [JDK](../../../../glossary.md#term-java-development-kit-jdk) types.
 
@@ -160,7 +160,7 @@ unchanged; explicit [seeds](../../../../glossary.md#commit-release-distribution-
 
 Under one [admission](../../../../glossary.md#term-admission): validate; [compile](../../../../glossary.md#compile) once; [prepare](../../../../glossary.md#prepare) once; bind/[run](../../../../glossary.md#term-run) once through [Engine](../../../../glossary.md#term-engine) 0003;
 validate publications; [preflight](../../../../glossary.md#term-preflight) all returned bytes; copy [objective](../../../../glossary.md#term-objective) then [gradients](../../../../glossary.md#term-gradient); construct the
-[carrier](../../../../glossary.md#term-storage-carrier); close the temporary result/wrappers; then return.
+carrier; close the temporary result/wrappers; then return.
 
 The result has exactly `1 + targets.size()` occurrences. Index zero must be FORWARD with the
 objective [`TensorId`](../../../../glossary.md#tensorid) and empty [derivative](../../../../glossary.md#term-derivative)/[target](../../../../glossary.md#term-target) [metadata](../../../../glossary.md#term-metadata). Index `i + 1` must be GRADIENT with
@@ -206,7 +206,7 @@ Failure precedence is closed-[Engine](../../../../glossary.md#term-engine) [admi
 unchecked failure/Error [identity](../../../../glossary.md#term-identity-meanings). Before result construction, use Engine 0003 reverse [rollback](../../../../glossary.md#term-rollback).
 Afterward, close the temporary result and wrappers exactly once. A distinct cleanup failure is
 suppressed on the primary in encounter order; never self-suppress. Without an earlier failure,
-cleanup failure becomes primary. No partial [carrier](../../../../glossary.md#term-storage-carrier) is returned.
+cleanup failure becomes primary. No partial carrier is returned.
 
 Reuse the existing [lifecycle](../../../../glossary.md#lifecycle) gate and ungated helpers; do not nest public lifecycle calls or add a
 gate, [registry](../../../../glossary.md#term-registry), [callback](../../../../glossary.md#term-callback) executor, or service. The temporary result is never registered or
@@ -328,8 +328,8 @@ inward contract, dependency/build edit, or other-[module](../../../../glossary.m
   indices, descriptors, and alias multiplicity.<span data-glossary-navigation="true"> ([objective glossary](../../../../glossary.md#term-objective); [derivative glossary](../../../../glossary.md#term-derivative); [descriptors glossary](../../../../glossary.md#term-descriptor); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - Complete static/resolved/individual/aggregate preflight precedes copying; exact-limit,
   overflow/JVM ceiling, alias, and zero-copy-on-preflight-failure cases are covered.<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm))</span>
-- Failures return no partial [carrier](../../../../glossary.md#term-storage-carrier) and preserve cleanup/suppression [identity](../../../../glossary.md#term-identity-meanings).
-- Bounded-[latch](../../../../glossary.md#control-flow-graph) tests cover close/[admission](../../../../glossary.md#term-admission)/concurrent isolated runs without sleeps.
+- Failures return no partial carrier and preserve cleanup/suppression [identity](../../../../glossary.md#term-identity-meanings).
+- Bounded-latch tests cover close/[admission](../../../../glossary.md#term-admission)/concurrent isolated runs without sleeps.
 - With Compiler 0006B5, Prepare 0005, CPU 0010H, and Engine 0005A Complete, real supported scalar
   CPU integration verifies
   objective, positive-one gradient, byte bound, automatically selected input identity,
@@ -425,7 +425,7 @@ gates pass.
 - Use `backward` with explicit objective/targets; this matches established terminology without a
   mutable or no-argument meaning.<span data-glossary-navigation="true"> ([objective glossary](../../../../glossary.md#term-objective); [targets glossary](../../../../glossary.md#term-target); [mutable glossary](../../../../glossary.md#term-mutable); [argument glossary](../../../../glossary.md#term-argument))</span>
 - Return objective plus gradients in a role-separating carrier; avoiding a second forward call is
-  useful, and all bytes share the aggregate bound.<span data-glossary-navigation="true"> ([gradients glossary](../../../../glossary.md#term-gradient); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  useful, and all bytes share the aggregate bound.<span data-glossary-navigation="true"> ([gradients glossary](../../../../glossary.md#term-gradient))</span>
 - Fix [Compiler](../../../../glossary.md#term-compiler)'s absent unit [seed](../../../../glossary.md#term-seed) and ERROR policy; other choices already have lower-level APIs.
 - Validate structure in [Engine](../../../../glossary.md#term-engine) and semantics in Compiler; [preflight](../../../../glossary.md#term-preflight) all results before copying.
 - Reuse the current gate and temporary result cleanup; add no [resource owner](../../../../glossary.md#ownership-borrowing-and-lease) or [registry](../../../../glossary.md#term-registry).
@@ -478,7 +478,7 @@ Implementation context: `01a0b11d-cc89-7590-8836-0555b05e7001`.
   1 passing test.
 - `git diff --check`, `javap`, public-shape and source scans, exact eleven-path implementation
   scope, and preservation of the initial three-path planning diff passed. No validation command
-  failed; a pre-final-review test-only latch threshold was corrected before the final tier.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [latch glossary](../../../../glossary.md#control-flow-graph))</span>
+  failed; a pre-final-review test-only latch threshold was corrected before the final tier.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
 
 Documentation context: `01a0b126-f60b-7a11-8d7c-621e532952f0`.
 
@@ -534,7 +534,7 @@ Documentation context: `01a0b126-f60b-7a11-8d7c-621e532952f0`.
 ## Completion summary
 
 Completed changes:
-- Added the exact one-shot [scalar](../../../../glossary.md#term-scalar)-[objective](../../../../glossary.md#term-objective) backward [API](../../../../glossary.md#term-application-programming-interface-api) and [detached](../../../../glossary.md#detached-model-results) objective/[gradient](../../../../glossary.md#term-gradient) [carrier](../../../../glossary.md#term-storage-carrier).
+- Added the exact one-shot [scalar](../../../../glossary.md#term-scalar)-[objective](../../../../glossary.md#term-objective) backward [API](../../../../glossary.md#term-application-programming-interface-api) and [detached](../../../../glossary.md#detached-model-results) objective/[gradient](../../../../glossary.md#term-gradient) carrier.
 - Implemented automatic input selection, fixed Compiler request lowering, publication defense,
   complete aggregate preflight, independent copying, lifecycle cleanup, and concurrency behavior.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [lowering glossary](../../../../glossary.md#lowering); [publication glossary](../../../../glossary.md#term-publication); [preflight glossary](../../../../glossary.md#term-preflight); [lifecycle glossary](../../../../glossary.md#lifecycle); [concurrency glossary](../../../../glossary.md#term-concurrency))</span>
 

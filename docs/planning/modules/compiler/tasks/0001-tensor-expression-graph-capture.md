@@ -193,7 +193,7 @@ The entry point validates before traversal in this exact order:
 
 1. reject a null `outputs` reference with `NullPointerException("outputs")`;
 2. reject an empty list with `IllegalArgumentException("outputs must not be empty")`;
-3. [scan](../../../../glossary.md#term-cumulative-scan) all positions in caller order and reject the first null [Tensor](../../../../glossary.md#tensor) with a message such as
+3. scan all positions in caller order and reject the first null [Tensor](../../../../glossary.md#tensor) with a message such as
    `outputs[2]`;
 4. scan all positions in caller order by exact Tensor identity and reject the first later repeated
    Tensor reference with a message such as <span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-reference-identity))</span>`outputs[2] duplicates outputs[0]`.

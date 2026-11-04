@@ -148,7 +148,7 @@ validated before the [prepared partition](../../../../glossary.md#prepared-parti
 - [graph capture](../../../../glossary.md#capture-graph-ports-and-reconstruction), [graph optimization](../../../../glossary.md#forward-graph-optimization), [compiler](../../../../glossary.md#term-compiler) behavior, [planning](../../../../glossary.md#term-planning) behavior, or [compile artifacts](../../../../glossary.md#compile-artifacts)
 - dynamic [dimension](../../../../glossary.md#dimension) binding or a [run](../../../../glossary.md#term-run)-dynamic resource contract
 - pooling, slot lifetime reuse, aliasing, interference analysis, distributed sharding, or
-  multi-device scheduling<span data-glossary-navigation="true"> ([pooling glossary](../../../../glossary.md#term-pooling); [lifetime glossary](../../../../glossary.md#term-lifetime); [aliasing glossary](../../../../glossary.md#term-aliasing); [device glossary](../../../../glossary.md#term-device))</span>
+  multi-device scheduling<span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime); [aliasing glossary](../../../../glossary.md#term-aliasing); [device glossary](../../../../glossary.md#term-device))</span>
 - Config, Trace, Backend Contract, Model, Planning, Compiler, Runtime, Engine, concrete-backend,
   Gradle, dependency, architecture-contract, ADR, architecture-test, conformance-test, or
   integration-test changes<span data-glossary-navigation="true"> ([Trace glossary](../../../../glossary.md#trace); [Backend glossary](../../../../glossary.md#backend); [Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [conformance glossary](../../../../glossary.md#term-conformance))</span>
@@ -378,7 +378,7 @@ constructible two-component value.
 The package-private [operation](../../../../glossary.md#operation) validates in this exact order:
 
 1. require `partitions`, then `entries` non-null;
-2. [scan](../../../../glossary.md#term-cumulative-scan) expected partitions in order for the first null or later equal duplicate;
+2. scan expected partitions in order for the first null or later equal duplicate;
 3. scan entries in order for the first null and validate each entry's `context`, `analysis`, and
    `finalizer` components in declaration order;
 4. require equal list sizes;
@@ -500,7 +500,7 @@ Required source/[scope](../../../../glossary.md#term-scope)/status checks:
   `PreparedUnit`;
 - exact validation order/messages, list snapshots, assignment traversal, first-declaration
   ordering, maximum buffer geometry, workspace non-reuse, exact references, and finalizer calls;<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer))</span>
-- production [scan](../../../../glossary.md#term-cumulative-scan) for no raw `Object`, unchecked generic access, public/generic map parameter,
+- production scan for no raw `Object`, unchecked generic access, public/generic map parameter,
   reflection, string dispatch, registry/service locator, concrete backend, or hot-path behavior;<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter); [dispatch glossary](../../../../glossary.md#term-dispatch); [registry glossary](../../../../glossary.md#term-registry); [service locator glossary](../../../../glossary.md#term-service-locator))</span>
 - no modification to existing [Prepare](../../../../glossary.md#prepare) analysis semantics or Runtime contracts;
 - unchanged root/Prepare/Runtime [Gradle](../../../../glossary.md#term-gradle) files and Java 26 root [toolchain](../../../../glossary.md#term-toolchain)/[release](../../../../glossary.md#term-release) configuration;
@@ -614,7 +614,7 @@ status format.
   the backend receives typed selected state while the constructor can prove assignment coverage
   against the unchanged declaration list.<span data-glossary-navigation="true"> ([opaque glossary](../../../../glossary.md#term-opaque))</span>
 - Assignments retain exact requirement and slot references plus dense plan indices. This gives a
-  finalizer the source association and the coordinate required by current<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  finalizer the source association and the coordinate required by current
   `PreparedExecutable.BufferSelection`/`WorkspaceSelection` without map lookup or slot-number
   interpretation.<span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup))</span>
 - [Buffer](../../../../glossary.md#term-buffer) declarations for one [`ValueId`](../../../../glossary.md#logical-valueid-versus-physical-memory-slot) share one slot. Maximum size and power-of-two alignment

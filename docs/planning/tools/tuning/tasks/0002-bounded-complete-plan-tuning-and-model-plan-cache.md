@@ -328,7 +328,7 @@ type, package, [module](../../../../glossary.md#term-module) [dependency](../../
    evidence but publishes no file.<span data-glossary-navigation="true"> ([transaction glossary](../../../../glossary.md#term-transaction))</span>
 6. `PERSISTENT` completely validates the cache before candidate enumeration or execution.
    Unsupported schema, oversize, truncation, checksum failure, duplicates, noncanonical order,
-   structural inconsistency, or trailing bytes fail without execution or mutation.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero); [checksum glossary](../../../../glossary.md#term-checksum))</span>
+   structural inconsistency, or trailing bytes fail without execution or mutation.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [checksum glossary](../../../../glossary.md#term-checksum))</span>
 7. An exact cache hit invokes compatible backend decoding, constructs the selected handoff, and
    performs zero candidate enumeration, correctness, warmup, and timed actions. Later fresh
    preparation remains caller-owned and is not invoked by this task.<span data-glossary-navigation="true"> ([cache hit glossary](../../../../glossary.md#cache-and-memoization); [warmup glossary](../../../../glossary.md#term-warmup))</span>
@@ -408,7 +408,7 @@ no backend behavior, and no public Engine workflow. The later Engine Phase-2 com
   Engine-owned publication bytes, byte limits, lifecycle, and cleanup. It is not imported or
   exercised by this task.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - JDK clock, filesystem, channel, checksum/digest, and atomic-move APIs already available to the
-  module.<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [channel glossary](../../../../glossary.md#term-channel); [checksum glossary](../../../../glossary.md#term-checksum); [digest glossary](../../../../glossary.md#term-digest); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
+  module.<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [checksum glossary](../../../../glossary.md#term-checksum); [digest glossary](../../../../glossary.md#term-digest); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
 
 Caller-supplied generic collaborations are task inputs exercised by synthetic tests, not absent
 [module](../../../../glossary.md#term-module) prerequisites. Config extension and [Engine](../../../../glossary.md#term-engine)/[CPU](../../../../glossary.md#term-cpu) composition are follow-ups, not dependencies.

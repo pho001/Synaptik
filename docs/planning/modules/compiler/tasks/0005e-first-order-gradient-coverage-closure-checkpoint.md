@@ -93,7 +93,7 @@ output:
 5. enumerate every enum [constant](../../../../glossary.md#term-constant) and each [immutable](../../../../glossary.md#term-immutable) `signatures()` entry; and
 6. compare the discovered exact set with the coverage checker's current rows.
 
-This narrow reflection/[classpath](../../../../glossary.md#term-classpath) [scan](../../../../glossary.md#term-cumulative-scan) belongs only in `FirstOrderGradientCoverageTest`. It is
+This narrow reflection/[classpath](../../../../glossary.md#term-classpath) scan belongs only in `FirstOrderGradientCoverageTest`. It is
 justified by the open `OperationKind` interface and the demonstrated 127-to-128 [signature](../../../../glossary.md#term-signature) drift.
 Production code must not scan classes or use reflection. The test must fail with an exact missing
 or extra family, constant, attributes type, [cardinality](../../../../glossary.md#term-cardinality), output slot, or role rather than merely
@@ -249,7 +249,7 @@ clean context must:
 - update the glossary's pre-capture autograd/first-order request explanation only where the
   internal coverage closure changes current status;<span data-glossary-navigation="true"> ([capture glossary](../../../../glossary.md#term-capture-meanings); [autograd glossary](../../../../glossary.md#autograd))</span>
 - keep the Tensor API unchanged unless a direct contradiction is found, because no public Tensor
-  method, kind, signature, result carrier, or forward behavior changes;<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  method, kind, signature, result carrier, or forward behavior changes;<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor))</span>
 - keep the Training API unchanged because no optimizer, training request, session, publication,
   preparation, or execution contract changes;<span data-glossary-navigation="true"> ([optimizer glossary](../../../../glossary.md#term-optimizer); [publication glossary](../../../../glossary.md#term-publication))</span>
 - record reasoned no-change conclusions for Public/Runtime APIs, model capabilities/master/tasks,
@@ -412,7 +412,7 @@ tests unless it changes executable Java behavior or records a concrete reason.
 - Unknown custom kinds, new/unclassified production kinds, malformed signatures, illegal slots,
   and unsupported prerequisites fail closed.<span data-glossary-navigation="true"> ([fail closed glossary](../../../../glossary.md#admission-preflight-and-fail-closed-validation))</span>
 - Production code contains no reflection, classpath scan, public registry/facade, mutable global
-  state, service loader, or new dependency.<span data-glossary-navigation="true"> ([classpath glossary](../../../../glossary.md#term-classpath); [scan glossary](../../../../glossary.md#term-cumulative-scan); [registry glossary](../../../../glossary.md#term-registry); [facade glossary](../../../../glossary.md#term-facade); [mutable glossary](../../../../glossary.md#term-mutable); [dependency glossary](../../../../glossary.md#term-dependency))</span>
+  state, service loader, or new dependency.<span data-glossary-navigation="true"> ([classpath glossary](../../../../glossary.md#term-classpath); [registry glossary](../../../../glossary.md#term-registry); [facade glossary](../../../../glossary.md#term-facade); [mutable glossary](../../../../glossary.md#term-mutable); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 
 ### First-order and [fail-closed behavior](../../../../glossary.md#admission-preflight-and-fail-closed-validation)
 
@@ -642,7 +642,7 @@ Implementation evidence:
   every conditional <span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>`D`.
 - `AutogradPreflight` now delegates role disposition to that checker while retaining its exact
   typed occurrence/prerequisite validation and failure order. Successful selected occurrences
-  carry the checker-owned family. <span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [carry glossary](../../../../glossary.md#term-carry))</span>`FirstOrderAutograd` dispatches only through that retained
+  carry the checker-owned family. <span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>`FirstOrderAutograd` dispatches only through that retained
   family and no longer maintains a second kind-family branch.
 - Test-only compiled-production discovery supports directory and archive code sources and proved
   complete set equality for 37 top-level enum families, 107 kind constants, and 128 exact
@@ -692,7 +692,7 @@ Documentation evidence:
   unlisted path, Java outside Compiler, Model, Gradle, architecture/ADR/test, conformance,
   integration, backend, runtime, training, or unrelated-module change. Production contains no
   reflection, classpath scan, registry, service loader, public checker/facade, or mutable global
-  coverage state. Compiler 0006 remains Draft and no 0006 task file exists.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [Gradle glossary](../../../../glossary.md#term-gradle); [conformance glossary](../../../../glossary.md#term-conformance); [backend glossary](../../../../glossary.md#backend); [module glossary](../../../../glossary.md#term-module); [classpath glossary](../../../../glossary.md#term-classpath); [scan glossary](../../../../glossary.md#term-cumulative-scan); [registry glossary](../../../../glossary.md#term-registry); [facade glossary](../../../../glossary.md#term-facade); [mutable glossary](../../../../glossary.md#term-mutable))</span>
+  coverage state. Compiler 0006 remains Draft and no 0006 task file exists.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [Gradle glossary](../../../../glossary.md#term-gradle); [conformance glossary](../../../../glossary.md#term-conformance); [backend glossary](../../../../glossary.md#backend); [module glossary](../../../../glossary.md#term-module); [classpath glossary](../../../../glossary.md#term-classpath); [registry glossary](../../../../glossary.md#term-registry); [facade glossary](../../../../glossary.md#term-facade); [mutable glossary](../../../../glossary.md#term-mutable))</span>
 - Tensor API and Model capabilities/master/tasks remain unchanged because no Model kind,
   signature, Tensor method, descriptor, result carrier, provenance, or forward semantic changed.
   Public, Training, and Runtime APIs remain unchanged because the checkpoint is package-private
@@ -701,7 +701,7 @@ Documentation evidence:
   0009, and architecture tests remain unchanged because ownership, dependency direction,
   lifecycle, and graph representation did not change. Backend conformance and integration tests
   required no focused change or separate run because no backend or end-to-end behavior changed;
-  the repository/architecture checkpoint supplied the required capability evidence.<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [carrier glossary](../../../../glossary.md#term-storage-carrier); [provenance glossary](../../../../glossary.md#provenance); [artifact glossary](../../../../glossary.md#term-artifact); [publication glossary](../../../../glossary.md#term-publication); [optimizer glossary](../../../../glossary.md#term-optimizer); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  the repository/architecture checkpoint supplied the required capability evidence.<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [provenance glossary](../../../../glossary.md#provenance); [artifact glossary](../../../../glossary.md#term-artifact); [publication glossary](../../../../glossary.md#term-publication); [optimizer glossary](../../../../glossary.md#term-optimizer); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 
 ## Implementation notes
 

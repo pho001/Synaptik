@@ -63,7 +63,7 @@ ordering, deterministic [ownership](../../../../glossary.md#term-ownership-meani
 
 - No conversion, non-[contiguous](../../../../glossary.md#term-contiguous) transfer, non-[`FLOAT32`](../../../../glossary.md#term-float32) transfer, heap staging, CUDA transfer,
   generic plugin transfer service-provider interface, discovery, fallback, retry, owner
-  substitution, asynchronous execution, pooling, aliasing, or native ABI expansion.<span data-glossary-navigation="true"> ([heap glossary](../../../../glossary.md#term-heap); [CUDA glossary](../../../../glossary.md#term-cuda); [plugin glossary](../../../../glossary.md#term-plugin); [owner glossary](../../../../glossary.md#term-owner); [asynchronous glossary](../../../../glossary.md#term-asynchronous); [pooling glossary](../../../../glossary.md#term-pooling); [aliasing glossary](../../../../glossary.md#term-aliasing); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
+  substitution, asynchronous execution, pooling, aliasing, or native ABI expansion.<span data-glossary-navigation="true"> ([heap glossary](../../../../glossary.md#term-heap); [CUDA glossary](../../../../glossary.md#term-cuda); [plugin glossary](../../../../glossary.md#term-plugin); [owner glossary](../../../../glossary.md#term-owner); [asynchronous glossary](../../../../glossary.md#term-asynchronous); [aliasing glossary](../../../../glossary.md#term-aliasing); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
 - No registry/provider/backend-ID query after successful preparation and no second physical-memory
   or schedule convention.<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [backend glossary](../../../../glossary.md#backend))</span>
 - No change to Planning ownership scoring, Metal operation capability beyond current NEG, or the
@@ -123,7 +123,7 @@ If an applicable contract is missing or ambiguous, stop and report it.
   input), then distinct consumers. Shared buffer assignment begins with bindable input IDs in exact
   Compiler occurrence order, independent of partition/declaration order. Each finalizer selects its
   assigned position. Backend contributions cover each assigned buffer/workspace coordinate exactly
-  once.<span data-glossary-navigation="true"> ([buffer slot glossary](../../../../glossary.md#buffer-slot--bufferslot); [producer glossary](../../../../glossary.md#term-producer); [buffer glossary](../../../../glossary.md#term-buffer); [bindable input glossary](../../../../glossary.md#bindable-input); [Compiler glossary](../../../../glossary.md#term-compiler); [occurrence glossary](../../../../glossary.md#term-occurrence); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  once.<span data-glossary-navigation="true"> ([buffer slot glossary](../../../../glossary.md#buffer-slot--bufferslot); [producer glossary](../../../../glossary.md#term-producer); [buffer glossary](../../../../glossary.md#term-buffer); [bindable input glossary](../../../../glossary.md#bindable-input); [Compiler glossary](../../../../glossary.md#term-compiler); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - The immutable schedule creates representations first, executes partitions in compile order,
   places one producer-to-destination transfer before each distinct destination owner's first
   consumer, handles fan-out/interleaving, and publishes the exact final suffix.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [fan-out glossary](../../../../glossary.md#term-fan-out))</span>
@@ -169,7 +169,7 @@ git diff --check
 The repository defines no formatter task or standalone documentation-validator script.
 `./gradlew tasks --all` confirmed that `check` is the configured repository validation task.
 A targeted Python 3 Markdown validator checked all 26 changed Markdown files, 646 local
-links/anchors, and reported zero failures. A separate whitespace [scan](../../../../glossary.md#term-cumulative-scan) checked all eight untracked
+links/anchors, and reported zero failures. A separate whitespace scan checked all eight untracked
 new files and reported zero trailing-whitespace or final-newline failures.
 
 The implementation context records exact outcomes. The independent Class C review reuses

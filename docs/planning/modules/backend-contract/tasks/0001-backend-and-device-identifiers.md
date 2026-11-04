@@ -46,7 +46,7 @@ registration, availability query, capability [evaluation](../../../../glossary.m
   - Reject `String.isBlank()` values with `IllegalArgumentException` and exact message
     `value must not be blank`.
   - Accept every other `String`, retain the exact supplied reference and content, and perform no
-    trimming, case folding, Unicode normalization, syntax validation, interning, or aliasing.<span data-glossary-navigation="true"> ([Unicode normalization glossary](../../../../glossary.md#term-unicode-normalization); [validation glossary](../../../../glossary.md#term-validation); [aliasing glossary](../../../../glossary.md#term-aliasing))</span>
+    trimming, case folding, Unicode normalization, syntax validation, interning, or aliasing.<span data-glossary-navigation="true"> ([Unicode normalization glossary](../../../../glossary.md#term-unicode-normalization); [validation glossary](../../../../glossary.md#term-validation))</span>
   - Expose an explicitly documented `value()` accessor.
 - Add public record [`BackendDeviceId`](../../../../glossary.md#backend-device-identity--backenddeviceid) with exactly `BackendId backendId` and `String value`, in
   that order.

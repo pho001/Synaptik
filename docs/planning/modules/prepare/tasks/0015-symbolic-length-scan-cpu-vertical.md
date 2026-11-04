@@ -1,4 +1,4 @@
-# Task Prepare0015: Symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) [CPU](../../../../glossary.md#term-cpu) vertical
+# Task Prepare0015: Symbolic-length [Scan](../../../../glossary.md#general-differentiable-scan) [CPU](../../../../glossary.md#term-cpu) vertical
 
 > **Editorial historical reading key.**
 >
@@ -54,7 +54,7 @@ Start at [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scop
 Exact required headings (including applicable subordinate rules):
 
 - Root: `Core lifecycle`, `Core invariants`, `Dependency rules`, `Testing requirements`.
-- [recurrent-scan.md](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>: [`General differentiable scan`](../../../../glossary.md#general-differentiable-scan), `Accepted symbolic-batch scan`, `Length-aware whole-batch scan`, especially `Runtime preflight and implementation gates`.
+- [recurrent-scan.md](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#general-differentiable-scan))</span>: [`General differentiable scan`](../../../../glossary.md#general-differentiable-scan), `Accepted symbolic-batch scan`, `Length-aware whole-batch scan`, especially `Runtime preflight and implementation gates`.
 - [runtime-prepare-engine.md](../../../../architecture/contracts/runtime-prepare-engine.md#modulesprepare)<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [engine glossary](../../../../glossary.md#term-engine))</span>: `modules/runtime`, `modules/prepare`, `modules/engine`, `Accepted symbolic-batch resource contract`, `Prepare lifecycle`, `Run lifecycle`, `Public reusable prepared execution`.
 - [backend-execution.md](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>: `CPU backend routes`, `Accepted ordinary symbolic-batch CPU contract`.
 - [compiler-autograd.md](../../../../architecture/contracts/compiler-autograd.md#accepted-symbolic-batch-metadata-binding)<span data-glossary-navigation="true"> ([compiler glossary](../../../../glossary.md#term-compiler); [autograd glossary](../../../../glossary.md#autograd))</span>: `Accepted symbolic-batch metadata binding`; no new [AD](../../../../glossary.md#autograd)/binder algorithm/[API](../../../../glossary.md#term-application-programming-interface-api).
@@ -66,7 +66,7 @@ Design context only: [length-aware proposal](../../../length-aware-general-scan.
 ## Dependencies and integration
 
 - Depends on: Model0044; Compiler0015; Prepare0011/0013/0014; CPU0042 (retaining CPU0033/0037/0041); Runtime0016; Engine0021; Planning0008 — Complete.
-- Conflicts with: [Scan](../../../../glossary.md#term-cumulative-scan) projection/roles/demand; [CPU](../../../../glossary.md#term-cpu) typed closure/[IR](../../../../glossary.md#term-intermediate-representation-ir)/emission/resources/[identities](../../../../glossary.md#term-identity-meanings); [Engine](../../../../glossary.md#term-engine) [binding](../../../../glossary.md#term-binding)/[publication](../../../../glossary.md#term-publication)/[lifecycle](../../../../glossary.md#lifecycle); owning contracts/shared docs. Serialize, no concurrent writer.
+- Conflicts with: [Scan](../../../../glossary.md#general-differentiable-scan) projection/roles/demand; [CPU](../../../../glossary.md#term-cpu) typed closure/[IR](../../../../glossary.md#term-intermediate-representation-ir)/emission/resources/[identities](../../../../glossary.md#term-identity-meanings); [Engine](../../../../glossary.md#term-engine) [binding](../../../../glossary.md#term-binding)/[publication](../../../../glossary.md#term-publication)/[lifecycle](../../../../glossary.md#lifecycle); owning contracts/shared docs. Serialize, no concurrent writer.
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus the accepted 2483-file dirty worktree (`prepare0015-baseline.json`), not merged predecessors; index empty.
 - Integration order: MAIN review/[Ready](../../../../glossary.md#term-ready) → user approval → in-task pre-Java review/MAIN acceptance → clean implementation → independent code/docs review → MAIN combined gate/acceptance.
@@ -83,7 +83,7 @@ Enacted qualification is implemented and validated at these exact owning heading
 pre-Java review and MAIN acceptance passed on 2026-10-26, before the clean implementation launch.
 
 - Root `Core lifecycle`, `Core invariants`, `Scope-indexed normative contracts`: matching bounded support/status links, successors held.
-- recurrent-[scan](../../../../glossary.md#term-cumulative-scan) `Accepted symbolic-batch scan` / `Qualification and mechanism gates`, `Length-aware whole-batch scan` / `Runtime preflight and implementation gates`: combined projection/execution only; unchanged header/equations/roles/[AD](../../../../glossary.md#autograd) guards/saved sites/[preflight](../../../../glossary.md#term-preflight)/resource algorithms.
+- recurrent-[scan](../../../../glossary.md#general-differentiable-scan) `Accepted symbolic-batch scan` / `Qualification and mechanism gates`, `Length-aware whole-batch scan` / `Runtime preflight and implementation gates`: combined projection/execution only; unchanged header/equations/roles/[AD](../../../../glossary.md#autograd) guards/saved sites/[preflight](../../../../glossary.md#term-preflight)/resource algorithms.
 - [runtime](../../../../glossary.md#term-runtime)-[prepare](../../../../glossary.md#prepare)-[engine](../../../../glossary.md#term-engine) `modules/prepare`, `Prepare lifecycle`, `Run lifecycle`, `Public reusable prepared execution`: static-or-one-B length projection/[admission](../../../../glossary.md#term-admission)/[publication](../../../../glossary.md#term-publication); unchanged [handoff](../../../../glossary.md#term-handoff)/[lifecycle](../../../../glossary.md#lifecycle), no [memo](../../../../glossary.md#cache-and-memoization).
 - [backend](../../../../glossary.md#backend)-execution `CPU backend routes`, `Accepted ordinary symbolic-batch CPU contract`: combined [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) and bounded outer/control/ROW(1); retain old F32 bytes/static reduction sizing.
 - [compiler](../../../../glossary.md#term-compiler)-[autograd](../../../../glossary.md#autograd) `Accepted symbolic-batch metadata binding`: downstream status only.
@@ -116,9 +116,9 @@ Extend existing tests below; Compiler0015 fixtures are actual-[graph](../../../.
 
 1. Qualify outer typed seed/zero/one splats, ADD ties/cross-occurrence sums, required MUL/DIV,
    SUM/MEAN/sumToShape, expand, feature-only reshape/rank edits, transpose/contiguous/same-dtype CAST.
-   Explicit family/dtype/rank/axis/attribute/access predicates admit <span data-glossary-navigation="true"> ([seed glossary](../../../../glossary.md#term-seed); [occurrence glossary](../../../../glossary.md#term-occurrence); [MEAN glossary](../../../../glossary.md#term-mean); [feature glossary](../../../../glossary.md#term-software-feature); [rank glossary](../../../../glossary.md#term-rank); [transpose glossary](../../../../glossary.md#term-transpose); [contiguous glossary](../../../../glossary.md#term-contiguous); [axis glossary](../../../../glossary.md#term-axis))</span>`[T,B,F]` and ROW(1) `[F,B]`/
+   Explicit family/dtype/rank/axis/attribute/access predicates admit <span data-glossary-navigation="true"> ([seed glossary](../../../../glossary.md#term-seed); [occurrence glossary](../../../../glossary.md#term-occurrence); [MEAN glossary](../../../../glossary.md#term-mean); [feature glossary](../../../../glossary.md#term-feature); [rank glossary](../../../../glossary.md#term-rank); [transpose glossary](../../../../glossary.md#term-transpose); [contiguous glossary](../../../../glossary.md#term-contiguous); [axis glossary](../../../../glossary.md#term-axis))</span>`[T,B,F]` and ROW(1) `[F,B]`/
    `[T,F,B]` literals/zeros, not arbitrary rank-three or ordinary F64 MATMUL. Positive/negative
-   provider tests INSIDE/OUTSIDE Scan give identical answers, no origin tag. Only non-gradient<span data-glossary-navigation="true"> ([MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [gradient glossary](../../../../glossary.md#term-gradient))</span>
+   provider tests INSIDE/OUTSIDE Scan give identical answers, no origin tag. Only non-gradient<span data-glossary-navigation="true"> ([MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [Scan glossary](../../../../glossary.md#general-differentiable-scan); [gradient glossary](../../../../glossary.md#term-gradient))</span>
    `[B]` [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding)→[INT64](../../../../glossary.md#data-type--datatype) CAST adds control production; direct L needs no [producer](../../../../glossary.md#term-producer).
 2. Ordinary F64 exact SUM/MEAN uses existing typed exact arithmetic: signedBits=2099+ceil(log2(N)),
    zero cardinality term at N≤1; int-bounded N fits fixed 34 limbs, 280-byte single-range scratch
@@ -214,7 +214,7 @@ after executable acceptance. Targeted glossary: [symbolic Scan](../../../../glos
 ## Result
 
 Status: Complete. MAIN accepted 2026-10-27; active [Prepare](../../../../glossary.md#prepare)/[CPU](../../../../glossary.md#term-cpu)/[Engine](../../../../glossary.md#term-engine) frontiers None.
-Delivered one named B plus [runtime](../../../../glossary.md#term-runtime) [INT64](../../../../glossary.md#data-type--datatype)[B] lengths, fixed T/[features](../../../../glossary.md#term-software-feature), [homogeneous](../../../../glossary.md#term-homogeneous) [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) forward
+Delivered one named B plus [runtime](../../../../glossary.md#term-runtime) [INT64](../../../../glossary.md#data-type--datatype)[B] lengths, fixed T/[features](../../../../glossary.md#term-feature), [homogeneous](../../../../glossary.md#term-homogeneous) [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) forward
 and actual [Compiler](../../../../glossary.md#term-compiler)-generated first-order reverse through existing Prepare/CPU/Engine [owners](../../../../glossary.md#term-owner).
 The same prepared [owner](../../../../glossary.md#term-owner) supports changed/repeated B/L, actual-sized resources and publications;
 bounded ordinary F64/control/ROW(1) prerequisites are included. No new production type/[API](../../../../glossary.md#term-application-programming-interface-api)/protocol,
@@ -223,7 +223,7 @@ bounded ordinary F64/control/ROW(1) prerequisites are included. No new productio
 Changed: 19 production Java paths (four comment-only), 18 test Java paths (two new test-only types),
 the current v2 [capability ledger](../../../../glossary.md#capability-ledger), and 21 Markdown paths. Independent code/structural review (Rawls)
 and documentation/[Javadoc](../../../../glossary.md#term-javadoc) review (Plato) APPROVE, 0 P1/P2. Final R1 row-copy activity is once per row;
-R2 F64 workspace uses eight-byte cells in both geometry and packing. Six core [Scan](../../../../glossary.md#term-cumulative-scan) semantic sections
+R2 F64 workspace uses eight-byte cells in both geometry and packing. Six core [Scan](../../../../glossary.md#general-differentiable-scan) semantic sections
 are unchanged. Old v1 ledger/all 272 old v2 rows and 28 static-length key/both-stream/ClassFile cases
 remain exact. Generated code was compared with typed optimal Java; 16/16 measured Scan ClassFiles
 equal the structurally reviewed [artifacts](../../../../glossary.md#term-artifact). No hidden allocation/helper [dispatch](../../../../glossary.md#term-dispatch) or [activation](../../../../glossary.md#term-activation) replay

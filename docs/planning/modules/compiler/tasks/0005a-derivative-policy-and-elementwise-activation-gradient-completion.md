@@ -85,7 +85,7 @@ or arithmetic system.
 ### Exact local formulas
 
 The formulas below are structural [Tensor](../../../../glossary.md#tensor)-expression contracts. `where` means public
-`Tensor.where`, comparisons and classifications [mean](../../../../glossary.md#term-mean) the current public represented-value
+`Tensor.where`, comparisons and classifications mean the current public represented-value
 operations, and [scalar](../../../../glossary.md#term-scalar) coefficients mean exact typed [`ScalarValue`](../../../../glossary.md#typed-scalar-value--scalarvalue) [operation](../../../../glossary.md#operation) attributes unless a
 splat is explicitly named.
 

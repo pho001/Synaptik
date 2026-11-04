@@ -458,7 +458,7 @@ higher-order requests become [Ready](../../../../glossary.md#term-ready).
 ## Out of [scope](../../../../glossary.md#term-scope)
 
 - any Model source, test, operation, attributes, Tensor method, result carrier, producer-output,
-  descriptor, Shape, DataType, or public API change<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation); [carrier glossary](../../../../glossary.md#term-storage-carrier); [producer glossary](../../../../glossary.md#term-producer); [descriptor glossary](../../../../glossary.md#term-descriptor); [Shape glossary](../../../../glossary.md#shape); [DataType glossary](../../../../glossary.md#data-type--datatype); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
+  descriptor, Shape, DataType, or public API change<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation); [producer glossary](../../../../glossary.md#term-producer); [descriptor glossary](../../../../glossary.md#term-descriptor); [Shape glossary](../../../../glossary.md#shape); [DataType glossary](../../../../glossary.md#data-type--datatype); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - a hidden SORT indices output, multi-output SORT, public sort result, or any recomputation other
   than the exact matching stable ARGSORT formula specified above
 - recomputing TOP_K indices, [dropout](../../../../glossary.md#dropout--inverted-dropout) [masks](../../../../glossary.md#term-boolean-mask), scatter [extrema](../../../../glossary.md#saturation-pole-and-extremum), or another [canonical](../../../../glossary.md#term-canonical-form) auxiliary/output
@@ -865,7 +865,7 @@ Documentation-focused context
 - `python3 /tmp/validate_synaptik_markdown.py` passed 12 affected Markdown files and 722 local
   links, including heading anchors, balanced fences, final newlines, and trailing whitespace.
 - `git diff --check` passed with no output. A separate affected-path trailing-whitespace scan
-  returned no matches.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  returned no matches.
 - Final Compiler-0005C scope is exactly 20 paths: seven production, six test, and seven
   documentation/planning paths, below the authorized 23-path ceiling. Preserved Model 0025C/0025D
   source, tests, APIs, task files, capabilities, and planning synchronization were audited

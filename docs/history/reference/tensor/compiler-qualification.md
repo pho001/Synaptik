@@ -36,7 +36,7 @@ the older coverage lists below as evidence. For actual borrowing and result clea
 > expression methods directly on the original forward expression, and package-private
 > `GraphCompiler` captures forward outputs and generated gradient roots together once. This changes
 > no public Tensor method or ergonomic result carrier. Its mode-neutral internal
-> `GraphCompilation` is not a [Tensor](../../../glossary.md#tensor) result [carrier](../../../glossary.md#term-storage-carrier) or the current `CompileArtifacts` aggregate. The
+> `GraphCompilation` is not a [Tensor](../../../glossary.md#tensor) result carrier or the current `CompileArtifacts` aggregate. The
 > implementation adds no
 > `Tensor.gradient`, `Tensor.backward`, [mutable](../../../glossary.md#term-mutable) [gradient](../../../glossary.md#term-gradient) state, placeholder Tensor for a captured
 > [`ValueId`](../../../glossary.md#logical-valueid-versus-physical-memory-slot), or [model](../../../glossary.md#term-model)-owned [derivative](../../../glossary.md#term-derivative) rule.
@@ -147,7 +147,7 @@ the older coverage lists below as evidence. For actual borrowing and result clea
 > `SelectKind.SELECT` is a current scalar-index semantic [identity](../../../glossary.md#term-identity-meanings). It pairs with
 > `SelectAttrs(axis, index)`, whose normalized non-negative axis and scalar coordinate fix one
 > logical position on one source axis and remove that axis from the conceptual result. For source
-> Shape `[2, 3, 4]`, axis `1` and index `2` therefore [mean](../../../glossary.md#term-mean) conceptual result Shape `[2, 4]`.
+> Shape `[2, 3, 4]`, axis `1` and index `2` therefore mean conceptual result Shape `[2, 4]`.
 > The attributes contain no input Shape, so they cannot prove that the axis exists or that the index
 > is in bounds. Public `Tensor.select` now owns caller-facing negative normalization, local bounds
 > validation, result Shape/layout construction, and exact one-input provenance. Gradients, compiler

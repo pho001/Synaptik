@@ -116,7 +116,7 @@ nine signatures: three recurrent, one [Conv3d](../../../../glossary.md#conv3d--n
 - [Compiler 0005D: Attention, convolution, pooling, and loss gradients](0005d-attention-convolution-pooling-and-loss-gradient-completion.md)<span data-glossary-navigation="true"> ([convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [pooling glossary](../../../../glossary.md#term-pooling); [loss glossary](../../../../glossary.md#loss); [gradients glossary](../../../../glossary.md#term-gradient))</span>
 - [Compiler 0005E: First-order gradient coverage closure](0005e-first-order-gradient-coverage-closure-checkpoint.md)
 - [Compiler 0006: Explicit functional gradient requests](0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md)
-- [Compiler 0006A: Fixed recurrent-scan forward adoption](0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+- [Compiler 0006A: Fixed recurrent-scan forward adoption](0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-fixed-recurrent-scan))</span>
 - [Compiler 0006B: Conv3d forward adoption](0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md)<span data-glossary-navigation="true"> ([Conv3d glossary](../../../../glossary.md#conv3d--ncdhw))</span>
 - [Model 0025J: First-class NCDHW Pool3d](../../model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md)<span data-glossary-navigation="true"> ([NCDHW glossary](../../../../glossary.md#conv3d--ncdhw); [Pool3d glossary](../../../../glossary.md#pool3d--ncdhw-pooling))</span>
 - [Model 0025K: Public NCDHW unfold3d and fold3d](../../model/tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md)
@@ -271,7 +271,7 @@ and depth-height-width rule order.
 merge; different kinds, attributes including [padding](../../../../glossary.md#padding) bits/[target](../../../../glossary.md#term-target) [Shape](../../../../glossary.md#shape)/window geometry, inputs,
 phases, [derivative](../../../../glossary.md#term-derivative) orders, or output [descriptors](../../../../glossary.md#term-descriptor) do not; graph-output producers do not merge.
 
-Existing [publication](../../../../glossary.md#term-publication) and [Planning](../../../../glossary.md#term-planning) orchestration [carry](../../../../glossary.md#term-carry) the exact surviving [operation](../../../../glossary.md#operation), ordered
+Existing [publication](../../../../glossary.md#term-publication) and [Planning](../../../../glossary.md#term-planning) orchestration carry the exact surviving [operation](../../../../glossary.md#operation), ordered
 input descriptors, output descriptor, and diagnostics. A recording test provider may accept a
 query only to prove the unchanged [handoff](../../../../glossary.md#term-handoff); no production provider or capability table changes.
 

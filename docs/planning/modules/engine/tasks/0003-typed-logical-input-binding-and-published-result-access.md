@@ -432,7 +432,7 @@ claim. Package-private handle constructors may supply a deliberately wrong-[desc
 - Snapshots/lifetime: a latch-controlled first borrow permits association replacement after all
   snapshots; prove the exact old references were used and later runs take fresh snapshots.
   Distinct inputs sharing storage get distinct wrappers. Read-only input succeeds for a read-only
-  prepared role. Caller arenas remain live after result/Engine close; no copy or reassociation.<span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime); [latch glossary](../../../../glossary.md#control-flow-graph); [arenas glossary](../../../../glossary.md#term-arena); [reassociation glossary](../../../../glossary.md#term-reassociation))</span>
+  prepared role. Caller arenas remain live after result/Engine close; no copy or reassociation.<span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime); [arenas glossary](../../../../glossary.md#term-arena))</span>
 - Publications: ordinary forward success and explicitly seeded first-order success; repeated
   gradient-value roles and forward/gradient alias roles remain separate; target ID differs from
   generated gradient identity; immutable metadata, stable repeated accessor identity, fresh objects
@@ -552,7 +552,7 @@ cannot be marked Complete.
 - The historical blocker was the missing originating Tensor identity; completed Compiler 0006B4
   closes it without changing artifacts' component count or Prepare/Runtime/CPU production.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [identity glossary](../../../../glossary.md#term-identity-meanings); [Compiler glossary](../../../../glossary.md#term-compiler); [artifacts glossary](../../../../glossary.md#term-artifact); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - Choose association-only `List<Tensor>` [binding](../../../../glossary.md#term-binding) and [immutable](../../../../glossary.md#term-immutable) `CompiledGraph.Input` metadata.
-  A storage override carrier is not needed for this capability.<span data-glossary-navigation="true"> ([metadata glossary](../../../../glossary.md#term-metadata); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  A storage override carrier is not needed for this capability.<span data-glossary-navigation="true"> ([metadata glossary](../../../../glossary.md#term-metadata))</span>
 - Choose an explicit one-stage three-list compile overload, not a new request/config abstraction.
   Full Compiler request choices remain advanced; scalar and one-shot ergonomics remain later.<span data-glossary-navigation="true"> ([compile glossary](../../../../glossary.md#compile); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Choose fresh identity-based publication handles and metadata-readable-after-close semantics.

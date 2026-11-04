@@ -508,7 +508,7 @@ Planning/documentation context: `01a04334-7f08-78f3-9bf0-6efb1684b68e`.
   on 0008E1; Prepare 0004 remained Draft after 0003A without renumbering.
 - `find docs/planning/backends/cpu/tasks -maxdepth 1 -type f` found no CPU 0008E1 or CPU 0008F
   task specification.
-- The combined tracked/untracked path [scan](../../../../glossary.md#term-cumulative-scan) found exactly the four authorized planning paths.
+- The combined tracked/untracked path scan found exactly the four authorized planning paths.
   `git status --short -uall` confirmed all four are unstaged and the staged index is empty.
 - `git diff --check` and `git diff --cached --check` passed.
 - No Java, test, Javadoc, Gradle, repository, performance, generated-code, or schema command ran

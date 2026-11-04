@@ -105,7 +105,7 @@ with `Long.MAX_VALUE`. They do not bypass checked aggregate arithmetic, the per-
 any inward bound.
 
 No public or protected `forward(...)` overload remains. No new public type, request, options,
-builder, result [carrier](../../../../glossary.md#term-storage-carrier), field, constructor, nested type, or exception hierarchy is authorized.
+builder, result carrier, field, constructor, nested type, or exception hierarchy is authorized.
 The [singleton](../../../../glossary.md#term-singleton) methods return the existing [`HostTensorValue`](../../../../glossary.md#host-tensor-value--hosttensorvalue); the ordered methods return an
 [immutable](../../../../glossary.md#term-immutable) requested-order `List<HostTensorValue>`.
 

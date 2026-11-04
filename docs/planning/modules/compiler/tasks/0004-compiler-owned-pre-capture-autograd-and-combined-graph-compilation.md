@@ -386,7 +386,7 @@ one-shot order:
     ordinal after every ID rebuild.<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient))</span>
 
 Every changed candidate is revalidated through [Compiler](../../../../glossary.md#term-compiler) 0002 before the next pass consumes it.
-An unchanged helper result is not redundantly validated. No fixed point or extra [scan](../../../../glossary.md#term-cumulative-scan) is added.
+An unchanged helper result is not redundantly validated. No fixed point or extra scan is added.
 
 The completed package-private helper names may remain `Forward*` to keep this already large
 pipeline migration bounded, but their Javadocs and behavior must no longer use the name as a

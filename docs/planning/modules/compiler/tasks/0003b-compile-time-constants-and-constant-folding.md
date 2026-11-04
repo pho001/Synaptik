@@ -18,7 +18,7 @@ Complete
 ## Goal
 
 Add one [compiler](../../../../glossary.md#term-compiler)-owned [immutable](../../../../glossary.md#term-immutable) representation for explicit [compile](../../../../glossary.md#compile)-time [constant](../../../../glossary.md#term-constant) facts and one
-deliberately small constant-folding [scan](../../../../glossary.md#term-cumulative-scan) over a successful [canonical](../../../../glossary.md#term-canonical-form) `ValidatedGraph`.
+deliberately small constant-folding scan over a successful [canonical](../../../../glossary.md#term-canonical-form) `ValidatedGraph`.
 
 The current representation is a **[logical splat](../../../../glossary.md#logical-splat)**: one exact typed [`ScalarValue`](../../../../glossary.md#typed-scalar-value--scalarvalue) applies to every
 logical [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) of one [graph value](../../../../glossary.md#graph-value). It is compile-time semantic data, not public [mutable](../../../../glossary.md#term-mutable)
@@ -136,7 +136,7 @@ produces exact modular `INT32(MIN_VALUE)`. These are [model](../../../../glossar
 - Treat an unbound provenance-free Tensor as an ordinary bindable graph input even when it was
   created by `TensorFactory.scalar`, `zeros`, `ones`, `full`, an import, allocation, or random
   factory path.
-- [Carry](../../../../glossary.md#term-carry) the sidecar through `ValidatedGraph`, canonicalization, Compiler 0003A rewriting, DCE,
+- Carry the sidecar through `ValidatedGraph`, canonicalization, Compiler 0003A rewriting, DCE,
   CSE, and Compiler 0002 revalidation without adding a public compile facade.<span data-glossary-navigation="true"> ([canonicalization glossary](../../../../glossary.md#occurrence-identity-and-canonical-form); [Compiler glossary](../../../../glossary.md#term-compiler); [DCE glossary](../../../../glossary.md#term-dead-code-elimination-dce); [CSE glossary](../../../../glossary.md#term-common-subexpression-elimination-cse); [compile glossary](../../../../glossary.md#compile); [facade glossary](../../../../glossary.md#term-facade))</span>
 - Add one package-private stateless `ForwardConstantFolding` helper with this [shape](../../../../glossary.md#shape):
 
@@ -145,7 +145,7 @@ produces exact modular `INT32(MIN_VALUE)`. These are [model](../../../../glossar
   ```
 
 - Visit nodes once in stored topological order, propagating only the selected splat facts so one
-  earlier selected fold can make a later selected occurrence foldable in the same scan.<span data-glossary-navigation="true"> ([nodes glossary](../../../../glossary.md#node); [topological order glossary](../../../../glossary.md#term-topological-order); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  earlier selected fold can make a later selected occurrence foldable in the same scan.<span data-glossary-navigation="true"> ([nodes glossary](../../../../glossary.md#node); [topological order glossary](../../../../glossary.md#term-topological-order))</span>
 - Fold exactly the four-row [matrix](../../../../glossary.md#term-matrix-meanings) in [Selected fold matrix](#selected-fold-matrix).
 - Return the exact sidecar [argument](../../../../glossary.md#term-argument) when no [occurrence](../../../../glossary.md#term-occurrence) folds.
 - When folding changes the graph, rebuild one immutable canonical candidate with original graph
@@ -341,7 +341,7 @@ those facts, canonicalizes them, or promises a result payload.
 
 ### Rebuild, source roles, and deterministic IDs
 
-The fold [scan](../../../../glossary.md#term-cumulative-scan) first records selected fold decisions and propagated facts in original [topological
+The fold scan first records selected fold decisions and propagated facts in original [topological
 order](../../../../glossary.md#term-topological-order). It performs no [graph](../../../../glossary.md#graph) mutation. If no [node](../../../../glossary.md#node) folds, return the exact sidecar reference.
 
 For a changed result, rebuild in two deterministic stages:
@@ -409,7 +409,7 @@ When enabled, continue exactly:
 11. run sidecar-aware forward DCE once and validate only if changed; and
 12. return the final exact `ValidatedGraph`.
 
-No pass repeats, no fixed point is sought, and no second folding [scan](../../../../glossary.md#term-cumulative-scan) runs after CSE. Compiler
+No pass repeats, no fixed point is sought, and no second folding scan runs after CSE. Compiler
 0002 continues to infer [operation](../../../../glossary.md#operation) [descriptors](../../../../glossary.md#term-descriptor) and deferred constraints from the graph only; the
 sidecar constructor separately validates [constant](../../../../glossary.md#term-constant)-source agreement. Add exactly this package-
 private Compiler 0002 overload while preserving its existing entry:
@@ -465,7 +465,7 @@ constraints exactly as today. Do not add another stored graph, fact map, or bind
 - constant interning, deduplication by value, serialization, persistence, hashing protocol, or
   artifact file format<span data-glossary-navigation="true"> ([serialization glossary](../../../../glossary.md#term-serialization); [persistence glossary](../../../../glossary.md#term-persistence); [artifact glossary](../../../../glossary.md#term-artifact))</span>
 - large or unbounded compile work, per-element loops, data-dependent loops, recursive evaluation,
-  fixed-point iteration, or payload growth beyond one scalar per fact<span data-glossary-navigation="true"> ([fixed-point glossary](../../../../glossary.md#fixed-point-arithmetic); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [scalar glossary](../../../../glossary.md#term-scalar))</span>
+  fixed-point iteration, or payload growth beyond one scalar per fact<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - relaxed/fast-math, reassociation, commutation, reciprocal substitution, finite-only assumptions,
   approximate evaluation, tolerance-based equality, or backend numerical selection<span data-glossary-navigation="true"> ([reassociation glossary](../../../../glossary.md#term-reassociation); [commutation glossary](../../../../glossary.md#term-commutation); [finite glossary](../../../../glossary.md#term-finite); [tolerance glossary](../../../../glossary.md#term-tolerance); [backend glossary](../../../../glossary.md#backend))</span>
 - autograd, backward construction, gradient rules, saved-value policy, gradient-eligible constant
@@ -531,7 +531,7 @@ constraints exactly as today. Do not add another stored graph, fact map, or bind
   evaluator is justified.<span data-glossary-navigation="true"> ([facade glossary](../../../../glossary.md#term-facade); [registry glossary](../../../../glossary.md#term-registry); [service locator glossary](../../../../glossary.md#term-service-locator))</span>
 - If implementation cannot carry source roles through every changed candidate, prune unused
   constants deterministically, or preserve the sidecar for Compiler 0005 without changing the
-  architecture contract, stop and report the exact conflict.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [architecture contract glossary](../../../../glossary.md#architecture-contract))</span>
+  architecture contract, stop and report the exact conflict.<span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract))</span>
 
 ## Package impact
 
@@ -551,7 +551,7 @@ Type placement:
   sidecar, exact splat value, explicit ingress binding, bindable-input derivation, and safe
   input-position remapping.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [binding glossary](../../../../glossary.md#term-binding))</span>
 - `io.github.pho001.synaptik.compiler.ForwardConstantFolding` — owns the selected one-scan typed
-  evaluation and synthetic-source rebuild.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [evaluation glossary](../../../../glossary.md#term-evaluation))</span>
+  evaluation and synthetic-source rebuild.<span data-glossary-navigation="true"> ([evaluation glossary](../../../../glossary.md#term-evaluation))</span>
 - `io.github.pho001.synaptik.compiler.GraphCapture` — owns the only Tensor-identity-to-graph-ID
   moment and therefore maps explicit ingress facts without retaining Tensor state.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - `io.github.pho001.synaptik.compiler.ValidatedGraph` and `CapturedGraphInference` — retain and
@@ -635,7 +635,7 @@ than exceeding this maximum.
   selected same-typed integral row, unary numerical function, reduction, layout/index operation,
   random/state operation, or generic evaluator behavior.<span data-glossary-navigation="true"> ([evaluation glossary](../../../../glossary.md#term-evaluation); [operation glossary](../../../../glossary.md#operation); [unary glossary](../../../../glossary.md#term-unary); [layout glossary](../../../../glossary.md#layout))</span>
 - One scan propagates earlier selected folded splats to later selected occurrences without a fixed
-  point or second scan.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  point or second scan.
 - Changed folding creates deterministic dense input-first IDs, places synthetic constants after
   original inputs in fold occurrence order, and preserves retained node/output order and exact
   descriptors/operations/phases.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [node glossary](../../../../glossary.md#node))</span>
@@ -690,7 +690,7 @@ Focused fold tests must parameterize:
 - same-typed INT32 and INT64 [scalar](../../../../glossary.md#term-scalar) ADD/SUB/MUL/MIN/MAX using exact `ScalarValueAttrs`, including
   operand-order-sensitive subtraction, endpoints, and modular overflow;
 - same-scan propagation, deterministic synthetic source order, exact unchanged identity, and
-  immutable result containers;<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [identity glossary](../../../../glossary.md#term-identity-meanings); [immutable glossary](../../../../glossary.md#term-immutable))</span>
+  immutable result containers;<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [immutable glossary](../../../../glossary.md#term-immutable))</span>
 - graph-output, BACKWARD, multi-output, and unselected-[operation](../../../../glossary.md#operation) retention;
 - floating/[BFLOAT16](../../../../glossary.md#term-bfloat16) facts with [signed zero](../../../../glossary.md#term-signed-zero), [infinities](../../../../glossary.md#nan-infinity-and-signed-zero), and NaNs remaining unevaluated;
 - floating, CLAMP, and otherwise unselected `ScalarValueAttrs` operations remaining unevaluated,
@@ -868,7 +868,7 @@ and the documentation pass finish.
   every bindable input and live/non-forward dependency.<span data-glossary-navigation="true"> ([DCE glossary](../../../../glossary.md#term-dead-code-elimination-dce); [bindable input glossary](../../../../glossary.md#bindable-input); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Use graph-size structural budgeting instead of an arbitrary numeric limit: one scalar per fact,
   at most one fact per graph input, one synthetic source per removed one-output node, one scan, and
-  no fixed point or per-element work.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  no fixed point or per-element work.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node))</span>
 - Require Compiler 0005 to transport the exact immutable facts into compile artifacts while
   leaving physical materialization to prepare/backend.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [compile artifacts glossary](../../../../glossary.md#compile-artifacts); [materialization glossary](../../../../glossary.md#materialization); [prepare glossary](../../../../glossary.md#prepare); [backend glossary](../../../../glossary.md#backend))</span>
 - Expand the authorized path maximum from 18 to 19 solely for
@@ -930,7 +930,7 @@ and the documentation pass finish.
   payload, generic evaluator, reflection/string dispatch, physical allocation, fixed-point loop,
   autograd, public binding, downstream artifact/materialization implementation, or new operation
   kind. Existing iterative capture and DCE worklists are traversal mechanics, not constant-folding
-  fixed points.<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host); [inference glossary](../../../../glossary.md#term-inference); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [dispatch glossary](../../../../glossary.md#term-dispatch); [fixed-point glossary](../../../../glossary.md#fixed-point-arithmetic); [autograd glossary](../../../../glossary.md#autograd); [artifact glossary](../../../../glossary.md#term-artifact); [materialization glossary](../../../../glossary.md#materialization); [operation glossary](../../../../glossary.md#operation); [capture glossary](../../../../glossary.md#term-capture-meanings))</span>
+  fixed points.<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host); [inference glossary](../../../../glossary.md#term-inference); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [dispatch glossary](../../../../glossary.md#term-dispatch); [autograd glossary](../../../../glossary.md#autograd); [artifact glossary](../../../../glossary.md#term-artifact); [materialization glossary](../../../../glossary.md#materialization); [operation glossary](../../../../glossary.md#operation); [capture glossary](../../../../glossary.md#term-capture-meanings))</span>
 - [Scope](../../../../glossary.md#term-scope) inspection found no change to `ARCHITECTURE.md`, focused architecture documents, ADRs,
   Gradle/build files, dependencies, architecture tests, backend conformance, integration tests, or
   another module's Java. Architecture remains unchanged because the existing contract already
@@ -948,7 +948,7 @@ and the documentation pass finish.
 - Added compiler-owned immutable logical-splat facts, explicit identity-based leaf ingress, and a
   derived non-bindable fixed-source classification without retaining Tensor or storage state.<span data-glossary-navigation="true"> ([compiler glossary](../../../../glossary.md#term-compiler); [immutable glossary](../../../../glossary.md#term-immutable); [identity glossary](../../../../glossary.md#term-identity-meanings); [leaf glossary](../../../../glossary.md#term-leaf); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - Added one closed one-scan fold implementation for the selected BOOL and signed-integral matrix.
-  Folded values become deterministic synthetic structural inputs; no payload expands with Shape.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [BOOL glossary](../../../../glossary.md#data-type--datatype); [matrix glossary](../../../../glossary.md#term-matrix-meanings); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [Shape glossary](../../../../glossary.md#shape))</span>
+  Folded values become deterministic synthetic structural inputs; no payload expands with Shape.<span data-glossary-navigation="true"> ([BOOL glossary](../../../../glossary.md#data-type--datatype); [matrix glossary](../../../../glossary.md#term-matrix-meanings); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [Shape glossary](../../../../glossary.md#shape))</span>
 - Carried source roles through validation, canonicalization, exact rewriting, CSE, and DCE.
   Sidecar-aware DCE removes dead fixed sources while graph-only DCE continues to retain every graph
   input.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [canonicalization glossary](../../../../glossary.md#occurrence-identity-and-canonical-form); [CSE glossary](../../../../glossary.md#term-common-subexpression-elimination-cse); [DCE glossary](../../../../glossary.md#term-dead-code-elimination-dce); [graph glossary](../../../../glossary.md#graph))</span>

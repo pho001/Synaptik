@@ -73,7 +73,7 @@ speculative ownership-row type while making association independent of parallel 
   1. null [`owner`](../../../../glossary.md#term-owner) -> `NullPointerException("owner")`;
   2. null `nodeIds` -> `NullPointerException("nodeIds")`;
   3. empty `nodeIds` -> `IllegalArgumentException("nodeIds must not be empty")`;
-  4. [scan](../../../../glossary.md#term-cumulative-scan) [node](../../../../glossary.md#node) IDs in encounter order and reject the first null at index `i` with
+  4. scan [node](../../../../glossary.md#node) IDs in encounter order and reject the first null at index `i` with
      `NullPointerException("nodeIds[i]")`;
   5. reject the first later equal duplicate at index `i` with
      `IllegalArgumentException("nodeIds[i] duplicates <NodeId diagnostic text>")`; and
@@ -316,7 +316,7 @@ the stored [topological](../../../../glossary.md#term-topological-order) sequenc
   node's owner, whether it is a graph output, consumed inside the partition, or consumed by one or
   more later partitions.
 - A fan-out or merge does not change the node-order scan. Consumers join a producer's partition
-  only when they are consecutive in graph order and have an equal selected owner.<span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  only when they are consecutive in graph order and have an equal selected owner.<span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out))</span>
 - A value consumed across an owner transition identifies future logical boundary/materialization
   work. This task neither creates a physical transfer nor records a boundary DTO.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [DTO glossary](../../../../glossary.md#data-transfer-object--dto))</span>
 - Repeated input positions, unused graph inputs, and forward/backward phase changes do not add

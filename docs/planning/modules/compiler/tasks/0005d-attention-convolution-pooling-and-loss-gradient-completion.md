@@ -384,7 +384,7 @@ before higher-order requests.
 
 ## Out of [scope](../../../../glossary.md#term-scope)
 
-- changes under `modules/model` or any public [Tensor](../../../../glossary.md#tensor)/[operation](../../../../glossary.md#operation)/result-[carrier](../../../../glossary.md#term-storage-carrier) [signature](../../../../glossary.md#term-signature)
+- changes under `modules/model` or any public [Tensor](../../../../glossary.md#tensor)/[operation](../../../../glossary.md#operation)/result-carrier [signature](../../../../glossary.md#term-signature)
 - new hidden outputs, range/integral-selection operations, or backward kinds
 - [differentiable](../../../../glossary.md#derivative-and-chain-rule) one-output attention or dynamic/zero-depth index [loss](../../../../glossary.md#loss)
 - derivatives for masks, integral targets/indices, axes, attrs, reductions, scales, groups, or

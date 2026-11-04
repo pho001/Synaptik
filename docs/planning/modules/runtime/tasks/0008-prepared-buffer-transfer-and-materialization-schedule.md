@@ -70,7 +70,7 @@ hot bound action
   -> mark only destination valid after success
 ```
 
-[Runtime](../../../../glossary.md#term-runtime) owns the [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), validity transition, exact-plan/[run](../../../../glossary.md#term-run) association, and schedule
+[Runtime](../../../../glossary.md#term-runtime) owns the coordinates, validity transition, exact-plan/[run](../../../../glossary.md#term-run) association, and schedule
 [occurrence](../../../../glossary.md#term-occurrence). A [concrete backend](../../../../glossary.md#concrete-backend) owns the physical representation classes, compatibility checks,
 direct fields, and copy mechanics. This preserves the established cold checked boundary and keeps
 resource resolution out of the hot [backend](../../../../glossary.md#backend) action.
@@ -194,7 +194,7 @@ top-level production type is added.
 
 - a separate [materialization](../../../../glossary.md#materialization) recipe, bound action, schedule step, enum value, or policy
 - representation creation, allocation, lazy creation, replacement, eviction, removal, pooling,
-  reuse, aliasing, or lifetime/interference analysis<span data-glossary-navigation="true"> ([lazy glossary](../../../../glossary.md#term-lazy-evaluation); [pooling glossary](../../../../glossary.md#term-pooling); [aliasing glossary](../../../../glossary.md#term-aliasing); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
+  reuse, aliasing, or lifetime/interference analysis<span data-glossary-navigation="true"> ([lazy glossary](../../../../glossary.md#term-lazy-evaluation); [aliasing glossary](../../../../glossary.md#term-aliasing); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
 - transfer-route discovery, route search, graph search, shortest-path selection, fallback, or
   multi-hop transfer composition<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>
 - backend selection, lowering, kernel selection, concrete backend implementation, native bridge,
@@ -240,7 +240,7 @@ top-level production type is added.
 - Prepared transfer recipes are immutable, reusable, and thread-safe. Each bind produces a new
   per-run bound action associated with one exact open <span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [thread-safe glossary](../../../../glossary.md#term-thread-safe); [run glossary](../../../../glossary.md#term-run))</span>[`RunState`](../../../../glossary.md#run-state--runstate).
 - Every source and destination coordinate refers to distinct representation positions of one
-  logical buffer position. A transfer never crosses buffer slots.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [buffer glossary](../../../../glossary.md#term-buffer))</span>
+  logical buffer position. A transfer never crosses buffer slots.<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer))</span>
 - Every representation is already structurally resident because Runtime 0007 creates and binds
   the complete state before cold binding. Transfer performs no allocation or resource lookup.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [binding glossary](../../../../glossary.md#term-binding); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - Runtime owns explicit validity checks and mutation. Concrete backends own physical copy/access
@@ -314,7 +314,7 @@ Exact failures are:
 - `IllegalArgumentException("destinationRepresentationIndex must be non-negative")`; and
 - `IllegalArgumentException("sourceRepresentationIndex and destinationRepresentationIndex must be distinct")`.
 
-The four final accessors return the exact plan reference and exact primitive [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix). The
+The four final accessors return the exact plan reference and exact primitive coordinates. The
 constructor performs no state access, physical compatibility check, allocation, [callback](../../../../glossary.md#term-callback),
 validity query, or schedule action. Representation-position bounds remain cold per-[run](../../../../glossary.md#term-run) checks
 because [`PreparedMemoryPlan`](../../../../glossary.md#prepared-memory-plan--preparedmemoryplan) does not describe representation counts.
@@ -334,7 +334,7 @@ because [`PreparedMemoryPlan`](../../../../glossary.md#prepared-memory-plan--pre
 9. call `acceptsDestinationBufferRepresentation` exactly once and require `true`;
 10. call `bindCompatible` exactly once with the exact state and exact resolved [nominal](../../../../glossary.md#term-nominal) references;
 11. require the returned bound action non-null; and
-12. require it to retain the exact state and all four exact [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix).
+12. require it to retain the exact state and all four exact coordinates.
 
 Exact shared failures are:
 
@@ -363,7 +363,7 @@ destination fields. It must not retain a nominal array or perform later slot res
 ## Bound transfer construction and [identity](../../../../glossary.md#term-identity-meanings)
 
 The protected [`BoundBufferTransfer`](../../../../glossary.md#bound-buffer-transfer--boundbuffertransfer) constructor retains exactly one [`RunState`](../../../../glossary.md#run-state--runstate) and the three
-primitive [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix). It validates in this exact order:
+primitive coordinates. It validates in this exact order:
 
 1. require `runState` non-null;
 2. require it open;
@@ -696,7 +696,7 @@ Required no-change conclusions unless a concrete contradiction is found:
 - Prepare Java/Javadocs remain unchanged because public orchestration and complete runnable-
   schedule validation remain Draft Prepare 0003.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Compile, Tensor, and Training APIs remain unchanged because transfer coordinates and physical
-  validity are Runtime-only facts.<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [Tensor glossary](../../../../glossary.md#tensor); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  validity are Runtime-only facts.<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - Config, Trace, Backend Contract, Engine, concrete backends, other guides, Gradle/dependencies,
   architecture tests, conformance, and integration remain unchanged because no consumer,
   implementation, module edge, or end-to-end behavior is added.<span data-glossary-navigation="true"> ([Trace glossary](../../../../glossary.md#trace); [Engine glossary](../../../../glossary.md#term-engine); [Gradle glossary](../../../../glossary.md#term-gradle); [conformance glossary](../../../../glossary.md#term-conformance))</span>
@@ -705,7 +705,7 @@ Required no-change conclusions unless a concrete contradiction is found:
 
 - [Runtime](../../../../glossary.md#term-runtime) 0001–0007 — Complete and preserved.
 - Runtime 0007 supplies complete already-created representation coordinates and explicit
-  independent per-copy validity.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  independent per-copy validity.
 - Runtime 0004 supplies the established prepared/cold-bound/direct-reference design pattern.
 - Runtime 0005 supplies the exact-plan [sealed](../../../../glossary.md#term-sealed) schedule family.
 - [ADR](../../../../glossary.md#term-architecture-decision-record-adr) 0011 supplies the [immutable](../../../../glossary.md#term-immutable) prepared/per-[run](../../../../glossary.md#term-run)/[backend](../../../../glossary.md#backend) physical [ownership](../../../../glossary.md#term-ownership-meanings) split.
@@ -733,7 +733,7 @@ Do not create any follow-up detailed specification in this task.
 - Use one prepared/bound pair parallel to [`PreparedExecutable`](../../../../glossary.md#prepared-executable--preparedexecutable)/[`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation); this keeps
   heterogeneous type checks cold and physical references direct.<span data-glossary-navigation="true"> ([heterogeneous glossary](../../../../glossary.md#term-heterogeneous))</span>
 - Keep both representation coordinates within one buffer index. A cross-buffer copy is not
-  materialization of one logical buffer and requires a separately justified contract.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [buffer glossary](../../../../glossary.md#term-buffer); [materialization glossary](../../../../glossary.md#materialization))</span>
+  materialization of one logical buffer and requires a separately justified contract.<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer); [materialization glossary](../../../../glossary.md#materialization))</span>
 - Require distinct source/destination positions. A same-position action has no transfer meaning
   and is represented by omitting the occurrence.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - Treat materialization as transfer to an equivalent already-created destination. Add no second
@@ -816,7 +816,7 @@ follow-up, and the repository completion status. Do not commit or push.
   hot hook, mirroring the established final-template pattern without conflating it with executable
   computation.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 - Bound association coordinates are retained as primitive fields so final cold binding can reject
-  a backend-created object for the wrong state or positions without reflection or a registry.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [binding glossary](../../../../glossary.md#term-binding); [registry glossary](../../../../glossary.md#term-registry))</span>
+  a backend-created object for the wrong state or positions without reflection or a registry.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [registry glossary](../../../../glossary.md#term-registry))</span>
 - Exact validation messages are part of the contract and tests because they locate cold binding
   failures before physical work.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 
@@ -880,7 +880,7 @@ follow-up, and the repository completion status. Do not commit or push.
   Compile, Tensor, and Training APIs remain unchanged because physical coordinates and validity
   are Runtime-only facts. Config, Trace, Backend Contract, Engine, other guides, architecture
   tests, backend conformance, and integration remain unchanged because no consumer, concrete
-  implementation, module edge, or runnable lifecycle was added.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span><span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [Tensor glossary](../../../../glossary.md#tensor); [Trace glossary](../../../../glossary.md#trace); [conformance glossary](../../../../glossary.md#term-conformance); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  implementation, module edge, or runnable lifecycle was added.<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [Tensor glossary](../../../../glossary.md#tensor); [Trace glossary](../../../../glossary.md#trace); [conformance glossary](../../../../glossary.md#term-conformance); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 
 ## Completion summary
 

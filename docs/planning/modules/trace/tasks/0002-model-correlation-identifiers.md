@@ -122,7 +122,7 @@ allocator, [registry](../../../../glossary.md#term-registry), [graph](../../../.
 - Trace-local IDs prevent diagnostic correlation from importing or exposing model and later-layer
   identifiers. Producers translate; trace never traverses or introspects producer state.<span data-glossary-navigation="true"> ([Trace glossary](../../../../glossary.md#trace); [model glossary](../../../../glossary.md#term-model); [producer glossary](../../../../glossary.md#term-producer))</span>
 - IDs carry correlation identity only. They add no business meaning, ownership decision, storage,
-  execution state, or lifecycle behavior.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [identity glossary](../../../../glossary.md#term-identity-meanings); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  execution state, or lifecycle behavior.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - The task implements the already-authoritative trace-local-ID boundary and changes no ownership
   or dependency rule.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Stop if implementation needs a model import, another module, mapping service, shared registry,

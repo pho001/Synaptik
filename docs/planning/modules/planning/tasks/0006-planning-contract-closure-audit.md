@@ -548,7 +548,7 @@ spawn a redundant second documentation pass.
 - Frontier reassessment found no architecture conflict or concrete missing planning semantic.
   Current public DTOs carry the cross-package immutable recipe facts, while the internal
   operations can remain hidden until a compiler consumer establishes one narrow orchestration
-  boundary.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [immutable glossary](../../../../glossary.md#term-immutable))</span>
+  boundary.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable))</span>
 - Planning-stage `python3 /tmp/validate_synaptik_markdown.py` passed for 230 Markdown files, 4,132
   local links, 251 local anchors, 2,900 fence markers, final newlines, and trailing whitespace.
 - Planning-stage `git diff --check` passed with no output.
@@ -599,7 +599,7 @@ spawn a redundant second documentation pass.
 - Final `python3 /tmp/validate_synaptik_markdown.py` passed for 231 Markdown files, 4,134 local
   links, 251 local anchors, 2,916 fence markers, final newlines, and trailing whitespace. Final
   `git diff --check` passed with no output, and the exact path scan returned 21 paths. The combined
-  documentation shell reported exit code 1 only because its final exact<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  documentation shell reported exit code 1 only because its final exact
   `rg -n '^Ready$|\| Ready \|' docs/planning` command correctly found zero Ready headings or rows;
   no preceding validation command failed. The task-directory scan contains only Planning
   0001-0006, with no later detailed task specification or next frontier selection. Planning

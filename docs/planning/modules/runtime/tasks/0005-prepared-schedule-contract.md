@@ -202,7 +202,7 @@ and says that current scheduling contains executable occurrences only.
 
 1. require `memoryPlan` non-null;
 2. require `steps` non-null;
-3. [scan](../../../../glossary.md#term-cumulative-scan) steps in supplied order, rejecting the first null [element](../../../../glossary.md#term-element);
+3. scan steps in supplied order, rejecting the first null [element](../../../../glossary.md#term-element);
 4. for each non-null step in that scan, require `step.memoryPlan() == memoryPlan`; and
 5. after the complete scan succeeds, assign `steps = List.copyOf(steps)`.
 
@@ -238,7 +238,7 @@ encounter index for validation or [trace](../../../../glossary.md#trace) transla
 - Repeated work uses dense list occurrences, not [lookup](../../../../glossary.md#term-lookup) tables or IDs.
 - This task adds no hot-path method. Future cold preparation retains direct typed invocation
   references; eventual execution performs no plan equality scan, slot lookup, backend selection,
-  allocation, transfer/materialization decision, or publication binding.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [materialization glossary](../../../../glossary.md#materialization); [publication glossary](../../../../glossary.md#term-publication); [binding glossary](../../../../glossary.md#term-binding))</span>
+  allocation, transfer/materialization decision, or publication binding.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [publication glossary](../../../../glossary.md#term-publication); [binding glossary](../../../../glossary.md#term-binding))</span>
 
 ## Transfer, [materialization](../../../../glossary.md#materialization), and [publication](../../../../glossary.md#term-publication) decision
 
@@ -435,7 +435,7 @@ validation once, verify exact scope, and do not [commit](../../../../glossary.md
 - Exact API, reflection, and bytecode inspection confirmed the two record shapes, the nested sealed
   family with only <span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [bytecode glossary](../../../../glossary.md#term-bytecode); [sealed glossary](../../../../glossary.md#term-sealed))</span>`ExecutionStep` permitted, the exact constructors/methods, one
   `Step.memoryPlan()` call per encountered step, reference comparison, and snapshot creation only
-  after a successful scan.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  after a successful scan.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot))</span>
 - Source/import/mechanism scans confirmed the required validation messages and order, no forbidden
   upstream or concrete-backend imports, and no binding, execution, allocation, ownership,
   transfer, materialization, publication, registry, reflection, or generic-payload mechanism.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [binding glossary](../../../../glossary.md#term-binding); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [materialization glossary](../../../../glossary.md#materialization); [publication glossary](../../../../glossary.md#term-publication); [registry glossary](../../../../glossary.md#term-registry); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>

@@ -4,7 +4,9 @@
 >
 > The complete-plan budget describes a second transaction, not a reinterpretation of Phase-1
 > counts. Config receives explicit limits and cache paths; later Engine composition translates
-> them, while tuning owns correctness comparison, timing and selected-plan evidence. A declared
+> them. Engine owns the reference-byte execution, copying and comparison collaboration; generic
+> tuning orders correctness before timing, interprets `MATCH`/`MISMATCH`, measures candidates and
+> produces selected-plan evidence without inspecting the reference. A declared
 > path creates no file and grants no persistence compatibility. Candidate producers and
 > preparation retain executable/resource responsibilities, and safe heuristic fallback still
 > cannot weaken operation semantics or substitute another owner.

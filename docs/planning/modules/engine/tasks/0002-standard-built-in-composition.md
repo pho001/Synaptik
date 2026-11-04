@@ -330,7 +330,7 @@ Manual and structural validation:
   lifecycle state, and closes it;
 - inspect `javap -public` for `Engine` and the four task-0001 advanced types, proving the exact new
   surface and unchanged advanced surface;
-- [scan](../../../../glossary.md#term-cumulative-scan) public/protected `Engine` declarations and generated Javadoc for advanced Engine, CPU,
+- scan public/protected `Engine` declarations and generated Javadoc for advanced Engine, CPU,
   Compiler, Prepare, Runtime, Config, Planning, backend-contract, Trace, and <span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [CPU glossary](../../../../glossary.md#term-cpu); [Compiler glossary](../../../../glossary.md#term-compiler); [Prepare glossary](../../../../glossary.md#prepare); [Planning glossary](../../../../glossary.md#term-planning); [Trace glossary](../../../../glossary.md#trace))</span>`.internal` type
   leakage;
 - scan Engine production for reflection, [classpath](../../../../glossary.md#term-classpath)/annotation scanning, `ServiceLoader`, service

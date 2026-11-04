@@ -320,7 +320,7 @@ Do not specify [backend](../../../../glossary.md#backend)-private exception mess
   guide must change Prepare 0006 wording from planned to current only when implementation passes.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 - The glossary already defines prepared execution and prepared resource. Update those entries to
   describe the implemented Prepare transaction; do not add a redundant glossary entry solely for
-  the Java result carrier.<span data-glossary-navigation="true"> ([prepared execution glossary](../../../../glossary.md#prepared-execution--preparedexecution); [prepared resource glossary](../../../../glossary.md#prepared-resource--preparedresource); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  the Java result carrier.<span data-glossary-navigation="true"> ([prepared execution glossary](../../../../glossary.md#prepared-execution--preparedexecution); [prepared resource glossary](../../../../glossary.md#prepared-resource--preparedresource))</span>
 
 ## Affected files
 
@@ -551,7 +551,7 @@ risk requires it. Mark Complete only after every acceptance gate finishes.
 
 Stop and report instead of implementing or [widening](../../../../glossary.md#term-widening) if:
 
-- a successful finalizer result cannot [carry](../../../../glossary.md#term-carry) every persistent resource needed by its executable;
+- a successful finalizer result cannot carry every persistent resource needed by its executable;
 - shared Prepare would need to inspect a concrete resource, acquire it, reference-count schedule
   occurrences, or infer ownership from executable topology;<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [topology glossary](../../../../glossary.md#term-topology))</span>
 - a finalizer cannot roll back its own resources before a failed return;
@@ -658,7 +658,7 @@ Stop and report instead of implementing or [widening](../../../../glossary.md#te
   semantics, local/shared rollback, identity uniqueness, failure suppression, successful
   transfer, CPU empty resources, and absence of lookup or shared physical allocation.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [snapshot glossary](../../../../glossary.md#term-snapshot); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - Glossary impact: Updated backend finalization, graph preparation, prepared execution, and
-  prepared resource entries; no redundant carrier-only term was added.<span data-glossary-navigation="true"> ([graph preparation glossary](../../../../glossary.md#graph-preparation--graphpreparation); [prepared execution glossary](../../../../glossary.md#prepared-execution--preparedexecution); [prepared resource glossary](../../../../glossary.md#prepared-resource--preparedresource); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  prepared resource entries; no redundant carrier-only term was added.<span data-glossary-navigation="true"> ([graph preparation glossary](../../../../glossary.md#graph-preparation--graphpreparation); [prepared execution glossary](../../../../glossary.md#prepared-execution--preparedexecution); [prepared resource glossary](../../../../glossary.md#prepared-resource--preparedresource))</span>
 - Unresolved issues: None within [Prepare](../../../../glossary.md#prepare) 0006.
 - Follow-up required: [Engine](../../../../glossary.md#term-engine) 0010, then [Metal](../../../../glossary.md#term-metal) 0002.
 

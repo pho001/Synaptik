@@ -117,7 +117,7 @@ Paths abbreviated with `...` use the existing `io/github/pho001/synaptik` prefix
 - `testing/architecture-tests/src/test/java/.../architecture/EngineCompositionContractTest.java`
   and NnTrainingDependencyContractTest: preserve exact current role-aware edges; extend focused
   boundary assertions if needed, no blanket directory exemption. Consumer scan must leave no
-  executable reference to the removed API, including inferred <span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>`var` factories and test hooks.
+  executable reference to the removed API, including inferred `var` factories and test hooks.
 
 [InferenceSession](../../../../glossary.md#former-inference-session--inferencesession)/[Engine](../../../../glossary.md#term-engine).session removal intentionally breaks source/[binary](../../../../glossary.md#term-binary-descriptor-and-metadata) compatibility; migrate
 and recompile without a shim. [Model](../../../../glossary.md#term-model)/declarative APIs, old readers and [Runtime](../../../../glossary.md#term-runtime) handles remain.

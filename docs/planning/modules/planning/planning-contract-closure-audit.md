@@ -62,7 +62,7 @@ rg --files modules/planning/build/docs/javadoc | sort
 
 Source and test inspection then compared constructors and operations with every focused test.
 [Dependency](../../../glossary.md#term-dependency) inspection used `modules/planning/build.gradle.kts`, imports, architecture rules, and
-the forbidden-dependency [scan](../../../glossary.md#term-cumulative-scan) recorded in section 12.
+the forbidden-dependency scan recorded in section 12.
 
 ## Architecture and [lifecycle](../../../glossary.md#lifecycle) boundary assessment
 
@@ -234,7 +234,7 @@ add one narrow public collaboration without changing these audited semantics.
 | Stage | Validation and failure order | Equality and association | Output order | Exact references retained |
 |---|---|---|---|---|
 | Capability query | Top-level [operation](../../../glossary.md#operation)/lists, list [elements](../../../glossary.md#term-element), then [signature](../../../glossary.md#term-signature) counts | [Operation signature](../../../glossary.md#operation-signature) [occurrence](../../../glossary.md#term-occurrence) counts; no [descriptor](../../../glossary.md#term-descriptor) compatibility decision | Input/output encounter order | Operation and every descriptor |
-| Hard eligibility | Top-level inputs; complete provider [scan](../../../glossary.md#term-cumulative-scan); complete [snapshot](../../../glossary.md#term-snapshot) scan; both association directions; filtering; capability calls | Equal [`BackendId`](../../../glossary.md#backend-identity--backendid) associates provider/snapshot and evaluates exact requirements | Provider order | Eligible provider identity |
+| Hard eligibility | Top-level inputs; complete provider scan; complete [snapshot](../../../glossary.md#term-snapshot) scan; both association directions; filtering; capability calls | Equal [`BackendId`](../../../glossary.md#backend-identity--backendid) associates provider/snapshot and evaluates exact requirements | Provider order | Eligible provider identity |
 | [Owner](../../../glossary.md#term-owner) selection | Top-level inputs; empty eligibility before snapshot elements; complete snapshots; required associations | Equal `BackendId` associates snapshots; equal [`DeviceClass`](../../../glossary.md#device-class--deviceclass) tests preference | Eligible/provider order | Selected eligibility identity |
 | [Partition](../../../glossary.md#partition) recipe | Owner; [node](../../../glossary.md#node) list; elements; nonempty and distinct nodes | Record equality is value-based | Supplied node order | Owner and node identities |
 | Partition generation | [Graph](../../../glossary.md#graph)/map; null keys; unknown keys; missing keys; null owners; then generation | Equal owner values continue a [run](../../../glossary.md#term-run) | Stored graph [topological order](../../../glossary.md#term-topological-order) | Graph node identities and first owner per run |
@@ -264,7 +264,7 @@ implementation(project(":modules:trace"))
 
 [Model](../../../glossary.md#term-model) and [backend](../../../glossary.md#backend)-contract are public dependencies because public [signatures](../../../glossary.md#term-signature) expose their types.
 Config is internal to selection input and [trace](../../../glossary.md#trace) is an allowed internal dependency without a
-current emitted [schema](../../../glossary.md#term-schema). This exact [scan](../../../glossary.md#term-cumulative-scan) returned no forbidden production dependency:
+current emitted [schema](../../../glossary.md#term-schema). This exact scan returned no forbidden production dependency:
 
 ```bash
 rg -n 'io\.github\.pho001\.synaptik\.(runtime|prepare|engine)|io\.github\.pho001\.synaptik\.backends?' \
@@ -336,7 +336,7 @@ needed to interpret the five current public declarations or four current interna
 | Baseline [owner](../../../glossary.md#term-owner) selection | Preferred-class-first, provider-order deterministic selection | `BackendOwnerSelection`, `BackendOwnerSelectionTest` | Complete candidate set; terminal empty input; no numeric cost | `NO_CHANGE_CONFIRMED` | Cost-free baseline closes current policy. |
 | Maximal same-owner partitioning | Consecutive equal-owner runs in stored [graph](../../../glossary.md#graph) order | `MaximalSameOwnerPartitioning`, both [partition](../../../glossary.md#partition) tests | Complete map, maximality, exact graph references, zero-[node](../../../glossary.md#node) result | `NO_CHANGE_CONFIRMED` | Current recipe/generator are complete. |
 | Logical-memory derivation | One exact logical requirement per [graph value](../../../glossary.md#graph-value) | `LogicalMemoryPlanning`, three memory tests | Coverage/maximality before derivation; [producer](../../../glossary.md#term-producer)/consumer/output facts; dynamic [shapes](../../../glossary.md#shape) | `NO_CHANGE_CONFIRMED` | Current logical plan is complete. |
-| Public [DTO](../../../glossary.md#data-transfer-object--dto) minimality | Exactly five public [planning](../../../glossary.md#term-planning) declarations | Declaration [scan](../../../glossary.md#term-cumulative-scan) in section 2; public type tests | Are five declarations sufficient and minimal? Yes. | `NO_CHANGE_CONFIRMED` | Reject premature [matrices](../../../glossary.md#term-matrix-meanings), maps, [facade](../../../glossary.md#term-facade), cost, device, transfer, and physical DTOs. |
+| Public [DTO](../../../glossary.md#data-transfer-object--dto) minimality | Exactly five public [planning](../../../glossary.md#term-planning) declarations | Declaration scan in section 2; public type tests | Are five declarations sufficient and minimal? Yes. | `NO_CHANGE_CONFIRMED` | Reject premature [matrices](../../../glossary.md#term-matrix-meanings), maps, [facade](../../../glossary.md#term-facade), cost, device, transfer, and physical DTOs. |
 | Package-private [operation](../../../glossary.md#operation) visibility | Four internal evaluator/generator operations | Source declarations, reflection/public-shape tests, generated Javadocs | May all four remain internal? Yes, until a concrete [compiler](../../../glossary.md#term-compiler) consumer defines one narrow collaboration. | `NON_BLOCKING_DEFERRED` | Consumer-driven visibility decision belongs with compiler integration. |
 | [Validation](../../../glossary.md#term-validation) and failure ordering | Each stage validates complete structural inputs before semantic calls or derivation | All eight focused test suites | Preserve deterministic first failure and avoid partial provider calls/results | `NO_CHANGE_CONFIRMED` | Source/tests agree. |
 | Equality association and exact references | Value equality associates identities; documented results retain exact references | All production records/generators and [identity](../../../glossary.md#term-identity-meanings) assertions in focused tests | Association must not erase promised object [identity](../../../glossary.md#term-reference-identity) | `NO_CHANGE_CONFIRMED` | Source/tests agree. |
@@ -383,7 +383,7 @@ public indexes list exactly the five public planning declarations, and none of t
 [operation](../../../glossary.md#operation) types has a generated page or index entry. Final
 `python3 /tmp/validate_synaptik_markdown.py` passed for 231 Markdown files, 4,134 local links, 251
 local anchors, 2,916 fence markers, final newlines, and trailing whitespace. Final
-`git diff --check` passed with no output. The exact path [scan](../../../glossary.md#term-cumulative-scan) returned 21 paths: the preserved
+`git diff --check` passed with no output. The exact path scan returned 21 paths: the preserved
 Planning 0005 change, the Planning 0006 specification/status work, this required [artifact](../../../glossary.md#term-artifact), and one
 permitted capability-provider guide correction; this audit added no executable path.
 

@@ -32,7 +32,7 @@ pairings, both roles, floating types, symbolic equal Shapes and empty contractio
 
 Do not change public `Tensor.sumToShape`, arithmetic, [layouts](../../../../glossary.md#layout), capabilities, saved values,
 [backend](../../../../glossary.md#backend) [lowering](../../../../glossary.md#lowering), generated formats, dependencies or [API](../../../../glossary.md#term-application-programming-interface-api). Do not remove real broadcast reductions.
-The remaining [Scan](../../../../glossary.md#term-cumulative-scan)-versus-Java performance investigation waits for the approved repair queue.
+The remaining [Scan](../../../../glossary.md#general-differentiable-scan)-versus-Java performance investigation waits for the approved repair queue.
 
 ## Contracts
 
@@ -52,7 +52,7 @@ Existing [Tensor](../../../../glossary.md#tensor) operations remain the sole [de
   `/private/tmp/synaptik-cpu-repairs.8TWk5O/program-base.json` (2489 accepted dirty-tree paths).
 - Integration order: [Ready](../../../../glossary.md#term-ready) verification → source/tests → [validation](../../../../glossary.md#term-validation) → targeted diff/docs review → acceptance.
 - Integration validation: Compiler tests/Javadoc once, then focused actual CPU Scan reverse consumers;
-  no benchmark, full-repository campaign, Git commit or push.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [Javadoc glossary](../../../../glossary.md#term-javadoc); [CPU glossary](../../../../glossary.md#term-cpu); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [commit glossary](../../../../glossary.md#term-commit))</span>
+  no benchmark, full-repository campaign, Git commit or push.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [Javadoc glossary](../../../../glossary.md#term-javadoc); [CPU glossary](../../../../glossary.md#term-cpu); [Scan glossary](../../../../glossary.md#general-differentiable-scan); [commit glossary](../../../../glossary.md#term-commit))</span>
 - Shared-document integration [owner](../../../../glossary.md#term-owner): MAIN.
 
 Ready verification: MAIN checked the completed dependencies, unchanged accepted dirty baseline,
@@ -78,13 +78,13 @@ items remain queued until their own scoped packet is verified.
 2. Real leading/[singleton](../../../../glossary.md#term-singleton) [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) broadcast still introduces one reduction for each affected role.
 3. Cast follows the necessary reduction and occurs only when the operand [dtype](../../../../glossary.md#data-type--datatype) differs.
 4. Selected-role nulls, repeated operands, rank edits, zero extents and public shape-reduction
-   semantics remain unchanged; actual compiled Scan reverse consumers still pass.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+   semantics remain unchanged; actual compiled Scan reverse consumers still pass.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [Scan glossary](../../../../glossary.md#general-differentiable-scan))</span>
 
 ## [Validation](../../../../glossary.md#term-validation)
 
 [Run](../../../../glossary.md#term-run) focused `GradientRulesTest`, then `:modules:compiler:test :modules:compiler:javadoc` after
 source stabilization. Run [CPU](../../../../glossary.md#term-cpu) `CpuSymbolicScanGeneratedKernelTest` and `CpuGeneralScanExecutionTest`
-with all general-[Scan](../../../../glossary.md#term-cumulative-scan)/dynamic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) performance flags false. Reuse successful results for review.
+with all general-[Scan](../../../../glossary.md#general-differentiable-scan)/dynamic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) performance flags false. Reuse successful results for review.
 Inspect the task-local diff, [Javadoc](../../../../glossary.md#term-javadoc) and [planning](../../../../glossary.md#term-planning) links; audit accepted baseline/evidence preservation.
 
 ## Documentation and review impact
@@ -109,7 +109,7 @@ MAIN performs the targeted review under the explicit user exception and records 
   ClassFiles are unchanged. The Scan lowerer already elided these copies, but changed source
   graph metadata changes both reverse compatibility keys. Updated only current reverse pins and
   old-discriminant projections, retained all previous checks and added an actual-body no-copy
-  assertion. Deterministic identity/cache/specialization repair run: 35 PASS; see<span data-glossary-navigation="true"> ([fixture glossary](../../../../glossary.md#term-fixture); [binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [graph glossary](../../../../glossary.md#graph); [metadata glossary](../../../../glossary.md#term-metadata); [identity glossary](../../../../glossary.md#term-identity-meanings); [cache glossary](../../../../glossary.md#term-cache); [specialization glossary](../../../../glossary.md#term-specialization); [run glossary](../../../../glossary.md#term-run))</span>
+  assertion. Deterministic identity/cache/specialization repair run: 35 PASS; see<span data-glossary-navigation="true"> ([fixture glossary](../../../../glossary.md#term-fixture); [binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata); [Scan glossary](../../../../glossary.md#general-differentiable-scan); [graph glossary](../../../../glossary.md#graph); [metadata glossary](../../../../glossary.md#term-metadata); [identity glossary](../../../../glossary.md#term-identity-meanings); [cache glossary](../../../../glossary.md#term-cache); [specialization glossary](../../../../glossary.md#term-specialization); [run glossary](../../../../glossary.md#term-run))</span>
   `compiler0016-identity-review.txt` and `cpu0046-repaired-validation.log`.
 - MAIN reviewed the bounded source/test diff and current contracts under the user-approved context
   exception; this was not an independent-context review. Required reductions, rank edits and

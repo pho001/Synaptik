@@ -56,7 +56,7 @@ or [ownership](../../../../glossary.md#term-ownership-meanings) transfer.
 
 - [Host](../../../../glossary.md#term-host) values, byte encodings, logical-[layout](../../../../glossary.md#layout) traversal, copying, conversion, allocation, [arena](../../../../glossary.md#term-arena) or
   [`MemorySegment`](../../../../glossary.md#term-memorysegment) access, caller-owned output storage, or a [backend](../../../../glossary.md#backend) materializer.
-- A representation list, [mutable](../../../../glossary.md#term-mutable) [view](../../../../glossary.md#term-view-meanings), [`RunState`](../../../../glossary.md#run-state--runstate) accessor, [buffer](../../../../glossary.md#term-buffer) or representation [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix),
+- A representation list, [mutable](../../../../glossary.md#term-mutable) [view](../../../../glossary.md#term-view-meanings), [`RunState`](../../../../glossary.md#run-state--runstate) accessor, [buffer](../../../../glossary.md#term-buffer) or representation coordinate,
   [`ValueId`](../../../../glossary.md#logical-valueid-versus-physical-memory-slot), [Tensor](../../../../glossary.md#tensor) [identity](../../../../glossary.md#term-identity-meanings), [publication](../../../../glossary.md#term-publication) role, [descriptor](../../../../glossary.md#term-descriptor), slot, backend type, or [ownership](../../../../glossary.md#term-ownership-meanings) flag.
 - Returning a new wrapper, transferring an individual representation out of the run state, or
   changing which resources result closure releases.<span data-glossary-navigation="true"> ([run state glossary](../../../../glossary.md#run-state--runstate); [releases glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings))</span>
@@ -168,7 +168,7 @@ three explanatory documents, and three [planning](../../../../glossary.md#term-p
 - Construction, publication, result count, failure cleanup, and whole-state cleanup tests remain
   unchanged in meaning and pass.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication))</span>
 - [Runtime](../../../../glossary.md#term-runtime) imports no [Model](../../../../glossary.md#term-model), [Engine](../../../../glossary.md#term-engine), [Prepare](../../../../glossary.md#prepare), or [concrete backend](../../../../glossary.md#concrete-backend) type and gains no [dependency](../../../../glossary.md#term-dependency).
-- No [`RunState`](../../../../glossary.md#run-state--runstate), [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), storage, [backend](../../../../glossary.md#backend) type, transfer, or [host](../../../../glossary.md#term-host)-value access is exposed.
+- No [`RunState`](../../../../glossary.md#run-state--runstate), coordinate, storage, [backend](../../../../glossary.md#backend) type, transfer, or [host](../../../../glossary.md#term-host)-value access is exposed.
 - Javadocs precisely describe borrowing, lifetime, aliasing, external synchronization, failure
   precedence, and the prohibition on closing or retaining the reference beyond the result.<span data-glossary-navigation="true"> ([borrowing glossary](../../../../glossary.md#term-borrowing); [lifetime glossary](../../../../glossary.md#term-lifetime); [aliasing glossary](../../../../glossary.md#term-aliasing); [synchronization glossary](../../../../glossary.md#term-synchronization))</span>
 - Runtime/Public API and glossary prose stop claiming that the inward Runtime result has no
@@ -257,11 +257,11 @@ executable behavior changes. Mark Complete only after all acceptance and documen
 
 - Direct result-indexed access is smaller and safer than exposing [`RunState`](../../../../glossary.md#run-state--runstate), prepared
   coordinates, a representation list, or a generic callback whose returned value could disguise
-  lifetime escape.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [callback glossary](../../../../glossary.md#term-callback); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
+  lifetime escape.<span data-glossary-navigation="true"> ([callback glossary](../../../../glossary.md#term-callback); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
 - The exact representation is borrowed under the existing whole-state lease. Individual output
   ownership is not transferred, so cleanup and aliases remain unchanged.<span data-glossary-navigation="true"> ([borrowed glossary](../../../../glossary.md#ownership-borrowing-and-lease); [lease glossary](../../../../glossary.md#term-lease); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [aliases glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - Existing non-thread-safe result semantics remain explicit. Engine 0004 must add its own outward
-  materialization/close coordination instead of making this inward carrier concurrently mutable.<span data-glossary-navigation="true"> ([thread-safe glossary](../../../../glossary.md#term-thread-safe); [Engine glossary](../../../../glossary.md#term-engine); [materialization glossary](../../../../glossary.md#materialization); [carrier glossary](../../../../glossary.md#term-storage-carrier); [mutable glossary](../../../../glossary.md#term-mutable))</span>
+  materialization/close coordination instead of making this inward carrier concurrently mutable.<span data-glossary-navigation="true"> ([thread-safe glossary](../../../../glossary.md#term-thread-safe); [Engine glossary](../../../../glossary.md#term-engine); [materialization glossary](../../../../glossary.md#materialization); [mutable glossary](../../../../glossary.md#term-mutable))</span>
 
 ## Known limitations
 

@@ -9,8 +9,9 @@
 > determine physical creators, transfers, and executable compatibility. The assembler's structural
 > coverage does not prove numerical or device correctness.
 >
-> `InitializedBuffer` communicates that a backend creator has already produced a valid constant
-> representation; Runtime neither interprets the scalar nor initializes its bytes itself. The [current
+> `InitializedBuffer` is a prepared recipe retaining a backend creator, not an already-created
+> representation. The creator runs during cold run setup; successful creation establishes initial
+> validity. Runtime neither interprets the scalar nor initializes its bytes itself. The [current
 > creation
 > contract](../../../../reference/runtime/creation.md#current-prepared-representation-creation)
 > separates borrowed inputs from created run-owned resources and setup rollback. This task's
@@ -143,7 +144,7 @@ already-selected recipe correctly.
   assignments exist.
 - Validate the returned schedule's exact memory-plan identity, representation-creation facts,
   caller-input order, execution coverage/order, representation coordinates, and publication
-  boundary before constructing <span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [publication glossary](../../../../glossary.md#term-publication))</span>[`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution).
+  boundary before constructing <span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [publication glossary](../../../../glossary.md#term-publication))</span>[`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution).
 - Preserve repeated or aliased gradient publication values as separate ordered publication
   occurrences while mapping them to the same logical buffer assignment when appropriate.<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Add focused public-shape, immutable-context, successful orchestration, failure-order, and
@@ -336,7 +337,7 @@ creation step exists, its [`PreparedRepresentationPlan`](../../../../glossary.md
 
 The creation plan is validated against [Compiler](../../../../glossary.md#term-compiler) source roles:
 
-- every representation list [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) is already structurally valid by [Runtime](../../../../glossary.md#term-runtime) construction;
+- every representation list coordinate is already structurally valid by [Runtime](../../../../glossary.md#term-runtime) construction;
 - every [bindable input](../../../../glossary.md#bindable-input)'s assigned buffer has exactly one `CallerInput`, and no other buffer has a
   caller-input occurrence;
 - caller-input occurrences, scanned by buffer index then representation index, map in exact
@@ -379,7 +380,7 @@ The implementation must preserve this observable phase order:
 6. existing [handoff](../../../../glossary.md#term-handoff) validation, assignment, and finalization;
 7. [`PreparedScheduleContext`](../../../../glossary.md#prepared-schedule-context--preparedschedulecontext) validation;
 8. schedule-assembler invocation and null result;
-9. exact plan, creation/source, execution, [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), and [publication](../../../../glossary.md#term-publication) validation;
+9. exact plan, creation/source, execution, coordinate, and [publication](../../../../glossary.md#term-publication) validation;
 10. final [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) construction.
 
 Task-specific exact failures are:
@@ -415,7 +416,7 @@ analyses succeed; no assembler is called before all finalizers succeed.
   alignment, or a physical representation.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [graph glossary](../../../../glossary.md#graph); [buffer glossary](../../../../glossary.md#term-buffer); [backend glossary](../../../../glossary.md#backend); [prepared buffer assignment glossary](../../../../glossary.md#prepared-buffer-assignment--preparedbufferassignment); [alignment glossary](../../../../glossary.md#term-alignment))</span>
 - Structural representation-coordinate validation does not prove semantic device residency,
   transfer route correctness, or creator/executable backend compatibility. Concrete backend and
-  later Engine/conformance work own those proofs.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [validation glossary](../../../../glossary.md#term-validation); [device glossary](../../../../glossary.md#term-device); [residency glossary](../../../../glossary.md#residency); [Concrete backend glossary](../../../../glossary.md#concrete-backend); [Engine glossary](../../../../glossary.md#term-engine); [conformance glossary](../../../../glossary.md#term-conformance))</span>
+  later Engine/conformance work own those proofs.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [device glossary](../../../../glossary.md#term-device); [residency glossary](../../../../glossary.md#residency); [Concrete backend glossary](../../../../glossary.md#concrete-backend); [Engine glossary](../../../../glossary.md#term-engine); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - The assembler is a synchronous immutable recipe-construction seam only. It is not a public
   tuning or execution extension point.<span data-glossary-navigation="true"> ([synchronous glossary](../../../../glossary.md#term-synchronous); [immutable glossary](../../../../glossary.md#term-immutable))</span>
 - This closes the shared Prepare contract, but does not make the repository end-to-end runnable
@@ -502,7 +503,7 @@ another type, path, [module](../../../../glossary.md#term-module) edge, [lifecyc
       completed assignment/finalization behavior.<span data-glossary-navigation="true"> ([handoff glossary](../../../../glossary.md#term-handoff))</span>
 - [x] The assembler is called once after all finalizers and is never retained.
 - [x] Caller inputs, execution occurrences, representation coordinates, and publication
-      occurrences are validated exactly as specified.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [publication glossary](../../../../glossary.md#term-publication))</span>
+      occurrences are validated exactly as specified.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication))</span>
 - [x] Compile-time constants require initialized non-caller representations, and initialized
       representations are rejected for every nonconstant value.<span data-glossary-navigation="true"> ([constants glossary](../../../../glossary.md#term-constant))</span>
 - [x] Repeated gradient publication values and forward/gradient aliases retain separate ordered
@@ -536,7 +537,7 @@ Implementation-focused tests must cover:
   nonconstant representation;
 - repeated [gradient](../../../../glossary.md#term-gradient)/aliased publication values;
 - wrong counts, identities, plans, creation prefix, execution coverage/order, representation
-  coordinates, publication count/order/buffer, null callback results, and missing assignments;<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [callback glossary](../../../../glossary.md#term-callback))</span>
+  coordinates, publication count/order/buffer, null callback results, and missing assignments;<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([callback glossary](../../../../glossary.md#term-callback))</span>
 - no later phase called after each representative earlier failure;
 - dynamic [Shape](../../../../glossary.md#shape) rejection before [backend](../../../../glossary.md#backend) analysis;
 - [immutable](../../../../glossary.md#term-immutable)/reusable result and fresh independent [prepare](../../../../glossary.md#prepare) calls.
@@ -667,7 +668,7 @@ detailed specification.
   not added to Runtime geometry or state.<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - The schedule assembler is called once with the complete immutable context. Prepare validates
   source roles, execution order, representation coordinates, and publication order after assembly
-  rather than interpreting backend-specific recipe details.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [publication glossary](../../../../glossary.md#term-publication); [backend glossary](../../../../glossary.md#backend))</span>
+  rather than interpreting backend-specific recipe details.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [backend glossary](../../../../glossary.md#backend))</span>
 - `InitializedBuffer` reuses the existing backend creator and run-owned cleanup lifecycle. Its
   only distinct Runtime meaning is initial validity after successful cold creation.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 
@@ -679,7 +680,7 @@ detailed specification.
   geometry.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [graph glossary](../../../../glossary.md#graph); [fail closed glossary](../../../../glossary.md#admission-preflight-and-fail-closed-validation); [backend glossary](../../../../glossary.md#backend); [buffer glossary](../../../../glossary.md#term-buffer))</span>
 - Structural coordinate validation cannot prove backend/device compatibility, semantic transfer
   correctness, or a concrete creator's materialized value. Concrete backends and later
-  conformance/integration work own those proofs.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [validation glossary](../../../../glossary.md#term-validation); [device glossary](../../../../glossary.md#term-device); [conformance glossary](../../../../glossary.md#term-conformance))</span>
+  conformance/integration work own those proofs.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [device glossary](../../../../glossary.md#term-device); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - No production [concrete backend](../../../../glossary.md#concrete-backend), production schedule assembler, or [Engine](../../../../glossary.md#term-engine) composition exists.
 
 ## [Validation](../../../../glossary.md#term-validation) evidence

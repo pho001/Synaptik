@@ -275,7 +275,7 @@ ordinary [API](../../../../glossary.md#term-application-programming-interface-ap
 
 - Engine remains the outer public lifecycle/composition owner. It selects the exact ordinary
   publication occurrence, coordinates close, enforces the caller byte budget defensively, and
-  owns the immutable outward payload.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [lifecycle glossary](../../../../glossary.md#lifecycle); [owner glossary](../../../../glossary.md#term-owner); [publication occurrence glossary](../../../../glossary.md#publication-occurrence); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [immutable glossary](../../../../glossary.md#term-immutable); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  owns the immutable outward payload.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [lifecycle glossary](../../../../glossary.md#lifecycle); [owner glossary](../../../../glossary.md#term-owner); [publication occurrence glossary](../../../../glossary.md#publication-occurrence); [immutable glossary](../../../../glossary.md#term-immutable); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
 - Runtime lends only its retained nominal representation under the exact whole-state result lease.
   It gains no Engine/CPU knowledge and performs no host copy or lifetime extension.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [nominal glossary](../../../../glossary.md#term-nominal); [lease glossary](../../../../glossary.md#term-lease); [CPU glossary](../../../../glossary.md#term-cpu); [host glossary](../../../../glossary.md#term-host); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
 - CPU owns all concrete representation compatibility and physical copying. Engine uses only the
@@ -390,7 +390,7 @@ replan before editing.
   concurrency, result-close waiting, result-close winning, Engine-close waiting, admitted-copy
   completion, closed precedence, no use-after-close, no deadlock, and cleanup after copy success or
   failure. Existing result/Engine cleanup order, exact-once behavior, retained failures, and
-  interrupt restoration remain passing.<span data-glossary-navigation="true"> ([latch glossary](../../../../glossary.md#control-flow-graph); [serialization glossary](../../../../glossary.md#term-serialization); [concurrency glossary](../../../../glossary.md#term-concurrency); [use-after-close glossary](../../../../glossary.md#term-use-after-close); [deadlock glossary](../../../../glossary.md#term-deadlock))</span>
+  interrupt restoration remain passing.<span data-glossary-navigation="true"> ([serialization glossary](../../../../glossary.md#term-serialization); [concurrency glossary](../../../../glossary.md#term-concurrency); [use-after-close glossary](../../../../glossary.md#term-use-after-close); [deadlock glossary](../../../../glossary.md#term-deadlock))</span>
 - Advanced public behavior is unchanged; `AdvancedRunResult` still exposes only count/lifecycle
   and no materialization or representation access.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - The documentation-focused pass finalizes meaningful Javadocs for all eight production paths,

@@ -50,7 +50,7 @@ requirements, scores candidates, selects a route, or creates executable state.
   1. reject a null [`operation`](../../../../glossary.md#operation) with `NullPointerException` message `operation`;
   2. reject a null `inputs` list with `NullPointerException` message `inputs`;
   3. reject a null `outputs` list with `NullPointerException` message `outputs`;
-  4. [scan](../../../../glossary.md#term-cumulative-scan) input [elements](../../../../glossary.md#term-element) in encounter order and reject the first null with
+  4. scan input [elements](../../../../glossary.md#term-element) in encounter order and reject the first null with
      `NullPointerException` message `inputs[index]`;
   5. snapshot the input list with `List.copyOf`;
   6. scan output elements in encounter order and reject the first null with
@@ -256,7 +256,7 @@ to hide an incomplete acceptance criterion from this task.
   type.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form))</span>
 - The constructor performs the exact null, encounter-order element scan, snapshot, and final
   occurrence-count validation sequence specified in Scope. Every null failure has the exact
-  required message, and an input failure precedes any output-element scan or signature call.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [scan glossary](../../../../glossary.md#term-cumulative-scan); [snapshot glossary](../../../../glossary.md#term-snapshot); [occurrence glossary](../../../../glossary.md#term-occurrence); [validation glossary](../../../../glossary.md#term-validation); [Scope glossary](../../../../glossary.md#term-scope); [signature glossary](../../../../glossary.md#term-signature))</span>
+  required message, and an input failure precedes any output-element scan or signature call.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [snapshot glossary](../../../../glossary.md#term-snapshot); [occurrence glossary](../../../../glossary.md#term-occurrence); [validation glossary](../../../../glossary.md#term-validation); [Scope glossary](../../../../glossary.md#term-scope); [signature glossary](../../../../glossary.md#term-signature))</span>
 - Construction retains the exact operation and descriptor references while isolating ordered list
   membership from later caller mutation. Returned lists are immutable snapshots.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [descriptor glossary](../../../../glossary.md#term-descriptor); [immutable glossary](../../../../glossary.md#term-immutable))</span>
 - Empty and repeated inputs are accepted when permitted by the signature. Repeated output

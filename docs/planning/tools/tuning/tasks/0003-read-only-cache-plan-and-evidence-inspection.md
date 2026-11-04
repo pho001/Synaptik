@@ -49,7 +49,7 @@ The source-backed audit found no missing [owner](../../../../glossary.md#term-ow
 2. Both loaders already reject unsupported schema, oversize, truncation, file growth during the
    bounded read, checksum damage, malformed fields, invalid summaries, duplicate/noncanonical
    order, and trailing payload bytes. Inspection can reuse the same parsing authority without
-   defining a third format.<span data-glossary-navigation="true"> ([truncation glossary](../../../../glossary.md#term-truncation-toward-zero))</span>
+   defining a third format.
 3. The workload cache stores compatibility schema/bytes, objective and sampling fields, encoded
    decision bytes, winner identity, and a compact timing summary. It does not persist reuse scope,
    model, representative-profile, occurrence context/weight, raw samples, or an executable.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [objective glossary](../../../../glossary.md#term-objective); [sampling glossary](../../../../glossary.md#term-sampling-machine-learning-and-hyperparameters); [identity glossary](../../../../glossary.md#term-identity-meanings); [scope glossary](../../../../glossary.md#term-scope); [model glossary](../../../../glossary.md#term-model); [occurrence glossary](../../../../glossary.md#term-occurrence); [weight glossary](../../../../glossary.md#term-weight); [samples glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters))</span>
@@ -113,7 +113,7 @@ architecture decision.
 - Classify invalid artifacts with stable typed reasons for size-too-small, oversize, truncation,
   growth during read, checksum mismatch, invalid magic, unsupported schema, invalid entry count,
   invalid length, invalid key/value or summary structure, duplicate/noncanonical order, and
-  trailing payload. Parser exception messages are not public classification.<span data-glossary-navigation="true"> ([truncation glossary](../../../../glossary.md#term-truncation-toward-zero); [checksum glossary](../../../../glossary.md#term-checksum); [schema glossary](../../../../glossary.md#term-schema); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  trailing payload. Parser exception messages are not public classification.<span data-glossary-navigation="true"> ([checksum glossary](../../../../glossary.md#term-checksum); [schema glossary](../../../../glossary.md#term-schema); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
 - Propagate Path permission, directory, and ordinary read failures as `IOException`. Malformed
   content returns `INVALID`; existing tuning loaders retain their [fail-closed](../../../../glossary.md#term-fail-closed) `IOException`
   behavior.
@@ -142,7 +142,7 @@ architecture decision.
 - Path inspection opens read-only, obtains size from that channel, enforces 16 MiB before
   allocation, reads exactly the bounded snapshot, rejects early end, and probes one extra byte for
   growth. It never queries/creates a parent, writes, forces, locks, repairs, renames, moves,
-  deletes, or creates a temporary file.<span data-glossary-navigation="true"> ([channel glossary](../../../../glossary.md#term-channel))</span>
+  deletes, or creates a temporary file.
 - Document the remaining filesystem race: same-length replacement/mutation is assessed only
   through bytes actually read and checksum; no stable-file or locking promise exists. Bytes
   appended after the final growth probe are outside the completed snapshot.<span data-glossary-navigation="true"> ([race glossary](../../../../glossary.md#term-race))</span>
@@ -288,7 +288,7 @@ complete the compact-versus-rich distinction. If another top-level type, package
 4. Read-only-directory and absent-target tests prove no target/temp/directory entry, mtime, or byte
    mutation. Source inspection finds no write/create/force/move/delete in inspection.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target))</span>
 5. The channel reader enforces size before allocation, detects early EOF and one-byte growth, and
-   documents TOCTOU limits. Deterministic seams prove truncation/growth classification.<span data-glossary-navigation="true"> ([channel glossary](../../../../glossary.md#term-channel); [EOF glossary](../../../../glossary.md#term-eof); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero))</span>
+   documents TOCTOU limits. Deterministic seams prove truncation/growth classification.<span data-glossary-navigation="true"> ([EOF glossary](../../../../glossary.md#term-eof))</span>
 6. Byte-array inspection rejects oversize before a second full copy, snapshots before parse,
    ignores later mutation, and retains no supplied full array.
 7. Both formats classify too-small, oversize, truncation, checksum, magic, schema, entry count,
@@ -329,7 +329,7 @@ After focused development, [run](../../../../glossary.md#term-run) one final exe
 ```
 
 The three new test [owners](../../../../glossary.md#term-owner) cover both formats/input forms, invalid reasons, missing/I/O/read-only/
-[snapshot](../../../../glossary.md#term-snapshot)/growth/[truncation](../../../../glossary.md#term-truncation-toward-zero) behavior, redaction/mismatch order, both rich evidence models,
+[snapshot](../../../../glossary.md#term-snapshot)/growth/truncation behavior, redaction/mismatch order, both rich evidence models,
 immutability, unchanged bytes, and exact public/import [shape](../../../../glossary.md#shape). Existing eight suites remain the
 task-0001/task-0002 [regression](../../../../glossary.md#term-regression) gate.
 

@@ -146,7 +146,7 @@ validated remapping contract, labels, storage, or factory history.
 
 ### Final plan and [artifact](../../../../glossary.md#term-artifact) invariants
 
-`GraphCompiler` derives `CompileConstantPlan` in one [scan](../../../../glossary.md#term-cumulative-scan) of final `graph.inputs()`:
+`GraphCompiler` derives `CompileConstantPlan` in one scan of final `graph.inputs()`:
 
 - an input with a final [constant](../../../../glossary.md#term-constant) fact becomes the unchanged `ConstantSource` and has no
   `BindableInput`;
@@ -186,7 +186,7 @@ existing single delegation.
   `TensorId`; repeated use of that exact seed still produces one binding. An explicit seed
   expression contributes only its reachable provenance-free caller leaves as bindable inputs.<span data-glossary-navigation="true"> ([seed glossary](../../../../glossary.md#term-seed))</span>
 - A default cotangent seed and every Compiler-generated derivative constant remain explicit
-  logical constants, carry no public bindable entry, and require no caller binding.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [carry glossary](../../../../glossary.md#term-carry))</span>
+  logical constants, carry no public bindable entry, and require no caller binding.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler))</span>
 - Explicit caller [constant](../../../../glossary.md#term-constant) ingress in the package-private complete entry remains a
   `ConstantSource`, not a bindable entry. `GraphCompilationPort` continues to expose no such
   ingress.
@@ -252,7 +252,7 @@ existing single delegation.
 - `ARCHITECTURE.md` is authoritative and already assigns Tensor-expression traversal,
   graph-local identity, transformations, and compile artifacts to Compiler.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>
 - Engine owns typed logical binding and must consume this Compiler association rather than
-  reconstruct it. Runtime and Prepare remain coordinate/representation-level.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [binding glossary](../../../../glossary.md#term-binding); [Prepare glossary](../../../../glossary.md#prepare); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  reconstruct it. Runtime and Prepare remain coordinate/representation-level.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [binding glossary](../../../../glossary.md#term-binding); [Prepare glossary](../../../../glossary.md#prepare))</span>
 - [Tensor](../../../../glossary.md#tensor) [identity](../../../../glossary.md#term-identity-meanings) remains [Model](../../../../glossary.md#term-model)-owned and [immutable](../../../../glossary.md#term-immutable). [Compiler](../../../../glossary.md#term-compiler) projects [`TensorId`](../../../../glossary.md#tensorid) while it still
   has the exact Tensor reference and retains no live Tensor/provenance afterward.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance))</span>
 - [Compile artifacts](../../../../glossary.md#compile-artifacts) remain immutable non-executable recipes without physical or [mutable](../../../../glossary.md#term-mutable) state.
@@ -567,7 +567,7 @@ Engine 0003 Blocked pending a new clean replan. Do not create Engine 0004, commi
 ## Known limitations
 
 - `BindableInput` identifies a logical Tensor and final graph value but does not carry a
-  descriptor, storage, label, user-facing name, Runtime coordinate, or backend representation.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [graph value glossary](../../../../glossary.md#graph-value); [carry glossary](../../../../glossary.md#term-carry); [descriptor glossary](../../../../glossary.md#term-descriptor); [Runtime glossary](../../../../glossary.md#term-runtime); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [backend glossary](../../../../glossary.md#backend))</span>
+  descriptor, storage, label, user-facing name, Runtime coordinate, or backend representation.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [graph value glossary](../../../../glossary.md#graph-value); [descriptor glossary](../../../../glossary.md#term-descriptor); [Runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend))</span>
 - [`TensorId`](../../../../glossary.md#tensorid) uniqueness follows the current Tensor factory identity policy; this artifact does not
   create a global registry or serialization identity.<span data-glossary-navigation="true"> ([Tensor factory glossary](../../../../glossary.md#tensor-factory); [identity glossary](../../../../glossary.md#term-identity-meanings); [artifact glossary](../../../../glossary.md#term-artifact); [registry glossary](../../../../glossary.md#term-registry); [serialization glossary](../../../../glossary.md#term-serialization))</span>
 - Explicit caller [constant](../../../../glossary.md#term-constant) ingress remains package-private and unavailable through
@@ -598,7 +598,7 @@ Planning-only evidence:
   master/roadmap edits and untracked Engine 0003 task. That pass's final combined
   tracked/untracked scan contained exactly those three preserved paths plus this task and the
   Compiler master plan: five planning paths and no Java, build, architecture, API, glossary,
-  generated, or unrelated path.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  generated, or unrelated path.
 - `python3 /tmp/validate_synaptik_markdown.py <the five changed planning paths>` passed with
   `validated 5 Markdown files`, covering local targets and anchors, unique headings, balanced
   fences, trailing whitespace, and final newlines.<span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target))</span>

@@ -29,7 +29,7 @@ Add the smallest [Runtime](../../../../glossary.md#term-runtime)-owned [publicat
 The capability consists of:
 
 - one immutable [`PreparedPublication`](../../../../glossary.md#prepared-publication--preparedpublication) recipe using only an exact [`PreparedMemoryPlan`](../../../../glossary.md#prepared-memory-plan--preparedmemoryplan) reference
-  and dense run-state buffer/representation coordinates;<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  and dense run-state buffer/representation coordinates;
 - one per-[run](../../../../glossary.md#term-run) [`BoundPublication`](../../../../glossary.md#bound-publication--boundpublication) that retains the exact selected representation directly after
   cold binding and records whether its one publication occurrence completed;<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [publication occurrence glossary](../../../../glossary.md#publication-occurrence))</span>
 - one `PreparedSchedule.PublicationStep` in a dense ordered publication suffix; and
@@ -177,7 +177,7 @@ type, closeable [publication](../../../../glossary.md#term-publication) [binding
   indices `0..N-1` in encounter order.
 - Permit zero results through an empty publication suffix and `RunResult(state, List.of())`.
 - Permit distinct ordered result positions to alias the same exact buffer/representation
-  coordinate and physical representation.<span data-glossary-navigation="true"> ([alias glossary](../../../../glossary.md#aliasing-and-arena); [buffer glossary](../../../../glossary.md#term-buffer); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  coordinate and physical representation.<span data-glossary-navigation="true"> ([alias glossary](../../../../glossary.md#aliasing-and-arena); [buffer glossary](../../../../glossary.md#term-buffer))</span>
 - Reject repeated publication of one `BoundPublication`; a result position has one [occurrence](../../../../glossary.md#term-occurrence).
 - Construct [`RunResult`](../../../../glossary.md#run-result--runresult) only from a complete dense ordered list of successfully published bound
   occurrences for one exact open state.
@@ -209,7 +209,7 @@ type, closeable [publication](../../../../glossary.md#term-publication) [binding
   hidden mutation tracking
 - representation discovery, source choice, transfer route search, fallback, multi-hop transfer,
   implicit materialization, lazy creation, allocation, replacement, eviction, pooling, copying,
-  conversion, or backend work during publication<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [lazy glossary](../../../../glossary.md#term-lazy-evaluation); [pooling glossary](../../../../glossary.md#term-pooling); [backend glossary](../../../../glossary.md#backend))</span>
+  conversion, or backend work during publication<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [lazy glossary](../../../../glossary.md#term-lazy-evaluation); [backend glossary](../../../../glossary.md#backend))</span>
 - storage allocation/access implementation, concrete backend implementation, native bridge,
   kernel selection, backend discovery, lowering, or prepare orchestration<span data-glossary-navigation="true"> ([concrete backend glossary](../../../../glossary.md#concrete-backend); [native bridge glossary](../../../../glossary.md#term-native-bridge); [kernel glossary](../../../../glossary.md#kernel); [lowering glossary](../../../../glossary.md#lowering))</span>
 - individual representation [ownership](../../../../glossary.md#term-ownership-meanings) transfer, mutation of `RunResourceOwnership`, detachable
@@ -249,7 +249,7 @@ type, closeable [publication](../../../../glossary.md#term-publication) [binding
 
 ## Architecture constraints
 
-- [Runtime](../../../../glossary.md#term-runtime) [publication](../../../../glossary.md#term-publication) [identities](../../../../glossary.md#term-identity-meanings) are Runtime-owned dense prepared-plan/[run](../../../../glossary.md#term-run)-state [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix).
+- [Runtime](../../../../glossary.md#term-runtime) [publication](../../../../glossary.md#term-publication) [identities](../../../../glossary.md#term-identity-meanings) are Runtime-owned dense prepared-plan/[run](../../../../glossary.md#term-run)-state coordinates.
 - Prepared recipes remain immutable and reusable. Every active logical invocation still has
   exactly one mutable <span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [mutable glossary](../../../../glossary.md#term-mutable))</span>[`RunState`](../../../../glossary.md#run-state--runstate) for the complete [heterogeneous](../../../../glossary.md#term-heterogeneous) schedule.
 - [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) remains exactly memory plan plus schedule. Publication is reachable through
@@ -299,7 +299,7 @@ Packages changed:
 Type placement:
 
 - `io.github.pho001.synaptik.runtime.run.PreparedPublication` — immutable Runtime-only association
-  from exact prepared/run coordinates to one stable result position.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [Runtime glossary](../../../../glossary.md#term-runtime); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  from exact prepared/run coordinates to one stable result position.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - `io.github.pho001.synaptik.runtime.run.BoundPublication` — one cold-bound per-run direct-
   reference occurrence and its one-shot publication state.
 - `io.github.pho001.synaptik.runtime.run.RunResult` — completed closeable lease over the exact
@@ -377,7 +377,7 @@ shared [validation](../../../../glossary.md#term-validation) above.
 
 1. require the retained state open;
 2. reject an already-published [occurrence](../../../../glossary.md#term-occurrence);
-3. query validity for the prepared [buffer](../../../../glossary.md#term-buffer)/representation [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) exactly once;
+3. query validity for the prepared [buffer](../../../../glossary.md#term-buffer)/representation coordinate exactly once;
 4. reject an invalid selected representation; and
 5. set only this bound occurrence's `published` flag to `true`.
 
@@ -423,7 +423,7 @@ Exact added failures are:
 - `IllegalArgumentException("steps[X] non-publication occurrence follows publication suffix")`.
 
 The existing null, exact-plan, and creation-position diagnostics win before these added checks for
-the same step. List snapshotting still occurs only after the complete [scan](../../../../glossary.md#term-cumulative-scan) succeeds.
+the same step. List snapshotting still occurs only after the complete scan succeeds.
 
 `publicationCount()` counts the publication suffix and returns `0` for no publication. It performs
 no allocation and is safe on the [immutable](../../../../glossary.md#term-immutable) schedule. The suffix makes results final schedule
@@ -438,7 +438,7 @@ Existing executable and transfer repetition remains valid.
 - One result position occurs exactly once. Gaps, reordering, and duplicate positions are rejected
   by schedule construction.
 - Two or more distinct result positions may use the same buffer and representation coordinates.
-  Each binds to a distinct <span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>[`BoundPublication`](../../../../glossary.md#bound-publication--boundpublication), and the final private result snapshot retains the
+  Each binds to a distinct <span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer))</span>[`BoundPublication`](../../../../glossary.md#bound-publication--boundpublication), and the final private result snapshot retains the
   same exact physical representation at each corresponding position.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot))</span>
 - Aliasing is identity retention only. Runtime does not infer physical aliasing between different
   representation objects or compare representation equality.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
@@ -472,7 +472,7 @@ Exact failures are:
 - `IllegalArgumentException("publications[X] result index does not match encounter order")`; and
 - `IllegalStateException("publications[X] is not published")`.
 
-Only after the complete [scan](../../../../glossary.md#term-cumulative-scan) succeeds does cleanup responsibility for the entire state pass from
+Only after the complete scan succeeds does cleanup responsibility for the entire state pass from
 the [run](../../../../glossary.md#term-run)/runner to the result. The supplied list container is not retained. The result snapshots
 the exact direct representation from every bound publication into a private array in encounter
 order. Empty publications produce a zero-length array and successfully [lease](../../../../glossary.md#term-lease) the open state.
@@ -529,7 +529,7 @@ The caller still closes the exact state. If result construction succeeds and a l
 the result/state remains closed and the exact existing cleanup failure propagates.
 
 Publication never catches, wraps, retries, falls back, transfers, allocates, copies, or invokes a
-[backend](../../../../glossary.md#backend), so it introduces no backend failure [channel](../../../../glossary.md#term-channel) and no physical rollback claim.
+[backend](../../../../glossary.md#backend), so it introduces no backend failure channel and no physical rollback claim.
 
 ## Thread-safety and side effects
 
@@ -692,7 +692,7 @@ the [Runtime](../../../../glossary.md#term-runtime) master plan, and the reposit
 - Javadocs describe exact inputs, results, nullability, identity, ownership, lifecycle, threading,
   side effects, failures, aliases, empty results, and exclusions.<span data-glossary-navigation="true"> ([nullability glossary](../../../../glossary.md#term-nullability); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - The documentation pass distinguishes Compiler logical publication roles from Runtime prepared
-  publication coordinates and keeps current versus planned boundaries explicit.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  publication coordinates and keeps current versus planned boundaries explicit.
 - A separate clean documentation-focused agent finalizes affected Javadocs, documentation,
   glossary impact, generated-page inspection, planning evidence, and no-change conclusions
   without repeating successful Java tests absent executable change or a recorded concrete risk.
@@ -784,7 +784,7 @@ source/tests rather than trusting the implementation summary.
 The pass must:
 
 - finalize all three new class Javadocs, both affected package summaries, and schedule Javadocs;
-- explain [compiler](../../../../glossary.md#term-compiler) logical [publication](../../../../glossary.md#term-publication) roles versus Runtime prepared [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) at first use;
+- explain [compiler](../../../../glossary.md#term-compiler) logical [publication](../../../../glossary.md#term-publication) roles versus Runtime prepared coordinates at first use;
 - document the publication suffix, exact validity moment, no hidden fallback, aliasing, empty
   results, partial failure, whole-state result lease, borrowed lifetime, and close behavior;<span data-glossary-navigation="true"> ([aliasing glossary](../../../../glossary.md#term-aliasing); [lease glossary](../../../../glossary.md#term-lease); [borrowed glossary](../../../../glossary.md#ownership-borrowing-and-lease); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
 - keep result storage private and avoid inventing any value access, Tensor conversion, Config
@@ -824,7 +824,7 @@ Required no-change conclusions unless a concrete contradiction is found:
 - Runtime 0003 and [ADR](../../../../glossary.md#term-architecture-decision-record-adr) 0011 supply the one-state [ownership](../../../../glossary.md#term-ownership-meanings) and cleanup [model](../../../../glossary.md#term-model).
 - Runtime 0005 supplies the exact-plan [sealed](../../../../glossary.md#term-sealed) schedule family.
 - Runtime 0006 fixes [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) as memory plan plus schedule.
-- Runtime 0007 supplies already-created representation [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) and explicit per-copy validity.
+- Runtime 0007 supplies already-created representation coordinates and explicit per-copy validity.
 - Runtime 0008 supplies the only explicit transfer/materialization action required before
   publication when the selected result representation is not already valid.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization))</span>
 - Compiler 0006 supplies stable ordered logical forward/gradient publication roles for later
@@ -842,7 +842,7 @@ Required no-change conclusions unless a concrete contradiction is found:
   objects without lookup in the hot path.<span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup); [hot path glossary](../../../../glossary.md#term-hot-path))</span>
 - [Runtime](../../../../glossary.md#term-runtime) 0011 remains Draft for contract closure and the prepared-execution [checkpoint](../../../../glossary.md#term-checkpoint).
 - Prepare 0003 remains Draft for public preparation orchestration, translation of compiler
-  publication roles to Runtime coordinates, and complete runnable-result validation.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [compiler glossary](../../../../glossary.md#term-compiler); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [validation glossary](../../../../glossary.md#term-validation))</span>
+  publication roles to Runtime coordinates, and complete runnable-result validation.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [compiler glossary](../../../../glossary.md#term-compiler); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Config 0007 remains Draft for declarative run/publication policy after a stable consumer
   requires it.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run))</span>
 - [Engine](../../../../glossary.md#term-engine) later owns the public [Tensor](../../../../glossary.md#tensor)/value-facing result access and [lifecycle](../../../../glossary.md#lifecycle) [facade](../../../../glossary.md#term-facade).
@@ -853,7 +853,7 @@ Do not create any follow-up detailed specification in this task.
 
 ## Decisions and rejected alternatives
 
-- **Use dense [Runtime](../../../../glossary.md#term-runtime) [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) and a dense result index.** This is the smallest identity model
+- **Use dense [Runtime](../../../../glossary.md#term-runtime) coordinates and a dense result index.** This is the smallest identity model
   already supported by prepared plans and run state. Importing Compiler binding types, graph IDs,
   Tensor IDs, Planning facts, or Prepare assignments would violate the Runtime boundary.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [model glossary](../../../../glossary.md#term-model); [run state glossary](../../../../glossary.md#run-state--runstate); [Compiler glossary](../../../../glossary.md#term-compiler); [binding glossary](../../../../glossary.md#term-binding); [graph glossary](../../../../glossary.md#graph); [Tensor glossary](../../../../glossary.md#tensor); [Planning glossary](../../../../glossary.md#term-planning); [Prepare glossary](../../../../glossary.md#prepare))</span>
 - **Use one [immutable](../../../../glossary.md#term-immutable) prepared recipe and one per-[run](../../../../glossary.md#term-run) bound [occurrence](../../../../glossary.md#term-occurrence).** This matches cold
@@ -961,7 +961,7 @@ follow-up, and the repository completion status. Do not commit or push.
 - Kept [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) bytecode-exactly at its existing two record components; publication is
   reachable only through the schedule.<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [publication glossary](../../../../glossary.md#term-publication))</span>
 - Used dense Runtime coordinates and a dense result suffix, retaining Compiler/Model/Planning/
-  Prepare identities outside Runtime.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [Compiler glossary](../../../../glossary.md#term-compiler); [Model glossary](../../../../glossary.md#term-model); [Planning glossary](../../../../glossary.md#term-planning); [Prepare glossary](../../../../glossary.md#prepare))</span>
+  Prepare identities outside Runtime.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Compiler glossary](../../../../glossary.md#term-compiler); [Model glossary](../../../../glossary.md#term-model); [Planning glossary](../../../../glossary.md#term-planning); [Prepare glossary](../../../../glossary.md#prepare))</span>
 - Leased the complete [`RunState`](../../../../glossary.md#run-state--runstate) to [`RunResult`](../../../../glossary.md#run-result--runresult) after full validation instead of mutating
   individual ownership bindings. This preserves borrowed ownership, alias handling, duplicate-
   identity protection, and existing cleanup order.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [bindings glossary](../../../../glossary.md#term-binding); [borrowed glossary](../../../../glossary.md#ownership-borrowing-and-lease); [alias glossary](../../../../glossary.md#aliasing-and-arena); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
@@ -999,7 +999,7 @@ follow-up, and the repository completion status. Do not commit or push.
 - Final manual/current-versus-planned review confirms Compiler logical publication roles remain
   distinct from Runtime dense coordinates; publication performs no physical work or fallback;
   aliases and empty results are preserved; partial publication transfers no lease; and successful
-  construction leases the whole state while exposing no value, representation, or state.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [lease glossary](../../../../glossary.md#term-lease))</span>
+  construction leases the whole state while exposing no value, representation, or state.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [lease glossary](../../../../glossary.md#term-lease))</span>
 - Exact 18-path [scope](../../../../glossary.md#term-scope), later-specification absence, synchronized status, and `git diff --check`
   passed after final planning updates.
 - Repository-wide, architecture, backend-conformance, and integration suites were not run: this
@@ -1021,7 +1021,7 @@ follow-up, and the repository completion status. Do not commit or push.
 ## Completion summary
 
 - Completed changes: Runtime-owned prepared publication coordinates, per-run direct publication,
-  dense publication suffix, and whole-state result lease.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [prepared publication glossary](../../../../glossary.md#prepared-publication--preparedpublication); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [run glossary](../../../../glossary.md#term-run); [publication glossary](../../../../glossary.md#term-publication); [lease glossary](../../../../glossary.md#term-lease))</span>
+  dense publication suffix, and whole-state result lease.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [prepared publication glossary](../../../../glossary.md#prepared-publication--preparedpublication); [run glossary](../../../../glossary.md#term-run); [publication glossary](../../../../glossary.md#term-publication); [lease glossary](../../../../glossary.md#term-lease))</span>
 - Files changed or created: exactly the 18 authorized production, test, API, architecture,
   backend-guide, glossary, and planning paths listed in this task.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [backend glossary](../../../../glossary.md#backend); [planning glossary](../../../../glossary.md#term-planning))</span>
 - Tests and validation: focused 4 suites/32 tests and final Runtime 16 suites/130 tests passed;

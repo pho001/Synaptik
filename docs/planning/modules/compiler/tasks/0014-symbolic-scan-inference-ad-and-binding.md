@@ -30,16 +30,16 @@ fresh scoped all-port `BatchBindingPlan` [binding](../../../../glossary.md#term-
 
 ## [Scope](../../../../glossary.md#term-scope)
 
-All-valid [general SCAN](../../../../glossary.md#general-differentiable-scan), one [canonical](../../../../glossary.md#term-canonical-form) named B and fixed time T/[features](../../../../glossary.md#term-software-feature) F/state widths H.
+All-valid [general SCAN](../../../../glossary.md#general-differentiable-scan), one [canonical](../../../../glossary.md#term-canonical-form) named B and fixed time T/[features](../../../../glossary.md#term-feature) F/state widths H.
 [Inference](../../../../glossary.md#term-inference) independently checks accepted [Model](../../../../glossary.md#term-model) [PURE](../../../../glossary.md#term-pure) semantics/applicable [dtypes](../../../../glossary.md#data-type--datatype); do not import
 the [AD](../../../../glossary.md#autograd) inventory or a [CPU](../../../../glossary.md#term-cpu) whitelist into forward inference. First-order AD is separately bounded
 to [homogeneous](../../../../glossary.md#term-homogeneous) [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) and the accepted algebra. Initial CPU FLOAT32 [qualification](../../../../glossary.md#term-qualification) is later.
 Include necessary bounded [rank](../../../../glossary.md#term-rank)-three ordinary outer [seed](../../../../glossary.md#term-seed)/[constant](../../../../glossary.md#term-constant)/[pointwise](../../../../glossary.md#term-pointwise)/[layout](../../../../glossary.md#layout) plumbing,
-scoped private obligations and canonical actual [descriptors](../../../../glossary.md#term-descriptor) for every [Scan](../../../../glossary.md#term-cumulative-scan) output position.
+scoped private obligations and canonical actual [descriptors](../../../../glossary.md#term-descriptor) for every [Scan](../../../../glossary.md#general-differentiable-scan) output position.
 
 ## Non-goals
 
-No [Model](../../../../glossary.md#term-model) behavior/[API](../../../../glossary.md#term-application-programming-interface-api)/header change; [Scan](../../../../glossary.md#term-cumulative-scan).java class support-status [Javadoc](../../../../glossary.md#term-javadoc) only. No symbolic length mode, variable T/F/H, higher-order,
+No [Model](../../../../glossary.md#term-model) behavior/[API](../../../../glossary.md#term-application-programming-interface-api)/header change; [Scan](../../../../glossary.md#general-differentiable-scan).java class support-status [Javadoc](../../../../glossary.md#term-javadoc) only. No symbolic length mode, variable T/F/H, higher-order,
 fixed-scan [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt), arithmetic/rewrite [widening](../../../../glossary.md#term-widening), cold/copy/wire, [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training, [Prepare](../../../../glossary.md#prepare)/[CPU](../../../../glossary.md#term-cpu)/[Engine](../../../../glossary.md#term-engine)
 enablement or geometry [memo](../../../../glossary.md#cache-and-memoization). No native build, performance campaign, stage/[commit](../../../../glossary.md#term-commit)/push or successor
 launch. No [graph](../../../../glossary.md#graph)/session/[constant](../../../../glossary.md#term-constant) type, public [signature](../../../../glossary.md#term-signature), [ABI](../../../../glossary.md#term-application-binary-interface-abi) or [dependency](../../../../glossary.md#term-dependency) change is selected.
@@ -55,7 +55,7 @@ launch. No [graph](../../../../glossary.md#graph)/session/[constant](../../../..
   [Compiler-owned automatic differentiation](../../../../architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation)<span data-glossary-navigation="true"> ([automatic differentiation glossary](../../../../glossary.md#autograd))</span>,
   [Compile lifecycle](../../../../architecture/contracts/compiler-autograd.md#compile-lifecycle)<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile))</span> and
   [Bounded general-scan cold reconstruction](../../../../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction)<span data-glossary-navigation="true"> ([cold reconstruction glossary](../../../../glossary.md#term-cold-reconstruction))</span>.
-- [Scan](../../../../glossary.md#term-cumulative-scan) [Accepted symbolic-batch scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan),
+- [Scan](../../../../glossary.md#general-differentiable-scan) [Accepted symbolic-batch scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan),
   including ALL four subsections; [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>,
   [Canonical residual ports and demand](../../../../architecture/contracts/recurrent-scan.md#canonical-residual-ports-and-demand)<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>,
   [Reverse scan and exact primal bindings](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal))</span>,
@@ -71,7 +71,7 @@ launch. No [graph](../../../../glossary.md#graph)/session/[constant](../../../..
   [Planning0008](../../planning/tasks/0008-general-scan-body-capability-query.md#result) and
   [Prepare0013 ordinary binding baseline](../../prepare/tasks/0013-ordinary-dynamic-batch-cpu-vertical.md#result)<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding))</span>, all Complete.
 - Conflicts with: inference/capture/AD/binding/layout/query/demand, cold and shared Scan/Compiler
-  contract/docs writers; future numeric vertical. None active.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [capture glossary](../../../../glossary.md#term-capture-meanings); [AD glossary](../../../../glossary.md#autograd); [layout glossary](../../../../glossary.md#layout); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [Compiler glossary](../../../../glossary.md#term-compiler))</span>
+  contract/docs writers; future numeric vertical. None active.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [capture glossary](../../../../glossary.md#term-capture-meanings); [AD glossary](../../../../glossary.md#autograd); [layout glossary](../../../../glossary.md#layout); [Scan glossary](../../../../glossary.md#general-differentiable-scan); [Compiler glossary](../../../../glossary.md#term-compiler))</span>
 - Parallel group: None; serial writer, read-only reviewer.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus ALL
   accepted dirty work including Model0042, not merged predecessors; empty index.
@@ -111,7 +111,7 @@ package/name/purpose/[signature](../../../../glossary.md#term-signature) and rea
 - Same-package tests: `ScanBodyInferenceTest`, `ScanGradientRulesTest`,
   `GeneralScanCompilerTest`, `BatchBindingPlanTest`, `StaticResultLogicalLayoutClosureTest` and
   retained `LengthAwareScanBodyInferenceTest`/`LengthAwareScanGradientRulesTest`/cold tests.
-  Split blanket symbolic-rejection tests into admission/retained guards. Model <span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission))</span>[`Scan`](../../../../glossary.md#term-cumulative-scan)/`ScanBody` and
+  Split blanket symbolic-rejection tests into admission/retained guards. Model <span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission))</span>[`Scan`](../../../../glossary.md#general-differentiable-scan)/`ScanBody` and
   `ScanSymbolicBatchSourceTest` are read-only source/[shape](../../../../glossary.md#shape) references, not new owners to modify.
 
 ## Acceptance criteria
@@ -138,7 +138,7 @@ package/name/purpose/[signature](../../../../glossary.md#term-signature) and rea
    B=0/1/equal-to-F-or-H and 64→40→1→64 binding reuse. Extend only test-local bound evaluation
    of the actual symbolic expressions; do not rebuild a static reverse or use cold reconstruction.<span data-glossary-navigation="true"> ([unrolling glossary](../../../../glossary.md#term-unrolling); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [evaluation glossary](../../../../glossary.md#term-evaluation); [cold reconstruction glossary](../../../../glossary.md#term-cold-reconstruction))</span>
 5. [`prepare`](../../../../glossary.md#prepare) preindexes all local typed obligations by exact containing occurrence/scope, all extent
-   validity and SCAN canonical actual-layout recipes. <span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [extent glossary](../../../../glossary.md#term-extent); [SCAN glossary](../../../../glossary.md#term-cumulative-scan))</span>`bind` checks every input occurrence and every
+   validity and SCAN canonical actual-layout recipes. <span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [extent glossary](../../../../glossary.md#term-extent); [SCAN glossary](../../../../glossary.md#general-differentiable-scan))</span>`bind` checks every input occurrence and every
    scoped obligation freshly on EVERY call, even at repeated B, including unused/dead declarations.
    Unknown symbolic multi-output kinds still reject. No diagnostic-string execution, new public
    predicate protocol, per-call graph walk/inference/recapture/optimization/backend decision or memo.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [backend glossary](../../../../glossary.md#backend); [memo glossary](../../../../glossary.md#cache-and-memoization))</span>
@@ -185,7 +185,7 @@ evidence and one configured root join. No [dependency](../../../../glossary.md#t
 
 Independent Class C review finalizes affected [Javadoc](../../../../glossary.md#term-javadoc) and support status:
 `docs/api/compile-api.md`, `docs/architecture/general-differentiable-scan.md`, root, owning [Compiler](../../../../glossary.md#term-compiler)/
-[Scan](../../../../glossary.md#term-cumulative-scan) contracts, glossary, this brief/Compiler master/roadmap/dynamic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) map and [Model](../../../../glossary.md#term-model) master/
+[Scan](../../../../glossary.md#general-differentiable-scan) contracts, glossary, this brief/Compiler master/roadmap/dynamic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) map and [Model](../../../../glossary.md#term-model) master/
 symbolic-batch proposal. No new semantics/[ADR](../../../../glossary.md#term-architecture-decision-record-adr)/[dependency](../../../../glossary.md#term-dependency). Search glossary [`Symbolic Scan`](../../../../glossary.md#symbolic-scan)/
 [`Symbolic batch binding`](../../../../glossary.md#symbolic-batch-binding); update capability status only. Stop on new decisions.
 

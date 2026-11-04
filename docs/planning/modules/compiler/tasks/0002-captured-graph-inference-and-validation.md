@@ -676,7 +676,7 @@ every acceptance criterion finish.
 - Final documentation/[scope](../../../../glossary.md#term-scope) checks: `git diff --check`, exact changed-path inventory,
   package-private declaration scan, operation-kind dispatch inventory scan, changed-area scan, and
   task-spec inventory scan passed. Exactly the twenty authorized paths changed; tasks 0003–0005
-  remain Draft master-plan rows and no task 0003-or-later detailed specification exists.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [operation glossary](../../../../glossary.md#operation); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
+  remain Draft master-plan rows and no task 0003-or-later detailed specification exists.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - Package visibility cross-check: `javap -classpath modules/compiler/build/classes/java/main -p`
   over all eight new production types showed package-private enclosing declarations and the sole
   package-private `inferAndValidate` entry point.

@@ -16,7 +16,7 @@ Complete
 
 ## Goal
 
-Add one deliberately narrow [compiler](../../../../glossary.md#term-compiler)-owned arithmetic-rewrite [scan](../../../../glossary.md#term-cumulative-scan) over a successful [canonical](../../../../glossary.md#term-canonical-form)
+Add one deliberately narrow [compiler](../../../../glossary.md#term-compiler)-owned arithmetic-rewrite scan over a successful [canonical](../../../../glossary.md#term-canonical-form)
 `ValidatedGraph`. The closed rule set contains exactly these seven semantic rules:
 
 ```text
@@ -78,7 +78,7 @@ seven-row table, including floating ADD/SUB zero, multiplication by zero, [cance
 - Consume only a graph that has already passed Compiler 0002 validation. The helper is a
   transformer, not another structural or semantic validator.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler))</span>
 - Visit nodes once in stored topological order and use already-remapped input IDs, so one earlier
-  rewrite can make a later selected occurrence eligible during the same bounded scan.<span data-glossary-navigation="true"> ([topological order glossary](../../../../glossary.md#term-topological-order); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  rewrite can make a later selected occurrence eligible during the same bounded scan.<span data-glossary-navigation="true"> ([topological order glossary](../../../../glossary.md#term-topological-order))</span>
 - Rewrite exactly the seven semantic rules when every applicable condition in
   [Selected exact rules](#selected-exact-rules) holds.
 - Return the exact graph [argument](../../../../glossary.md#term-argument) when no [occurrence](../../../../glossary.md#term-occurrence) rewrites.
@@ -94,7 +94,7 @@ seven-row table, including floating ADD/SUB zero, multiplication by zero, [cance
 - Immediately validate a changed rewrite candidate through
   `CapturedGraphInference.inferAndValidate`. Do not revalidate the exact unchanged graph.
 - Preserve task 0003's existing one-shot `DCE -> CSE -> DCE` sequence exactly once after the
-  rewrite boundary, including validation after each changed candidate and no fixed-point loop.<span data-glossary-navigation="true"> ([fixed-point glossary](../../../../glossary.md#fixed-point-arithmetic))</span>
+  rewrite boundary, including validation after each changed candidate and no fixed-point loop.
 - Add meaningful Javadocs to the new helper and update the orchestrator Javadocs for the exact
   ordering, identity behavior, immutable result, and failures.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Add focused helper and orchestration tests for the complete seven-rule proof, negative-rule
@@ -252,7 +252,7 @@ When optional optimization is enabled, continue exactly:
 10. invoke task 0003's cleanup forward DCE once and validate only if changed; and
 11. return the last exact successful `ValidatedGraph`.
 
-This is the complete cleanup policy. Do not [run](../../../../glossary.md#term-run) a second rewrite [scan](../../../../glossary.md#term-cumulative-scan), another CSE, another DCE,
+This is the complete cleanup policy. Do not [run](../../../../glossary.md#term-run) a second rewrite scan, another CSE, another DCE,
 or a convergence loop. A single [topological](../../../../glossary.md#term-topological-order) rewrite scan uses prior remappings, and the existing
 one-shot sequence supplies all authorized cleanup.
 
@@ -301,7 +301,7 @@ conformance contracts. This task does not edit or pre-decide backend plans.
   numerical permission<span data-glossary-navigation="true"> ([reassociation glossary](../../../../glossary.md#term-reassociation); [commutation glossary](../../../../glossary.md#term-commutation); [canonical glossary](../../../../glossary.md#term-canonical-form); [distributivity glossary](../../../../glossary.md#term-distributivity); [finite glossary](../../../../glossary.md#term-finite))</span>
 - modification of task 0003's completed implementation history or its detailed specification
 - another optional cleanup pass, pass repetition, fixed-point iteration, candidate comparison, or
-  graph search<span data-glossary-navigation="true"> ([fixed-point glossary](../../../../glossary.md#fixed-point-arithmetic))</span>
+  graph search
 - a pass manager, pass/rewrite registry, generic optimizer framework, annotation, reflection,
   service loader, plugin, callback, string dispatch, or public pass enum<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [plugin glossary](../../../../glossary.md#term-plugin); [callback glossary](../../../../glossary.md#term-callback); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - public [compiler](../../../../glossary.md#term-compiler), [optimizer](../../../../glossary.md#term-optimizer), rewrite, pass, candidate, result, diagnostic, or configuration [API](../../../../glossary.md#term-application-programming-interface-api)
@@ -391,7 +391,7 @@ Type placement:
 
 - `io.github.pho001.synaptik.compiler.ForwardExactArithmeticRewriting` — package-private stateless
   one-scan exact forward arithmetic transformer, colocated with the graph representation and
-  orchestrator it supports.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  orchestrator it supports.
 - `io.github.pho001.synaptik.compiler.ForwardExactArithmeticRewritingTest` — same-package focused
   contract tests without widening production visibility.<span data-glossary-navigation="true"> ([widening glossary](../../../../glossary.md#term-widening))</span>
 - `io.github.pho001.synaptik.compiler.ForwardGraphOptimization` — existing package-private
@@ -458,7 +458,7 @@ concrete reason rather than silently expanding scope. In particular, do not modi
   integer one, or signed integer zero. BOOL, conversions, text comparison, and every kind/type/value
   combination outside the closed table remain ineligible.<span data-glossary-navigation="true"> ([BOOL glossary](../../../../glossary.md#data-type--datatype))</span>
 - Eligibility uses already-remapped equal input IDs, so a later eligible occurrence may be exposed
-  by an earlier rewrite in the same single topological scan.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [topological glossary](../../../../glossary.md#term-topological-order); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  by an earlier rewrite in the same single topological scan.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [topological glossary](../../../../glossary.md#term-topological-order))</span>
 - Floating duplicate extrema and MUL/DIV/POW-by-positive-one safety includes NaN classification,
   either infinity, and both signed zeros without finite-only or nonzero assumptions. Integral
   extrema and scalar MUL/ADD/SUB identities preserve fixed-width modular values. BOOL and mixed-
@@ -490,7 +490,7 @@ concrete reason rather than silently expanding scope. In particular, do not modi
   x-divided-by-x; Tensor-constant-shaped identities; scalar MIN/MAX and clamp; unary reciprocal;
   bounds identities; reductions; distinct-input extrema; mixed-type cases; gradient-eligible
   occurrences; and a genuine multi-output occurrence. Exact typed checks exclude every other
-  family, domain, carrier, and value.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [constant glossary](../../../../glossary.md#term-constant); [unary glossary](../../../../glossary.md#term-unary); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  family, domain, carrier, and value.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [constant glossary](../../../../glossary.md#term-constant); [unary glossary](../../../../glossary.md#term-unary))</span>
 - Pipeline tests prove rewrite-before-DCE/CSE behavior, task-0002 constraint regeneration after a
   changed rewrite candidate, source-level one-shot ordering, and absence of iteration or a second
   rewrite invocation.<span data-glossary-navigation="true"> ([CSE glossary](../../../../glossary.md#term-common-subexpression-elimination-cse))</span>
@@ -688,12 +688,12 @@ acceptance criterion finish.
 - Require `requiresGrad == false` even though it is already one descriptor component. Current
   forward value semantics prove each identity, but no task-0004 autograd contract yet proves that
   removing an operation preserves its gradient occurrence and saved-value semantics; duplicate
-  extrema additionally carry repeated-position and tie-gradient uncertainty.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [autograd glossary](../../../../glossary.md#autograd); [operation glossary](../../../../glossary.md#operation); [gradient glossary](../../../../glossary.md#term-gradient); [occurrence glossary](../../../../glossary.md#term-occurrence); [carry glossary](../../../../glossary.md#term-carry))</span>
+  extrema additionally carry repeated-position and tie-gradient uncertainty.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [autograd glossary](../../../../glossary.md#autograd); [operation glossary](../../../../glossary.md#operation); [gradient glossary](../../../../glossary.md#term-gradient); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - Exclude graph-output producers rather than remap publication roots. Internal graph-local
   occurrence removal is permitted; requested public expression occurrences remain distinct.<span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [publication glossary](../../../../glossary.md#term-publication))</span>
-- Use already-remapped inputs in one [scan](../../../../glossary.md#term-cumulative-scan) so the helper is locally complete without iteration.
+- Use already-remapped inputs in one scan so the helper is locally complete without iteration.
 - Place rewriting before task 0003's existing one-shot sequence. That sequence is the complete
-  deterministic cleanup and receives no added pass or fixed-point loop.<span data-glossary-navigation="true"> ([fixed-point glossary](../../../../glossary.md#fixed-point-arithmetic))</span>
+  deterministic cleanup and receives no added pass or fixed-point loop.
 - Keep the helper package-private and typed. Seven closed semantic rows do not justify a registry,
   framework, public optimizer, or new package.<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
 
@@ -750,7 +750,7 @@ acceptance criterion finish.
   entry points, private constructors, private implementation helpers, and no public declaration.
 - Source/manual/import inspection confirmed one rewrite invocation after canonical validation and
   before exactly one <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form))</span>`DCE -> CSE -> DCE`; `validateWhenChanged` calls Compiler 0002 only for a
-  changed candidate. The helper has one topological scan with prior remappings; exact typed<span data-glossary-navigation="true"> ([topological glossary](../../../../glossary.md#term-topological-order); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  changed candidate. The helper has one topological scan with prior remappings; exact typed<span data-glossary-navigation="true"> ([topological glossary](../../../../glossary.md#term-topological-order))</span>
   `ScalarValueAttrs` checks; complete [descriptor](../../../../glossary.md#term-descriptor) equality; false-[gradient](../../../../glossary.md#term-gradient), internal [graph](../../../../glossary.md#graph)-output,
   `FORWARD`, and one-output guards; and exact unchanged-reference behavior. Production uses no
   Tensor/storage/constants, generic evaluator, registry, reflection/string dispatch, orchestration
@@ -775,7 +775,7 @@ acceptance criterion finish.
 ## Implementation notes
 
 - Added package-private `ForwardExactArithmeticRewriting` with the exact seven typed rules and one
-  deterministic topological rebuild scan. An unchanged scan returns its input graph by identity.<span data-glossary-navigation="true"> ([topological glossary](../../../../glossary.md#term-topological-order); [scan glossary](../../../../glossary.md#term-cumulative-scan); [graph glossary](../../../../glossary.md#graph); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  deterministic topological rebuild scan. An unchanged scan returns its input graph by identity.<span data-glossary-navigation="true"> ([topological glossary](../../../../glossary.md#term-topological-order); [graph glossary](../../../../glossary.md#graph); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Added focused positive and negative proof matrices for extrema, scalar typed values, descriptor,
   gradient, phase, graph-boundary, multi-output, same-scan remapping, identity, immutability, and
   rebuild behavior.<span data-glossary-navigation="true"> ([matrices glossary](../../../../glossary.md#term-matrix-meanings); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [scalar glossary](../../../../glossary.md#term-scalar); [descriptor glossary](../../../../glossary.md#term-descriptor); [gradient glossary](../../../../glossary.md#term-gradient))</span>
@@ -805,7 +805,7 @@ acceptance criterion finish.
 - Javadoc review: both affected internal production contracts were finalized and generated output
   inspected successfully.
 - Glossary impact: current compiler status now includes the bounded guarded scan and distinguishes
-  scalar operation metadata from future Tensor constants.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [scalar glossary](../../../../glossary.md#term-scalar); [operation glossary](../../../../glossary.md#operation); [metadata glossary](../../../../glossary.md#term-metadata); [constants glossary](../../../../glossary.md#term-constant))</span>
+  scalar operation metadata from future Tensor constants.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [operation glossary](../../../../glossary.md#operation); [metadata glossary](../../../../glossary.md#term-metadata); [constants glossary](../../../../glossary.md#term-constant))</span>
 - Unresolved issues: None.
 - Follow-up required: None for task 0003A; Compiler 0003B, 0004, and 0005 remain Draft future work.
 

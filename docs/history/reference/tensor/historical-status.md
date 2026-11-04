@@ -60,7 +60,7 @@ evidence, not a checklist of features still missing today.
 > >   folding, whole-graph DCE, and phase- plus derivative-order-local CSE are current; and<span data-glossary-navigation="true"> ([capture glossary](../../../glossary.md#term-capture-meanings); [autograd glossary](../../../glossary.md#autograd); [canonicalization glossary](../../../glossary.md#occurrence-identity-and-canonical-form); [DCE glossary](../../../glossary.md#term-dead-code-elimination-dce); [derivative glossary](../../../glossary.md#term-derivative); [CSE glossary](../../../glossary.md#term-common-subexpression-elimination-cse))</span>
 > > - planning, prepare, runtime, publication execution, and backend execution.
 > >
-> > General-[scan](../../../glossary.md#term-cumulative-scan) source construction and structural compiled attachments are current as described
+> > General-[scan](../../../glossary.md#general-differentiable-scan) source construction and structural compiled attachments are current as described
 > > [above](../../../reference/tensor/general-scan.md#general-scan-source-construction). Compiler scoped capture, first-order AD and demand
 > > emission, and Prepare scoped binding/demand validation are implemented. The CPU0030–CPU0033
 > > pointwise/broadcast/SUM/layout/MATMUL and FLOAT64 inventories record historical layers, not a

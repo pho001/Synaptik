@@ -487,7 +487,7 @@ statistical denominator and [batch](../../../../glossary.md#term-batch-machine-l
 - Compiler 0006 public objectives, targets, seeds, disconnected-result policy, create-graph,
   derivative order, higher derivatives, or order-aware phase representation<span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [graph glossary](../../../../glossary.md#graph); [derivative glossary](../../../../glossary.md#term-derivative))</span>
 - another model kind, Tensor method, attributes type, result carrier, public saved-statistic
-  accessor, backward-only operation, or public compiler request/result surface<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [carrier glossary](../../../../glossary.md#term-storage-carrier); [statistic glossary](../../../../glossary.md#term-statistic); [operation glossary](../../../../glossary.md#operation))</span>
+  accessor, backward-only operation, or public compiler request/result surface<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [statistic glossary](../../../../glossary.md#term-statistic); [operation glossary](../../../../glossary.md#operation))</span>
 - [mutable](../../../../glossary.md#term-mutable) [Tensor](../../../../glossary.md#tensor) [gradients](../../../../glossary.md#term-gradient), `Tensor.backward`, a tape, physical saved buffers, recomputed batch
   saved values, direct captured-node formula construction, or a second algebra<span data-glossary-navigation="true"> ([buffers glossary](../../../../glossary.md#term-buffer); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [node glossary](../../../../glossary.md#node))</span>
 - a public gradient registry, facade, policy object, configurable subgradient mode, generic
@@ -916,7 +916,7 @@ Reasoned no-change conclusions:
 - Tensor API and Model public/Javadoc contracts remain unchanged because 0005B adds no public
   Tensor declaration, operation kind, attributes, result carrier, forward semantic, descriptor,
   provenance, or storage behavior; the compiler consumes completed Model 0025B and canonical
-  producer outputs unchanged.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [canonical glossary](../../../../glossary.md#term-canonical-form); [producer glossary](../../../../glossary.md#term-producer))</span>
+  producer outputs unchanged.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [producer glossary](../../../../glossary.md#term-producer))</span>
 - Training API and Public APIs remain unchanged because there is still no public gradient
   request, seed, publication workflow, module/parameter/session contract, optimizer update,
   preparation, execution, or run result.<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient); [seed glossary](../../../../glossary.md#term-seed); [publication glossary](../../../../glossary.md#term-publication); [module glossary](../../../../glossary.md#term-module); [optimizer glossary](../../../../glossary.md#term-optimizer); [run result glossary](../../../../glossary.md#run-result--runresult))</span>

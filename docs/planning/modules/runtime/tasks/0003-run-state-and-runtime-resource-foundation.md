@@ -97,7 +97,7 @@ the exact representation/binding references.
   an entry for every prepared buffer position, and one workspace representation for every
   prepared workspace position.<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer))</span>
 - Permit one or more ordered buffer representations per buffer position. This is a carrier seam
-  only; this task defines no representation key, validity, residency, transfer, or coherence.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [residency glossary](../../../../glossary.md#residency))</span>
+  only; this task defines no representation key, validity, residency, transfer, or coherence.<span data-glossary-navigation="true"> ([residency glossary](../../../../glossary.md#residency))</span>
 - Require exactly one workspace representation per workspace position. Workspace is run-owned
   backend-local scratch and is always closed by `RunState`.
 - Copy list structure into private arrays while retaining exact binding and representation
@@ -123,7 +123,7 @@ the exact representation/binding references.
 - [ownership](../../../../glossary.md#term-ownership-meanings) transfer/[lease](../../../../glossary.md#term-lease) to a published result
 - [immutable](../../../../glossary.md#term-immutable) persistent [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) resources or `PreparedExecution` itself
 - pooling, reuse, aliasing, liveness analysis, distributed sharding, multi-device scheduling, or
-  hidden write-back<span data-glossary-navigation="true"> ([pooling glossary](../../../../glossary.md#term-pooling); [aliasing glossary](../../../../glossary.md#term-aliasing); [liveness glossary](../../../../glossary.md#term-liveness))</span>
+  hidden write-back<span data-glossary-navigation="true"> ([aliasing glossary](../../../../glossary.md#term-aliasing); [liveness glossary](../../../../glossary.md#term-liveness))</span>
 - [concrete backend](../../../../glossary.md#concrete-backend) representation classes or any [`MemorySegment`](../../../../glossary.md#term-memorysegment), CUDA, Metal, native-handle, or
   backend route type<span data-glossary-navigation="true"> ([CUDA glossary](../../../../glossary.md#term-cuda); [Metal glossary](../../../../glossary.md#term-metal); [backend route glossary](../../../../glossary.md#backend-route))</span>
 - raw `Object`, unchecked generic access, reflection in production, string dispatch, registries,
@@ -165,7 +165,7 @@ the exact representation/binding references.
 - Heterogeneous compatibility checking and backend-owned typed direct-reference bound invocation
   belong to Runtime 0004. This task must not add a generic catch-all access method as a substitute.<span data-glossary-navigation="true"> ([Heterogeneous glossary](../../../../glossary.md#term-heterogeneous); [bound invocation glossary](../../../../glossary.md#bound-invocation--boundinvocation))</span>
 - Multiple buffer representations in this carrier do not imply that they are simultaneously
-  valid, coherent, or automatically synchronized.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  valid, coherent, or automatically synchronized.
 - Workspace is backend-local scratch, not a logical [graph value](../../../../glossary.md#graph-value) or transferable [publication](../../../../glossary.md#term-publication).
 - The hot-path foundation uses dense array positions, not maps, reflection, strings, global
   lookup, graph inspection, or slot-value-sized arrays.<span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup); [graph glossary](../../../../glossary.md#graph))</span>
@@ -244,7 +244,7 @@ Constructor validation occurs in this order:
 2. require outer [buffer](../../../../glossary.md#term-buffer) count equal `memoryPlan.buffers().size()`;
 3. require workspace count equal `memoryPlan.workspaces().size()`;
 4. scan buffer positions in increasing order: require each inner list non-null and non-empty, then
-   each binding non-null, and reject the first repeated exact representation identity;<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+   each binding non-null, and reject the first repeated exact representation identity;
 5. scan workspaces in increasing order: require each representation non-null and reject the first
    repeated exact identity, including an identity already used by a buffer binding; and
 6. only after all validation succeeds, store arrays and accept responsibility for `RUN_OWNED`
@@ -310,7 +310,7 @@ run; [Runtime](../../../../glossary.md#term-runtime) neither closes nor extends 
 - Tests also prove two states can share one plan while retaining distinct run-owned resources and
   that one state does not close another's resources.
 - No executable/bound-invocation, residency, transfer, publication/result, schedule/runner,
-  allocation, pooling, backend, Prepare, Gradle, dependency, or architecture behavior is added.<span data-glossary-navigation="true"> ([residency glossary](../../../../glossary.md#residency); [publication glossary](../../../../glossary.md#term-publication); [pooling glossary](../../../../glossary.md#term-pooling); [Prepare glossary](../../../../glossary.md#prepare); [Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency))</span>
+  allocation, pooling, backend, Prepare, Gradle, dependency, or architecture behavior is added.<span data-glossary-navigation="true"> ([residency glossary](../../../../glossary.md#residency); [publication glossary](../../../../glossary.md#term-publication); [Prepare glossary](../../../../glossary.md#prepare); [Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Construction retains existing plan/binding/representation references and allocates only private
   array structure; it creates, consumes, renumbers, or rolls back no project identifier.
 - Every public member has complete Javadoc for nullability, ownership, identity, index meaning,
@@ -369,7 +369,7 @@ Runtime 0004, Prepare 0002, concrete [backends](../../../../glossary.md#backend)
 ## Follow-up tasks
 
 - Runtime 0004 defines prepared executable/unit contracts and backend-owned typed cold-bound
-  invocation objects against the nominal representation carrier.<span data-glossary-navigation="true"> ([prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [backend glossary](../../../../glossary.md#backend); [bound invocation glossary](../../../../glossary.md#bound-invocation--boundinvocation); [nominal glossary](../../../../glossary.md#term-nominal); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  invocation objects against the nominal representation carrier.<span data-glossary-navigation="true"> ([prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [backend glossary](../../../../glossary.md#backend); [bound invocation glossary](../../../../glossary.md#bound-invocation--boundinvocation); [nominal glossary](../../../../glossary.md#term-nominal))</span>
 - [Prepare](../../../../glossary.md#prepare) 0002 later finalizes analyses against assigned slots after [Runtime](../../../../glossary.md#term-runtime) 0004.
 - Later Runtime tasks add explicit validity/residency, prepared transfers, schedules,
   publication/<span data-glossary-navigation="true"> ([residency glossary](../../../../glossary.md#residency); [publication glossary](../../../../glossary.md#term-publication))</span>[`RunResult`](../../../../glossary.md#run-result--runresult), runner behavior, and [ownership](../../../../glossary.md#term-ownership-meanings) transfer.
@@ -416,7 +416,7 @@ issues, follow-up, and the repository completion status format.
 
 - Dense access positions are the prepared-plan entry-list indices, not slot numeric components.
 - Buffer bindings carry ownership per physical representation because one logical buffer may have
-  more than one explicit representation with different origins.<span data-glossary-navigation="true"> ([Buffer glossary](../../../../glossary.md#term-buffer); [bindings glossary](../../../../glossary.md#term-binding); [carry glossary](../../../../glossary.md#term-carry))</span>
+  more than one explicit representation with different origins.<span data-glossary-navigation="true"> ([Buffer glossary](../../../../glossary.md#term-buffer); [bindings glossary](../../../../glossary.md#term-binding))</span>
 - Workspaces need no ownership enum in this task: every supplied workspace is run-owned, and an
   algorithm needing host plus device scratch receives separate slots.<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host); [device glossary](../../../../glossary.md#term-device))</span>
 - Full representation keys and validity/residency state wait for their prepared consumers. The
@@ -537,7 +537,7 @@ issues, follow-up, and the repository completion status format.
     complete architecture accurately. The focused boundary page alone needed current-versus-
     planned implementation status for Runtime 0003.
   - Runtime 0001–0002 Javadocs/tasks and Prepare 0001/master remain accurate: the new carrier
-    consumes final plan order without changing slot geometry, Prepare declarations, or assignment.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+    consumes final plan order without changing slot geometry, Prepare declarations, or assignment.
   - Runtime/root build contracts need no change because no dependency or Java-toolchain edge was
     added.
   - Architecture tests need no update because dependency and prohibited-import rules are
@@ -579,7 +579,7 @@ issues, follow-up, and the repository completion status format.
   execution.
 - Documentation impact: Runtime API, focused architecture status, glossary, task, master plan,
   and roadmap now distinguish the implemented carrier/lifecycle from later allocation, cold
-  binding, residency, transfer, scheduling, execution, and publication.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [lifecycle glossary](../../../../glossary.md#lifecycle); [binding glossary](../../../../glossary.md#term-binding); [residency glossary](../../../../glossary.md#residency); [publication glossary](../../../../glossary.md#term-publication))</span>
+  binding, residency, transfer, scheduling, execution, and publication.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [binding glossary](../../../../glossary.md#term-binding); [residency glossary](../../../../glossary.md#residency); [publication glossary](../../../../glossary.md#term-publication))</span>
 - Javadoc review: all seven production/package paths were independently finalized for exact
   semantics, ownership, identity, nullability, lifecycle, failures, thread safety, and boundaries.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [nullability glossary](../../../../glossary.md#term-nullability))</span>
 - Glossary impact: made [`RunState`](../../../../glossary.md#run-state--runstate) and the nominal representation/binding foundation current while

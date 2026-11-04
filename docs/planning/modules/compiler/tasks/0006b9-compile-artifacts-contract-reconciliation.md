@@ -127,7 +127,7 @@ git diff --name-only -- '*.java' '*.gradle' '*.gradle.kts'
 git diff --check
 ```
 
-The Java/[Gradle](../../../../glossary.md#term-gradle) path [scan](../../../../glossary.md#term-cumulative-scan) must be empty and the complete path audit must equal the four-file
+The Java/[Gradle](../../../../glossary.md#term-gradle) path scan must be empty and the complete path audit must equal the four-file
 allowlist. If the temporary Markdown validator is absent, create an equivalent validator outside
 the repository for local link [targets](../../../../glossary.md#term-target) and anchors, unique headings, balanced fences, trailing
 whitespace, and final newlines.

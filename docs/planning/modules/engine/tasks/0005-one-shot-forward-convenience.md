@@ -115,7 +115,7 @@ public List<HostTensorValue> forward(
 ```
 
 No new public or protected type, constructor, field, nested type, enum, record, request object,
-options object, result [carrier](../../../../glossary.md#term-storage-carrier), or overload is authorized. Every other public Engine and advanced
+options object, result carrier, or overload is authorized. Every other public Engine and advanced
 Engine declaration remains source-compatible and unchanged.
 
 The single-output overload is justified because the dominant one-output case should not require
@@ -406,7 +406,7 @@ Type placement:
 - `io.github.pho001.synaptik.engine.AdvancedEngine` remains the private lifecycle owner used by
   ordinary Engine; it is the only existing place permitted to coordinate the single admission.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>
 - Existing `io.github.pho001.synaptik.engine.HostTensorValue` is the result element because it
-  already owns detached immutable canonical host bytes and no additional carrier fact is needed.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [detached glossary](../../../../glossary.md#detached-model-results); [immutable glossary](../../../../glossary.md#term-immutable); [canonical glossary](../../../../glossary.md#term-canonical-form); [host glossary](../../../../glossary.md#term-host); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  already owns detached immutable canonical host bytes and no additional carrier fact is needed.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [detached glossary](../../../../glossary.md#detached-model-results); [immutable glossary](../../../../glossary.md#term-immutable); [canonical glossary](../../../../glossary.md#term-canonical-form); [host glossary](../../../../glossary.md#term-host))</span>
 
 ## Affected files
 
@@ -481,7 +481,7 @@ authorized. If another path is required, stop and replan before editing.
   preserve the exact primary/suppressed rules and publish no partial return.
 - Bounded-latch tests prove Engine close waits for an admitted one-shot call, a successful admitted
   call may return detached values after closure begins, a losing call observes closed precedence,
-  and concurrent calls have isolated runs without deadlock or leaked registered results.<span data-glossary-navigation="true"> ([latch glossary](../../../../glossary.md#control-flow-graph); [detached glossary](../../../../glossary.md#detached-model-results); [deadlock glossary](../../../../glossary.md#term-deadlock))</span>
+  and concurrent calls have isolated runs without deadlock or leaked registered results.<span data-glossary-navigation="true"> ([detached glossary](../../../../glossary.md#detached-model-results); [deadlock glossary](../../../../glossary.md#term-deadlock))</span>
 - The reusable ordinary compile/prepare/run/materialize lifecycle, result registration and close
   order, advanced API, current CPU-only limitations, and existing public behavior remain passing.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Real `Engine.standard()` integration executes one and two supported resolved static CONTIGUOUS
@@ -652,7 +652,7 @@ gate passes.
 - Provide both one-output and ordered-list overloads. They share one internal implementation;
   neither introduces a policy or request abstraction.
 - Return the existing [`HostTensorValue`](../../../../glossary.md#host-tensor-value--hosttensorvalue) and [immutable](../../../../glossary.md#term-immutable) `List<HostTensorValue>`. A new carrier would
-  duplicate already self-describing detached values and add no lifecycle authority.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [detached glossary](../../../../glossary.md#detached-model-results); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  duplicate already self-describing detached values and add no lifecycle authority.<span data-glossary-navigation="true"> ([detached glossary](../../../../glossary.md#detached-model-results); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Use one aggregate `long maximumTotalBytes`. Aggregate accounting prevents several individually
   permitted outputs from bypassing the caller's total returned-payload budget, while the existing
   per-value JVM ceiling remains intact.<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm))</span>

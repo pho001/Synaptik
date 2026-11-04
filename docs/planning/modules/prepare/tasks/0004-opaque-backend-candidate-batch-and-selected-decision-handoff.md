@@ -24,7 +24,7 @@ Complete
 
 ## Goal
 
-Define the smallest [backend](../../../../glossary.md#backend)-neutral [Prepare](../../../../glossary.md#prepare) contract that can [carry](../../../../glossary.md#term-carry) one [concrete backend](../../../../glossary.md#concrete-backend)'s
+Define the smallest [backend](../../../../glossary.md#backend)-neutral [Prepare](../../../../glossary.md#prepare) contract that can carry one [concrete backend](../../../../glossary.md#concrete-backend)'s
 complete [candidate batch](../../../../glossary.md#candidate-batch) out of cold [partition](../../../../glossary.md#partition) analysis and carry one already selected decision
 back toward a repeated cold analysis without exposing or interpreting backend-private fields.
 

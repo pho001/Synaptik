@@ -42,7 +42,7 @@ not as separate [guard](../../../../glossary.md#term-guard) removals. One clean 
 ## Goal
 
 All-valid [symbolic Scan](../../../../glossary.md#symbolic-scan) forward AND actual [Compiler](../../../../glossary.md#term-compiler)-generated backward via source [graph](../../../../glossary.md#graph)/public
-[Engine](../../../../glossary.md#term-engine).[run](../../../../glossary.md#term-run)/runValues: one [compile](../../../../glossary.md#compile)/[prepare](../../../../glossary.md#prepare) for 64→40→1→64; varying B, fixed time T/[features](../../../../glossary.md#term-software-feature) F/state H.
+[Engine](../../../../glossary.md#term-engine).[run](../../../../glossary.md#term-run)/runValues: one [compile](../../../../glossary.md#compile)/[prepare](../../../../glossary.md#prepare) for 64→40→1→64; varying B, fixed time T/[features](../../../../glossary.md#term-feature) F/state H.
 
 ## [Scope](../../../../glossary.md#term-scope)
 
@@ -66,7 +66,7 @@ Start at [root scope index](../../../../../ARCHITECTURE.md#scope-indexed-normati
 Read these headings and affected source/tests; contracts win over plans.
 
 - Root headings: Core [lifecycle](../../../../glossary.md#lifecycle); Core invariants; [Dependency](../../../../glossary.md#term-dependency) rules; Testing requirements.
-- [recurrent-scan.md](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan): Accepted symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) [scan](../../../../glossary.md#term-cumulative-scan), all four subsections (Symbolic templates, roles and ports; Actual first-order closure and arithmetic; Empty domains and numeric resources; [Qualification](../../../../glossary.md#term-qualification) and mechanism gates); Source body, attachments and scoped [identities](../../../../glossary.md#term-identity-meanings); [Canonical](../../../../glossary.md#term-canonical-form) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) ports and demand.
+- [recurrent-scan.md](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan): Accepted symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) [scan](../../../../glossary.md#general-differentiable-scan), all four subsections (Symbolic templates, roles and ports; Actual first-order closure and arithmetic; Empty domains and numeric resources; [Qualification](../../../../glossary.md#term-qualification) and mechanism gates); Source body, attachments and scoped [identities](../../../../glossary.md#term-identity-meanings); [Canonical](../../../../glossary.md#term-canonical-form) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) ports and demand.
 - [runtime-prepare-engine.md](../../../../architecture/contracts/runtime-prepare-engine.md#accepted-symbolic-batch-resource-contract)<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [engine glossary](../../../../glossary.md#term-engine))</span>: Accepted symbolic-batch resource contract; `modules/prepare`; [Prepare](../../../../glossary.md#prepare) lifecycle; [Run](../../../../glossary.md#term-run) lifecycle; Public reusable [prepared execution](../../../../glossary.md#prepared-execution--preparedexecution).
 - [backend-execution.md](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes): [CPU](../../../../glossary.md#term-cpu) [backend](../../../../glossary.md#backend) routes; Accepted ordinary symbolic-batch CPU contract.
 - [Compiler](../../../../glossary.md#term-compiler) (complete/read-only): [Accepted symbolic-batch metadata binding](../../../../architecture/contracts/compiler-autograd.md#accepted-symbolic-batch-metadata-binding)<span data-glossary-navigation="true"> ([metadata glossary](../../../../glossary.md#term-metadata); [binding glossary](../../../../glossary.md#term-binding))</span>.
@@ -76,7 +76,7 @@ Stop on ambiguity, authority conflict or [scope](../../../../glossary.md#term-sc
 ## Dependencies and integration
 
 - Depends on: Compiler0014; Prepare0013 and Prepare0011; CPU0037; [Runtime0016](../../runtime/tasks/0016-persistent-prepared-resource-lifecycle.md); Engine0021; Model0041/0042; Planning0008 — all Complete.
-- Conflicts with: [Scan](../../../../glossary.md#term-cumulative-scan) projection/resources/[IR](../../../../glossary.md#term-intermediate-representation-ir)/emission/[identity](../../../../glossary.md#term-identity-meanings), ordinary dynamic-B [binding](../../../../glossary.md#term-binding), [Engine](../../../../glossary.md#term-engine) [lifecycle](../../../../glossary.md#lifecycle)/[publication](../../../../glossary.md#term-publication)/shared docs; serialize (inactive).
+- Conflicts with: [Scan](../../../../glossary.md#general-differentiable-scan) projection/resources/[IR](../../../../glossary.md#term-intermediate-representation-ir)/emission/[identity](../../../../glossary.md#term-identity-meanings), ordinary dynamic-B [binding](../../../../glossary.md#term-binding), [Engine](../../../../glossary.md#term-engine) [lifecycle](../../../../glossary.md#lifecycle)/[publication](../../../../glossary.md#term-publication)/shared docs; serialize (inactive).
 - Parallel group: None; sole repository writer, no concurrent implementation.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus accepted uncommitted Prepare0014 [planning](../../../../glossary.md#term-planning) [snapshot](../../../../glossary.md#term-snapshot), not merged predecessors.
 - Integration order: approved [Ready](../../../../glossary.md#term-ready) verification → [atomic](../../../../glossary.md#resource-transaction-and-rollback) vertical implementation → independent code/docs review → MAIN's source-matched vertical join; no successor launch.
@@ -124,13 +124,13 @@ is necessary, STOP for user approval with exact package/name/purpose/declaration
   `CpuGeneralScanMatmulEmitter.emit/stride` and `CpuGeneralScanReductionEmitter.emit` bake extents,
   singleton/empty decisions and strides. Separate symbolic emission loads extents/strides/frame/
   cut/carry offsets from existing long[] entry packing at invocation/necessary row setup, then
-  direct time/row/feature/contributor loops. No per-step/element allocation/maps/boxing/dispatch.<span data-glossary-navigation="true"> ([singleton glossary](../../../../glossary.md#term-singleton); [carry glossary](../../../../glossary.md#term-carry); [feature glossary](../../../../glossary.md#term-software-feature); [element glossary](../../../../glossary.md#term-element))</span>
+  direct time/row/feature/contributor loops. No per-step/element allocation/maps/boxing/dispatch.<span data-glossary-navigation="true"> ([singleton glossary](../../../../glossary.md#term-singleton); [carry glossary](../../../../glossary.md#term-carry); [feature glossary](../../../../glossary.md#term-feature); [element glossary](../../../../glossary.md#term-element))</span>
 - CPU `internal/executable/CpuGeneralScanPreparedExecutable` fixed spans/hooks/bindCompatible/
   Invocation pack {time,elements}. Retain recipes; use existing state-aware hooks with actual
   state.geometry() bytes, bind B once, fresh numeric/access/address/carry arrays and unchanged
   long[] entry ABI. Keep typed carriers, full-capacity overlap checks and direct segment entry.
   Existing sibling <span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>`CpuPreparedExecutable.bindOrdinaryBatch` binds ordinary numeric recipes;
-  `CpuPreparedPartitionExecutable` state-aware hooks/children compose them with [Scan](../../../../glossary.md#term-cumulative-scan), not a new runner.
+  `CpuPreparedPartitionExecutable` state-aware hooks/children compose them with [Scan](../../../../glossary.md#general-differentiable-scan), not a new runner.
 - [Engine](../../../../glossary.md#term-engine) [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) preindexes only outer numeric checks: include scoped unused/sibling
   locals. `AdvancedEngine.runOrdinaryBatchOpen` keeps fresh full BatchBindingPlan.bind/private
   obligations → numeric/RunMemoryGeometry.resolve/aggregate bounds → ALL current-storage validation
@@ -154,7 +154,7 @@ no decoder/[schema](../../../../glossary.md#term-schema) change. Test static↔s
   disconnected invariants and exact saved TANH/SIGMOID outputs. Compare all outputs/gradients
   with independent ordinary unrolling and specialized clean Java.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [TANH glossary](../../../../glossary.md#term-tanh); [SIGMOID glossary](../../../../glossary.md#term-sigmoid); [gradients glossary](../../../../glossary.md#term-gradient); [unrolling glossary](../../../../glossary.md#term-unrolling))</span>
 - 64→40→1→64 plus B=0,1,F,H and B=F=H: stable compile/prepare/artifact/code/routes/slots/positions;
-  actual time/batch/features stride B<span data-glossary-navigation="true"> ([compile glossary](../../../../glossary.md#compile); [prepare glossary](../../../../glossary.md#prepare); [artifact glossary](../../../../glossary.md#term-artifact); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [features glossary](../../../../glossary.md#term-feature); [stride glossary](../../../../glossary.md#term-stride))</span>*F, frame B*H, ALL port layouts/flags/order/identities and current
+  actual time/batch/features stride B*F, frame B*H, ALL port layouts/flags/order/identities and current
   input-view descriptors. Parameter-shaped accumulation, never B×parameter. Assert exact demanded
   row/shared bytes and zero dead history bytes/stores, including reverse residuals; shared [F,H]
   history is [T,F,H], not row-banked.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([layouts glossary](../../../../glossary.md#layout); [view glossary](../../../../glossary.md#term-view-meanings); [descriptors glossary](../../../../glossary.md#term-descriptor); [Parameter glossary](../../../../glossary.md#term-parameter))</span>
@@ -180,7 +180,7 @@ no decoder/[schema](../../../../glossary.md#term-schema) change. Test static↔s
 Authorized worker commands. New fixtures: CpuSymbolicScanGeneratedKernelTest ([CPU](../../../../glossary.md#term-cpu) internal.codegen.emit),
 EngineSymbolicScanTest ([Engine](../../../../glossary.md#term-engine)), CpuSymbolicScanConformanceTest ([conformance](../../../../glossary.md#term-conformance)),
 EngineCpuSymbolicScanIntegrationTest (integration). Extend existing PrepareContextTest/
-GraphPreparationTest and CPU [Scan](../../../../glossary.md#term-cumulative-scan) capability/[lowering](../../../../glossary.md#lowering)/preparation/execution tests. All performance
+GraphPreparationTest and CPU [Scan](../../../../glossary.md#general-differentiable-scan) capability/[lowering](../../../../glossary.md#lowering)/preparation/execution tests. All performance
 opt-ins stay unset/false except the probe. Shell commands use this task-local option array:
 
 ```bash
@@ -230,7 +230,7 @@ class support-status Javadoc ONLY; correct execution status, retain cold/[persis
 Status: Complete. [Homogeneous](../../../../glossary.md#term-homogeneous) [F32](../../../../glossary.md#floating-point-precision-and-rounding) [symbolic Scan](../../../../glossary.md#symbolic-scan) forward AND actual [Compiler](../../../../glossary.md#term-compiler) reverse work through
 one public [compile](../../../../glossary.md#compile)/[prepare](../../../../glossary.md#prepare) for changing B, fixed T/F/H. Existing [owners](../../../../glossary.md#term-owner) only: 25 implementation
 paths plus targeted documentation; no new production type/[API](../../../../glossary.md#term-application-programming-interface-api), Compiler/[Runtime](../../../../glossary.md#term-runtime) executable,
-build/[dependency](../../../../glossary.md#term-dependency)/native change. Static six-[Scan](../../../../glossary.md#term-cumulative-scan) and 17 ordinary/static key/[identity](../../../../glossary.md#term-identity-meanings)/Class-File
+build/[dependency](../../../../glossary.md#term-dependency)/native change. Static six-[Scan](../../../../glossary.md#general-differentiable-scan) and 17 ordinary/static key/[identity](../../../../glossary.md#term-identity-meanings)/Class-File
 witnesses remain identical. Independent code and documentation reviews APPROVE, zero open P1/P2.
 
 MAIN's final source-matched configured `test javadoc` PASS in 5m42s, 119 tasks (40 executed,

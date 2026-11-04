@@ -26,7 +26,7 @@ Focused contracts:
   [training graph](../../../architecture/contracts/compiler-autograd.md#training-graph-model)<span data-glossary-navigation="true"> ([training graph glossary](../../../glossary.md#training-graph))</span>, and
   [compiler-owned autograd](../../../architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation);
 - [compile lifecycle](../../../architecture/contracts/compiler-autograd.md#compile-lifecycle)<span data-glossary-navigation="true"> ([lifecycle glossary](../../../glossary.md#lifecycle))</span> and
-  [fixed recurrent scan](../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([scan glossary](../../../glossary.md#term-cumulative-scan))</span>;
+  [fixed recurrent scan](../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([scan glossary](../../../glossary.md#term-fixed-recurrent-scan))</span>;
 - [CPU generated-code ownership](../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../glossary.md#term-cpu))</span>,
   [architecture decision record (ADR) 0009](../../../design/decisions/0009-compiler-owned-pre-capture-tensor-expression-autograd.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../glossary.md#adr-ci-and-qualification))</span><span data-glossary-navigation="true"> ([architecture decision record glossary](../../../glossary.md#term-architecture-decision-record-adr))</span>,
   and [ADR 0012](../../../design/decisions/0012-fixed-recurrent-scan-without-regions.md).
@@ -107,7 +107,7 @@ No new [graph](../../../glossary.md#graph) representation, module, [dependency](
 Completed 0011 adds only package-private `ScanBodyInference` and `ScanGradientRules` in this existing
 root package; all other changes extend existing owners. No public [API](../../../glossary.md#term-application-programming-interface-api), [AD](../../../glossary.md#autograd) system or execution layer.
 
-Completed 0013 extends these same [inference](../../../glossary.md#term-inference)/[scan](../../../glossary.md#term-cumulative-scan)-rule owners, existing `AutogradPreflight`,
+Completed 0013 extends these same [inference](../../../glossary.md#term-inference)/[scan](../../../glossary.md#general-differentiable-scan)-rule owners, existing `AutogradPreflight`,
 `FirstOrderAutograd`/`DerivativeConstants`, capture, final query and demand paths. Production
 additions/moves: None. Bounded role-aware [cotangent normalization](../../../glossary.md#cotangent-normalization)/zero [bindings](../../../glossary.md#term-binding) use ordinary [Tensor](../../../glossary.md#tensor)
 algebra and existing closed protocols, not a new gradient framework or public abstraction.
@@ -256,7 +256,7 @@ Later padding/NN and persistence are separate gates. Model0035 source/IR is Comp
 2026-10-22 after independent approval and its compatibility checkpoint; Model frontier None;
 Model0034 owns seven [metadata](../../../glossary.md#term-metadata) fields. Implemented `compiler.ScanBodyInference` and `ScanGradientRules`
 stay in the existing root package. Actual user approval (“ok, tak tedy pokracuj”) covers the concrete
-body/reverse-[scan](../../../glossary.md#term-cumulative-scan)/[residual](../../../glossary.md#scan-residual-port-and-history-demand)/[primal](../../../glossary.md#term-primal)-binding proposal and authority cutover, not all Java slices.
+body/reverse-[scan](../../../glossary.md#general-differentiable-scan)/[residual](../../../glossary.md#scan-residual-port-and-history-demand)/[primal](../../../glossary.md#term-primal)-binding proposal and authority cutover, not all Java slices.
 The brief records historical verified Complete predecessors/base/inactive conflicts on 2026-10-21.
 Planning0008 body query is Complete, accepted by main 2026-10-22 after final independent APPROVE and
 compatibility gates; Planning frontier None. Compiler0011 is Complete, accepted by main 2026-10-22
@@ -286,7 +286,7 @@ worker validation and exact metadata. Existing contracts suffice; no authority c
 
 Joint [CP0010](../../extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md)
 joins completed Compiler0008/0009, Checkpoint0008/0009, Training0008 and NN0028/0029 for bounded
-fluent [CNN](../../../glossary.md#term-convolutional-neural-network-cnn)/static-unroll [persistence](../../../glossary.md#term-persistence), with [CP0011 scan supplement](../../extensions/checkpoint/tasks/0011-flat-recurrent-scan-persistence.md)<span data-glossary-navigation="true"> ([scan glossary](../../../glossary.md#term-cumulative-scan))</span>
+fluent [CNN](../../../glossary.md#term-convolutional-neural-network-cnn)/static-unroll [persistence](../../../glossary.md#term-persistence), with [CP0011 scan supplement](../../extensions/checkpoint/tasks/0011-flat-recurrent-scan-persistence.md)<span data-glossary-navigation="true"> ([scan glossary](../../../glossary.md#term-fixed-recurrent-scan))</span>
 using completed Model0025E/0025F/Compiler0006A. Both Complete on 2026-10-20 after independent
 APPROVE and main's focused/native root gates; [CP0010 Result](../../extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result)
 owns evidence. Raw [inference](../../../glossary.md#term-inference) stays separate from optimized [layout](../../../glossary.md#layout) closure; cold persistence grants
@@ -358,7 +358,7 @@ the brief records final review/gate evidence and all seven integration fields. N
 - Compiler0012 is Complete after independent code/docs APPROVE and main's final module/consumer gates;
   its Result owns evidence. Downstream CP0012 and <span data-glossary-navigation="true"> ([module glossary](../../../glossary.md#term-module))</span>[NN0031](../../extensions/nn/tasks/0031-general-scan-owned-model-workflow.md#result)
   separately completed bounded copy/rebind and owned workflow qualification, including the configured
-  native program join; no body persistence or fixed-scan BPTT. At that checkpoint Compiler frontier was None.<span data-glossary-navigation="true"> ([rebind glossary](../../../glossary.md#capture-graph-ports-and-reconstruction); [qualification glossary](../../../glossary.md#term-qualification); [scan glossary](../../../glossary.md#term-cumulative-scan); [BPTT glossary](../../../glossary.md#term-backpropagation-through-time-bptt))</span>
+  native program join; no body persistence or fixed-scan BPTT. At that checkpoint Compiler frontier was None.<span data-glossary-navigation="true"> ([rebind glossary](../../../glossary.md#capture-graph-ports-and-reconstruction); [qualification glossary](../../../glossary.md#term-qualification); [scan glossary](../../../glossary.md#term-fixed-recurrent-scan); [BPTT glossary](../../../glossary.md#term-backpropagation-through-time-bptt))</span>
 - Compiler0013 is Complete, MAIN accepted 2026-10-24; independent code/docs APPROVE (0 P1/P2),
   worker module/Javadoc, compatibility and final docs/Javadoc PASS; its Result owns evidence.
   Ready frontier None; no downstream task is launched.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../glossary.md#term-javadoc); [Ready glossary](../../../glossary.md#term-ready))</span>
@@ -371,7 +371,7 @@ the brief records final review/gate evidence and all seven integration fields. N
   CPU F32/F64 general Scan full-body forward/reverse composition passed all-valid/length-aware
   and both-direction numerical cases. This does not widen ordinary public CPU named-B Conv3d,
   CPU low arithmetic, Metal Scan or persistence inventories. MAIN accepted the source-matched root
-  gate and fresh installed-artifact/no-Git-source runtime proof.<span data-glossary-navigation="true"> ([stride glossary](../../../glossary.md#term-stride); [padding glossary](../../../glossary.md#padding); [dilation glossary](../../../glossary.md#term-dilation); [Shape glossary](../../../glossary.md#shape); [signatures glossary](../../../glossary.md#term-signature); [CPU glossary](../../../glossary.md#term-cpu); [F32 glossary](../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../glossary.md#floating-point-precision-and-rounding); [general Scan glossary](../../../glossary.md#general-differentiable-scan); [Metal glossary](../../../glossary.md#term-metal); [Scan glossary](../../../glossary.md#term-cumulative-scan); [persistence glossary](../../../glossary.md#term-persistence); [artifact glossary](../../../glossary.md#term-artifact); [runtime glossary](../../../glossary.md#term-runtime))</span>
+  gate and fresh installed-artifact/no-Git-source runtime proof.<span data-glossary-navigation="true"> ([stride glossary](../../../glossary.md#term-stride); [padding glossary](../../../glossary.md#padding); [dilation glossary](../../../glossary.md#term-dilation); [Shape glossary](../../../glossary.md#shape); [signatures glossary](../../../glossary.md#term-signature); [CPU glossary](../../../glossary.md#term-cpu); [F32 glossary](../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../glossary.md#floating-point-precision-and-rounding); [general Scan glossary](../../../glossary.md#general-differentiable-scan); [Metal glossary](../../../glossary.md#term-metal); [persistence glossary](../../../glossary.md#term-persistence); [artifact glossary](../../../glossary.md#term-artifact); [runtime glossary](../../../glossary.md#term-runtime))</span>
 - **Recurrent differentiation:** 0006A covers forward compilation only. The exact RNN, GRU, and
   LSTM signatures remain outside gradient coverage. CPU0028/CPU0029 and<span data-glossary-navigation="true"> ([compilation glossary](../../../glossary.md#compiler-engine-and-execution-stage-names); [RNN glossary](../../../glossary.md#term-recurrent-neural-network-rnn); [GRU glossary](../../../glossary.md#term-gated-recurrent-unit-gru); [LSTM glossary](../../../glossary.md#term-long-short-term-memory-lstm); [gradient glossary](../../../glossary.md#term-gradient))</span>
   [NN0021B](../../extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md) are Complete

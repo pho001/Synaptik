@@ -62,7 +62,7 @@ success.
 - [backend](../../../../glossary.md#backend) discovery, registration, service [lookup](../../../../glossary.md#term-lookup), [lowering](../../../../glossary.md#lowering), route/[kernel](../../../../glossary.md#kernel) search, or fallback
 - dynamic allocation, representation lookup, maps, reflection, string dispatch, boxing lookup,
   synchronization, retry, branching, or parallel scheduling in the hot traversal<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [synchronization glossary](../../../../glossary.md#term-synchronization))</span>
-- physical allocation/access, [lazy](../../../../glossary.md#term-lazy-evaluation) creation, eviction, [pooling](../../../../glossary.md#term-pooling), [alias](../../../../glossary.md#aliasing-and-arena) discovery, or coherence
+- physical allocation/access, [lazy](../../../../glossary.md#term-lazy-evaluation) creation, eviction, pooling, [alias](../../../../glossary.md#aliasing-and-arena) discovery, or coherence
 - public [Engine](../../../../glossary.md#term-engine) or [Tensor](../../../../glossary.md#tensor)/value result access, conversion, download, export, or [host storage](../../../../glossary.md#host-storage)
 - Prepare translation/orchestration; Config policy or `RunOptions`
 - new [Trace](../../../../glossary.md#trace) payloads, events, sinks, emission, profiling, or clocks
@@ -104,7 +104,7 @@ success.
 - The runner belongs to `runtime.run`, which already owns package-private state creation,
   validity, publication, result leasing, and cleanup.
 - All occurrence binding finishes before traversal. The hot loop uses direct bound references and
-  precomputed primitive coordinates only.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  precomputed primitive coordinates only.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - Read validity is checked before output invalidation, preserving in-place read/write input.
 - Every copy of an output buffer is invalidated before backend work because a prepared slot may
   now represent a new logical value. Success validates exact declared writes only.<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer))</span>
@@ -240,7 +240,7 @@ Each bound executable action:
 1. queries reads in original selection order, failing before mutation/work on the first invalid;
 2. invalidates every resident representation of every distinct output buffer;
 3. calls `BoundInvocation.execute()` once; and
-4. after normal return, validates every distinct exact write [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix).
+4. after normal return, validates every distinct exact write coordinate.
 
 A [backend](../../../../glossary.md#backend) `RuntimeException` or `Error` propagates unchanged and leaves every output copy invalid.
 Repeated reads remain ordered. Repeated writes coalesce. Multiple declared written copies of one
@@ -275,7 +275,7 @@ or [Trace](../../../../glossary.md#trace) emission.
 - Cold setup is linear in schedule/selections/representation counts, with bounded quadratic
   primitive output deduplication inside one executable.<span data-glossary-navigation="true"> ([linear glossary](../../../../glossary.md#term-linear-meanings))</span>
 - Hot traversal is one dense direct-object array pass; executable transitions use primitive
-  coordinates and <span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>[`RunState`](../../../../glossary.md#run-state--runstate) arrays.
+  coordinates and [`RunState`](../../../../glossary.md#run-state--runstate) arrays.
 - The runner itself performs no physical allocation/access. Prepared backend callbacks/actions do
   the physical work already authorized by completed contracts.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 - Caller inputs remain borrowed. Created buffers/workspaces remain run-owned until failure cleanup
@@ -528,7 +528,7 @@ Return context IDs, exact paths, commands/counts, conclusions, issues/follow-up,
 - The compatible constructor defaults selections to `READ_ONLY`; writers opt into aligned access.
 - Cold setup binds every occurrence. Bound executables retain direct invocations and primitive
   coordinates. Reads precede conservative invalidation; only exact successful writes become
-  valid. Failures leave output copies invalid and close the state.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  valid. Failures leave output copies invalid and close the state.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - The runner is stateless and supports isolated concurrent calls; each run is synchronous and
   leases its complete state only after full success.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [synchronous glossary](../../../../glossary.md#term-synchronous); [leases glossary](../../../../glossary.md#term-lease))</span>
 - No architecture or ADR changed. Existing lifecycle/module/dependency rules already assign this

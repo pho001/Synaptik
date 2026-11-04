@@ -361,7 +361,7 @@ Documentation context: `01a0a593-f2a4-7de1-889f-5fb01a65642d`.
   contracts, and the closure method is identified as package-private.
 - `python3 /tmp/validate_synaptik_markdown.py` passed for the four changed Markdown paths. It
   validated local links and anchors, balanced fences, LF/final newlines, and trailing whitespace;
-  a separate heading scan found no duplicate heading text.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  a separate heading scan found no duplicate heading text.
 - Source, bytecode, and generated-page inventory checks confirmed one final package-private,
   field-free <span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode))</span>`PublishedCompileTimeConstantDescriptorClosure`, one private constructor, one
   package-private static `close(ValidatedGraph)` method, and no new public Compiler type or method.

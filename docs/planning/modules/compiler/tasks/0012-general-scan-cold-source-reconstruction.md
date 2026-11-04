@@ -1,4 +1,4 @@
-# Task Compiler0012: General-[scan](../../../../glossary.md#term-cumulative-scan) cold source reconstruction
+# Task Compiler0012: General-[scan](../../../../glossary.md#general-differentiable-scan) cold source reconstruction
 
 > **Editorial reading key — not part of the historical record.**
 >
@@ -34,7 +34,7 @@ Clean implementation thread and independent targeted code/documentation review a
 ## Goal and [scope](../../../../glossary.md#term-scope)
 
 Extend existing GraphCompilationPort.captureSource/reconstructSource to reconstruct bounded
-[general SCAN](../../../../glossary.md#general-differentiable-scan) with ordinary public [Tensor](../../../../glossary.md#tensor)/[Scan](../../../../glossary.md#term-cumulative-scan) constructors, no storage or execution. Keep the
+[general SCAN](../../../../glossary.md#general-differentiable-scan) with ordinary public [Tensor](../../../../glossary.md#tensor)/[Scan](../../../../glossary.md#general-differentiable-scan) constructors, no storage or execution. Keep the
 flat outer-source inventory unchanged except general SCAN; body-only mappings must not leak out.
 [Model](../../../../glossary.md#term-model) [PURE](../../../../glossary.md#term-pure) validity/[dtypes](../../../../glossary.md#data-type--datatype), cold constructor support, [AD](../../../../glossary.md#autograd)/execution and [persistence](../../../../glossary.md#term-persistence) are separate.
 Low [TANH](../../../../glossary.md#term-tanh) and [F32](../../../../glossary.md#floating-point-precision-and-rounding) RELU must [round-trip](../../../../glossary.md#schema-serialization-and-checkpoint) cold without provider support. No all-PURE copying promise.
@@ -59,7 +59,7 @@ Read AGENTS.md and the affected source/tests; use the root [scope](../../../../g
   `Core invariants`, `Scope-indexed normative contracts`, `Dependency rules` — unchanged edges/[owners](../../../../glossary.md#term-owner).
 - [Compiler](../../../../architecture/contracts/compiler-autograd.md#compile-lifecycle)<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler))</span>: `Compile lifecycle`,
   `Bounded general-scan cold reconstruction` — exact flat/body inventories and complete [preflight](../../../../glossary.md#term-preflight).
-- [Scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>:
+- [Scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#general-differentiable-scan))</span>:
   `Source body, attachments and scoped identities`, `Canonical residual ports and demand`,
   `Traversal, empty domains and declared qualification`, `Qualification, performance and migration gates`.
 - [Consumers](../../../../architecture/contracts/extensions-training.md#owned-tensor-models):
@@ -74,7 +74,7 @@ Read AGENTS.md and the affected source/tests; use the root [scope](../../../../g
   NN0022B and Training0007/0008 — Complete baseline, verified from current masters/results and
   main's accepted baseline/authority/consumer review; Lovelace final pre-code APPROVE is recorded above.
 - Conflicts with: cold capture/reconstruction, scoped scan semantics, Checkpoint normalization/wire,
-  NN acquisition/lifecycle and shared authority/docs writers; serialize, no concurrent writer.<span data-glossary-navigation="true"> ([capture glossary](../../../../glossary.md#term-capture-meanings); [scan glossary](../../../../glossary.md#term-cumulative-scan); [normalization glossary](../../../../glossary.md#term-normalization); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  NN acquisition/lifecycle and shared authority/docs writers; serialize, no concurrent writer.<span data-glossary-navigation="true"> ([capture glossary](../../../../glossary.md#term-capture-meanings); [scan glossary](../../../../glossary.md#general-differentiable-scan); [normalization glossary](../../../../glossary.md#term-normalization); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Parallel group: None.
 - Common base revision: HEAD=main=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
   plus the exact 259-path accepted frozen base (257 prior paths plus two new plans/ADR); index empty,
@@ -96,7 +96,7 @@ Paths use `io/github/pho001/synaptik/` beneath each Java root.
 - Compiler tests: SourceGraphCaptureTest, SourceGraphReconstructionTest, GeneralScanCompilerTest,
   ScanBodyInferenceTest; update old GENERAL cold rejection assertions only, retain AD exclusions.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [AD glossary](../../../../glossary.md#autograd))</span>
 - Read Model tensor ScanBody/Scan/ScanResult, Tensor and constructor helpers/attrs used below;
-  graph CompiledNode/CompiledScanBody/CompiledGraphModel. No Model production changes.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [tensor glossary](../../../../glossary.md#tensor); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [graph glossary](../../../../glossary.md#graph); [CompiledGraphModel glossary](../../../../glossary.md#compiled-graph--compiledgraphmodel))</span>
+  graph CompiledNode/CompiledScanBody/CompiledGraphModel. No Model production changes.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [tensor glossary](../../../../glossary.md#tensor); [Scan glossary](../../../../glossary.md#general-differentiable-scan); [graph glossary](../../../../glossary.md#graph); [CompiledGraphModel glossary](../../../../glossary.md#compiled-graph--compiledgraphmodel))</span>
 - `modules/checkpoint/src/test/java/.../checkpoint/graph/GraphCheckpointTest.java`: test-only consumer
   rejection. Read GraphSource.capture/copy, GraphArtifactCodec.encode/opcode and GraphCheckpoint.<span data-glossary-navigation="true"> ([opcode glossary](../../../../glossary.md#term-opcode))</span>
 - Read NN OwnedModelSource acquisition/forward and ModelExecutionState.rejectScanTraining;
@@ -140,7 +140,7 @@ Cross-dtype CAST and arbitrary permutations are outside the selected closure, no
    latent/unrequested residuals, repeated nextCarry/emission roles and shared uses. Preserve both
    traversal flags, repeated actual positions, multiple occurrences/template reuse and independent
    local IDs even when numerically equal to outer IDs; retain no old formals/templates or actuals
-   except the explicitly supplied outer substitutions.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
+   except the explicitly supplied outer substitutions.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [Scan glossary](../../../../glossary.md#general-differentiable-scan); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 3. Outer-only substitutions accept full-descriptor-compatible produced/repeated Tensors with opaque
    upstream provenance. Keep ordinary provenance for later compile/AD. Scope tables are call-local,
    discarded on failure/return; no persistent map or ValueId-to-Tensor AD conversion.<span data-glossary-navigation="true"> ([opaque glossary](../../../../glossary.md#term-opaque); [provenance glossary](../../../../glossary.md#provenance); [compile glossary](../../../../glossary.md#compile); [AD glossary](../../../../glossary.md#autograd); [ValueId glossary](../../../../glossary.md#logical-valueid-versus-physical-memory-slot))</span>
@@ -191,7 +191,7 @@ no [dependency](../../../../glossary.md#term-dependency)/[backend](../../../../g
 
 ## Documentation and review impact
 
-Authority cutover precedes Java: root plus [Compiler](../../../../glossary.md#term-compiler)/[scan](../../../../glossary.md#term-cumulative-scan)/extension [owners](../../../../glossary.md#term-owner), ADR0046 and focused
+Authority cutover precedes Java: root plus [Compiler](../../../../glossary.md#term-compiler)/[scan](../../../../glossary.md#general-differentiable-scan)/extension [owners](../../../../glossary.md#term-owner), ADR0046 and focused
 [module](../../../../glossary.md#term-module)-boundaries/training-[graph](../../../../glossary.md#graph)/general-[differentiable](../../../../glossary.md#derivative-and-chain-rule)-scan explanations and glossary are staged.
 Update GraphCompilationPort/SourceGraphReconstruction [Javadoc](../../../../glossary.md#term-javadoc) and affected helper contracts in the
 implementation; update docs/api/[compile](../../../../glossary.md#compile)-api.md's cold boundary; review docs/api/graph-[checkpoint](../../../../glossary.md#term-checkpoint)-api.md

@@ -200,7 +200,7 @@ create or imply a Runtime 0014 detailed task specification.
 - The architecture describes the intended complete lifecycle even where implementation remains
   incomplete. Current-status prose must explicitly preserve that distinction.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - The roadmap and area master plans coordinate delivery status and remain non-authoritative for
-  architecture.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  architecture.
 - Runtime already owns prepared execution contracts and dynamic per-run state, but Engine and
   concrete backends remain separate incomplete owners. Documentation must not infer an
   end-to-end runnable lifecycle from the implemented Runtime contracts.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [prepared execution glossary](../../../../glossary.md#prepared-execution--preparedexecution); [run state glossary](../../../../glossary.md#run-state--runstate); [Engine glossary](../../../../glossary.md#term-engine); [backends glossary](../../../../glossary.md#backend))</span>

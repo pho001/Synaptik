@@ -1,4 +1,4 @@
-# Task 0010: First RNN_TANH [scan](../../../../glossary.md#term-cumulative-scan) [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) proposal
+# Task 0010: First RNN_TANH [scan](../../../../glossary.md#term-fixed-recurrent-scan) [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) proposal
 
 > **Editorial reading key — not part of the historical record.**
 >
@@ -48,7 +48,7 @@ Retain existing forward APIs/[nodes](../../../../glossary.md#node), raw state be
 
 Read [ARCHITECTURE.md](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts), headings
 [Scope](../../../../glossary.md#term-scope)-indexed [normative](../../../../glossary.md#term-normative) contracts, Core invariants, [Dependency](../../../../glossary.md#term-dependency) rules and Explicit non-goals.
-Scoped reading: [recurrent-scan](../../../../architecture/contracts/recurrent-scan.md)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>, all headings,
+Scoped reading: [recurrent-scan](../../../../architecture/contracts/recurrent-scan.md)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-fixed-recurrent-scan))</span>, all headings,
 especially Purity and [lifecycle](../../../../glossary.md#lifecycle) [ownership](../../../../glossary.md#term-ownership-meanings) / Performance and migration invariants;
 [Compiler contract](../../../../architecture/contracts/compiler-autograd.md#modulescompiler), headings
 `modules/compiler`, [Training graph](../../../../glossary.md#training-graph) [model](../../../../glossary.md#term-model), [Compiler](../../../../glossary.md#term-compiler)-owned [automatic differentiation](../../../../glossary.md#autograd), [Compile](../../../../glossary.md#compile) lifecycle;
@@ -67,7 +67,7 @@ Current authority selects NO backward [operation](../../../../glossary.md#operat
    Compiler's owning contract changes its admission/rule policy, not Model derivative-rule ownership.
    Separately approve root + owning NN inference-only rejection cutover before NN work. Update
    relevant architecture explanations and a significant-decision ADR in that future change;
-   establish unambiguous scoped ownership first, never duplicate semantic authority.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [owner glossary](../../../../glossary.md#term-owner); [adjoint glossary](../../../../glossary.md#term-adjoint); [admission glossary](../../../../glossary.md#term-admission); [derivative glossary](../../../../glossary.md#term-derivative); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [inference glossary](../../../../glossary.md#term-inference); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
+   establish unambiguous scoped ownership first, never duplicate semantic authority.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [adjoint glossary](../../../../glossary.md#term-adjoint); [admission glossary](../../../../glossary.md#term-admission); [derivative glossary](../../../../glossary.md#term-derivative); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [inference glossary](../../../../glossary.md#term-inference); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 3. Finalize signatures, flags, liveness and CPU resources against approved authority; stop on gaps.
    Prepare only the next selected module brief and verify its base/dependencies before authorization.<span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature); [liveness glossary](../../../../glossary.md#term-liveness); [Prepare glossary](../../../../glossary.md#prepare))</span>
 
@@ -135,7 +135,7 @@ New production types proposed (no new packages; prefix `io.github.pho001.synapti
   `Geometry`/`Facts` (checked descriptors/positional [bindings](../../../../glossary.md#term-binding)); `internal.executable.` and
   `internal.route.portable.` under `backend.cpu` own `CpuRnnTanhScanAdjointPreparedExecutable`
   (nested invocation-local `Invocation`) and `CpuRnnTanhScanAdjointKernel` respectively.
-  Existing preparation-plan/resource owners carry facts; no registry/loop IR.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [registry glossary](../../../../glossary.md#term-registry); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
+  Existing preparation-plan/resource owners carry facts; no registry/loop IR.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
 - NN/Training/Engine/Prepare/Runtime: no new production type/package proposed. Any additional
   production concept discovered during design is a Draft replan gate, not implied permission.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Engine glossary](../../../../glossary.md#term-engine); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 
@@ -185,7 +185,7 @@ e.g. [shape](../../../../glossary.md#shape)-sized registered logical zero splats
 
 After approval, each serial [owner](../../../../glossary.md#term-owner) [slice](../../../../glossary.md#slice) includes tests/[Javadoc](../../../../glossary.md#term-javadoc)/docs and independent Class C review:
 [Model](../../../../glossary.md#term-model) primitive → [Compiler](../../../../glossary.md#term-compiler) joint-output construction/[inference](../../../../glossary.md#term-inference)/[liveness](../../../../glossary.md#term-liveness) → [CPU](../../../../glossary.md#term-cpu) executable/[conformance](../../../../glossary.md#term-conformance)
-→ [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [admission](../../../../glossary.md#term-admission). NN needs explicit root/owning-NN approval: positive T/B [canonical](../../../../glossary.md#term-canonical-form) [F32](../../../../glossary.md#floating-point-precision-and-rounding) [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn) [scan](../../../../glossary.md#term-cumulative-scan)
+→ [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [admission](../../../../glossary.md#term-admission). NN needs explicit root/owning-NN approval: positive T/B [canonical](../../../../glossary.md#term-canonical-form) [F32](../../../../glossary.md#floating-point-precision-and-rounding) [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn) [scan](../../../../glossary.md#term-fixed-recurrent-scan)
 sources with supported ordinary heads; retain unsupported-scan early rejection/[lifecycle](../../../../glossary.md#lifecycle) precedence.
 Empty-[axis](../../../../glossary.md#term-axis) [gradients](../../../../glossary.md#term-gradient) are low-level, not new Training empty-input admission. Test `.rnnScan` dense/
 finalHidden training, [graph](../../../../glossary.md#graph)/load, fresh lengths and each [SGD](../../../../glossary.md#term-stochastic-gradient-descent-sgd) update against [unrolling](../../../../glossary.md#term-unrolling). Compiler alone

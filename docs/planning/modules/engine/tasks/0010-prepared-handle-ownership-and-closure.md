@@ -527,7 +527,7 @@ and every specified gate succeed. Keep Metal 0002 Blocked until then.
 - `javap` confirmed that both final prepared handle classes implement `AutoCloseable`, expose
   only public `isClosed()` and no-checked-exception `close()` additions, and keep inward Runtime
   access package-private. The focused reflection tests independently passed the same public-shape
-  boundary. A focused import scan found no new public inward exposure.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  boundary. A focused import scan found no new public inward exposure.
 - Final `git diff --check`, `git diff --cached --check`, exact allowlist/status inspection, and
   generated-artifact checks passed. The unstaged worktree contains exactly 22 authorized paths:
   eight Engine production/Javadoc paths, five Engine test paths, five explanatory documentation

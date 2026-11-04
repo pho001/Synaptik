@@ -88,7 +88,7 @@ through Compiler 0002.
 - Interpret `GraphOptimizationConfig.disabled()` as canonicalization plus [validation](../../../../glossary.md#term-validation) only.
 - Interpret `GraphOptimizationConfig.standard()` as canonicalization plus the exact standard
   optional order `DCE -> CSE -> DCE`, with validation at each changed boundary and no fixed-point
-  iteration.<span data-glossary-navigation="true"> ([fixed-point glossary](../../../../glossary.md#fixed-point-arithmetic))</span>
+  iteration.
 - Keep all four new top-level production types and their four named static methods package-private
   in `io.github.pho001.synaptik.compiler`. Each type is final and stateless, with no instance
   fields and a private constructor; implementation-only nested records and methods remain private.
@@ -208,7 +208,7 @@ publication roots with one `ValueId`, which [`CompiledGraphModel`](../../../../g
 The current contracts prove exact CSE safety:
 
 - equal `Operation` values describe equal [backend](../../../../glossary.md#backend)-independent semantics and immutable attributes;
-- equal ordered input IDs [mean](../../../../glossary.md#term-mean) equal logical operands in equal semantic roles;
+- equal ordered input IDs mean equal logical operands in equal semantic roles;
 - equal complete output [descriptors](../../../../glossary.md#term-descriptor) mean equal logical result contracts for every output slot;
 - only equal forward phases may merge;
 - current operations retain no live service, storage, hidden generator, runtime state, or mutable
@@ -483,7 +483,7 @@ the concrete need rather than expanding scope.
   canonical task-0002 validation, but performs no CSE or DCE.<span data-glossary-navigation="true"> ([canonicalization glossary](../../../../glossary.md#occurrence-identity-and-canonical-form); [canonical glossary](../../../../glossary.md#term-canonical-form); [validation glossary](../../../../glossary.md#term-validation); [CSE glossary](../../../../glossary.md#term-common-subexpression-elimination-cse); [DCE glossary](../../../../glossary.md#term-dead-code-elimination-dce))</span>
 - Standard optimization performs only `canonicalize -> validate -> forward DCE -> validate if
   changed -> exact forward CSE -> validate if changed -> forward DCE cleanup -> validate if
-  changed` in that fixed order, invoking each listed pass once without a [fixed-point](../../../../glossary.md#fixed-point-arithmetic) loop.
+  changed` in that fixed order, invoking each listed pass once without a fixed-point loop.
 - Every newly constructed candidate is passed exactly once through
   `CapturedGraphInference.inferAndValidate` before advancing; an unchanged graph is not
   redundantly revalidated.
@@ -779,7 +779,7 @@ finish.
   canonically and revalidated through Compiler 0002; unchanged optional results retain identity.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Exact CSE uses already-remapped inputs during one topological scan and merges complete
   multi-output/RNG occurrences slotwise. DCE walks liveness iteratively from graph outputs and
-  non-forward work and retains every input plus all slots of each live node.<span data-glossary-navigation="true"> ([topological glossary](../../../../glossary.md#term-topological-order); [scan glossary](../../../../glossary.md#term-cumulative-scan); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [liveness glossary](../../../../glossary.md#term-liveness); [node glossary](../../../../glossary.md#node))</span>
+  non-forward work and retains every input plus all slots of each live node.<span data-glossary-navigation="true"> ([topological glossary](../../../../glossary.md#term-topological-order); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [liveness glossary](../../../../glossary.md#term-liveness); [node glossary](../../../../glossary.md#node))</span>
 - Finalized all four production Javadocs, current [`GraphOptimizationConfig`](../../../../glossary.md#graph-optimization-configuration--graphoptimizationconfig) consumer wording,
   Compile/Tensor API boundaries, glossary terminology, and synchronized planning records without
   modifying executable behavior or tests.<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [Tensor glossary](../../../../glossary.md#tensor); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [planning glossary](../../../../glossary.md#term-planning))</span>

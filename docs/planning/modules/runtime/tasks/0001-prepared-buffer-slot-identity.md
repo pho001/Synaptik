@@ -77,8 +77,8 @@ tasks.
 - [`WorkspaceSlot`](../../../../glossary.md#workspace-slot--workspaceslot)
 - [`PreparedMemoryPlan`](../../../../glossary.md#prepared-memory-plan--preparedmemoryplan) or any physical-memory plan
 - physical buffers, allocation, deallocation, pooling, aliasing, reuse, byte sizes, alignment, or
-  lifetimes<span data-glossary-navigation="true"> ([buffers glossary](../../../../glossary.md#term-buffer); [pooling glossary](../../../../glossary.md#term-pooling); [aliasing glossary](../../../../glossary.md#term-aliasing); [alignment glossary](../../../../glossary.md#term-alignment))</span>
-- storage handles, [backend](../../../../glossary.md#backend) storage, [host storage](../../../../glossary.md#host-storage), [device](../../../../glossary.md#term-device) storage, or an untyped object [carrier](../../../../glossary.md#term-storage-carrier)
+  lifetimes<span data-glossary-navigation="true"> ([buffers glossary](../../../../glossary.md#term-buffer); [aliasing glossary](../../../../glossary.md#term-aliasing); [alignment glossary](../../../../glossary.md#term-alignment))</span>
+- storage handles, [backend](../../../../glossary.md#backend) storage, [host storage](../../../../glossary.md#host-storage), [device](../../../../glossary.md#term-device) storage, or an untyped object carrier
 - a slot allocator, factory, [registry](../../../../glossary.md#term-registry), table, map, collection, range, or count contract
 - any conversion or promised numeric relationship between [`BufferSlot`](../../../../glossary.md#buffer-slot--bufferslot) and [graph](../../../../glossary.md#graph) [`ValueId`](../../../../glossary.md#logical-valueid-versus-physical-memory-slot),
   [`NodeId`](../../../../glossary.md#nodeid), [Tensor](../../../../glossary.md#tensor) [identity](../../../../glossary.md#term-identity-meanings), [trace](../../../../glossary.md#trace) identity, [backend identity](../../../../glossary.md#backend-identity--backendid), device identity, or an address

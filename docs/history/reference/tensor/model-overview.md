@@ -209,7 +209,7 @@ from public expressions to graph records. The preserved construction table remai
 > binding, runtime validation, capability advertisement, and backend execution remain future.<span data-glossary-navigation="true"> ([BPTT glossary](../../../glossary.md#backpropagation-through-time-and-recurrent-state))</span><span data-glossary-navigation="true"> ([producer glossary](../../../glossary.md#term-producer); [fail-closed glossary](../../../glossary.md#term-fail-closed); [backpropagation through time glossary](../../../glossary.md#term-backpropagation-through-time-bptt); [Engine glossary](../../../glossary.md#term-engine); [binding glossary](../../../glossary.md#term-binding); [runtime glossary](../../../glossary.md#term-runtime); [validation glossary](../../../glossary.md#term-validation))</span>
 > `SoftmaxKind.SOFTMAX`, `SoftmaxKind.LOG_SOFTMAX`, and `SoftmaxAttrs` provide distinct
 > shape-preserving probability and log-probability normalization semantics. The attributes carry
-> one already normalized non-negative axis. Public <span data-glossary-navigation="true"> ([normalization glossary](../../../glossary.md#term-normalization); [carry glossary](../../../glossary.md#term-carry))</span>`Tensor.softmax` and `Tensor.logSoftmax`
+> one already normalized non-negative axis. Public <span data-glossary-navigation="true"> ([normalization glossary](../../../glossary.md#term-normalization))</span>`Tensor.softmax` and `Tensor.logSoftmax`
 > accept floating input, normalize a positive or negative caller axis, preserve the exact Shape,
 > data type, and gradient-eligibility metadata in an unresolved descriptor, and record exact
 > one-input provenance. Construction calculates no probability or logarithm and defines no

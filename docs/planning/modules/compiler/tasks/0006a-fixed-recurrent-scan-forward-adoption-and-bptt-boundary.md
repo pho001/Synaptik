@@ -1,4 +1,4 @@
-# Task 0006A: Fixed Recurrent-[Scan](../../../../glossary.md#term-cumulative-scan) Forward Adoption and Explicit [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) Boundary
+# Task 0006A: Fixed Recurrent-[Scan](../../../../glossary.md#term-fixed-recurrent-scan) Forward Adoption and Explicit [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) Boundary
 
 > **Editorial reading key — not part of the historical record.**
 >
@@ -17,7 +17,7 @@ Complete
 
 ## Goal
 
-Adopt the current [Model](../../../../glossary.md#term-model) fixed recurrent-[scan](../../../../glossary.md#term-cumulative-scan) family in [Compiler](../../../../glossary.md#term-compiler)'s forward-only [graph](../../../../glossary.md#graph) pipeline
+Adopt the current [Model](../../../../glossary.md#term-model) fixed recurrent-[scan](../../../../glossary.md#term-fixed-recurrent-scan) family in [Compiler](../../../../glossary.md#term-compiler)'s forward-only [graph](../../../../glossary.md#graph) pipeline
 without introducing graph regions, recurrence execution, or [backpropagation through time](../../../../glossary.md#term-backpropagation-through-time-bptt) ([BPTT](../../../../glossary.md#backpropagation-through-time-and-recurrent-state)).
 
 For each [identity](../../../../glossary.md#term-identity-meanings)-distinct `RNN_TANH`, `GRU_RESET_AFTER`, or [`LSTM`](../../../../glossary.md#term-long-short-term-memory-lstm) [producer](../../../../glossary.md#term-producer) constructed through
@@ -274,7 +274,7 @@ No stage reads [runtime](../../../../glossary.md#term-runtime) values or allocat
 `AutogradPreflight` must inspect the already allocation-free complete original forward [producer](../../../../glossary.md#term-producer)
 inventory immediately after that inventory is built. For both `FORWARD_AND_BACKWARD` and
 `TRAINING_STEP`, the first recurrent [occurrence](../../../../glossary.md#term-occurrence) in deterministic producer postorder fails with
-occurrence context and an explanation that fixed recurrent [scan](../../../../glossary.md#term-cumulative-scan) is forward-only until [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) is
+occurrence context and an explanation that fixed recurrent [scan](../../../../glossary.md#term-fixed-recurrent-scan) is forward-only until [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) is
 implemented.
 
 The [guard](../../../../glossary.md#term-guard) applies even when a recurrent output is a separate forward root and the requested
@@ -338,7 +338,7 @@ all [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) formu
 ## Architecture references
 
 - [Architecture contract](../../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([Architecture contract glossary](../../../../glossary.md#architecture-contract))</span>, especially fixed recurrent scan,
-  Compiler ownership, flat graph identity, and lifecycle invariants<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [Compiler glossary](../../../../glossary.md#term-compiler); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [graph glossary](../../../../glossary.md#graph); [identity glossary](../../../../glossary.md#term-identity-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  Compiler ownership, flat graph identity, and lifecycle invariants<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-fixed-recurrent-scan); [Compiler glossary](../../../../glossary.md#term-compiler); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [graph glossary](../../../../glossary.md#graph); [identity glossary](../../../../glossary.md#term-identity-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - [ADR 0012: Fixed recurrent scan without graph regions](../../../../design/decisions/0012-fixed-recurrent-scan-without-regions.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - [Current architecture index](../../../../architecture/current-architecture-plan.md)
 - [Module boundaries](../../../../architecture/module-boundaries.md)<span data-glossary-navigation="true"> ([Module glossary](../../../../glossary.md#term-module))</span>
@@ -447,7 +447,7 @@ Expected tests:
 Expected documentation and [planning](../../../../glossary.md#term-planning):
 
 - update [Compile API](../../../../api/compile-api.md)<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
-- update [Glossary](../../../../glossary.md), limited to the existing fixed-recurrent-[scan](../../../../glossary.md#term-cumulative-scan) entry
+- update [Glossary](../../../../glossary.md), limited to the existing fixed-recurrent-[scan](../../../../glossary.md#term-fixed-recurrent-scan) entry
 - update the `RecurrentScan` type Javadoc only; its executable body and public surface remain
   unchanged<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - update [Tensor API](../../../../api/tensor-api.md)<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor))</span>, [Training API](../../../../api/training-api.md),
@@ -782,7 +782,7 @@ and the documentation pass finish.
   current-status wording in the Model master plan; the coordinator authorized that exact
   eighteenth path. No other current claim says 0006A is Draft, forward recurrent inference
   rejects, or Compiler adoption is future. The completed Model 0025F row remains an accurate
-  historical summary of what that earlier task preserved at its own completion.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  historical summary of what that earlier task preserved at its own completion.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-fixed-recurrent-scan); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Final documentation and repository-hygiene gates passed:
 
   ```text
@@ -807,7 +807,7 @@ and the documentation pass finish.
 - `CapturedGraphInference` now dispatches the closed recurrent family to the new stateless
   `RecurrentScanInference`. The helper validates exact kinds, direction attributes,
   cardinalities, common floating type, fully static role Shapes, positive feature/state extents,
-  checked packed gate extent, non-gradient <span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [feature glossary](../../../../glossary.md#term-software-feature); [extent glossary](../../../../glossary.md#term-extent); [gradient glossary](../../../../glossary.md#term-gradient))</span>`INT64[batch]` valid lengths, weights/biases, and
+  checked packed gate extent, non-gradient <span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [feature glossary](../../../../glossary.md#term-feature); [extent glossary](../../../../glossary.md#term-extent); [gradient glossary](../../../../glossary.md#term-gradient))</span>`INT64[batch]` valid lengths, weights/biases, and
   ordered output descriptors without reading values or creating constraints.<span data-glossary-navigation="true"> ([weights glossary](../../../../glossary.md#term-weight); [biases glossary](../../../../glossary.md#term-bias); [descriptors glossary](../../../../glossary.md#term-descriptor))</span>
 - [Capture](../../../../glossary.md#term-capture-meanings) continues to emit one ordinary flat `CompiledNode` per Model producer. Recurrent nodes
   are explicitly excluded from CSE, while existing whole-node DCE retains every sibling output
@@ -836,7 +836,7 @@ and the documentation pass finish.
 
 ## Completion summary
 
-Implemented, executable-tested, independently documented, and validated the fixed recurrent-[scan](../../../../glossary.md#term-cumulative-scan)
+Implemented, executable-tested, independently documented, and validated the fixed recurrent-[scan](../../../../glossary.md#term-fixed-recurrent-scan)
 forward [Compiler](../../../../glossary.md#term-compiler) boundary in exactly eighteen authorized paths: four Compiler production files,
 two focused Compiler tests, one [Model](../../../../glossary.md#term-model) [Javadoc](../../../../glossary.md#term-javadoc) file, and eleven documentation/[planning](../../../../glossary.md#term-planning) files. The
 successful Java evidence remains the frozen focused 21-test, Model-boundary 15-test, and full

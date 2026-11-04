@@ -19,7 +19,7 @@ to follow those separate boundaries. The recorded task statuses and evidence rem
 
 ## Goal
 
-[Coordinate](../../../glossary.md#axis-rank-scalar-vector-and-matrix) explicit, bounded [model autotuning](../../../glossary.md#autotuning--model-autotuning) before [Runtime](../../../glossary.md#term-runtime): reuse compatible local workload
+Coordinate explicit, bounded [model autotuning](../../../glossary.md#autotuning--model-autotuning) before [Runtime](../../../glossary.md#term-runtime): reuse compatible local workload
 results, measure complete candidates, select deterministically, and manage explicit compact [cache](../../../glossary.md#term-cache)
 [artifacts](../../../glossary.md#term-artifact) while keeping rich evidence separate.
 

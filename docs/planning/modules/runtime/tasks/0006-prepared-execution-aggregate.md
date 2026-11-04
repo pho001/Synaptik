@@ -323,7 +323,7 @@ Required source/[scope](../../../../glossary.md#term-scope)/status checks:
 - exact validation order, messages, [reference identity](../../../../glossary.md#term-reference-identity), and exact component retention;
 - production import/mechanism scan for no maps, reflection, raw/unchecked access, string
   dispatch, registry/service locator, upstream/concrete types, lifecycle, resource, config, or
-  run behavior;<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [dispatch glossary](../../../../glossary.md#term-dispatch); [registry glossary](../../../../glossary.md#term-registry); [service locator glossary](../../../../glossary.md#term-service-locator); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  run behavior;<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [registry glossary](../../../../glossary.md#term-registry); [service locator glossary](../../../../glossary.md#term-service-locator); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - unchanged existing [Runtime](../../../../glossary.md#term-runtime) executable/schedule/run behavior and unchanged [Gradle](../../../../glossary.md#term-gradle) files;
 - Java 26 root [toolchain](../../../../glossary.md#term-toolchain)/[release](../../../../glossary.md#term-release) remains unchanged with no Runtime override;
 - exact 11-path ceiling and no Java/test outside Runtime;

@@ -1,4 +1,4 @@
-# Task Engine0020: Mechanical [backend](../../../../glossary.md#backend) and native [layout](../../../../glossary.md#layout) cutover
+# Task Engine0020: Mechanical [backend](../../../../glossary.md#backend) and native layout cutover
 
 > **Editorial historical reading key.**
 >
@@ -23,7 +23,7 @@ User edits are preserved; combined tests/[Javadoc](../../../../glossary.md#term-
 
 ## Change class
 
-Class C — coordinated repository-[layout](../../../../glossary.md#layout) authority and multi-project/native path consumers.
+Class C — coordinated repository-layout authority and multi-project/native path consumers.
 No numerical, algorithm, [ABI](../../../../glossary.md#term-application-binary-interface-abi), [dependency](../../../../glossary.md#term-dependency)-direction or resource-[lifecycle](../../../../glossary.md#lifecycle) change.
 
 ## Goal
@@ -33,7 +33,7 @@ all [Gradle](../../../../glossary.md#term-gradle) project [identities](../../../
 
 ## [Scope](../../../../glossary.md#term-scope) and non-goals
 
-First update the root and owning scoped [layout](../../../../glossary.md#layout)/path descriptions, then move files in the same
+First update the root and owning scoped layout/path descriptions, then move files in the same
 reviewed change and repair path consumers. Do not apply the new layout without its coordinated
 authority. Keep historical plans in place and completed outcomes unchanged.
 
@@ -74,7 +74,7 @@ the exact conflict instead of [widening](../../../../glossary.md#term-widening) 
 
 - Depends on: CP0005D Complete (bounded planning/review only), not acceptance of all ADR0039
   API choices; user-approved backend/native physical layout.
-  Existing backend/Engine baseline is Complete; no NN API or generic-module decision dependency.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [layout glossary](../../../../glossary.md#layout); [Engine glossary](../../../../glossary.md#term-engine); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency))</span>
+  Existing backend/Engine baseline is Complete; no NN API or generic-module decision dependency.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [Engine glossary](../../../../glossary.md#term-engine); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Conflicts with: every writer under backends/native, settings/build path inputs, architecture
   contracts/tests and shared current documentation; serialize and preserve pre-existing dirty edits.
 - Parallel group: None.

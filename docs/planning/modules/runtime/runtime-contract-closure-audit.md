@@ -95,7 +95,7 @@ transfer, publication, representation plan, and [run state](../../../glossary.md
 [`PreparedMemoryPlan`](../../../glossary.md#prepared-memory-plan--preparedmemoryplan) object by [reference identity](../../../glossary.md#term-reference-identity) rather than [structural equality](../../../glossary.md#term-structural-equality).
 
 The [nominal](../../../glossary.md#term-nominal) domains remain separate: [Model](../../../glossary.md#term-model)/[Planning](../../../glossary.md#term-planning) [identities](../../../glossary.md#term-identity-meanings) do not enter [Runtime](../../../glossary.md#term-runtime); [buffer](../../../glossary.md#term-buffer) and
-workspace slots are different records; prepared [coordinates](../../../glossary.md#axis-rank-scalar-vector-and-matrix) are dense list positions; physical
+workspace slots are different records; prepared coordinates are dense list positions; physical
 representations are [backend](../../../glossary.md#backend)-owned identities; bound actions retain one exact per-run state and
 direct resolved representations. No implicit numeric conversion connects these domains.
 
@@ -153,7 +153,7 @@ blocking failure-path gap.
 
 Cold work may allocate arrays and bound objects, validate compatibility, and resolve resources.
 Bound traversal uses a direct `BoundStep[]`, direct invocation/transfer/[publication](../../../glossary.md#term-publication) fields, and
-precomputed primitive [coordinate](../../../glossary.md#axis-rank-scalar-vector-and-matrix) arrays. Existing source/[bytecode](../../../glossary.md#term-bytecode)-oriented tests reject `Map`,
+precomputed primitive coordinate arrays. Existing source/[bytecode](../../../glossary.md#term-bytecode)-oriented tests reject `Map`,
 reflection, `ServiceLoader`, [graph](../../../glossary.md#graph)/[backend](../../../glossary.md#backend) [lookup](../../../glossary.md#term-lookup), and hot compatibility casts.
 
 No hot traversal code inspects [`Operation`](../../../glossary.md#operation) or `CompiledNode`, discovers a backend, searches a
@@ -166,7 +166,7 @@ the traversal loop.
 Every public declaration participates in a current cross-package [Runtime](../../../glossary.md#term-runtime) [lifecycle](../../../glossary.md#lifecycle), represents a
 [backend](../../../glossary.md#backend) extension seam, or is the public result/runner boundary documented by Runtime 0001-0010.
 No public root [facade](../../../glossary.md#term-facade), manager, [registry](../../../glossary.md#term-registry), [service locator](../../../glossary.md#term-service-locator), generic resource map, unchecked generic
-access, or raw `Object` [carrier](../../../glossary.md#term-storage-carrier) exists. The five packages separate geometry, [nominal](../../../glossary.md#term-nominal) physical
+access, or raw `Object` carrier exists. The five packages separate geometry, [nominal](../../../glossary.md#term-nominal) physical
 roles/creation recipes, executable actions, ordered schedule recipes, and [mutable](../../../glossary.md#term-mutable) [run](../../../glossary.md#term-run) lifecycle.
 
 `RunStateCreation` and package-private bound association accessors are implementation details used
@@ -244,7 +244,7 @@ The required evidence [matrix](../../../glossary.md#term-review-matrix) follows.
 | Production inventory | 25 files in five packages | `find modules/runtime/src/main/java -type f \| sort` | Every production file inventoried | `NO_CHANGE_CONFIRMED` | Inventory above |
 | Test inventory | 17 suites, prior 143 tests | `find modules/runtime/src/test/java -type f ! -name .gitkeep \| sort`; XML aggregation | Every suite/file inventoried | `NO_CHANGE_CONFIRMED` | Inventory above |
 | Package inventory | memory/resource/execution/schedule/[run](../../../glossary.md#term-run) | Source paths and package summaries | Five cohesive owners | `NO_CHANGE_CONFIRMED` | Retain |
-| Public-surface inventory | 34 rendered public type pages | source declaration [scan](../../../glossary.md#term-cumulative-scan); Javadoc page list/allclasses index | Necessary, minimal, cohesive surface | `NO_CHANGE_CONFIRMED` | Retain |
+| Public-surface inventory | 34 rendered public type pages | source declaration scan; Javadoc page list/allclasses index | Necessary, minimal, cohesive surface | `NO_CHANGE_CONFIRMED` | Retain |
 | Package-private inventory | `RunStateCreation`, association accessors, runner internals | source declaration/modifier scan; generated-page absence | Internal mechanisms stay internal | `NO_CHANGE_CONFIRMED` | Retain |
 | Generated-Javadoc inventory | 34 type pages, five package summaries and indexes | `find modules/runtime/build/docs/javadoc ...`; rendered index inspection | Visibility equals source | `NO_CHANGE_CONFIRMED` | Retain |
 | Task-history inventory | Runtime 0001-0010 Complete and unchanged | task files plus `git diff --exit-code -- ...0001...0010...` | History corroborates primary evidence | `NO_CHANGE_CONFIRMED` | Preserve |

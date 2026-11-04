@@ -150,7 +150,7 @@ that association when [prepared partition](../../../../glossary.md#prepared-part
 - maps, registries, service locators, string [dispatch](../../../../glossary.md#term-dispatch), reflection in production, raw `Object`,
   unchecked casts/generics, or public switches over concrete backend types
 - [concurrency](../../../../glossary.md#term-concurrency) support for one [`RunState`](../../../../glossary.md#run-state--runstate) or one [`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation)
-- [pooling](../../../../glossary.md#term-pooling), [aliasing](../../../../glossary.md#term-aliasing), hidden coherence/write-back, distributed sharding, or multi-[device](../../../../glossary.md#term-device) scheduling
+- pooling, [aliasing](../../../../glossary.md#term-aliasing), hidden coherence/write-back, distributed sharding, or multi-[device](../../../../glossary.md#term-device) scheduling
 - [Runtime](../../../../glossary.md#term-runtime) 0005+, Prepare 0002, or any other detailed task specification
 - Gradle, dependency, architecture-contract, ADR, architecture-test, backend-conformance, or
   integration-test changes<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [conformance glossary](../../../../glossary.md#term-conformance))</span>
@@ -191,7 +191,7 @@ that association when [prepared partition](../../../../glossary.md#prepared-part
 - No implementation choice, backend lookup, route choice, allocation, transfer, or publication
   may be deferred into <span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup); [publication glossary](../../../../glossary.md#term-publication))</span>`execute()`.
 - If exact compatibility requires a shared registry, raw/untyped carrier, reflective class token,
-  unchecked generic API, or another module edge, stop and report an architecture conflict.<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [carrier glossary](../../../../glossary.md#term-storage-carrier); [token glossary](../../../../glossary.md#term-token); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [module glossary](../../../../glossary.md#term-module))</span>
+  unchecked generic API, or another module edge, stop and report an architecture conflict.<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [token glossary](../../../../glossary.md#term-token); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [module glossary](../../../../glossary.md#term-module))</span>
 
 ## Package impact
 
@@ -285,7 +285,7 @@ Selection constructors validate components in declaration order:
 [`PreparedExecutable`](../../../../glossary.md#prepared-executable--preparedexecutable) construction validates in this exact order:
 
 1. require `memoryPlan`, then `bufferSelections`, then `workspaceSelections` non-null;
-2. [scan](../../../../glossary.md#term-cumulative-scan) [buffer](../../../../glossary.md#term-buffer) selections in supplied order, rejecting the first null entry and then the first
+2. scan [buffer](../../../../glossary.md#term-buffer) selections in supplied order, rejecting the first null entry and then the first
    `bufferIndex` outside `memoryPlan.buffers()`;
 3. [snapshot](../../../../glossary.md#term-snapshot) buffer selections into a private array;
 4. scan workspace selections in supplied order, rejecting the first null entry and then the first
@@ -444,7 +444,7 @@ Required source/[scope](../../../../glossary.md#term-scope)/status checks:
   identity, compatibility call counts, invocation association, and lifecycle behavior;<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - fake [backend](../../../../glossary.md#backend) bound objects have direct concrete typed fields and execute without resource access;
 - production mechanism/import scan for no maps, reflection, raw/unchecked access, strings used for
-  dispatch, registries/service locators, concrete backends, or forbidden graph/lifecycle types;<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [dispatch glossary](../../../../glossary.md#term-dispatch); [graph glossary](../../../../glossary.md#graph))</span>
+  dispatch, registries/service locators, concrete backends, or forbidden graph/lifecycle types;<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [graph glossary](../../../../glossary.md#graph))</span>
 - unchanged [Runtime](../../../../glossary.md#term-runtime)/root [Gradle](../../../../glossary.md#term-gradle) files and Java 26 root [toolchain](../../../../glossary.md#term-toolchain)/[release](../../../../glossary.md#term-release) configuration;
 - exact 15-path ceiling and no Java/test outside Runtime;
 - Runtime 0001–0004 and [Prepare](../../../../glossary.md#prepare) 0001 status [synchronization](../../../../glossary.md#term-synchronization) after completion;
@@ -551,7 +551,7 @@ repository completion status format.
   backends.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [backends glossary](../../../../glossary.md#backend))</span>
 - Use two nested immutable selection records and private arrays. This gives prepared finalization
   explicit dense coordinates without maps, boxing-dependent lookup, slot-value-sized arrays, or a
-  redundant <span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [lookup glossary](../../../../glossary.md#term-lookup))</span>`PreparedUnit`.
+  redundant <span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [lookup glossary](../../../../glossary.md#term-lookup))</span>`PreparedUnit`.
 - Allow repeated selections because one prepared region may consume the same physical
   representation in more than one logical argument role. <span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument))</span>[`RunState`](../../../../glossary.md#run-state--runstate) still owns each exact
   representation only once.

@@ -61,7 +61,7 @@ must not weaken a hard requirement or invent a fallback.
   1. reject null `query` with `NullPointerException` message `query`;
   2. reject null `eligibleBackendIds` with `NullPointerException` message
      `eligibleBackendIds`;
-  3. [scan](../../../../glossary.md#term-cumulative-scan) eligible [backend](../../../../glossary.md#backend) [identities](../../../../glossary.md#term-identity-meanings) in encounter order and reject the first null with
+  3. scan eligible [backend](../../../../glossary.md#backend) [identities](../../../../glossary.md#term-identity-meanings) in encounter order and reject the first null with
      `NullPointerException` message `eligibleBackendIds[index]`;
   4. reject the second [occurrence](../../../../glossary.md#term-occurrence) of an equal [backend identity](../../../../glossary.md#backend-identity--backendid) with
      `IllegalArgumentException` message

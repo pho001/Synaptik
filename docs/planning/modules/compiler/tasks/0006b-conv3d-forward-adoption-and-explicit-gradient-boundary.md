@@ -72,7 +72,7 @@ one Conv3d TensorProducer occurrence
   recurrent-style identity exclusion.<span data-glossary-navigation="true"> ([CSE glossary](../../../../glossary.md#compiler-transformations-and-dominance); [producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([common-subexpression elimination glossary](../../../../glossary.md#term-common-subexpression-elimination-cse); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [derivative glossary](../../../../glossary.md#term-derivative); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Preserve whole-[node](../../../../glossary.md#node) [dead-code elimination](../../../../glossary.md#term-dead-code-elimination-dce) and ordinary [canonical](../../../../glossary.md#term-canonical-form) reindexing.
 - Carry surviving exact operation attributes and ordered descriptors through publication and the
-  existing <span data-glossary-navigation="true"> ([Carry glossary](../../../../glossary.md#term-carry); [publication glossary](../../../../glossary.md#term-publication))</span>[`OperationCapabilityQuery`](../../../../glossary.md#operation-capability-query--operationcapabilityquery); add no provider capability.
+  existing <span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication))</span>[`OperationCapabilityQuery`](../../../../glossary.md#operation-capability-query--operationcapabilityquery); add no provider capability.
 - Add an allocation-free, deterministic Conv3d guard to the complete-original-forward-inventory
   autograd preflight for both backward-capable modes.<span data-glossary-navigation="true"> ([guard glossary](../../../../glossary.md#term-guard); [autograd glossary](../../../../glossary.md#autograd); [preflight glossary](../../../../glossary.md#term-preflight))</span>
 - Keep `FirstOrderGradientCoverage.SIGNATURES`, its 128 supported rows, and its family-owner
@@ -129,7 +129,7 @@ one Conv3d TensorProducer occurrence
 - [Compiler 0005D: Attention, convolution, pooling, and loss gradients](0005d-attention-convolution-pooling-and-loss-gradient-completion.md)<span data-glossary-navigation="true"> ([convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [pooling glossary](../../../../glossary.md#term-pooling); [loss glossary](../../../../glossary.md#loss); [gradients glossary](../../../../glossary.md#term-gradient))</span>
 - [Compiler 0005E: First-order gradient coverage closure](0005e-first-order-gradient-coverage-closure-checkpoint.md)
 - [Compiler 0006: Explicit functional gradient requests](0006-explicit-functional-gradient-requests-and-higher-order-differentiation.md)
-- [Compiler 0006A: Fixed recurrent-scan forward adoption](0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+- [Compiler 0006A: Fixed recurrent-scan forward adoption](0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-fixed-recurrent-scan))</span>
 - [Model 0020: NCHW Conv2d semantics](../../model/tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md)<span data-glossary-navigation="true"> ([NCHW glossary](../../../../glossary.md#term-nchw); [Conv2d glossary](../../../../glossary.md#convolution--conv2d))</span>
 - [Model 0025G: NCW Conv1d composition](../../model/tasks/0025g-ncw-conv1d-composition.md)<span data-glossary-navigation="true"> ([NCW glossary](../../../../glossary.md#term-ncw); [Conv1d composition glossary](../../../../glossary.md#conv1d-composition))</span>
 - [Model 0025H: NCDHW Conv3d semantics](../../model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md)<span data-glossary-navigation="true"> ([NCDHW glossary](../../../../glossary.md#conv3d--ncdhw); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw))</span>
@@ -277,7 +277,7 @@ after canonicalization or every changed optional optimization candidate, as it d
 operations. Final deferred constraints and their order must reflect only the final validated
 [graph](../../../../glossary.md#graph).
 
-Existing [publication](../../../../glossary.md#term-publication) and [Planning](../../../../glossary.md#term-planning) orchestration then [carry](../../../../glossary.md#term-carry):
+Existing [publication](../../../../glossary.md#term-publication) and [Planning](../../../../glossary.md#term-planning) orchestration then carry:
 
 - the exact surviving [`CONV3D`](../../../../glossary.md#conv3d--ncdhw) [operation](../../../../glossary.md#operation) and attributes;
 - exact ordered input [descriptors](../../../../glossary.md#term-descriptor);
@@ -580,7 +580,7 @@ and the documentation pass finish.
   This makes deferred binding requirements observable rather than treating a symbolic output
   expression as proof of fit.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-normative))</span><span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis))</span>
 - Conv3d remains eligible for ordinary exact CSE. Unlike recurrent scan, the architecture does
-  not make equivalent Conv3d producer identities semantically distinct.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([CSE glossary](../../../../glossary.md#term-common-subexpression-elimination-cse); [scan glossary](../../../../glossary.md#term-cumulative-scan); [producer glossary](../../../../glossary.md#term-producer))</span>
+  not make equivalent Conv3d producer identities semantically distinct.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([CSE glossary](../../../../glossary.md#term-common-subexpression-elimination-cse); [scan glossary](../../../../glossary.md#term-fixed-recurrent-scan); [producer glossary](../../../../glossary.md#term-producer))</span>
 - Backward-capable compilation rejects Conv3d from the complete original forward inventory, not
   only from the selected gradient ancestry, so <span data-glossary-navigation="true"> ([compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names); [gradient glossary](../../../../glossary.md#term-gradient))</span>`FORWARD_ONLY` is the sole adopting mode until
   0006C.
@@ -623,7 +623,7 @@ and the documentation pass finish.
   checks the stored descriptor and retained constraints.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [descriptor glossary](../../../../glossary.md#term-descriptor); [channel glossary](../../../../glossary.md#term-channel); [spatial glossary](../../../../glossary.md#term-spatial-axes); [graph glossary](../../../../glossary.md#graph); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Conv3d remains an ordinary [CSE](../../../../glossary.md#term-common-subexpression-elimination-cse)-eligible flat [node](../../../../glossary.md#node). Existing [publication](../../../../glossary.md#term-publication), diagnostics, and
   [`OperationCapabilityQuery`](../../../../glossary.md#operation-capability-query--operationcapabilityquery)/Planning handoff carry it unchanged; no production provider accepts
-  it and no lowering, preparation, execution, or gradient behavior was added.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [handoff glossary](../../../../glossary.md#term-handoff); [carry glossary](../../../../glossary.md#term-carry); [lowering glossary](../../../../glossary.md#lowering); [gradient glossary](../../../../glossary.md#term-gradient))</span>
+  it and no lowering, preparation, execution, or gradient behavior was added.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [handoff glossary](../../../../glossary.md#term-handoff); [lowering glossary](../../../../glossary.md#lowering); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - `AutogradPreflight` rejects the first Conv3d occurrence in complete original-forward postorder
   for both backward-capable modes before seeds or derivative Tensors. Production<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [derivative glossary](../../../../glossary.md#term-derivative); [Tensors glossary](../../../../glossary.md#tensor))</span>
   `FirstOrderGradientCoverage` and `ConvolutionGradientRules` remain unchanged; the boundary test

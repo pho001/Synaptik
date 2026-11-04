@@ -1,4 +1,4 @@
-# Task Prepare0011: Length-aware [Scan](../../../../glossary.md#term-cumulative-scan) projection and resource [handoff](../../../../glossary.md#term-handoff)
+# Task Prepare0011: Length-aware [Scan](../../../../glossary.md#general-differentiable-scan) projection and resource [handoff](../../../../glossary.md#term-handoff)
 
 > **Editorial historical reading key.**
 >
@@ -28,7 +28,7 @@ no new launch, downstream tasks, [commit](../../../../glossary.md#term-commit) o
 
 ## Change class
 
-Class C — scoped [scan](../../../../glossary.md#term-cumulative-scan) [bindings](../../../../glossary.md#term-binding), saved-value demand and the analysis/resource-assignment boundary.
+Class C — scoped [scan](../../../../glossary.md#general-differentiable-scan) [bindings](../../../../glossary.md#term-binding), saved-value demand and the analysis/resource-assignment boundary.
 Clean implementation and independent targeted code/documentation review complete; MAIN accepted 2026-10-24.
 
 ## Goal
@@ -54,7 +54,7 @@ Read AGENTS.md and root [Scope-indexed normative contracts](../../../../../ARCHI
   [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
 - [Runtime](../../../../glossary.md#term-runtime)/[Prepare](../../../../glossary.md#prepare)/[Engine](../../../../glossary.md#term-engine) [modules/prepare](../../../../architecture/contracts/runtime-prepare-engine.md#modulesprepare)<span data-glossary-navigation="true"> ([modules glossary](../../../../glossary.md#term-module))</span>
   and [Prepare lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle).
-- Recurrent-[scan](../../../../glossary.md#term-cumulative-scan) [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>:
+- Recurrent-[scan](../../../../glossary.md#general-differentiable-scan) [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>:
   [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities),
   [Canonical residual ports and demand](../../../../architecture/contracts/recurrent-scan.md#canonical-residual-ports-and-demand)<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>,
   [Reverse scan and exact primal bindings](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal); [bindings glossary](../../../../glossary.md#term-binding))</span>.
@@ -73,7 +73,7 @@ These are accepted authority, not new rules. Stop on missing/ambiguous authority
 - Depends on: Complete Model0037 authority, Model0038 source/IR, Compiler0013 capture/first-order AD,
   Planning0008 queries and Prepare0010 projection/resource handoff.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [capture glossary](../../../../glossary.md#term-capture-meanings); [AD glossary](../../../../glossary.md#autograd))</span>
 - Conflicts with: scan header/roles/demand, Prepare projection/resource lifecycle, Compiler/CPU/cold/
-  codec/NN scan writers and shared-document writers; none active, serialize these scopes.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [lifecycle glossary](../../../../glossary.md#lifecycle); [CPU glossary](../../../../glossary.md#term-cpu); [codec glossary](../../../../glossary.md#term-codec); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
+  codec/NN scan writers and shared-document writers; none active, serialize these scopes.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#general-differentiable-scan); [lifecycle glossary](../../../../glossary.md#lifecycle); [CPU glossary](../../../../glossary.md#term-cpu); [codec glossary](../../../../glossary.md#term-codec); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus all
   accepted uncommitted work at planning verification, 2026-10-24; predecessors are not merged commits.<span data-glossary-navigation="true"> ([commits glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings))</span>
@@ -125,7 +125,7 @@ Existing package prefix `io.github.pho001.synaptik.`; production root
    canonical formal/result layouts, exact positional dtype/shape/gradient bindings and checked geometry. Preserve outer
    actual layouts; do not import CPU read predicates or add a new canonical-lengths restriction.
    Invalid descriptors/roles, dynamic locals/siblings and overflow fail before any analyzer,
-   including a bad later partition, T=0, B=0/1 and empty features. Never inspect length values.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [axis glossary](../../../../glossary.md#term-axis); [rank glossary](../../../../glossary.md#term-rank); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [canonical glossary](../../../../glossary.md#term-canonical-form); [layouts glossary](../../../../glossary.md#layout); [dtype glossary](../../../../glossary.md#data-type--datatype); [shape glossary](../../../../glossary.md#shape); [bindings glossary](../../../../glossary.md#term-binding); [CPU glossary](../../../../glossary.md#term-cpu); [descriptors glossary](../../../../glossary.md#term-descriptor); [overflow glossary](../../../../glossary.md#term-overflow); [partition glossary](../../../../glossary.md#partition); [features glossary](../../../../glossary.md#term-software-feature))</span>
+   including a bad later partition, T=0, B=0/1 and empty features. Never inspect length values.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [axis glossary](../../../../glossary.md#term-axis); [rank glossary](../../../../glossary.md#term-rank); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [canonical glossary](../../../../glossary.md#term-canonical-form); [layouts glossary](../../../../glossary.md#layout); [dtype glossary](../../../../glossary.md#data-type--datatype); [shape glossary](../../../../glossary.md#shape); [bindings glossary](../../../../glossary.md#term-binding); [CPU glossary](../../../../glossary.md#term-cpu); [descriptors glossary](../../../../glossary.md#term-descriptor); [overflow glossary](../../../../glossary.md#term-overflow); [partition glossary](../../../../glossary.md#partition); [features glossary](../../../../glossary.md#term-feature))</span>
 3. Retain exact attrs/body/local graph, ordered next-carry/emission/residual bindings and demand;
    repeated actual ports and aliased roles stay positional. Local IDs resolve only inside their
    body, even when numerically equal to outer IDs or IDs in another reused-template occurrence.
@@ -184,7 +184,7 @@ non-Prepare executable change is needed. Worker does not [run](../../../../gloss
 
 ## Documentation and review impact
 
-Independent Class C review finalizes [Prepare](../../../../glossary.md#prepare) Javadocs, factual root/scoped status, boundary/[scan](../../../../glossary.md#term-cumulative-scan)
+Independent Class C review finalizes [Prepare](../../../../glossary.md#prepare) Javadocs, factual root/scoped status, boundary/[scan](../../../../glossary.md#general-differentiable-scan)
 explanations, [partition](../../../../glossary.md#partition)-preparer guide, [API](../../../../glossary.md#term-application-programming-interface-api) references, targeted glossary entries and five plans.
 It uses repo general/architecture/API/[backend](../../../../glossary.md#backend)/[planning](../../../../glossary.md#term-planning) styles and write-page/writing_quality for
 surgical prose, without Pages. No new rule, [ADR](../../../../glossary.md#term-architecture-decision-record-adr), term, API or [owner](../../../../glossary.md#term-owner) is selected. Executable evidence
@@ -196,7 +196,7 @@ Implemented [`PrepareContext`](../../../../glossary.md#prepare-context-prepareco
 mixed forward/actual-reverse roles, scoped IDs and ordered demand use the unchanged staged [handoff](../../../../glossary.md#term-handoff).
 Seven Java files changed: four production files (only `PrepareContext` executable) and the three
 focused test classes above. Seventeen Markdown files reconcile factual status; no new type/[API](../../../../glossary.md#term-application-programming-interface-api)/edge.
-Worker commands above, [JDK](../../../../glossary.md#term-java-development-kit-jdk) 26.0.1, both [scan](../../../../glossary.md#term-cumulative-scan) performance flags false: focused 71 tests, full [Prepare](../../../../glossary.md#prepare)
+Worker commands above, [JDK](../../../../glossary.md#term-java-development-kit-jdk) 26.0.1, both [scan](../../../../glossary.md#general-differentiable-scan) performance flags false: focused 71 tests, full [Prepare](../../../../glossary.md#prepare)
 92 tests/12 suites, zero failures/errors/skips; [Javadoc](../../../../glossary.md#term-javadoc) PASS. Development wrapper-[cache](../../../../glossary.md#term-cache) denial and
 test-only initialized-[constant](../../../../glossary.md#term-constant) [fixture](../../../../glossary.md#term-fixture) failure were resolved before these successful gates.
 MAIN combined the [SPI](../../../../glossary.md#term-service-provider-interface-spi) [compile](../../../../glossary.md#compile) and four named guards above: PASS, 34 tasks, 7 executed/27 up-to-date.

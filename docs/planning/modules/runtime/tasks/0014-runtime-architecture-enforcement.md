@@ -91,7 +91,7 @@ Runtime build declaration                     Runtime production-source inventor
   `RunStateCreation` and immutable prepared recipes remain explicitly classified outside this
   direct traversal/action subset. The task does not reinterpret their existing Runtime contracts
   or remove their focused module tests.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module))</span>
-- [Scan](../../../../glossary.md#term-cumulative-scan) every hot-path source as text for the exact forbidden source and [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) [identities](../../../../glossary.md#term-identity-meanings):
+- Scan every hot-path source as text for the exact forbidden source and [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) [identities](../../../../glossary.md#term-identity-meanings):
 
   ```text
   io.github.pho001.synaptik.model.operation.Operation
