@@ -9,9 +9,9 @@ import java.util.Objects;
  * Independent clean-Java semantic oracle for first-class batch-normalization training.
  *
  * <p>The oracle derives channel coordinates independently of production lowering and returns
- * dense logical arrays. It uses the selected three-pass formulas, biased saved variance,
- * unbiased running-variance transition, and result-format arithmetic boundaries; it is test
- * evidence and is never a Runtime fallback.</p>
+ * dense logical arrays. It uses centered squares in the declared working dtype, biased saved
+ * variance, unbiased running variance and exact counts, preserving overflow and saved-value classes.
+ * This is test evidence, never a Runtime fallback.</p>
  */
 public final class CpuBatchNormTrainingReferenceKernel {
     private CpuBatchNormTrainingReferenceKernel() { }
@@ -67,13 +67,29 @@ public final class CpuBatchNormTrainingReferenceKernel {
         double[] output=new double[count],nextMean=new double[c],nextVar=new double[c],meanOut=new double[c],invOut=new double[c];
         long[] coordinates=new long[extents[0].length];
         for(int channel=0;channel<c;channel++){
-            double sum=0;java.math.BigDecimal exactSum=java.math.BigDecimal.ZERO;boolean nonfinite=false;for(long ordinal=0;ordinal<reduction;ordinal++){decode(ordinal,channel,axis,extents[0],coordinates);double factor=represented(inputTypes.get(0),read(inputs[0],offsets[0],strides[0],coordinates));nonfinite|=!Double.isFinite(factor);sum+=factor;if(low(resultType)&&Double.isFinite(factor))exactSum=exactSum.add(new java.math.BigDecimal(factor));}
-            if(nonfinite)sum=Double.NaN;
-            double mean=low(resultType)?(nonfinite?Double.NaN:exactSum.divide(java.math.BigDecimal.valueOf(reduction),new java.math.MathContext(256,java.math.RoundingMode.HALF_EVEN)).floatValue()):arithmetic(resultType,sum,reduction,'/');double ds=0,dc=0,ss=0,sc=0;
-            for(long ordinal=0;ordinal<reduction;ordinal++){decode(ordinal,channel,axis,extents[0],coordinates);double x=represented(inputTypes.get(0),read(inputs[0],offsets[0],strides[0],coordinates));double d=arithmetic(resultType,x,mean,'-');
-                double y=wideArithmetic(resultType,d,dc,'-'),t=wideArithmetic(resultType,ds,y,'+');dc=wideArithmetic(resultType,wideArithmetic(resultType,t,ds,'-'),y,'-');ds=t;double square=wideArithmetic(resultType,d,d,'*');if(low(resultType)&&square==Double.POSITIVE_INFINITY){ss=Double.POSITIVE_INFINITY;sc=0;}else if(!low(resultType)||ss!=Double.POSITIVE_INFINITY){y=wideArithmetic(resultType,square,sc,'-');t=wideArithmetic(resultType,ss,y,'+');sc=wideArithmetic(resultType,wideArithmetic(resultType,t,ss,'-'),y,'-');ss=t;}}
-            double numerator=wideArithmetic(resultType,ss,divideCount(resultType,wideArithmetic(resultType,ds,ds,'*'),reduction),'-');if(Double.isFinite(numerator)&&numerator<0)numerator=0;
-            double biased=low(resultType)?divideCount(resultType,numerator,reduction):arithmetic(resultType,numerator,reduction,'/'),unbiased=low(resultType)?divideCount(resultType,numerator,reduction-1):arithmetic(resultType,numerator,reduction-1,'/');
+            java.math.BigDecimal exactSum=java.math.BigDecimal.ZERO;
+            boolean nonfinite=false;
+            for(long ordinal=0;ordinal<reduction;ordinal++){
+                decode(ordinal,channel,axis,extents[0],coordinates);
+                double factor=promote(inputTypes.get(0),resultType,read(inputs[0],offsets[0],strides[0],coordinates));
+                nonfinite|=!Double.isFinite(factor);
+                if(Double.isFinite(factor))exactSum=exactSum.add(new java.math.BigDecimal(factor));
+            }
+            double exactMean=nonfinite?Double.NaN:exactSum.divide(java.math.BigDecimal.valueOf(reduction),
+                    new java.math.MathContext(256,java.math.RoundingMode.HALF_EVEN)).doubleValue();
+            double mean=representedComputation(resultType,exactMean),ss=0,sc=0;
+            for(long ordinal=0;ordinal<reduction;ordinal++){
+                decode(ordinal,channel,axis,extents[0],coordinates);
+                double x=promote(inputTypes.get(0),resultType,read(inputs[0],offsets[0],strides[0],coordinates));
+                double d=arithmetic(resultType,x,mean,'-'),square=arithmetic(resultType,d,d,'*');
+                if(square==Double.POSITIVE_INFINITY){ss=Double.POSITIVE_INFINITY;sc=0;}
+                else if(ss!=Double.POSITIVE_INFINITY){
+                    double y=arithmetic(resultType,square,sc,'-'),t=arithmetic(resultType,ss,y,'+');
+                    sc=Double.isInfinite(t)?0:arithmetic(resultType,arithmetic(resultType,t,ss,'-'),y,'-');
+                    ss=t;
+                }
+            }
+            double biased=divideCount(resultType,ss,reduction),unbiased=divideCount(resultType,ss,reduction-1);
             double inv=arithmetic(resultType,1,representedComputation(resultType,StrictMath.sqrt(arithmetic(resultType,biased,epsilon,'+'))),'/');
             double scale=promote(inputTypes.get(1),resultType,readVector(inputs[1],offsets[1],strides[1],channel));
             double bias=promote(inputTypes.get(2),resultType,readVector(inputs[2],offsets[2],strides[2],channel));
@@ -84,9 +100,13 @@ public final class CpuBatchNormTrainingReferenceKernel {
             for(long ordinal=0;ordinal<reduction;ordinal++){decode(ordinal,channel,axis,extents[0],coordinates);double x=promote(inputTypes.get(0),resultType,read(inputs[0],offsets[0],strides[0],coordinates));double v=arithmetic(resultType,x,mean,'-');v=arithmetic(resultType,v,inv,'*');v=arithmetic(resultType,v,scale,'*');v=arithmetic(resultType,v,bias,'+');output[logical(coordinates,extents[0])]=represented(resultType,v);}
         }return new Result(output,nextMean,nextVar,meanOut,invOut);
     }
-    private static boolean low(DataType t){return t!=DataType.FLOAT32&&t!=DataType.FLOAT64;}
-    private static double wideArithmetic(DataType t,double a,double b,char op){if(low(t))return arithmetic(t,a,b,op);return op=='+'?a+b:op=='-'?a-b:op=='*'?a*b:a/b;}
-    private static double divideCount(DataType t,double value,long count){if(!low(t)||!Double.isFinite(value)||count==0)return value/count;if(value==0)return value;return new java.math.BigDecimal(value).divide(java.math.BigDecimal.valueOf(count),new java.math.MathContext(256,java.math.RoundingMode.HALF_EVEN)).floatValue();}
+    private static double divideCount(DataType t,double value,long count){
+        if(t==DataType.FLOAT64)return value/count;
+        if(!Double.isFinite(value)||count==0)return (float)value/count;
+        if(value==0)return value;
+        return new java.math.BigDecimal(value).divide(java.math.BigDecimal.valueOf(count),
+                new java.math.MathContext(256,java.math.RoundingMode.HALF_EVEN)).floatValue();
+    }
     private static double arithmetic(DataType t,double a,double b,char op){if(t==DataType.FLOAT64)return op=='+'?a+b:op=='-'?a-b:op=='*'?a*b:a/b;float x=(float)a,y=(float)b;return op=='+'?x+y:op=='-'?x-y:op=='*'?x*y:x/y;}
     private static double promote(DataType s,DataType r,double v){return representedComputation(r,represented(s,v));}
     private static double representedComputation(DataType t,double v){return t==DataType.FLOAT64?v:(float)v;}

@@ -33,6 +33,9 @@ import jdk.incubator.vector.LongVector;
  * Affected low numerical bodies and new FP8 recipes use projection 77. Unchanged exact
  * low movement, casts, predicates and raw WHERE recipes retain their former identities.
  * Projection 78 is restricted to the corrected F32 reduced-MSE exact-count denominator.
+ * Projections 79 and 80 selectively invalidate corrected statistical/normalization working sites
+ * and non-F64 average-pooling/attention exact counts. Composite Scan identities incorporate each
+ * ordinary helper's complete structural key, so changed helpers invalidate only their containers.
  *
  * @param loweringFingerprint non-null canonical lowering fingerprint
  * @param executionStrategy non-null generated compute strategy; ordinary parallel plans reuse
@@ -101,12 +104,49 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
     public static final int LOW_PRECISION_ARITHMETIC_SCHEMA = 77;
     /** F32 reduced MSE uses the exact integral denominator rather than its F32 projection. */
     public static final int FLOAT32_MSE_EXACT_COUNT_SCHEMA = 78;
+    /** Centered-square and normalization named sites preserve working precision and overflow. */
+    public static final int STATISTICS_WORKING_SITES_SCHEMA = 79;
+    /** Non-F64 average pooling and attention divide by exact integral contributor counts. */
+    public static final int EXACT_CONTRIBUTOR_COUNT_SCHEMA = 80;
 
     private String selectiveArithmeticIdentity() {
         return classIdentitySchema == LOW_PRECISION_ARITHMETIC_SCHEMA
                 ? "|low-precision-f32-working-rne-v1"
                 : classIdentitySchema == FLOAT32_MSE_EXACT_COUNT_SCHEMA
-                    ? "|float32-mse-mean-exact-count-v1" : "";
+                    ? "|float32-mse-mean-exact-count-v1"
+                : classIdentitySchema == STATISTICS_WORKING_SITES_SCHEMA
+                    ? "|statistics-working-sites-square-overflow-v1"
+                : classIdentitySchema == EXACT_CONTRIBUTOR_COUNT_SCHEMA
+                    ? "|exact-contributor-count-v1" : "";
+    }
+
+    /**
+     * Selects only statistical and normalization bodies whose arithmetic changed.
+     * @param ir nonnull encoded ordinary family
+     * @return whether the centered-square/working-site compatibility projection is required
+     */
+    public static boolean requiresStatisticsWorkingSitesSchema(CpuKernelIr ir) {
+        String family = ir.familyIdentity();
+        return family.startsWith("advanced-reduction:VARIANCE:")
+                || family.startsWith("advanced-reduction:STANDARD_DEVIATION:")
+                || family.startsWith("advanced-reduction:L2_NORM:")
+                || family.startsWith("advanced-reduction:LOG_SUM_EXP:")
+                    && ir.values().getLast().dataType() == DataType.FLOAT32
+                || family.startsWith("trailing-normalization:")
+                || family.startsWith("batch-normalization-training:");
+    }
+
+    /**
+     * Selects average pooling and attention with binary32 working count division.
+     * @param ir nonnull encoded ordinary family
+     * @return whether exact integral count compatibility is required; F64 and max pooling retain keys
+     */
+    public static boolean requiresExactContributorCountSchema(CpuKernelIr ir) {
+        String family = ir.familyIdentity();
+        return ir.values().getLast().dataType() != DataType.FLOAT64
+                && (family.startsWith("pool2d:kind=AVERAGE:")
+                    || family.startsWith("pool3d:kind=AVERAGE:")
+                    || family.startsWith("attention:"));
     }
 
     /**
@@ -758,7 +798,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 && classIdentitySchema != MOVEMENT_OPERAND_TABLE_SCHEMA
                 && classIdentitySchema != FLOAT32_RSQRT_SITES_SCHEMA
                 && classIdentitySchema != LOW_PRECISION_ARITHMETIC_SCHEMA
-                && classIdentitySchema != FLOAT32_MSE_EXACT_COUNT_SCHEMA) {
+                && classIdentitySchema != FLOAT32_MSE_EXACT_COUNT_SCHEMA
+                && classIdentitySchema != STATISTICS_WORKING_SITES_SCHEMA
+                && classIdentitySchema != EXACT_CONTRIBUTOR_COUNT_SCHEMA) {
             throw new IllegalArgumentException("unsupported CPU generated class identity projection");
         }
         if (classIdentitySchema == 71 && generalScanIr.isEmpty()

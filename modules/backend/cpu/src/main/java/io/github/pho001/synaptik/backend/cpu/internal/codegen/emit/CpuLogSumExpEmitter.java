@@ -10,7 +10,8 @@ import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
 
 /**
- * Emits the direct stable two-pass log-sum-exp body.
+ * Emits the direct stable two-pass log-sum-exp body with binary32 sites for F32 and low storage,
+ * and binary64 sites for F64, including shifted EXP, compensated sum and LOG finishing.
  * Controlled ROW outputs branch before either operand pass; inactive cells publish positive
  * zero without classifying or loading any input.
  */
@@ -113,7 +114,7 @@ public final class CpuLogSumExpEmitter {
         CpuNormEmitter.emitPass(code, carriers, specialization, type, selected, inputRank, geometry,
                 inputExtents, inputStrides, inputBase, domain, remaining, coordinate, address,
                 selectedCoordinates, contiguous, represented, value, () -> {
-                    if (CpuNormEmitter.low(type)) {
+                    if (CpuNormEmitter.working32(type)) {
                         CpuNormEmitter.arithmetic(code, type, value, maximum, Opcode.DSUB, value);
                         CpuNormEmitter.unary(code, type, "exp", value, value);
                     } else {
@@ -124,7 +125,7 @@ public final class CpuLogSumExpEmitter {
                     }
                     CpuNormEmitter.kahan(code, type, value, sum, compensation, temporary);
                 });
-        if (CpuNormEmitter.low(type)) {
+        if (CpuNormEmitter.working32(type)) {
             CpuNormEmitter.unary(code, type, "log", sum, result);
             CpuNormEmitter.arithmetic(code, type, maximum, result, Opcode.DADD, result);
         } else {

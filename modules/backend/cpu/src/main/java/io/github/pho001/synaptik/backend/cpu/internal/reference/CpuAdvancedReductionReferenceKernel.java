@@ -16,6 +16,9 @@ import java.util.Objects;
  * helpers, or exact-state workspace. Exact represented L1 sums and statistical means use decimal
  * images of the binary values before the result-format rounding seam; transcendental finishing
  * uses {@link StrictMath}.</p>
+ * <p>Centered squares, L2 squares and log-sum-exp arithmetic use binary32 for FLOAT32 and low
+ * storage, binary64 for FLOAT64. Genuine individual-square and aggregate overflow remains
+ * infinity through the mandatory final divisor and square root; NaN is not clamped away.</p>
  */
 public final class CpuAdvancedReductionReferenceKernel {
     private static final long CANONICAL_NAN = 0x7ff8000000000000L;
@@ -100,7 +103,7 @@ public final class CpuAdvancedReductionReferenceKernel {
             return Double.isNaN(point) ? canonicalNaN() : point;
         }
         BigDecimal exact = BigDecimal.ZERO;
-        double maximum = Double.NEGATIVE_INFINITY, scale = 0.0, scaledSquares = 0.0;
+        double maximum = Double.NEGATIVE_INFINITY, normSquares = 0.0;
         boolean nan = false, positiveInfinity = false, infinity = false;
         long[] domainCoordinates = coordinates.clone();
         for (long index = 0; index < domain; index++) {
@@ -112,13 +115,8 @@ public final class CpuAdvancedReductionReferenceKernel {
                 else if (kind == CpuAdvancedReductionIr.Kind.L1_NORM)
                     exact = exact.add(new BigDecimal(Math.abs(value)));
                 else if (kind == CpuAdvancedReductionIr.Kind.L2_NORM) {
-                    double absolute = Math.abs(value);
-                    if (absolute != 0.0 && scale < absolute) {
-                        double ratio = arithmetic(type, scale, absolute, '/');
-                        scaledSquares = arithmetic(type, 1.0, arithmetic(type, arithmetic(type, scaledSquares, ratio, '*'), ratio, '*'), '+'); scale = absolute;
-                    } else if (absolute != 0.0) {
-                        double ratio = arithmetic(type, absolute, scale, '/'); scaledSquares = arithmetic(type, scaledSquares, arithmetic(type, ratio, ratio, '*'), '+');
-                    }
+                    double square = arithmetic(type, value, value, '*');
+                    normSquares = arithmetic(type, normSquares, square, '+');
                 } else exact = exact.add(new BigDecimal(value));
             }
             incrementSelected(domainCoordinates, extents, selected);
@@ -143,29 +141,26 @@ public final class CpuAdvancedReductionReferenceKernel {
                 ? canonicalNaN() : Double.POSITIVE_INFINITY;
         if (kind == CpuAdvancedReductionIr.Kind.L1_NORM) return exact.doubleValue();
         if (kind == CpuAdvancedReductionIr.Kind.L2_NORM)
-            return scale == 0.0 ? 0.0 : arithmetic(type, scale, working(type, StrictMath.sqrt(scaledSquares)), '*');
+            return working(type, StrictMath.sqrt(normSquares));
         double mean = represented(low(type) ? DataType.FLOAT32 : type, exact.divide(BigDecimal.valueOf(domain), DIVISION).doubleValue());
-        double deviations = 0.0, deviationCompensation = 0.0;
         double squares = 0.0, squareCompensation = 0.0; Arrays.fill(domainCoordinates, 0);
         for (int axis = 0; axis < selected.length; axis++) if (!selected[axis])
             domainCoordinates[axis] = coordinates[axis];
         for (long index = 0; index < domain; index++) {
             double deviation = arithmetic(type, value(input, offset, strides, domainCoordinates), mean, '-');
-            double adjusted = arithmetic(type, deviation, deviationCompensation, '-'), next = arithmetic(type, deviations, adjusted, '+');
-            deviationCompensation = arithmetic(type, arithmetic(type, next, deviations, '-'), adjusted, '-'); deviations = next;
             double square = arithmetic(type, deviation, deviation, '*');
             if (square == Double.POSITIVE_INFINITY) {
                 squares = Double.POSITIVE_INFINITY; squareCompensation = 0.0;
             } else if (squares != Double.POSITIVE_INFINITY) {
-                adjusted = arithmetic(type, square, squareCompensation, '-'); next = arithmetic(type, squares, adjusted, '+');
-                squareCompensation = arithmetic(type, arithmetic(type, next, squares, '-'), adjusted, '-'); squares = next;
+                double adjusted = arithmetic(type, square, squareCompensation, '-');
+                double next = arithmetic(type, squares, adjusted, '+');
+                squareCompensation = Double.isInfinite(next) ? 0.0
+                        : arithmetic(type, arithmetic(type, next, squares, '-'), adjusted, '-');
+                squares = next;
             }
             incrementSelected(domainCoordinates, extents, selected);
         }
-        double numerator = squares == Double.POSITIVE_INFINITY ? Double.POSITIVE_INFINITY
-                : arithmetic(type, squares, divide(type, arithmetic(type, deviations, deviations, '*'), domain), '-');
-        if (numerator < 0.0) numerator = 0.0;
-        double result = divide(type, numerator, domain - correction);
+        double result = divide(type, squares, domain - correction);
         return kind == CpuAdvancedReductionIr.Kind.STANDARD_DEVIATION
                 ? working(type, StrictMath.sqrt(result)) : result;
     }
@@ -174,10 +169,10 @@ public final class CpuAdvancedReductionReferenceKernel {
         return type != DataType.FLOAT64 && type != DataType.FLOAT32;
     }
     private static double working(DataType type, double value) {
-        return low(type) ? (float) value : value;
+        return type == DataType.FLOAT64 ? value : (float) value;
     }
     private static double arithmetic(DataType type, double a, double b, char operation) {
-        if (low(type)) {
+        if (type != DataType.FLOAT64) {
             float x = (float) a, y = (float) b;
             return switch (operation) { case '+' -> x + y; case '-' -> x - y;
                 case '*' -> x * y; default -> x / y; };
@@ -186,7 +181,8 @@ public final class CpuAdvancedReductionReferenceKernel {
             case '*' -> a * b; default -> a / b; };
     }
     private static double divide(DataType type, double value, long count) {
-        if (!low(type) || !Double.isFinite(value) || count == 0) return value / count;
+        if (type == DataType.FLOAT64) return value / count;
+        if (!Double.isFinite(value) || count == 0) return (float) value / count;
         if (value == 0) return value;
         return new BigDecimal(value).divide(BigDecimal.valueOf(count), DIVISION).floatValue();
     }

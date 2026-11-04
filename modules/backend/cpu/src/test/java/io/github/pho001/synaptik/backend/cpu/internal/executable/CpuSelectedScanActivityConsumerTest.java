@@ -23,6 +23,36 @@ import org.junit.jupiter.api.Test;
 
 /** Numerical consumers of Compiler-selected Scan derivatives through assigned CPU executables. */
 public class CpuSelectedScanActivityConsumerTest {
+    @Test void controlledVarianceAndNormalizationKeepOverflowAndSkipPoisonedPadding() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            Tensor h = leaf(type, false, 2, 4), x = leaf(type, false, 2, 4);
+            Tensor initial = leaf(type, false, 2, 4), sequence = leaf(type, false, 2, 2, 4);
+            Tensor lengths = leaf(DataType.INT64, false, 2);
+            ScalarValue epsilon = type == DataType.FLOAT64 ? ScalarValue.float64(1e-5) : ScalarValue.float32(1e-5f);
+            var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h),
+                    List.of(x.variance(new int[] {1}, false, 0),
+                            x.layerNorm(Shape.of(4), epsilon), x.rmsNorm(Shape.of(4), epsilon)));
+            var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(), lengths, 1,
+                    List.of(OptionalInt.of(0)), body, false);
+            var artifact = CpuGeneralScanCapabilityTest.compile(scan.outputs(), Optional.empty(), false,
+                    new CpuCapabilityProvider());
+            double magnitude = type == DataType.FLOAT64 ? Double.MAX_VALUE : 0x1p64;
+            double[] input = new double[16];
+            Arrays.fill(input, Double.NaN);
+            input[0] = magnitude; input[1] = -magnitude; input[2] = input[3] = 0;
+            var result = execute(artifact, feeds(initial, new double[8], sequence, input,
+                    lengths, new double[] {1, 0}));
+            assertArrayEquals(new double[] {Double.POSITIVE_INFINITY, 0, 0, 0}, result.get(0));
+            for (int port : new int[] {1, 2}) {
+                double[] values = result.get(port);
+                for (int i = 0; i < values.length; i++) {
+                    double expected = i == 1 ? -0d : 0d;
+                    rawZero(expected, values[i]);
+                }
+            }
+        }
+    }
+
     @Test void absentSqrtCotangentIsNotAnExplicitZeroEvenWithAnUnselectedPublishedFinalCarry() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
             for (boolean reverse : List.of(false, true)) for (boolean length : List.of(false, true))

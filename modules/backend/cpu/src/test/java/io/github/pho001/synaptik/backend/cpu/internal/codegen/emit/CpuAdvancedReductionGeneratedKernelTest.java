@@ -78,18 +78,6 @@ class CpuAdvancedReductionGeneratedKernelTest {
         }
     }
 
-    @Test void focusedEmittersOwnNumericalBodiesWithoutSelectorDelegation() throws Throwable {
-        assertAll(
-                () -> assertTrue(java.util.Arrays.stream(CpuLogSumExpEmitter.class
-                        .getDeclaredMethods()).noneMatch(method -> method.getName()
-                                .equals("emitAdvanced"))),
-                () -> assertTrue(java.util.Arrays.stream(CpuStatisticalReductionEmitter.class
-                        .getDeclaredMethods()).noneMatch(method -> method.getName()
-                                .equals("emitAdvanced"))),
-                () -> assertTrue(java.util.Arrays.stream(CpuNormEmitter.class.getDeclaredFields())
-                        .noneMatch(field -> field.getType() == int.class
-                                && java.lang.reflect.Modifier.isStatic(field.getModifiers()))));
-    }
 
     @Test void allFiveDoubleBodiesProduceFrozenFiniteAndSpecialResults() throws Throwable {
         assertEquals(3 + StrictMath.log(StrictMath.exp(-2) + StrictMath.exp(-1) + 1),
@@ -198,7 +186,7 @@ class CpuAdvancedReductionGeneratedKernelTest {
                 () -> assertEquals(Double.doubleToRawLongBits(0x1.0p53),
                         Double.doubleToRawLongBits(invoke(AggregateReductionKind.L1_NORM,
                                 new double[] {0x1.0p53, 1.0}, 0))),
-                () -> assertEquals(Double.MIN_VALUE, invoke(AggregateReductionKind.L2_NORM,
+                () -> assertEquals(0.0, invoke(AggregateReductionKind.L2_NORM,
                         new double[] {Double.MIN_VALUE, 0.0}, 0)));
     }
 
@@ -278,6 +266,98 @@ class CpuAdvancedReductionGeneratedKernelTest {
             invoke(selected, represented(DataType.BFLOAT16,
                     new double[] {0x1p64, -0x1p64, 0, 0}), output);
             assertEquals(0x7f80L, bits(DataType.BFLOAT16, output), kind.name());
+        }
+    }
+
+    @Test void squareAndTotalOverflowSurviveFiniteTailsInEveryApplicableWorkingType() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+            double individual = type == DataType.FLOAT64 ? Double.MAX_VALUE : 0x1p64;
+            double total = type == DataType.FLOAT64 ? 0x1p511 : 0x1p63;
+            for (double[] values : List.of(new double[] {individual, -individual, 0, 0},
+                    new double[] {total, -total, total, -total, 0, 0})) {
+                for (AggregateReductionKind kind : List.of(AggregateReductionKind.VARIANCE,
+                        AggregateReductionKind.STANDARD_DEVIATION, AggregateReductionKind.L2_NORM)) {
+                    var selected = plan(kind, type, values.length, 0,
+                            List.of(arrayCarrier(type), arrayCarrier(type)));
+                    Object output = represented(type, new double[] {-9});
+                    invoke(selected, represented(type, values), output);
+                    assertEquals(bits(type, represented(type, new double[] {Double.POSITIVE_INFINITY})),
+                            bits(type, output), type + "/" + kind + "/square or total overflow");
+                }
+            }
+            for (double special : new double[] {Double.NaN, Double.POSITIVE_INFINITY}) {
+                for (AggregateReductionKind kind : List.of(AggregateReductionKind.VARIANCE,
+                        AggregateReductionKind.STANDARD_DEVIATION)) {
+                    var selected = plan(kind, type, 4, 0, List.of(arrayCarrier(type), arrayCarrier(type)));
+                    Object output = represented(type, new double[] {0});
+                    invoke(selected, represented(type, new double[] {individual, -individual, special, 0}), output);
+                    assertTrue(Double.isNaN(CpuLayerNormGeneratedKernelTest.decoded(type, output)[0]),
+                            type + "/" + kind + "/input special dominates overflow");
+                }
+            }
+        }
+    }
+
+    @Test void roundedMeanSubtractionAndSquareUseTheDeclaredPrecisionWithoutResidualCorrection() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            double base = type == DataType.FLOAT32 ? 0x1p24 : 0x1p53;
+            var selected = plan(AggregateReductionKind.VARIANCE, type, 2, 0,
+                    List.of(arrayCarrier(type), arrayCarrier(type)));
+            Object output = represented(type, new double[] {0});
+            invoke(selected, represented(type, new double[] {base, base + 2}), output);
+            // The rounded mean is base: centered squares are 0 and 4, not exact-real variance 1.
+            assertEquals(bits(type, represented(type, new double[] {2})), bits(type, output), type.name());
+        }
+    }
+
+    @Test void floatLogSumExpRoundsEachNamedWorkingSite() throws Throwable {
+        for (float tail : new float[] {.1f, .5f, 1f, 2f, 10f, 50f}) {
+            var selected = plan(AggregateReductionKind.LOG_SUM_EXP, DataType.FLOAT32, 2, 0,
+                    List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY));
+            float[] output = {-9};
+            invoke(selected, new float[] {0, -tail}, output);
+            float term = (float) StrictMath.exp(-tail);
+            float sum = 1f + term;
+            float expected = (float) StrictMath.log(sum);
+            assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(output[0]),
+                    "binary32 shifted EXP/sum/LOG for " + tail);
+        }
+        var selected = plan(AggregateReductionKind.LOG_SUM_EXP, DataType.FLOAT32, 2, 0,
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY));
+        float[] output = {0};
+        invoke(selected, new float[] {Float.POSITIVE_INFINITY, 0}, output);
+        assertEquals(Float.POSITIVE_INFINITY, output[0]);
+        invoke(selected, new float[] {Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY}, output);
+        assertEquals(Float.NEGATIVE_INFINITY, output[0]);
+        invoke(selected, new float[] {Float.POSITIVE_INFINITY, Float.NaN}, output);
+        assertTrue(Float.isNaN(output[0]));
+    }
+
+    @Test void changedArithmeticRejectsRetiredArtifactsButL1RetainsBothIdentityStreams() {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            for (AggregateReductionKind kind : List.of(AggregateReductionKind.VARIANCE,
+                    AggregateReductionKind.STANDARD_DEVIATION, AggregateReductionKind.L2_NORM)) {
+                var selected = plan(kind, type, 4, 0, List.of(arrayCarrier(type), arrayCarrier(type)));
+                var route = selected.units().getFirst().portablePlan();
+                var current = route.specialization();
+                var retired = new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization(
+                        current.loweringFingerprint(), current.executionStrategy(), current.boundaryDataTypes(),
+                        current.carrierPattern(), 0, -1, List.of(), current.scratchParameter(),
+                        type == DataType.FLOAT64 || type == DataType.FLOAT32 ? 52 : 77);
+                assertFalse(java.util.Arrays.equals(retired.compatibilityBytes(), current.compatibilityBytes()));
+                assertFalse(java.util.Arrays.equals(retired.classIdentityBytes(), current.classIdentityBytes()));
+                assertThrows(IllegalArgumentException.class, () -> new CpuClassFileKernelGenerator()
+                        .generateClassBytes(retired, route.kernelIr()));
+            }
+            var control = plan(AggregateReductionKind.L1_NORM, type, 4, 0,
+                    List.of(arrayCarrier(type), arrayCarrier(type))).units().getFirst().portablePlan().specialization();
+            var retained = new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization(
+                    control.loweringFingerprint(), control.executionStrategy(), control.boundaryDataTypes(),
+                    control.carrierPattern(), 0, -1, List.of(), control.scratchParameter(),
+                    type == DataType.FLOAT64 || type == DataType.FLOAT32 ? 52 : 77);
+            assertArrayEquals(retained.compatibilityBytes(), control.compatibilityBytes());
+            assertArrayEquals(retained.classIdentityBytes(), control.classIdentityBytes());
         }
     }
 

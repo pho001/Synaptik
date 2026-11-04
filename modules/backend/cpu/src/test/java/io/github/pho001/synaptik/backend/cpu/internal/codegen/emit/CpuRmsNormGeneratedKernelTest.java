@@ -60,9 +60,6 @@ class CpuRmsNormGeneratedKernelTest {
                             .map(MemberRefEntry.class::cast).toList();
                     assertAll(() -> assertTrue(model.fields().isEmpty()),
                             () -> assertEquals(1, model.methods().size()),
-                            () -> assertTrue(members.stream().anyMatch(member -> member.owner()
-                                    .asInternalName().equals("java/lang/Math")
-                                    && member.name().stringValue().equals("hypot"))),
                             () -> assertTrue(members.stream().noneMatch(member -> member.owner()
                                     .asInternalName().startsWith("io/github/pho001/synaptik"))));
                     var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);

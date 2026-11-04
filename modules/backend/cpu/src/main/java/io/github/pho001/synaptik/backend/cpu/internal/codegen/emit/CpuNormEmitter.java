@@ -10,7 +10,7 @@ import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
 
 /**
- * Emits direct L1/L2 norm bodies and exposes only shared primitive traversal mechanics.
+ * Emits direct L1/L2 norm bodies and shared declared-working-precision arithmetic sites.
  * Controlled ordinary entries guard their proved output ROW cell before any selected-domain
  * loads or exact-state reset; SHARED and standalone entries retain the same traversal.
  */
@@ -61,7 +61,7 @@ public final class CpuNormEmitter {
         int value = code.allocateLocal(TypeKind.DOUBLE);
         int result = code.allocateLocal(TypeKind.DOUBLE);
         int temporary = code.allocateLocal(TypeKind.DOUBLE);
-        int scale = code.allocateLocal(TypeKind.DOUBLE);
+        int compensation = code.allocateLocal(TypeKind.DOUBLE);
         int squares = code.allocateLocal(TypeKind.DOUBLE);
         int nan = code.allocateLocal(TypeKind.INT);
         int anyInfinity = code.allocateLocal(TypeKind.INT);
@@ -110,7 +110,7 @@ public final class CpuNormEmitter {
         for (int axis = 0; axis < inputRank; axis++) if (selected[axis])
             selectedCoordinates[axis] = code.allocateLocal(TypeKind.LONG);
         code.loadConstant(0).istore(nan).loadConstant(0).istore(anyInfinity);
-        code.loadConstant(0.0).dstore(squares).loadConstant(0.0).dstore(scale);
+        code.loadConstant(0.0).dstore(squares).loadConstant(0.0).dstore(compensation);
         if (exact != null) exact.emitReset();
 
         emitPass(code, carriers, specialization, type, selected, inputRank, geometry,
@@ -121,18 +121,15 @@ public final class CpuNormEmitter {
                         emitRepresentedAbs(code, type, represented);
                         exact.emitFactor(represented);
                     } else {
-                        emitScaledSquares(code, type, value, scale, squares, temporary);
+                        arithmetic(code, type, value, value, Opcode.DMUL, value);
+                        kahanSquares(code, type, value, squares, compensation, temporary);
                     }
                 });
 
         if (l1) {
             exact.emitFinish(represented);
             decodeRepresented(code, type, represented, result);
-        } else if (low(type)) {
-            unary(code, type, "sqrt", squares, result);
-            arithmetic(code, type, scale, result, Opcode.DMUL, result);
-        } else code.dload(scale).dload(squares)
-                .invokestatic(MATH, "sqrt", doubleUnary()).dmul().dstore(result);
+        } else unary(code, type, "sqrt", squares, result);
         var noNan = code.newLabel(); var noInfinity = code.newLabel(); var specialsDone = code.newLabel();
         code.iload(nan).branch(Opcode.IFEQ, noNan).loadConstant(Double.longBitsToDouble(
                 0x7ff8000000000000L)).dstore(result).branch(Opcode.GOTO, specialsDone)
@@ -248,9 +245,9 @@ public final class CpuNormEmitter {
     }
 
     /**
-     * Tests whether the declared storage format has binary32 numerical working sites.
+     * Tests whether the declared storage format requires an encoded low carrier.
      * @param type nonnull represented floating type
-     * @return whether the type is one of the four low formats
+     * @return whether the type is one of the four low storage formats
      */
     static boolean low(DataType type) {
         return type == DataType.BFLOAT16 || type == DataType.FLOAT16
@@ -258,7 +255,16 @@ public final class CpuNormEmitter {
     }
 
     /**
-     * Emits a named working site, retaining existing wide-site F32/F64 aggregate forms.
+     * Distinguishes arithmetic precision from low storage encoding.
+     * @param type nonnull represented floating type
+     * @return whether named arithmetic sites round to binary32
+     */
+    static boolean working32(DataType type) {
+        return type == DataType.FLOAT32 || low(type);
+    }
+
+    /**
+     * Emits one named binary32 or binary64 working site without narrowing low storage.
      * @param code nonnull method builder
      * @param type represented operation result type
      * @param left binary64 carrier local holding the left working value
@@ -268,7 +274,7 @@ public final class CpuNormEmitter {
      */
     static void arithmetic(CodeBuilder code, DataType type, int left, int right,
             Opcode operation, int result) {
-        if (low(type)) CpuLayerNormEmitter.arithmetic(code, type, left, right, operation, result);
+        if (working32(type)) CpuLayerNormEmitter.arithmetic(code, type, left, right, operation, result);
         else {
             code.dload(left).dload(right);
             switch (operation) {
@@ -281,7 +287,7 @@ public final class CpuNormEmitter {
     }
 
     /**
-     * Emits compensated summation with binary32 primitives for low formats.
+     * Emits compensated summation at the declared working precision.
      * @param code nonnull method builder
      * @param type represented operation result type
      * @param value addend local, reused for the compensated working addend
@@ -291,7 +297,7 @@ public final class CpuNormEmitter {
      */
     static void kahan(CodeBuilder code, DataType type, int value, int sum,
             int compensation, int temporary) {
-        if (!low(type)) { kahan(code, value, sum, compensation, temporary); return; }
+        if (!working32(type)) { kahan(code, value, sum, compensation, temporary); return; }
         arithmetic(code, type, value, compensation, Opcode.DSUB, value);
         arithmetic(code, type, sum, value, Opcode.DADD, temporary);
         arithmetic(code, type, temporary, sum, Opcode.DSUB, compensation);
@@ -300,7 +306,7 @@ public final class CpuNormEmitter {
     }
 
     /**
-     * Emits compensated nonnegative-square accumulation without poisoning an infinite total.
+     * Emits compensated square accumulation, retaining individual and total overflow as infinity.
      * @param code nonnull method builder
      * @param type represented operation result type
      * @param value nonnegative working square in a binary64 carrier local
@@ -310,7 +316,6 @@ public final class CpuNormEmitter {
      */
     static void kahanSquares(CodeBuilder code, DataType type, int value, int sum,
             int compensation, int temporary) {
-        if (!low(type)) { kahan(code, value, sum, compensation, temporary); return; }
         var finiteSquare = code.newLabel(); var done = code.newLabel();
         code.dload(value).loadConstant(Double.POSITIVE_INFINITY).dcmpl()
                 .branch(Opcode.IFNE, finiteSquare).loadConstant(Double.POSITIVE_INFINITY).dstore(sum)
@@ -318,6 +323,10 @@ public final class CpuNormEmitter {
                 .labelBinding(finiteSquare);
         code.dload(sum).loadConstant(Double.POSITIVE_INFINITY).dcmpl().branch(Opcode.IFEQ, done);
         kahan(code, type, value, sum, compensation, temporary);
+        // Once the nonnegative total overflows, compensation must not turn a later finite
+        // contributor into infinity-minus-infinity. NaN inputs remain NaN, not zero.
+        code.dload(sum).loadConstant(Double.POSITIVE_INFINITY).dcmpl().branch(Opcode.IFNE, done)
+                .loadConstant(0.0).dstore(compensation);
         code.labelBinding(done);
     }
 
@@ -331,19 +340,19 @@ public final class CpuNormEmitter {
      */
     static void unary(CodeBuilder code, DataType type, String operation, int source, int result) {
         code.dload(source).invokestatic(MATH, operation, doubleUnary());
-        if (low(type)) code.d2f().f2d();
+        if (working32(type)) code.d2f().f2d();
         code.dstore(result);
     }
 
     /**
-     * Emits division by an exact cardinality, preserving the final binary32 rounding for lows.
+     * Emits division by an exact cardinality with the declared final working rounding.
      * @param code nonnull method builder
      * @param type represented operation result type
      * @param value binary64 carrier local holding the working numerator and receiving the quotient
      * @param count exact nonnegative long cardinality local
      */
     static void divideByCount(CodeBuilder code, DataType type, int value, int count) {
-        if (!low(type)) {
+        if (!working32(type)) {
             code.dload(value).lload(count).l2d().ddiv().dstore(value);
             return;
         }
@@ -401,47 +410,6 @@ public final class CpuNormEmitter {
         else code.iload(represented).loadConstant(type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2 ? 0x7f : 0x7fff).iand().istore(represented);
     }
 
-    /**
-     * Emits one scaled-square accumulation step at the operation's working precision.
-     * @param code nonnull method builder
-     * @param type represented operation result type
-     * @param value binary64 carrier local containing the contributor; overwritten by its absolute value
-     * @param scale binary64 carrier local containing the maximum absolute contributor
-     * @param squares binary64 carrier local containing the scaled-square sum
-     * @param temporary binary64 carrier temporary for the ratio
-     */
-    static void emitScaledSquares(CodeBuilder code, DataType type, int value, int scale, int squares,
-            int temporary) {
-        if (low(type)) {
-            int one = code.allocateLocal(TypeKind.DOUBLE), product = code.allocateLocal(TypeKind.DOUBLE);
-            code.loadConstant(1.0).dstore(one);
-            code.dload(value).invokestatic(MATH, "abs", doubleUnary()).dstore(value);
-            var zero = code.newLabel(); var smaller = code.newLabel(); var complete = code.newLabel();
-            code.dload(value).loadConstant(0.0).dcmpl().branch(Opcode.IFEQ, zero);
-            code.dload(scale).dload(value).dcmpl().branch(Opcode.IFGE, smaller);
-            arithmetic(code, type, scale, value, Opcode.DDIV, temporary);
-            arithmetic(code, type, squares, temporary, Opcode.DMUL, product);
-            arithmetic(code, type, product, temporary, Opcode.DMUL, product);
-            arithmetic(code, type, one, product, Opcode.DADD, squares);
-            code.dload(value).dstore(scale).branch(Opcode.GOTO, complete).labelBinding(smaller);
-            arithmetic(code, type, value, scale, Opcode.DDIV, temporary);
-            arithmetic(code, type, temporary, temporary, Opcode.DMUL, product);
-            arithmetic(code, type, squares, product, Opcode.DADD, squares);
-            code.labelBinding(complete).labelBinding(zero);
-            return;
-        }
-        code.dload(value).invokestatic(MATH, "abs", doubleUnary()).dstore(value);
-        var zero = code.newLabel(); var smaller = code.newLabel(); var complete = code.newLabel();
-        code.dload(value).loadConstant(0.0).dcmpl().branch(Opcode.IFEQ, zero);
-        code.dload(scale).dload(value).dcmpl().branch(Opcode.IFGE, smaller);
-        code.dload(scale).dload(value).ddiv().dstore(temporary);
-        code.loadConstant(1.0).dload(squares).dload(temporary).dload(temporary).dmul()
-                .dmul().dadd().dstore(squares).dload(value).dstore(scale)
-                .branch(Opcode.GOTO, complete).labelBinding(smaller);
-        code.dload(value).dload(scale).ddiv().dstore(temporary);
-        code.dload(squares).dload(temporary).dload(temporary).dmul().dadd().dstore(squares)
-                .branch(Opcode.GOTO, complete).labelBinding(zero).labelBinding(complete);
-    }
 
     /**
      * Emits the single final result-format narrowing and typed store.

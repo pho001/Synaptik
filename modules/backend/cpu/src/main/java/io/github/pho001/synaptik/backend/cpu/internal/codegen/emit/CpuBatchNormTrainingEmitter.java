@@ -6,24 +6,23 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.TypeKind;
-import java.lang.constant.ClassDesc;
 
 /**
  * Emits the direct generated body for one first-class batch-normalization training occurrence.
  *
  * <p>The generated outer range owns complete channels. For each channel it computes an exact
- * represented-value mean, corrected biased and unbiased variances, four channel-statistic
+ * represented-value mean, centered-square biased and unbiased variances, four channel-statistic
  * outputs, and the normalized affine output in three complete non-channel traversals. The body
  * reuses the invocation's exact-state slice and retains no state after invocation.</p>
  * <p>Controlled ordinary helpers guard the proved channel ROW before the complete occurrence's
  * exact-state reset, all three traversals, affine loads, and saved-statistic publications.
  * Non-channel axes are explicitly omitted from the channel ordinal rather than inferred from
  * matching extents.</p>
- * <p>Only explicit algorithm-version-two symbolic domains read their denominator from packed
- * geometry. Fixed-domain emission retains its original constants and generated instructions.</p>
+ * <p>Every square, aggregate and saved inverse-standard-deviation site uses binary64 for FLOAT64
+ * and binary32 otherwise. Square and total overflow remain positive infinity; no NaN clamp hides it.
+ * The exact invocation count supplies both divisors for static and symbolic domains.</p>
  */
 public final class CpuBatchNormTrainingEmitter {
-    private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
     /** Creates a stateless generation-time emitter with no retained invocation resources. */
     public CpuBatchNormTrainingEmitter() { }
 
@@ -68,10 +67,8 @@ public final class CpuBatchNormTrainingEmitter {
         int inputRep=CpuLayerNormEmitter.represented(code,specialization.boundaryDataTypes().get(map[0]));
         int input=code.allocateLocal(TypeKind.DOUBLE), meanRep=code.allocateLocal(exactType==DataType.FLOAT64?TypeKind.DOUBLE:TypeKind.FLOAT);
         int mean=code.allocateLocal(TypeKind.DOUBLE), deviation=code.allocateLocal(TypeKind.DOUBLE);
-        int devSum=code.allocateLocal(TypeKind.DOUBLE),devComp=code.allocateLocal(TypeKind.DOUBLE);
         int square=code.allocateLocal(TypeKind.DOUBLE),sqSum=code.allocateLocal(TypeKind.DOUBLE),sqComp=code.allocateLocal(TypeKind.DOUBLE);
-        int temporary=code.allocateLocal(TypeKind.DOUBLE), numerator=code.allocateLocal(TypeKind.DOUBLE);
-        int n=code.allocateLocal(TypeKind.DOUBLE),nm1=code.allocateLocal(TypeKind.DOUBLE);
+        int temporary=code.allocateLocal(TypeKind.DOUBLE);
         int biased=code.allocateLocal(TypeKind.DOUBLE),unbiased=code.allocateLocal(TypeKind.DOUBLE);
         int epsilon=code.allocateLocal(TypeKind.DOUBLE),momentum=code.allocateLocal(TypeKind.DOUBLE),one=code.allocateLocal(TypeKind.DOUBLE);
         int oneMinus=code.allocateLocal(TypeKind.DOUBLE),radicand=code.allocateLocal(TypeKind.DOUBLE),root=code.allocateLocal(TypeKind.DOUBLE),saved=code.allocateLocal(TypeKind.DOUBLE);
@@ -81,14 +78,6 @@ public final class CpuBatchNormTrainingEmitter {
         code.loadConstant(CpuLayerNormEmitter.epsilon(identity,resultType)).dstore(epsilon);
         code.loadConstant(scalar(identity,":momentum=",resultType)).dstore(momentum);
         code.loadConstant(1.0).dstore(one);
-        // Only the explicit symbolic-domain branch reads the invocation denominator. The
-        // retained fixed-domain branch appends the original instruction sequence unchanged.
-        if (identity.contains(":symbolic-domain=true")) {
-            code.aload(geometry).loadConstant(7).laload().l2d().dstore(n);
-        } else {
-            code.loadConstant((double)Long.parseLong(CpuLayerNormEmitter.field(identity,":domain="))).dstore(n);
-        }
-        code.dload(n).loadConstant(1.0).dsub().dstore(nm1);
         CpuExactSumEmitter exact=new CpuExactSumEmitter(code,exactType,true,true,scratch,geometry,Integer.parseInt(CpuLayerNormEmitter.field(identity,":limbs=")));
         code.lload(start).lstore(channel); var channels=code.newLabel(); var done=code.newLabel();
         code.labelBinding(channels).lload(channel).lload(end).lcmp().branch(Opcode.IFGE,done);
@@ -104,35 +93,18 @@ public final class CpuBatchNormTrainingEmitter {
             exact.emitFactor(meanRep);
         });
         exact.emitFinish(meanRep); CpuNormEmitter.decodeRepresented(code,exactType,meanRep,mean);
-        code.loadConstant(0.0).dstore(devSum).loadConstant(0.0).dstore(devComp)
-                .loadConstant(0.0).dstore(sqSum).loadConstant(0.0).dstore(sqComp);
+        code.loadConstant(0.0).dstore(sqSum).loadConstant(0.0).dstore(sqComp);
         loop(code,geometry,rank,axis,extents[map[0]],strides[map[0]],11+map[0],channel,ordinal,remaining,coordinate,address,()->{
             CpuLayerNormEmitter.load(code,carriers,specialization,map[0],inputRep,input,address);
             CpuLayerNormEmitter.arithmetic(code,resultType,input,mean,Opcode.DSUB,deviation);
-            code.dload(deviation).dstore(temporary);CpuNormEmitter.kahan(code,resultType,temporary,devSum,devComp,square);
             CpuNormEmitter.arithmetic(code,resultType,deviation,deviation,Opcode.DMUL,square);CpuNormEmitter.kahanSquares(code,resultType,square,sqSum,sqComp,temporary);
         });
-        int exactCount = CpuNormEmitter.low(resultType) ? code.allocateLocal(TypeKind.LONG) : -1;
-        if (CpuNormEmitter.low(resultType)) {
-            code.aload(geometry).loadConstant(7).laload().lstore(exactCount);
-            CpuNormEmitter.arithmetic(code,resultType,devSum,devSum,Opcode.DMUL,temporary);
-            CpuNormEmitter.divideByCount(code,resultType,temporary,exactCount);
-            CpuNormEmitter.arithmetic(code,resultType,sqSum,temporary,Opcode.DSUB,numerator);
-        } else {
-        code.dload(devSum).dload(devSum).dmul().dload(n).ddiv().dstore(temporary);
-        code.dload(sqSum).dload(temporary).dsub().dstore(numerator);
-        }
-        var nonnegative=code.newLabel();code.dload(numerator).loadConstant(0.0).dcmpg().branch(Opcode.IFGE,nonnegative)
-                .loadConstant(0.0).dstore(numerator).labelBinding(nonnegative);
-        if (CpuNormEmitter.low(resultType)) {
-            code.dload(numerator).dstore(biased).dload(numerator).dstore(unbiased);
-            CpuNormEmitter.divideByCount(code,resultType,biased,exactCount);
-            code.lload(exactCount).loadConstant(1L).lsub().lstore(exactCount);
-            CpuNormEmitter.divideByCount(code,resultType,unbiased,exactCount);
-        } else {
-        CpuLayerNormEmitter.arithmetic(code,resultType,numerator,n,Opcode.DDIV,biased);
-        CpuLayerNormEmitter.arithmetic(code,resultType,numerator,nm1,Opcode.DDIV,unbiased);
-        }
+        int exactCount = code.allocateLocal(TypeKind.LONG);
+        code.aload(geometry).loadConstant(7).laload().lstore(exactCount);
+        code.dload(sqSum).dstore(biased).dload(sqSum).dstore(unbiased);
+        CpuNormEmitter.divideByCount(code,resultType,biased,exactCount);
+        code.lload(exactCount).loadConstant(1L).lsub().lstore(exactCount);
+        CpuNormEmitter.divideByCount(code,resultType,unbiased,exactCount);
         CpuLayerNormEmitter.arithmetic(code,resultType,biased,epsilon,Opcode.DADD,radicand);
         CpuNormEmitter.unary(code,resultType,"sqrt",radicand,root);
         CpuLayerNormEmitter.arithmetic(code,resultType,one,root,Opcode.DDIV,saved);

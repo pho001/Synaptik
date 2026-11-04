@@ -14,15 +14,14 @@ import java.lang.constant.MethodTypeDesc;
  *
  * <p>Generation freezes the form, result type, exact epsilon, normalized geometry, access plans,
  * and concrete carriers. The emitted entry obtains the exact mean from its assigned per-range
- * state, forms population variance with compensated primitive sums, and performs one final store
- * per logical result position. This emitter owns no run-time semantic dispatch or workspace.</p>
+ * state, sums centered squares in the declared working dtype without suppressing overflow,
+ * and performs one final store per logical result. NaN arithmetic is never clamped to zero.</p>
  * <p>Controlled ordinary helpers guard normalization slices by the normalized input's provenance
  * before operand loads or exact-sum scratch reset. Affine operands may independently introduce
  * result ROW provenance; their loads and publication use the full result coordinate.</p>
  */
 public final class CpuLayerNormEmitter {
     private static final ClassDesc DOUBLE = ClassDesc.of(Double.class.getName());
-    private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
     /** Creates a stateless generation-time emitter. */
     public CpuLayerNormEmitter() { }
     /**
@@ -78,8 +77,6 @@ public final class CpuLayerNormEmitter {
         int meanRepresented = code.allocateLocal(exactType == DataType.FLOAT64
                 ? TypeKind.DOUBLE : TypeKind.FLOAT);
         int mean = code.allocateLocal(TypeKind.DOUBLE), deviation = code.allocateLocal(TypeKind.DOUBLE);
-        int deviationSum = code.allocateLocal(TypeKind.DOUBLE);
-        int deviationCompensation = code.allocateLocal(TypeKind.DOUBLE);
         int square = code.allocateLocal(TypeKind.DOUBLE), squareSum = code.allocateLocal(TypeKind.DOUBLE);
         int squareCompensation = code.allocateLocal(TypeKind.DOUBLE);
         int temporary = code.allocateLocal(TypeKind.DOUBLE), variance = code.allocateLocal(TypeKind.DOUBLE);
@@ -126,9 +123,7 @@ public final class CpuLayerNormEmitter {
                 });
         exact.emitFinish(meanRepresented);
         CpuNormEmitter.decodeRepresented(code, exactType, meanRepresented, mean);
-        code.loadConstant(0.0).dstore(deviationSum).loadConstant(0.0)
-                .dstore(deviationCompensation).loadConstant(0.0).dstore(squareSum)
-                .loadConstant(0.0).dstore(squareCompensation);
+        code.loadConstant(0.0).dstore(squareSum).loadConstant(0.0).dstore(squareCompensation);
         var skipSecondPass = code.newLabel();
         code.iload(nan).iload(infinity).ior().iload(constant).ior()
                 .branch(Opcode.IFNE, skipSecondPass);
@@ -136,37 +131,17 @@ public final class CpuLayerNormEmitter {
                 bases[inputBoundary], ordinal, remaining, coordinate, address, () -> {
                     load(code, carriers, specialization, inputBoundary, representedInput, value, address);
                     CpuNormEmitter.arithmetic(code, resultType, value, mean, Opcode.DSUB, deviation);
-                    code.dload(deviation).dstore(temporary);
-                    CpuNormEmitter.kahan(code, resultType, temporary, deviationSum, deviationCompensation, square);
                     CpuNormEmitter.arithmetic(code, resultType, deviation, deviation, Opcode.DMUL, square);
                     CpuNormEmitter.kahanSquares(code, resultType, square, squareSum, squareCompensation, temporary);
                 });
         code.labelBinding(skipSecondPass);
-        int count = CpuNormEmitter.low(resultType) ? code.allocateLocal(TypeKind.LONG) : -1;
-        if (CpuNormEmitter.low(resultType)) {
-            code.loadConstant(domain).lstore(count);
-            CpuNormEmitter.arithmetic(code, resultType, deviationSum, deviationSum, Opcode.DMUL, temporary);
-            CpuNormEmitter.divideByCount(code, resultType, temporary, count);
-            CpuNormEmitter.arithmetic(code, resultType, squareSum, temporary, Opcode.DSUB, variance);
-        } else {
-        code.dload(squareSum).dload(deviationSum).dload(deviationSum).dmul()
-                .loadConstant((double) domain).ddiv().dsub().dstore(variance);
-        }
-        var nonnegative = code.newLabel();
-        code.dload(variance).loadConstant(0.0);
-        if (CpuNormEmitter.low(resultType)) code.dcmpg(); else code.dcmpl();
-        code.branch(Opcode.IFGE, nonnegative)
-                .loadConstant(0.0).dstore(variance).labelBinding(nonnegative);
-        if (CpuNormEmitter.low(resultType)) {
-            CpuNormEmitter.divideByCount(code, resultType, variance, count);
-            code.loadConstant(epsilon(identity, resultType)).dstore(temporary);
-            CpuNormEmitter.arithmetic(code, resultType, variance, temporary, Opcode.DADD, root);
-            CpuNormEmitter.unary(code, resultType, "sqrt", root, root);
-        } else {
-        code.dload(variance).loadConstant((double) domain).ddiv()
-                .loadConstant(epsilon(identity, resultType)).dadd().invokestatic(MATH, "sqrt",
-                        CpuNormEmitter.doubleUnary()).dstore(root);
-        }
+        int count = code.allocateLocal(TypeKind.LONG);
+        code.loadConstant(domain).lstore(count);
+        code.dload(squareSum).dstore(variance);
+        CpuNormEmitter.divideByCount(code, resultType, variance, count);
+        code.loadConstant(epsilon(identity, resultType)).dstore(temporary);
+        CpuNormEmitter.arithmetic(code, resultType, variance, temporary, Opcode.DADD, root);
+        CpuNormEmitter.unary(code, resultType, "sqrt", root, root);
 
         int scaleRepresented = affine ? represented(code,
                 specialization.boundaryDataTypes().get(map[1])) : -1;

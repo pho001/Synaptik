@@ -1683,6 +1683,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     .CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
                     && io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization
                             .requiresLowPrecisionArithmeticSchema(portablePlan.portableKernelIr());
+            boolean selectiveCountSchema = schema == io.github.pho001.synaptik.backend.cpu.internal.cache
+                    .CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA
+                    && io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization
+                            .requiresExactContributorCountSchema(portablePlan.kernelIr());
             if (boundaryValues.isEmpty() || accessBindings.size() != boundaryValues.size()
                     || carrierPattern.size() != boundaryValues.size()
                     || generatedCarrierPattern.size() != boundaryValues.size()
@@ -1706,8 +1710,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     || pool2d != pool2dGeometry.isPresent()
                     || pool3d != pool3dGeometry.isPresent()
                     || attention != attentionGeometry.isPresent()
-                    || schema == 55 && !pool2d || pool2d && schema != 55 && !selectiveLowSchema
-                    || schema == 56 && !pool3d || pool3d && schema != 56 && !selectiveLowSchema
+                    || schema == 55 && !pool2d || pool2d && schema != 55 && !selectiveLowSchema && !selectiveCountSchema
+                    || schema == 56 && !pool3d || pool3d && schema != 56 && !selectiveLowSchema && !selectiveCountSchema
                     || matmul && (conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                         || pool2dGeometry.isPresent() || pool3dGeometry.isPresent())
                     || pool2d && (conv2dGeometry.isPresent() || conv3dGeometry.isPresent()

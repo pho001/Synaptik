@@ -6,21 +6,19 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.TypeKind;
-import java.lang.constant.ClassDesc;
 
 /**
- * Emits one direct two-pass generated RMS-normalization body with scaled-square root formation.
+ * Emits one direct two-pass generated RMS-normalization body with declared square sites.
  *
  * <p>Generation freezes the form, result type, exact epsilon, normalized geometry, access plans,
- * and concrete carriers. The first emitted pass derives an overflow-resistant uncentered root;
- * the second normalizes, optionally scales, and stores each result once. RMS execution declares
- * no workspace and performs no run-time semantic dispatch.</p>
+ * and concrete carriers. The first pass sums working-precision squares, retaining overflow,
+ * then applies count division, epsilon addition and square root; the second normalizes and stores.
+ * RMS execution declares no workspace and performs no run-time semantic dispatch.</p>
  * <p>Controlled ordinary emission guards normalization slices by input provenance. Affine-introduced
  * ROW activity independently guards each result coordinate before scale loads or publication.
  * Uncontrolled emission adds no activity instructions.</p>
  */
 public final class CpuRmsNormEmitter {
-    private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
     /** Creates a stateless generation-time emitter. */
     public CpuRmsNormEmitter() { }
     /**
@@ -69,9 +67,9 @@ public final class CpuRmsNormEmitter {
         int inputBoundary = map[0];
         int representedInput = CpuLayerNormEmitter.represented(code,
                 specialization.boundaryDataTypes().get(inputBoundary));
-        int value = code.allocateLocal(TypeKind.DOUBLE), absolute = code.allocateLocal(TypeKind.DOUBLE);
-        int scale = code.allocateLocal(TypeKind.DOUBLE), squares = code.allocateLocal(TypeKind.DOUBLE);
-        int ratio = code.allocateLocal(TypeKind.DOUBLE), rms = code.allocateLocal(TypeKind.DOUBLE);
+        int value = code.allocateLocal(TypeKind.DOUBLE);
+        int compensation = code.allocateLocal(TypeKind.DOUBLE), squares = code.allocateLocal(TypeKind.DOUBLE);
+        int temporary = code.allocateLocal(TypeKind.DOUBLE);
         int root = code.allocateLocal(TypeKind.DOUBLE), result = code.allocateLocal(TypeKind.DOUBLE);
         int nan = code.allocateLocal(TypeKind.INT), infinity = code.allocateLocal(TypeKind.INT);
         long domain = Long.parseLong(CpuLayerNormEmitter.field(identity, ":domain="));
@@ -87,49 +85,22 @@ public final class CpuRmsNormEmitter {
         CpuLayerNormEmitter.emitSliceBases(code, geometry, slice, normalizedRank, rank, extent,
                 stride, bases, remaining, coordinate);
         code.loadConstant(0).istore(nan).loadConstant(0).istore(infinity)
-                .loadConstant(0.0).dstore(scale).loadConstant(0.0).dstore(squares);
+                .loadConstant(0.0).dstore(compensation).loadConstant(0.0).dstore(squares);
         CpuLayerNormEmitter.emitLoop(code, geometry, normalizedRank, rank[inputBoundary], normalizedExtents,
                 hotStride[inputBoundary], bases[inputBoundary], ordinal, remaining, coordinate, address,
                 () -> {
                     CpuLayerNormEmitter.load(code, carriers, specialization, inputBoundary,
                             representedInput, value, address);
                     CpuNormEmitter.classify(code, value, nan, -1, infinity);
-                    if (CpuNormEmitter.low(resultType)) {
-                        CpuNormEmitter.emitScaledSquares(code, resultType, value, scale, squares, ratio);
-                    } else {
-                    code.dload(value).invokestatic(MATH, "abs", CpuNormEmitter.doubleUnary())
-                            .dstore(absolute);
-                    var zero = code.newLabel(); var smaller = code.newLabel(); var complete = code.newLabel();
-                    code.dload(absolute).loadConstant(0.0).dcmpl().branch(Opcode.IFEQ, zero);
-                    code.dload(scale).dload(absolute).dcmpl().branch(Opcode.IFGE, smaller);
-                    code.dload(scale).dload(absolute).ddiv().dstore(ratio);
-                    code.loadConstant(1.0).dload(squares).dload(ratio).dload(ratio).dmul()
-                            .dmul().dadd().dstore(squares).dload(absolute).dstore(scale)
-                            .branch(Opcode.GOTO, complete).labelBinding(smaller);
-                    code.dload(absolute).dload(scale).ddiv().dstore(ratio);
-                    code.dload(squares).dload(ratio).dload(ratio).dmul().dadd().dstore(squares)
-                            .branch(Opcode.GOTO, complete).labelBinding(zero).labelBinding(complete);
-                    }
+                    CpuNormEmitter.arithmetic(code, resultType, value, value, Opcode.DMUL, value);
+                    CpuNormEmitter.kahanSquares(code, resultType, value, squares, compensation, temporary);
                 });
-        if (CpuNormEmitter.low(resultType)) {
-            int count = code.allocateLocal(TypeKind.LONG);
-            code.loadConstant(domain).lstore(count);
-            CpuNormEmitter.divideByCount(code, resultType, squares, count);
-            CpuNormEmitter.unary(code, resultType, "sqrt", squares, rms);
-            CpuNormEmitter.arithmetic(code, resultType, rms, scale, Opcode.DMUL, rms);
-            code.loadConstant(CpuLayerNormEmitter.epsilon(identity, resultType)).dstore(ratio);
-            CpuNormEmitter.unary(code, resultType, "sqrt", ratio, ratio);
-        } else {
-        code.dload(squares).loadConstant((double) domain).ddiv()
-                .invokestatic(MATH, "sqrt", CpuNormEmitter.doubleUnary())
-                .dload(scale).dmul().dstore(rms);
-        code.loadConstant(CpuLayerNormEmitter.epsilon(identity, resultType))
-                .invokestatic(MATH, "sqrt", CpuNormEmitter.doubleUnary()).dstore(ratio);
-        }
-        code.dload(rms).dload(ratio).invokestatic(MATH, "hypot",
-                java.lang.constant.MethodTypeDesc.of(TypeKind.DOUBLE.upperBound(),
-                        TypeKind.DOUBLE.upperBound(), TypeKind.DOUBLE.upperBound())).dstore(root);
-        if (resultType != DataType.FLOAT64) code.dload(root).d2f().f2d().dstore(root);
+        int count = code.allocateLocal(TypeKind.LONG);
+        code.loadConstant(domain).lstore(count);
+        CpuNormEmitter.divideByCount(code, resultType, squares, count);
+        code.loadConstant(CpuLayerNormEmitter.epsilon(identity, resultType)).dstore(temporary);
+        CpuNormEmitter.arithmetic(code, resultType, squares, temporary, Opcode.DADD, root);
+        CpuNormEmitter.unary(code, resultType, "sqrt", root, root);
         var noNan = code.newLabel(); var noInfinity = code.newLabel(); var specialDone = code.newLabel();
         code.iload(nan).branch(Opcode.IFEQ, noNan)
                 .loadConstant(Double.longBitsToDouble(0x7ff8000000000000L)).dstore(root)

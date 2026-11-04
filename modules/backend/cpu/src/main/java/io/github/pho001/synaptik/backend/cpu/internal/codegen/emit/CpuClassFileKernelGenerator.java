@@ -2239,8 +2239,15 @@ public final class CpuClassFileKernelGenerator {
         if (specialization.matmulIr().isPresent()
                 && !specialization.matmulIr().orElseThrow().structuralKey().equals(kernelIr.structuralKey()))
             throw new IllegalArgumentException("matrix envelope differs from typed facts");
+        boolean statisticsSchema = CpuKernelSpecialization.requiresStatisticsWorkingSitesSchema(kernelIr);
+        boolean contributorSchema = CpuKernelSpecialization.requiresExactContributorCountSchema(kernelIr);
+        if (statisticsSchema != (specialization.classIdentitySchema()
+                == CpuKernelSpecialization.STATISTICS_WORKING_SITES_SCHEMA)
+                || contributorSchema != (specialization.classIdentitySchema()
+                    == CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA))
+            throw new IllegalArgumentException("working-site/count compatibility projection disagrees");
         boolean lowSchema = CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(kernelIr)
-                && !specialization.movementOperandTable();
+                && !specialization.movementOperandTable() && !statisticsSchema && !contributorSchema;
         if (lowSchema != (specialization.classIdentitySchema()
                 == CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA))
             throw new IllegalArgumentException("low numerical compatibility projection disagrees");
@@ -2295,7 +2302,7 @@ public final class CpuClassFileKernelGenerator {
             throw new IllegalArgumentException("affine empty-range compatibility projection disagrees");
         }
         boolean attentionFamily = kernelIr.familyIdentity().startsWith("attention:");
-        if (specialization.classIdentitySchema() != CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA && attentionFamily != (specialization.classIdentitySchema()
+        if (!contributorSchema && specialization.classIdentitySchema() != CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA && attentionFamily != (specialization.classIdentitySchema()
                 == CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA)) {
             throw new IllegalArgumentException("literal attention compatibility projection disagrees");
         }

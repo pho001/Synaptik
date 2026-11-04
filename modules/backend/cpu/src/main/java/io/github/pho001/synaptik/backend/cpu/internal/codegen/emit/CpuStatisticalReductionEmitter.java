@@ -6,16 +6,14 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.TypeKind;
-import java.lang.constant.ClassDesc;
 
 /**
- * Emits direct corrected two-pass variance and standard-deviation bodies.
- * Low-format internal means and compensated arithmetic stay binary32 until final storage.
+ * Emits two-pass variance and standard deviation using the Model's centered-square formula.
+ * FLOAT32 and low formats round every named working site to binary32; FLOAT64 stays binary64.
  * Controlled ROW outputs branch before either input pass or exact-state reset; inactive cells
  * publish positive zero without inspecting their input domain.
  */
 public final class CpuStatisticalReductionEmitter {
-    private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
     /** Creates a stateless generation-time emitter. */
     public CpuStatisticalReductionEmitter() { }
     /**
@@ -60,8 +58,6 @@ public final class CpuStatisticalReductionEmitter {
         int value = code.allocateLocal(TypeKind.DOUBLE);
         int result = code.allocateLocal(TypeKind.DOUBLE);
         int mean = code.allocateLocal(TypeKind.DOUBLE);
-        int deviations = code.allocateLocal(TypeKind.DOUBLE);
-        int deviationCompensation = code.allocateLocal(TypeKind.DOUBLE);
         int squares = code.allocateLocal(TypeKind.DOUBLE);
         int squareCompensation = code.allocateLocal(TypeKind.DOUBLE);
         int temporary = code.allocateLocal(TypeKind.DOUBLE);
@@ -118,55 +114,19 @@ public final class CpuStatisticalReductionEmitter {
                 });
         exact.emitFinish(exactValue);
         CpuNormEmitter.decodeRepresented(code, exactType, exactValue, mean);
-        code.loadConstant(0.0).dstore(deviations).loadConstant(0.0)
-                .dstore(deviationCompensation).loadConstant(0.0).dstore(squares)
-                .loadConstant(0.0).dstore(squareCompensation);
+        code.loadConstant(0.0).dstore(squares).loadConstant(0.0).dstore(squareCompensation);
         CpuNormEmitter.emitPass(code, carriers, specialization, type, selected, inputRank, geometry,
                 inputExtents, inputStrides, inputBase, domain, remaining, coordinate, address,
                 selectedCoordinates, contiguous, represented, value, () -> {
                     CpuNormEmitter.arithmetic(code, type, value, mean, Opcode.DSUB, value);
-                    CpuNormEmitter.kahan(code, type, value, deviations, deviationCompensation, temporary);
                     CpuNormEmitter.arithmetic(code, type, value, value, Opcode.DMUL, value);
-                    var finiteSquare = code.newLabel(); var squareDone = code.newLabel();
-                    code.dload(value).loadConstant(Double.POSITIVE_INFINITY).dcmpl()
-                            .branch(Opcode.IFNE, finiteSquare)
-                            .loadConstant(Double.POSITIVE_INFINITY).dstore(squares)
-                            .loadConstant(0.0).dstore(squareCompensation)
-                            .branch(Opcode.GOTO, squareDone).labelBinding(finiteSquare);
-                    if (CpuNormEmitter.low(type))
-                        code.dload(squares).loadConstant(Double.POSITIVE_INFINITY).dcmpl()
-                                .branch(Opcode.IFEQ, squareDone);
-                    CpuNormEmitter.kahan(code, type, value, squares, squareCompensation, temporary);
-                    code.labelBinding(squareDone);
+                    CpuNormEmitter.kahanSquares(code, type, value, squares, squareCompensation, temporary);
                 });
-        var finiteSquares = code.newLabel(); var statisticDone = code.newLabel();
-        code.dload(squares).loadConstant(Double.POSITIVE_INFINITY).dcmpl()
-                .branch(Opcode.IFNE, finiteSquares).loadConstant(Double.POSITIVE_INFINITY)
-                .dstore(result).branch(Opcode.GOTO, statisticDone).labelBinding(finiteSquares);
-        int exactCount = CpuNormEmitter.low(type) ? code.allocateLocal(TypeKind.LONG) : -1;
-        if (CpuNormEmitter.low(type)) {
-            CpuNormEmitter.geometry(code, geometry, 2).lstore(exactCount);
-            CpuNormEmitter.arithmetic(code, type, deviations, deviations, Opcode.DMUL, temporary);
-            CpuNormEmitter.divideByCount(code, type, temporary, exactCount);
-            CpuNormEmitter.arithmetic(code, type, squares, temporary, Opcode.DSUB, result);
-        } else {
-        code.dload(squares).dload(deviations).dload(deviations).dmul();
-        CpuNormEmitter.geometry(code, geometry, 2).l2d().ddiv().dsub().dstore(result);
-        }
-        var nonnegative = code.newLabel();
-        code.dload(result).loadConstant(0.0);
-        if (CpuNormEmitter.low(type)) code.dcmpg(); else code.dcmpl();
-        code.branch(Opcode.IFGE, nonnegative)
-                .loadConstant(0.0).dstore(result).labelBinding(nonnegative);
-        if (CpuNormEmitter.low(type)) {
-            CpuNormEmitter.geometry(code, geometry, 2).loadConstant(correction).lsub().lstore(exactCount);
-            CpuNormEmitter.divideByCount(code, type, result, exactCount);
-        } else {
-            code.dload(result); CpuNormEmitter.geometry(code, geometry, 2).loadConstant(correction)
-                    .lsub().l2d().ddiv().dstore(result);
-        }
+        code.dload(squares).dstore(result);
+        int exactCount = code.allocateLocal(TypeKind.LONG);
+        CpuNormEmitter.geometry(code, geometry, 2).loadConstant(correction).lsub().lstore(exactCount);
+        CpuNormEmitter.divideByCount(code, type, result, exactCount);
         if (standardDeviation) CpuNormEmitter.unary(code, type, "sqrt", result, result);
-        code.labelBinding(statisticDone);
         var noNan = code.newLabel(); var noInfinity = code.newLabel(); var specialsDone = code.newLabel();
         code.iload(nan).branch(Opcode.IFEQ, noNan)
                 .loadConstant(Double.longBitsToDouble(0x7ff8000000000000L)).dstore(result)

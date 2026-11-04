@@ -1433,8 +1433,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * @param convVector whether the qualified direct-convolution vector projection applies
      * @param vectorType selected vector lane type, nullable for scalar
      * @param rowEmission selected row execution facts, empty for inline ordinary helpers
-     * @return exact ordinary specialization; dense heap affine copies alone use projection 73
-     *     and its selective empty-range compatibility marker
+     * @return exact ordinary specialization with occurrence-selective affine, numerical-working-site
+     *     and exact-count compatibility projections; the same selection also owns Scan helpers
      */
     private static CpuKernelSpecialization ordinarySpecialization(CpuKernelIr kernel,
             io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPortableKernelIr ir,
@@ -1466,6 +1466,10 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         || movement.plan() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr.StackPlan)
                     && movement.plan().occurrenceToBoundary().size() > 16
                     ? CpuKernelSpecialization.MOVEMENT_OPERAND_TABLE_SCHEMA
+                : CpuKernelSpecialization.requiresStatisticsWorkingSitesSchema(kernel)
+                    ? CpuKernelSpecialization.STATISTICS_WORKING_SITES_SCHEMA
+                : CpuKernelSpecialization.requiresExactContributorCountSchema(kernel)
+                    ? CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA
                 : CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(ir)
                     ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
                 : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr loss
