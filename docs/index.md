@@ -26,7 +26,7 @@ definition introduces its prerequisites before the implementation detail.
 | Reference | Find exact [API](glossary.md#term-application-programming-interface-api) details, constraints and generated [Javadoc](glossary.md#term-javadoc) | [Topic-sized API reference](reference/index.md) |
 
 The [complete glossary](glossary.md) is the terminology dictionary. The
-[support matrix](backend-guide/production-support.md)<span data-glossary-navigation="true"> ([support matrix glossary](glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([matrix glossary](glossary.md#term-review-matrix))</span> qualifies actual [operation](glossary.md#operation), [dtype](glossary.md#data-type--datatype), [layout](glossary.md#layout),
+[support matrix](backend-guide/production-support.md) qualifies actual [operation](glossary.md#operation), [dtype](glossary.md#data-type--datatype), [layout](glossary.md#layout),
 [derivative](glossary.md#term-derivative) and [backend](glossary.md#backend) domains. A [Tensor](glossary.md#tensor) operation name, Java-public class or saved [model](glossary.md#term-model) alone
 does not promise execution on every backend.
 

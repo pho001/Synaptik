@@ -1,8 +1,22 @@
 # Dynamic [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) through one reusable [prepared execution](../glossary.md#prepared-execution--preparedexecution)
 
+## Reading context: what changes between runs
+
+The application's input [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters)
+contains $B$ samples. This program concerns changing that sample count between calls while
+reusing one compiled graph and prepared execution—not changing the feature width or reusing
+old input values. The application still supplies the current inputs; the existing execution
+stages must bind their geometry and validate their storage for that call.
+
+Start with [the concrete compile/prepare/run walkthrough](../explanation/framework.md) and
+[symbolic shape meanings](../reference/tensor/shapes.md). Use the
+[current geometry contract](../architecture/contracts/runtime-prepare-engine.md) for the
+rules an implementation must obey. The dated acceptances below record separate design,
+authority and implementation scopes; a completed proposal alone is not backend support.
+
 ## Purpose and selected direction
 
-[Coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) true per-[run](../glossary.md#term-run) symbolic [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) `B` through one [immutable](../glossary.md#term-immutable) [compiled graph](../glossary.md#compiled-graph--compiledgraphmodel) and [prepared
+Coordinate true per-[run](../glossary.md#term-run) symbolic [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) `B` through one [immutable](../glossary.md#term-immutable) [compiled graph](../glossary.md#compiled-graph--compiledgraphmodel) and [prepared
 execution](../glossary.md#prepared-execution--preparedexecution). The user selected this direction on 2026-10-24. The
 [Prepare0012 proposal](modules/prepare/dynamic-batch-geometry-contract-proposal.md) is Complete as
 reviewed DESIGN delivery: independent Class C APPROVE, zero open P1/P2, and MAIN delivery acceptance.
@@ -21,7 +35,7 @@ The user's subsequent “ok, pokracuj” authorizes only
 [Model0039 symbolic-Scan design](modules/model/tasks/0039-general-scan-symbolic-batch-design.md),
 now Complete for DESIGN DELIVERY ONLY: independent frozen APPROVE, zero open P1/P2, and MAIN
 acceptance on 2026-10-24, not by itself detailed semantic approval or implementation. The
-[focused proposal](modules/model/general-scan-symbolic-batch-proposal.md) [targets](../glossary.md#term-target) all-valid
+[focused proposal](modules/model/general-scan-symbolic-batch-proposal.md) targets all-valid
 FLOAT32 CPU forward/actual first-order backward, fixed T/F/H and one reusable per-run B.
 It explicitly covers symbolic multi-output [layout](../glossary.md#layout) [binding](../glossary.md#term-binding), source/[inference](../glossary.md#term-inference)/[AD](../glossary.md#autograd)/[Prepare](../glossary.md#prepare) guards
 and CPU numeric-resource/generated-loop changes. Proposed new production types: zero;

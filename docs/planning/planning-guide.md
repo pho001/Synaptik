@@ -1,8 +1,21 @@
 # [Planning](../glossary.md#term-planning) Guide
 
+## Reading context: people and task states
+
+A **coordinator** selects the next authorized task and integrates its result; an **executor**
+implements that bounded task; an independent **reviewer** checks its evidence and contracts.
+These are development-work roles, not runtime objects calling Tensor methods. In older task
+records, `MAIN` names the coordinating role.
+
+The [roles section](#roles-and-reading) says what each participant reads. The
+[change classes](#change-classes) set review depth, while the
+[planning glossary](../glossary.md#term-ready) distinguishes a task that is ready to start
+from an implemented capability. For runtime stages instead, use
+[the program walkthrough](../explanation/framework.md).
+
 ## Purpose
 
-This guide [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix) non-trivial Synaptik work through concise master plans and executable task
+This guide coordinates non-trivial Synaptik work through concise master plans and executable task
 briefs. [Planning](../glossary.md#term-planning) keeps order, [scope](../glossary.md#term-scope), contracts, [validation](../glossary.md#term-validation), and results visible without making
 historical reading or repeated process work the dominant cost of a change.
 
@@ -12,7 +25,7 @@ historical reading or repeated process work the dominant cost of a change.
 authority index. Only the six scoped contracts that it explicitly incorporates are [normative](../glossary.md#term-normative),
 and only within their stated scopes. Other documents under
 [`docs/architecture/`](../architecture/) explain that architecture. Documents under
-`docs/planning/` [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) implementation and are not authoritative.
+`docs/planning/` coordinate implementation and are not authoritative.
 
 [Planning](../glossary.md#term-planning) documents must not introduce architecture changes silently. If a task conflicts with an
 authoritative contract or requires an unapproved [module](../glossary.md#term-module), [ownership](../glossary.md#term-ownership-meanings), or [dependency](../glossary.md#term-dependency) change, stop and

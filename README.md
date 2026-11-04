@@ -1,11 +1,14 @@
 # Synaptik
 
-Build [tensor](docs/glossary.md#tensor) computations and neural-network models in Java, then [run](docs/glossary.md#term-run) them through an explicitly
-owned execution [backend](docs/glossary.md#backend). Start with [CPU](docs/glossary.md#term-cpu); choose [Metal](docs/glossary.md#term-metal) or mixed execution only after checking the
-actual program's supported operations, types and [layouts](docs/glossary.md#layout).
+Build [tensor](docs/glossary.md#tensor) computations and [neural-network models](docs/glossary.md#neural-network-module-parameter-buffer-and-forward-context)
+in Java. Tensor expressions describe **what to calculate**; Model or Engine turns that description
+into an execution using the current inputs. Start with [CPU](docs/glossary.md#term-cpu).
+Use [Metal](docs/glossary.md#term-metal) or mixed execution only within the actual program's
+[supported operations, types and layouts](docs/backend-guide/production-support.md).
 
-No prior machine-learning or [compiler](docs/glossary.md#term-compiler) vocabulary is required. Follow the linked definitions in the
-[glossary](docs/glossary.md), or start with the short [first-terms reading order](docs/terms.md).
+The documentation starts from ordinary Java knowledge.
+[First terms](docs/terms.md) introduces the vocabulary in reading order; the
+[central glossary](docs/glossary.md) explains definitions, prerequisites and easily confused meanings.
 
 ## Start with your goal
 
@@ -15,23 +18,33 @@ No prior machine-learning or [compiler](docs/glossary.md#term-compiler) vocabula
 | Use existing [ML](docs/glossary.md#term-machine-learning-ml) knowledge with Java [tensor](docs/glossary.md#tensor)/model APIs | [Task guides](docs/how-to/index.md) and [topic-sized reference](docs/reference/index.md) |
 | Understand or contribute to the implementation | [One program through the framework](docs/explanation/framework.md), then the [package/native atlas](docs/explanation/packages/index.md) |
 
-The learning project is one commented, runnable application: construct a model, understand [shapes](docs/glossary.md#shape),
-compute [gradients](docs/glossary.md#term-gradient), train, evaluate, save/close/load, and reuse execution. Its
-[setup and canonical source](docs/examples/README.md)<span data-glossary-navigation="true"> ([canonical glossary](docs/glossary.md#term-canonical-form))</span> use supported public APIs and a separate
-[NN](docs/glossary.md#neural-network-module-parameter-buffer-and-forward-context)-only [Maven](docs/glossary.md#term-maven) consumer, not checkout classes or a hidden manual [dependency](docs/glossary.md#term-dependency) list.
+The learning project is one commented, runnable application: construct a model, understand
+[shapes](docs/glossary.md#shape), calculate [gradients](docs/glossary.md#term-gradient), train,
+evaluate, save/close/load, and reuse execution. Its
+[setup and complete source](docs/examples/README.md) use public APIs from an independent
+[Maven](docs/glossary.md#term-maven) project depending on the neural-network (`nn`) library—not checkout classes or a hidden dependency list.
+
+In that program, **your Java application is the caller** of `model.compute(input)`; Model is
+the called object. Model's owned parameter values are private working copies, while the
+current input storage is only borrowed for that synchronous call. The returned host value is
+an independent copy. The [first-model chapter](docs/tutorials/first-model.md#who-supplies-the-weight-and-who-executes-the-rule)
+and [ownership walkthrough](docs/explanation/ownership.md) explain these different lifetimes.
 
 ## Current implementation status
 
-[Tensor](docs/glossary.md#tensor) expressions describe meaning; [compilation](docs/glossary.md#compiler-engine-and-execution-stage-names) chooses supported [ownership](docs/glossary.md#term-ownership-meanings); preparation builds
-reusable execution; each [run](docs/glossary.md#term-run) uses current inputs and publishes results. The
-[framework explanation](docs/explanation/framework.md) connects these stages without requiring you
-to learn repository [modules](docs/glossary.md#term-module) first.
+[Tensor](docs/glossary.md#tensor) expressions describe mathematical meaning.
+[Compilation](docs/glossary.md#compiler-engine-and-execution-stage-names) checks and organizes that
+description for supported execution routes; preparation creates reusable execution resources.
+Each run supplies current inputs and publishes results. Follow
+[one complete program through these stages](docs/explanation/framework.md) before learning repository modules.
 
-The [production support matrix](docs/backend-guide/production-support.md)<span data-glossary-navigation="true"> ([support matrix glossary](docs/glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([matrix glossary](docs/glossary.md#term-review-matrix))</span> is the single entry point
-for current [operation](docs/glossary.md#operation)/[dtype](docs/glossary.md#data-type--datatype)/[layout](docs/glossary.md#layout)/[derivative](docs/glossary.md#term-derivative) [qualification](docs/glossary.md#term-qualification). [CPU](docs/glossary.md#term-cpu) and [Metal](docs/glossary.md#term-metal) have independent domains;
-CPU support is not a Metal capability promise. [CUDA](docs/glossary.md#term-cuda), [ONNX](docs/glossary.md#term-onnx) and [CLI](docs/glossary.md#term-cli) markers are not usable products.
-[Model](docs/glossary.md#term-model) [persistence](docs/glossary.md#term-persistence) stores admitted source and current values, not prepared native executables or
-[optimizer](docs/glossary.md#term-optimizer)/application continuation.
+The [production support matrix](docs/backend-guide/production-support.md) is the entry point
+for current operation, [data type](docs/glossary.md#data-type--datatype),
+[layout](docs/glossary.md#layout) and [derivative](docs/glossary.md#term-derivative) qualification.
+CPU support is not a Metal capability promise. [CUDA](docs/glossary.md#term-cuda),
+[ONNX](docs/glossary.md#term-onnx) and [CLI](docs/glossary.md#term-cli) markers are not usable products.
+[Saving a Model](docs/tutorials/save-close-load.md) stores admitted source and current values,
+not prepared native executables, optimizer state or the application's complete training continuation.
 
 [Distribution](docs/glossary.md#term-distribution) remains **private/internal**: no public project licence or redistribution grant has
 been selected, and no public upload is authorized. The [sealed](docs/glossary.md#term-sealed)
@@ -53,8 +66,10 @@ native access as shown in the runnable setup; explicit [Metal](docs/glossary.md#
 From the framework source root:
 
 ```sh
+# Check the framework source; use the separate Maven setup for the learning application.
 ./gradlew test
 ./gradlew build
+# Generate the foundational Tensor API reference.
 ./gradlew :modules:model:javadoc
 ```
 

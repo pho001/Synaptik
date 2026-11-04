@@ -3,7 +3,13 @@
 
 ## Editorial reading context
 
-Checkpoint stores length-aware source metadata, not the application's current input batch or length values. A new version/opcode distinguishes the record from old all-valid bodies so old decoders reject rather than misparse it. Compiler cold reconstruction and backend execution still have separate admissions. The design acceptance below is not an inferred implementation or release receipt.
+Checkpoint stores length-aware source metadata and eligible named values, but not external
+input-batch values, including external valid lengths. A length Tensor explicitly registered
+as eligible named state follows ordinary named-leaf persistence rules; it is not the same role
+as an external input. A new version/opcode distinguishes the record from old all-valid bodies
+so old decoders reject rather than misparse it. Compiler cold reconstruction and backend
+execution still have separate admissions. The design acceptance below is not an inferred
+implementation or release receipt.
 
 Use the [current format selection and load boundary](../../api/graph-checkpoint-api.md) for focused guidance. The original status, decision
 and evidence below remain historical records; this reading aid does not amend them.

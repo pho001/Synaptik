@@ -6,6 +6,18 @@
 it through training, save/close/load and reusable execution. Start with an application, not the
 framework's implementation roadmap.
 
+### Who calls what in this project?
+
+For the Model API calls in this guide, the caller is your Java application. It supplies current
+input values and gives the neural-network Model builder its initial weight Tensor. The builder
+copies the parameter values into the Model's private working state; training does not update
+the application's original supplied weight.
+
+The project separately configures execution, asks the Model to compute or train, and reads
+independent host-value copies. Creating a Tensor expression only describes future work; it is
+not the computation itself. Follow [the first call walkthrough](tutorials/first-model.md) and
+[the ownership walkthrough](explanation/ownership.md) for the actual objects and resource lifetimes.
+
 ## Prerequisites
 
 Use [JDK](glossary.md#term-java-development-kit-jdk) **26**, [Maven](glossary.md#term-maven) **3.9+**, and the supplied private file Maven repository for
@@ -28,7 +40,7 @@ the version is on [Maven](glossary.md#term-maven) Central or substitute another 
 
 Application users do not need to rebuild the framework. If you were supplied [release](glossary.md#term-release) archives,
 verify their accompanying `SHA256SUMS` before extraction and preserve the supplied [Maven](glossary.md#term-maven) repository
-layout. The [release guide](developer-guide/release-process.md) owns source selection, [provenance](glossary.md#provenance),
+layout. The [release guide](developer-guide/release-process.md) owns source selection, [source/artifact provenance](glossary.md#artifact-manifest-and-source-provenance),
 package verification and production commands; the
 [audit receipt](planning/public-release-audit-2026-11-04.md#result) identifies the qualified candidate.
 Earlier `0.1.0` receipts do not qualify changed sources.
@@ -57,7 +69,9 @@ if you already know what [API](glossary.md#term-application-programming-interfac
 Framework contributors use the checked-in [Gradle](glossary.md#term-gradle) wrapper with JDK26:
 
 ```sh
+# Check configured framework behavior; this is not a real-device qualification.
 ./gradlew test
+# Assemble the configured outputs; publishing a release is a separate operation.
 ./gradlew build
 ```
 
@@ -73,10 +87,10 @@ for source and native development.
 | [Maven](glossary.md#term-maven) cannot resolve the candidate | The supplied file URL must identify the Maven repository root and full exact-version closure |
 | Unsupported [release](glossary.md#term-release)/class-file version | Select JDK26 in both Maven and the launching Java process |
 | Restricted native-access warning | Use the [JVM](glossary.md#term-java-virtual-machine-jvm) flag from executable setup on each [run](glossary.md#term-run) |
-| Same [element](glossary.md#term-element) count but input rejected | Match the complete [descriptor](glossary.md#term-descriptor), not just count; the tutorial's `[2,1]` is not `[1,2]` |
-| A retained output becomes inaccessible | Distinguish a live result [lease](glossary.md#term-lease) from the already [detached](glossary.md#detached-model-results) [host](glossary.md#term-host) output; follow [ownership](explanation/ownership.md)<span data-glossary-navigation="true"> ([ownership glossary](glossary.md#term-ownership-meanings))</span> |
+| Same element count but input rejected | Match the data type and complete ordered shape, not just the number of values: `[2,1]` and `[1,2]` have different axis roles. The full [descriptor](glossary.md#term-descriptor) records this boundary. |
+| A retained output becomes inaccessible | Low-level `RunResult` outputs need their result to remain open; the Model calls in the learning project return independent host-value copies. Follow [the ownership example](explanation/ownership.md) for that distinction. |
 | Save fails | Use an existing writable parent and a deliberate regular-file destination; the example can replace it |
-| [Metal](glossary.md#term-metal)/low-type variant rejects | Check the [exact support matrix](backend-guide/production-support.md)<span data-glossary-navigation="true"> ([support matrix glossary](glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([matrix glossary](glossary.md#term-review-matrix))</span>; [CPU](glossary.md#term-cpu) support is not Metal parity |
+| Metal/low-type variant rejects | Check the [exact support matrix](backend-guide/production-support.md) and its [table terminology](glossary.md#term-review-matrix); CPU support does not establish Metal support for the same case. |
 
 ## Next reading
 

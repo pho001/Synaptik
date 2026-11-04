@@ -25,7 +25,7 @@ resources it owns, but not an explicitly borrowed Engine. Returned `HostTensorVa
 `TrainingStep` values contain copied bytes and have no close method. The explicit `reuse`
 example also closes each `RunResult` before releasing inputs or starting the next iteration.
 Follow the [copy/borrow walkthrough](../tutorials/first-model.md#who-supplies-the-weight-and-who-executes-the-rule)
-and [explicit result lifecycle](../tutorials/reusable-execution.md#expose-the-reusable-owner)
+and [explicit result lifecycle](../tutorials/reusable-execution.md#expose-the-reusable-owner-once)
 for the actual boundaries rather than treating every Tensor as a resource owner.
 
 ## Prerequisites and [artifact](../glossary.md#term-artifact) boundary

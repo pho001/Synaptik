@@ -64,7 +64,7 @@ Synaptik adopts the third option.
 workloads and produces rich observational reports. It never selects or mutates production
 settings, caches, or prepared plans.
 
-`tools/tuning` [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) one explicit model-[autotuning](../../glossary.md#autotuning--model-autotuning) workflow:
+`tools/tuning` coordinates one explicit model-[autotuning](../../glossary.md#autotuning--model-autotuning) workflow:
 
 1. It extracts actual tunable workloads and routes from the supplied model, forms canonical
    workload signatures, deduplicates identical signatures while retaining occurrence weight and

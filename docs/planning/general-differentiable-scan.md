@@ -2,9 +2,24 @@
 
 <a id="general-differentiable-scan-proposed-decision-and-program"></a>
 
+## Reading context: a sequence of state updates
+
+Here **Scan** means an application-defined [recurrent body](../reference/tensor/general-scan.md),
+not the separate cumulative-sum operation. A simple body computes
+$h_{t+1}=f(h_t,x_t)$: $t\in\{0,\ldots,T-1\}$ is a step index, $T$ the fixed step count,
+$h_t$ the state entering that step, $x_t$ its input, and $f$ the Tensor expression supplied
+by the application. Actual bodies may have several state and output ports.
+
+The application describes the body; Compiler captures and differentiates it, Prepare hands
+off its resources, and the selected backend executes the prepared loop. See
+[who calls these stages](../explanation/framework.md),
+[why reverse-mode differentiation follows the state dependency](../architecture/general-differentiable-scan.md#conceptual-forward-and-reverse-example),
+and [the current Scan contract](../architecture/contracts/recurrent-scan.md#general-differentiable-scan).
+The chronology below distinguishes an accepted design from each separately delivered capability.
+
 ## Purpose and status
 
-[Coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) fixed-count [scan](../glossary.md#term-cumulative-scan) over ordinary [Tensor](../glossary.md#tensor) algebra, with [Compiler](../glossary.md#term-compiler)-owned [automatic differentiation](../glossary.md#autograd)
+Coordinate fixed-count [scan](../glossary.md#general-differentiable-scan) over ordinary [Tensor](../glossary.md#tensor) algebra, with [Compiler](../glossary.md#term-compiler)-owned [automatic differentiation](../glossary.md#autograd)
 ([AD](../glossary.md#autograd)): source body → scoped [capture](../glossary.md#term-capture-meanings) → one-[owner](../glossary.md#term-owner) prepared loop, plus a sibling reverse scan for AD.
 Generic scan is selected (2026-10-21), NOT general while. Revised [planning](../glossary.md#term-planning) review: APPROVE.
 After the concrete ScanBody/reverse-scan/[canonical](../glossary.md#term-canonical-form)-[residual](../glossary.md#scan-residual-port-and-history-demand) proposal and source-checked framework

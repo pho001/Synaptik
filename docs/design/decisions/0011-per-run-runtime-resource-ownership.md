@@ -3,7 +3,12 @@
 
 ## Editorial reading context
 
-Runtime is the caller of backend representation and binding contracts. It borrows application input resources for one invocation and coordinates cleanup of resources acquired by that run. Backend implementations perform physical allocation and release. Publishing an output can transfer or lease its lifetime to a result; run cleanup must not release inputs it only borrowed.
+Runtime is the caller of backend representation and binding contracts. It borrows application
+input resources rather than owning them. After successful execution, captured caller storage
+must remain usable until the resulting `RunResult` closes, not merely until `run` returns.
+Runtime coordinates cleanup of resources acquired by that run; backend implementations perform
+physical allocation and release. Publishing an output can transfer or lease its lifetime to a
+result, but run cleanup must not release inputs it only borrowed.
 
 Use the [run/result resource transitions](../../architecture/runtime-prepare-backend-boundary.md) for focused guidance. The original status, decision
 and evidence below remain historical records; this reading aid does not amend them.

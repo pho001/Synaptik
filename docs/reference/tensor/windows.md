@@ -50,8 +50,14 @@ tensor.fold3d(Shape outputShape, Window3dAttrs window)
 
 `unfold` requires rank at least one and normalizes its raw [axis](../../glossary.md#term-axis) against the input rank. The selected
 [dimension](../../glossary.md#dimension) must be static, `size` and `step` must be positive, and `size` must fit that dimension.
-For selected [extent](../../glossary.md#term-extent) `D`, it replaces that extent with
-`floor((D - size) / step) + 1`, preserves every unaffected exact Dimension reference, and appends
+Let integers $D$, $k$ (`size`) and $s$ (`step`) denote the selected input extent, window size and
+distance between window starts, with $D\ge k>0$ and $s>0$. The new extent counts window starts:
+
+$$
+Q=\left\lfloor\frac{D-k}{s}\right\rfloor+1.
+$$
+
+The operation preserves every unaffected exact Dimension reference and appends
 `size` as the final axis. It accepts every current [data type](../../glossary.md#data-type--datatype). Thus input [Shape](../../glossary.md#shape) `[2, 5, 3]`, axis
 `1`, size `3`, and step `1` produces `[2, 3, 3, 3]`.
 

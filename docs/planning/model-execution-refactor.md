@@ -1,8 +1,23 @@
 # [Model](../glossary.md#term-model) execution and [persistence](../glossary.md#term-persistence) refactor program
 
+## Reading context: two meanings of Model
+
+The [foundational Model module](../reference/tensor/model-overview.md) defines Tensor
+expressions and their meaning. The [NN Model object](../reference/nn/owned-model.md) is the
+application-facing object with compute, configured training, save/load and close operations.
+This completed program connected that workflow to existing compilation, execution and
+checkpoint owners; it did not make the foundational module depend on NN.
+
+For a concrete call, the application invokes `model.compute(input)`: Model executes the
+captured expression using the current input values and returns a copied host result.
+Its private parameter state is not the application's original initialization Tensor.
+Read [the ownership walkthrough](../explanation/ownership.md) and
+[the complete save/close/load chapter](../tutorials/save-close-load.md) for the current workflow.
+The dated phases below preserve the implementation history, not a new task authorization.
+
 ## Purpose and status
 
-[Coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) one [model](../glossary.md#term-model)-facing compute/configured-train/save/load workflow for manually constructed
+Coordinate one [model](../glossary.md#term-model)-facing compute/configured-train/save/load workflow for manually constructed
 and file-restored [Tensor](../glossary.md#tensor) [graphs](../glossary.md#graph). A [directed acyclic graph](../glossary.md#term-directed-acyclic-graph-dag) ([DAG](../glossary.md#intermediate-representation-dag-and-ssa)) records ordinary Tensor operations,
 not Java callbacks. This plan and [ADR0039](../design/decisions/0039-portable-graph-model-persistence.md)
 are non-authoritative. All selected phases are Complete, including NN0028 accepted 2026-10-19;

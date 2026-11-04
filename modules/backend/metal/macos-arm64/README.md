@@ -8,6 +8,29 @@ processor architecture. Here it connects to Apple's Metal execution facilities. 
 binary interface](../../../../docs/glossary.md#application-binary-interface-and-native-bridge) (ABI)** fixes how Java and the compiled library call each other; the **[graph](../../../../docs/glossary.md#graph)
 [schema](../../../../docs/glossary.md#term-schema)** separately fixes how the computation's data is encoded. Neither is the ordinary Java [API](../../../../docs/glossary.md#term-application-programming-interface-api).
 
+### Who calls the bridge?
+
+Java code in the Metal backend is the **caller** of the bridge's exported C functions; the
+compiled native library is the **callee**. The backend uses Java's
+[Foreign Function & Memory API](../../../../docs/glossary.md#term-ffm) to pass arguments and
+refer to native storage. Metal then executes the validated computation on the device.
+This is a different boundary from an application calling `model.compute(input)`.
+
+### Read the version numbers as separate agreements
+
+- **ABI version** describes exported functions and their argument/result representations.
+- **Graph schema** describes encoded graph bytes. A header is metadata at the beginning;
+  operation and attribute **wires** are numeric tags in that format, not physical connections.
+- **Storage carrier** describes how a value's bits are represented. A type's meaning and its
+  storage representation must agree at both sides of the bridge.
+- Candidate/workload/policy/codec versions identify other authenticated execution inputs.
+  Their numbers are not Java versions or interchangeable substitutes for the graph schema.
+
+Use the [Metal execution guide](../../../../docs/backend-guide/metal-backend.md) for the
+current route and type domains and the [ownership explanation](../../../../docs/explanation/ownership.md)
+for which Java owner must remain alive. The inventory below is for bridge contributors,
+not a prerequisite for the first CPU application.
+
 Read the two incoming arrows as different compatibility checks: the function-call agreement and
 the encoded graph format must both match before execution.
 
@@ -24,7 +47,7 @@ ABI 7 retains thirteen context, shared-storage [buffer](../../../../docs/glossar
 The current graph image is schema 22 (`SM22`) with a 124-byte header, [operation](../../../../docs/glossary.md#operation) wires1..116,
 attribute wires0..42, [carrier](../../../../docs/glossary.md#term-storage-carrier) wires1..7 and fixed graph route2 or3.
 Coordinated Java candidate/workload/policy/compatibility/[codec](../../../../docs/glossary.md#term-codec) [identities](../../../../docs/glossary.md#term-identity-meanings) are version45; stale inputs
-have no compatibility reader or migration [alias](../../../../docs/glossary.md#aliasing-and-arena). [Scan](../../../../docs/glossary.md#term-cumulative-scan) attribute grammar v2 authenticates the
+have no compatibility reader or migration alias. [Scan](../../../../docs/glossary.md#general-differentiable-scan) attribute grammar v2 authenticates the
 fifteen-word control prefix and its invocation-private forty-byte failure record; v1 rejects.
 
 Java and [native code](../../../../docs/glossary.md#native-numerical-library-and-instruction-architecture) independently validate declared types, [shapes](../../../../docs/glossary.md#shape), attributes, [gradient](../../../../docs/glossary.md#term-gradient) bits,

@@ -1,4 +1,4 @@
-# [ADR](../../glossary.md#term-architecture-decision-record-adr) 0012: Fixed recurrent [scan](../../glossary.md#term-cumulative-scan) without [graph](../../glossary.md#graph) regions
+# [ADR](../../glossary.md#term-architecture-decision-record-adr) 0012: Fixed recurrent [scan](../../glossary.md#term-fixed-recurrent-scan) without [graph](../../glossary.md#graph) regions
 
 
 ## Editorial reading context
@@ -13,7 +13,7 @@ and evidence below remain historical records; this reading aid does not amend th
 Accepted — 2026-08-20
 
 Amended — 2026-10-20: permit cold semantic [persistence](../../glossary.md#term-persistence) under the owning [Checkpoint](../../glossary.md#term-checkpoint) contract.
-No executable [scan](../../glossary.md#term-cumulative-scan) or [BPTT](../../glossary.md#term-backpropagation-through-time-bptt) is accepted by this amendment.
+No executable [scan](../../glossary.md#term-fixed-recurrent-scan) or [BPTT](../../glossary.md#term-backpropagation-through-time-bptt) is accepted by this amendment.
 
 ## Context
 
@@ -179,7 +179,7 @@ hidden [module](../../glossary.md#term-module), [compiler](../../glossary.md#ter
 mutation; [callback](../../glossary.md#term-callback); I/O; or external resource. Each [run](../../glossary.md#term-run) uses its own [`RunState`](../../glossary.md#run-state--runstate).
 
 [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) retains parameter and persistent-buffer wrappers and state paths and supplies current parameter
-[Tensor](../../glossary.md#tensor) [bindings](../../glossary.md#term-binding) as ordinary [scan](../../glossary.md#term-cumulative-scan) inputs. NN state dictionaries contain those parameter and buffer
+[Tensor](../../glossary.md#tensor) [bindings](../../glossary.md#term-binding) as ordinary [scan](../../glossary.md#term-fixed-recurrent-scan) inputs. NN state dictionaries contain those parameter and buffer
 bindings. The 2026-10-20 amendment permits cold semantic [graphs](../../glossary.md#graph) and named [host](../../glossary.md#term-host) values under the
 owning [generic source](../../architecture/contracts/extensions-training.md#generic-graph-source-and-values)
 and [graph-model v3 contract](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-3)<span data-glossary-navigation="true"> ([model glossary](../../glossary.md#term-model))</span>.

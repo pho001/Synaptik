@@ -130,6 +130,15 @@ common floating [data type](../../glossary.md#data-type--datatype), including ei
 The fixed transition equations match the current NN cells. With `X = x @ transpose(inputWeight)`
 plus the optional input-side bias and `H = h @ transpose(hiddenWeight)`:
 
+The packed gate axis is ordered, not interchangeable. Consecutive blocks of `hiddenSize`
+rows in both weight matrices—and `hiddenSize` elements in the optional bias—use:
+
+- GRU: reset $r$, update $z$, candidate $n$, in that order.
+- LSTM: input $i$, forget $f$, candidate $g$, output $o$ (**IFGO**), in that order.
+
+Swapping blocks preserves the shapes but changes the recurrence. These are the orders
+defined by [`RecurrentScanKind`](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/operation/recurrent/RecurrentScanKind.java).
+
 For each finite real row/hidden coordinate, let $X$ and $H$ be the input and previous-hidden
 projections defined above, and $h$ the previous hidden value. Subscripts select blocks of
 the packed gate axis, not time positions. All products below are elementwise:
@@ -148,9 +157,12 @@ $$
 For LSTM, $i,f,o$ are input/forget/output gates, $g$ the candidate, and $c$ the previous cell:
 
 $$
-i=\sigma(X_i+H_i),\quad f=\sigma(X_f+H_f),\quad
-g=\tanh(X_g+H_g),\quad o=\sigma(X_o+H_o),\quad
-c_{\mathrm{next}}=fc+ig,\quad h_{\mathrm{next}}=o\tanh(c_{\mathrm{next}}).
+\begin{aligned}
+i&=\sigma(X_i+H_i), & f&=\sigma(X_f+H_f),\\
+g&=\tanh(X_g+H_g), & o&=\sigma(X_o+H_o),\\
+c_{\mathrm{next}}&=fc+ig, &
+h_{\mathrm{next}}&=o\tanh(c_{\mathrm{next}}).
+\end{aligned}
 $$
 
 Here $\sigma$ denotes sigmoid. If $X=H=0$, the ideal RNN next hidden value is zero;

@@ -10,9 +10,12 @@ memory location; a multi-output operation can therefore have several distinct re
 ## Why a leaf is not necessarily an array
 
 The compiler calls `GraphCapture` with the requested output Tensors. Capture walks each Tensor's
-producing expression; when a Tensor has no producer, it is a **leaf** and becomes a graph input
-unless explicitly classified as a compiler constant. That leaf may have host storage, or may be
-a storage-free prototype describing a future input. Capture inspects neither possibility's bytes.
+producing expression; when a Tensor has no producer, it is a **leaf** and becomes a structural
+graph input. A separate source classification marks that input as caller-bindable or an explicit
+compiler constant. Constants remain graph inputs but are excluded from the ordinary input list
+that the execution caller—an application or Model through Engine—supplies later.
+The leaf may have host storage or be a storage-free prototype describing a future input.
+Capture inspects neither possibility's bytes.
 Its graph uses local value/node IDs and no longer retains the original Tensor objects. The
 separate input-ID association lets Engine match later stored inputs without owning the original
 storage. Read [cold capture](cold-source.md) for the special API that intentionally also returns

@@ -782,7 +782,7 @@ A <a id="term-shader"></a>**shader** is a program for [GPU](#term-gpu) execution
 
 A <a id="term-command-buffer"></a>**command buffer** records device commands; a <a id="term-command-queue"></a>**command queue** submits such work. <a id="term-dispatch"></a>**Dispatch** requests execution with a specified work geometry. A <a id="term-threadgroup"></a>**threadgroup** or <a id="term-workgroup"></a>**workgroup** groups cooperating device work items; it is not a [batch](#term-batch-machine-learning-and-hyperparameters) [axis](#term-axis) or a Java worker thread group. Recording or submitting work does not by itself prove completion.
 
-<a id="term-synchronization"></a>**Synchronization** establishes required ordering or visibility. A **fence** is an ordering marker for relevant device operations; it does not automatically [mean](#term-mean) [host](#term-host)-visible completion. In GPU discussions, a **stream** orders submitted work and an **event** records a point that later work may wait on or measure. A device <a id="term-execution-context"></a>**execution context** associates resources and submissions with a particular execution environment; it is not the [NN](#neural-network-module-parameter-buffer-and-forward-context) forward context.
+<a id="term-synchronization"></a>**Synchronization** establishes required ordering or visibility. A **fence** is an ordering marker for relevant device operations; it does not automatically mean [host](#term-host)-visible completion. In GPU discussions, a **stream** orders submitted work and an **event** records a point that later work may wait on or measure. A device <a id="term-execution-context"></a>**execution context** associates resources and submissions with a particular execution environment; it is not the [NN](#neural-network-module-parameter-buffer-and-forward-context) forward context.
 
 [CUDA](#term-cuda) <a id="term-compute-capability"></a>**compute capability** is a device architectural [feature](#term-software-feature) level, not Synaptik’s [occurrence](#term-occurrence)-specific [backend capability](#backend-capability). These general definitions do not create a public [asynchronous](#term-asynchronous), stream, event, or CUDA execution [API](#term-application-programming-interface-api); the owning [backend](#backend) guide states actual support.
 
@@ -4824,7 +4824,7 @@ dense padded output and does not infer padding from zero-valued data.
 
 #### How does a fixed scan differ from static unrolling?
 
-A **fixed recurrent scan** is the current Model-owned `RNN_TANH`, `GRU_RESET_AFTER`, or `LSTM`
+A <a id="term-fixed-recurrent-scan"></a>**fixed recurrent scan** is the current Model-owned `RNN_TANH`, `GRU_RESET_AFTER`, or `LSTM`
 expression family. It consumes a fully static time-major input, explicit initial states and packed
 parameters, one ordinary non-gradient `INT64[batch]` **valid-length Tensor**, and exact `FORWARD`
 or `REVERSE` direction. RNN and GRU produce dense output plus final hidden state; LSTM additionally

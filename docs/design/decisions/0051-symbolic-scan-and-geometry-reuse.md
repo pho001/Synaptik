@@ -66,7 +66,7 @@ Bindings or supplied [descriptors](../../glossary.md#term-descriptor) would let 
 ## Decision
 
 Accept the bounded [symbolic Scan semantics](../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([symbolic Scan glossary](../../glossary.md#symbolic-scan))</span>:
-one named B with fixed T/[features](../../glossary.md#term-software-feature)/state widths, existing all-valid surface and exact scoped ports.
+one named B with fixed T/[features](../../glossary.md#term-feature)/state widths, existing all-valid surface and exact scoped ports.
 [Model](../../glossary.md#term-model) [PURE](../../glossary.md#term-pure)/[dtype](../../glossary.md#data-type--datatype) validity, bounded [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) [Compiler](../../glossary.md#term-compiler) [AD](../../glossary.md#autograd) and initial [homogeneous](../../glossary.md#term-homogeneous) FLOAT32
 generated [scalar](../../glossary.md#term-scalar) single-range [CPU](../../glossary.md#term-cpu) execution remain distinct admissions. Forward and actual
 generated reverse must qualify independently; this decision implements none of them.

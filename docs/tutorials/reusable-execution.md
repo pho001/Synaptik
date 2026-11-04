@@ -49,8 +49,10 @@ The second part deliberately uses the lower-level public [facade](../glossary.md
 hides. It is instructional, not a recommendation to maintain two [inference](../glossary.md#term-inference) preparations for
 such a tiny [graph](../glossary.md#graph).
 
-1. Create a storage-free [canonical](../glossary.md#term-canonical-form) `[2,1]` input [prototype](../glossary.md#term-prototype). `model.forward(prototype)` composes
-   one expression against the current private weight <span data-glossary-navigation="true"> ([weight glossary](../glossary.md#term-weight))</span>`2`. No per-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) recomposition follows.
+1. Create a storage-free [canonical](../glossary.md#term-canonical-form) `[2,1]` input [prototype](../glossary.md#term-prototype).
+   The application calls `model.forward(prototype)` to compose one expression against Model's
+   private [weight](../glossary.md#term-weight), whose current value is `2` after training.
+   No per-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) recomposition follows.
 2. `engine.compile` determines graph meaning and the final input [occurrence](../glossary.md#term-occurrence) order.
 3. `engine.prepare(compiled)` creates one closeable [`PreparedExecution`](../glossary.md#prepared-execution--preparedexecution) tied to this Engine.
    Preparation does not bind caller input values or run the graph.

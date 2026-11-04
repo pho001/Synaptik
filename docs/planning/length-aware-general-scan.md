@@ -1,10 +1,26 @@
 # Length-aware [general scan](../glossary.md#general-differentiable-scan) and first-order [AD](../glossary.md#autograd): selected design
 
+## Reading context: which samples have a real step
+
+An application can pack sequences of different lengths into one rectangular Tensor by
+adding [padding](../glossary.md#padding). It supplies a non-gradient INT64 vector containing
+one valid length $\ell_b$ for each batch row $b$. For a time extent $T$,
+$0\le\ell_b\le T$; a physical step $t\in\{0,\ldots,T-1\}$ is active for that row only when
+$t<\ell_b$. A zero-length row has no active steps.
+
+The distinction is **skip before loading or calculating**, not calculate a padded value and
+then multiply it by zero. This protocol controls the Scan body; it is not an automatic mask
+for every loss in the model. Read the
+[current length protocol](../architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan)
+and [concrete Scan API](../reference/tensor/general-scan.md) before interpreting the dated
+implementation scopes below. The [dynamic-batch program](dynamic-batch-execution.md) explains
+the separate question of changing the number of batch rows between calls.
+
 ## Purpose and status
 
 Specify selected [runtime](../glossary.md#term-runtime) valid lengths for the existing [general Scan](../glossary.md#general-differentiable-scan) pipeline, so padded rows are skipped
 before arithmetic or loads during execution. [Compiler](../glossary.md#term-compiler) [automatic differentiation](../glossary.md#autograd) ([AD](../glossary.md#autograd))
-now constructs the existing sibling reverse [scan](../glossary.md#term-cumulative-scan), not an [RNN](../glossary.md#term-recurrent-neural-network-rnn)-specific [adjoint](../glossary.md#term-adjoint) or another execution system.
+now constructs the existing sibling reverse [scan](../glossary.md#general-differentiable-scan), not an [RNN](../glossary.md#term-recurrent-neural-network-rnn)-specific [adjoint](../glossary.md#term-adjoint) or another execution system.
 
 **Source/[IR](../glossary.md#term-intermediate-representation-ir) and bounded Compiler support Complete; MAIN accepted 2026-10-24.** Model0036 remains Complete for proposal
 delivery only after independent final APPROVE/MAIN acceptance. The subsequent user approval
