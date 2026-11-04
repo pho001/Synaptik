@@ -222,8 +222,10 @@ public final class CpuAttentionEmitter {
     // Attention owns literal eligible-score EXP/sum/division, unlike first-class softmax.
     int sum = mode + 1, expJ = sum + valueWidth, weight = expJ + 2;
     boolean lowPrecisionResult = rt == DataType.BFLOAT16 || rt == DataType.FLOAT16 || rt == DataType.FLOAT8_E4M3 || rt == DataType.FLOAT8_E5M2;
-    int resultBits = lowPrecisionResult ? weight + valueWidth : -1;
-    int resultRepresented = lowPrecisionResult ? resultBits + 1 : -1;
+    // BF16 narrowing writes both temporaries before loading the publication address. They must
+    // not reuse phase-local slots: weight/output addresses occupy mode+4 and mode+5 together.
+    int resultBits = rt == DataType.BFLOAT16 ? i(c) : lowPrecisionResult ? weight + valueWidth : -1;
+    int resultRepresented = rt == DataType.BFLOAT16 ? i(c) : lowPrecisionResult ? resultBits + 1 : -1;
     Label nonOrd = c.newLabel(), classified = c.newLabel();
     c.iload(mode).loadConstant(3).branch(Opcode.IF_ICMPNE, nonOrd);
     zero(c, rt);

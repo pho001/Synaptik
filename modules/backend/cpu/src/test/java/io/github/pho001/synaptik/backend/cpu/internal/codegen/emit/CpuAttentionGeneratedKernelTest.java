@@ -21,6 +21,81 @@ import org.junit.jupiter.api.Test;
 
 class CpuAttentionGeneratedKernelTest {
   @Test
+  void bfloatPublicationKeepsLongAddressesAcrossMaskModesAndOptionalWeights() throws Throwable {
+    DataType type = DataType.BFLOAT16;
+    for (boolean masked : List.of(false, true)) for (boolean causal : List.of(false, true))
+      for (boolean two : List.of(false, true)) for (boolean segments : List.of(false, true))
+        for (int maskMode = 0; maskMode < (masked ? 3 : 1); maskMode++) {
+          var types = new java.util.ArrayList<DataType>(List.of(type, type, type));
+          var accesses = new java.util.ArrayList<CpuAccessPlan>(List.of(
+              plan(CpuAccessPlan.AccessKind.READ), plan(CpuAccessPlan.AccessKind.READ),
+              plan(CpuAccessPlan.AccessKind.READ)));
+          if (masked) {
+            types.add(DataType.BOOL);
+            accesses.add(plan(CpuAccessPlan.AccessKind.READ));
+          }
+          int outputBoundary = types.size();
+          types.add(type);
+          accesses.add(plan(CpuAccessPlan.AccessKind.WRITE));
+          if (two) {
+            types.add(type);
+            accesses.add(plan(CpuAccessPlan.AccessKind.WRITE));
+          }
+          var roles = masked ? List.of(0, 1, 2, 3) : List.of(0, 1, 2);
+          var attention = new CpuAttentionIr(type, type, type, type, masked, causal,
+              two ? 2 : 1, roles, types, accesses);
+          var ir = attention.encodedKernelIr();
+          var carriers = new java.util.ArrayList<CarrierAccess>();
+          for (DataType boundary : types)
+            carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT
+                : boundary == DataType.BOOL ? CarrierAccess.BYTE_ARRAY : CarrierAccess.SHORT_ARRAY);
+          var specialization = new CpuKernelSpecialization(
+              CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+              CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers,
+              0, -1, List.of(), true, CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA);
+          var generator = new CpuClassFileKernelGenerator();
+          var handle = generator.defineClassBytes(specialization, ir,
+              generator.generateClassBytes(specialization, ir)).entryPoint();
+          short[] q = new short[4], k = new short[4];
+          short[] v = (short[]) CpuLayerNormGeneratedKernelTest.represented(type,
+              new double[] {2, 4, 6, 8});
+          short[] output = new short[4], weights = new short[4];
+          byte[] mask = maskMode == 0 ? new byte[] {1, 1, 1, 1}
+              : maskMode == 1 ? new byte[] {1, 0, 0, 1} : new byte[4];
+          var geometry = new CpuAttentionLowering.Geometry(new long[] {1}, 2, 2, 2, 2, 2, 8,
+              type, type, type, type, 1.0, roles, outputBoundary, 3,
+              Optional.of(layout(4, 2, 1)), Optional.of(layout(4, 2, 1)),
+              Optional.of(layout(4, 2, 1)), masked ? Optional.of(layout(4, 2, 1)) : Optional.empty(),
+              layout(4, 2, 1), two ? Optional.of(layout(4, 2, 1)) : Optional.empty());
+          var arguments = new java.util.ArrayList<Object>();
+          for (short[] input : List.of(q, k, v))
+            arguments.add(segments ? MemorySegment.ofArray(input) : input);
+          if (masked) arguments.add(segments ? MemorySegment.ofArray(mask) : mask);
+          arguments.add(segments ? MemorySegment.ofArray(output) : output);
+          if (two) arguments.add(segments ? MemorySegment.ofArray(weights) : weights);
+          try (Arena arena = Arena.ofConfined()) {
+            arguments.add(arena.allocate(8, 8));
+            arguments.add(geometry.pack(new long[types.size()]));
+            arguments.add(0L);
+            arguments.add(2L);
+            handle.invokeWithArguments(arguments);
+          }
+          double[] expectedOutput = masked && maskMode == 2 ? new double[4]
+              : masked && maskMode == 1 ? new double[] {2, 4, 6, 8}
+              : causal ? new double[] {2, 4, 4, 6} : new double[] {4, 6, 4, 6};
+          double[] expectedWeights = masked && maskMode == 2 ? new double[4]
+              : masked && maskMode == 1 ? new double[] {1, 0, 0, 1}
+              : causal ? new double[] {1, 0, .5, .5} : new double[] {.5, .5, .5, .5};
+          String witness = "masked=" + masked + "/causal=" + causal + "/weights=" + two
+              + "/segments=" + segments + "/maskMode=" + maskMode;
+          assertArrayEquals(expectedOutput, CpuLayerNormGeneratedKernelTest.decoded(type, output),
+              witness);
+          if (two) assertArrayEquals(expectedWeights,
+              CpuLayerNormGeneratedKernelTest.decoded(type, weights), witness);
+        }
+  }
+
+  @Test
   void everyLowFormatStoresAttentionOutputsAndWeightsAtItsDeclaredBoundary() throws Throwable {
     for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
         DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
