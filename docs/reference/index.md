@@ -31,7 +31,10 @@ These are exact teaching values, not a convergence or performance claim. The [co
 - **Implementation detail:** package-private Compiler and backend sketches explain mechanisms, not a supported extension API.
 - **Independent qualification gates:** source construction, differentiation, execution, cold reconstruction and persistence have separate admission rules. A historical numerical slice is not today's complete backend matrix.
 - **Authority:** [the architecture root](../../ARCHITECTURE.md#authority-incorporation-and-precedence) and its six incorporated contracts are normative. These pages explain existing behavior; no API, numerical, ownership or release policy changes are introduced by their reorganization.
-- **Evidence:** retained complete programs and snippets have not been compiled or run as part of this editorial migration. Conceptual and package-local sketches remain labeled as such.
+- **Evidence:** 55 retained complete Java classes compiled against installed public artifacts;
+  all 53 with main methods ran, and all 47 literal stdout blocks matched. The learning project
+  independently matched its complete transcript. Conceptual fragments and package-local sketches
+  are not executable application promises; these checks do not qualify all backend geometries.
 
 ## Existing links
 

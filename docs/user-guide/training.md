@@ -45,7 +45,7 @@ The input and target have native storage too, because the CPU Engine needs live 
 retains the layer and its exact paths/wrappers/Tensors, revalidating the live tree rather than only
 a frozen list. It does not freeze storage associations, so this example reuses the same source
 after copying. For a non-NN owner, implement that boundary as shown in the
-[generic admission example](../api/training-api.md#generic-live-parameter-admission).
+[generic admission example](../reference/training/parameters.md#generic-live-parameter-admission).
 
 ```java
 static Tensor nativeMatrix(Arena arena, float value) {
@@ -95,7 +95,7 @@ uninitialized deferred layer, non-finite source value, aliased parameter regions
 layout, or invalid source storage also fails before any parameter association changes. Already
 consumed destination Arena capacity is not individually recovered after allocation failure.
 
-For details of raw-byte preservation and failure behavior, see the [Training API](../api/training-api.md#explicit-native-parameter-copy)
+For details of raw-byte preservation and failure behavior, see the [Training API](../reference/training/parameters.md#explicit-native-parameter-copy)
 and [architecture explanation](../architecture/training-graph.md#optimizer-as-a-backend-agnostic-step).
 
 ## Build a runnable scalar problem
@@ -401,7 +401,7 @@ Tensor storage associations, or parameter bytes while the session is open.
 
 ## Related documentation
 
-- [Training API](../api/training-api.md)
+- [Training API](../reference/training/index.md)
 - [Autograd](autograd.md)
 - [Training graph](../architecture/training-graph.md)
 - [Lifecycle](../architecture/lifecycle.md)

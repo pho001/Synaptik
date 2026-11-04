@@ -58,7 +58,7 @@ java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney save-load target/learning-journey.graph
 ```
 
-Expected application stdout (source-derived, not proof of execution):
+Expected application stdout, checked against the installed private candidate:
 
 ```text
 == save-load ==

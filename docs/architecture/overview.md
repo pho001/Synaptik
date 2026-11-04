@@ -92,7 +92,7 @@ v1/v2/v3 wire. The selected default CNN/static recurrent graphs and fixed flat s
 A two-Linear graph with RELU, TANH or SIGMOID acquires private state through the same
 NN path and saves as v2; a graph using only the original five kinds still saves byte-identical v1.
 This adds neither an execution pipeline nor a backend capability. See the
-[graph format compatibility](../api/graph-checkpoint-api.md#selective-graph-format-versions).
+[graph format compatibility](../reference/checkpoint/graph-formats.md#selective-graph-format-versions).
 
 NN's fluent `Model.builder()` instead creates private layers and retains their ordinary Tensor
 composition. Only supplied parameter leaves pass through the zero-node raw copier, before any

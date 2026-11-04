@@ -200,11 +200,11 @@ scope without FP8 and its independently qualified BFLOAT16/FLOAT16 restrictions.
 
 ## Related tasks and API reference
 
-- [Public Tensor state](../api/tensor-api.md#public-tensor-state) defines identity, descriptor,
+- [Public Tensor state](../reference/tensor/identity.md#public-tensor-state) defines identity, descriptor,
   provenance, and the mutable borrowed-storage association.
-- [Complete flat-import example](../api/tensor-api.md#complete-flat-import-example) covers copied
+- [Complete flat-import example](../reference/tensor/import.md#complete-flat-import-example) covers copied
   primitive-array import and its validation details.
-- [Unary numeric transforms](../api/tensor-api.md#unary-numeric-transforms-and-floating-classifications)
+- [Unary numeric transforms](../reference/tensor/elementwise.md#unary-numeric-transforms-and-floating-classifications)
   describes `neg()` and the other storage-free expression constructors.
 - [Current public Engine lifecycle](../architecture/lifecycle.md#current-public-engine-lifecycle)
   explains the separate compile, session, run, and materialization boundary.

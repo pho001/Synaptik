@@ -5,9 +5,9 @@ This glossary is the central dictionary for Synaptik terminology. It explains ho
 Some entries describe contracts planned by the architecture but not yet implemented. The
 [implementation roadmap](planning/roadmap.md) is the source for current task status.
 
-Model Task 0032 is Complete and its profile-free numerical semantics are integrated in main.
-Current definitions describe that implemented contract, not an uncommitted private cutover.
-Historical profile-bearing records retain their at-the-time wording.
+New readers can use [First terms](terms.md) as a short reading-order guide, then follow the
+worked [tensor geometry and gradient explanation](explanation/tensors-and-gradients.md).
+Definitions distinguish current capabilities from explicitly planned or historical material.
 
 ## Implementation-status convention
 
@@ -49,6 +49,51 @@ decision before any convenience layer is planned. Consult the relevant area map 
 a glossary term as an implemented API.
 
 ## Terms
+
+### Learning data vocabulary
+
+A **sample** is one example supplied to a model. A **feature** is an input coordinate describing
+that sample. A **batch** groups samples processed together; a **mini-batch** is a subset of a
+larger dataset used by a training procedure. In the learning project, `[2,1]` means two samples
+with one feature each, not two features of one sample. Other operation families use different
+axis conventions, so “axis zero is batch” is not a universal Tensor rule.
+
+An **epoch** is one pass through an application-defined training dataset. Synaptik's Model and
+TrainingSession do not own a dataset iterator or save an epoch/cursor in a model file. The caller
+chooses batches and coordinates progress. See the [learning journey](tutorials/index.md).
+
+### Trainable parameter
+
+Model state selected for gradient computation and optimizer updates, such as a Linear weight,
+as distinct from fresh inputs, targets, persistent non-parameter buffers or immutable constants.
+The learning project's supplied weight is gradient-eligible and copied into the owned Model's
+private working set; its caller's original zero value is not updated. Gradient eligibility alone
+does not make every expression, storage layout or alias configuration admissible to Training.
+
+### Gradient and learning rate
+
+A **gradient** collects a scalar objective's local derivatives with respect to selected
+parameters. Reverse-mode automatic differentiation constructs those sensitivities by the chain
+rule over supported Tensor expressions before graph capture; it does not evaluate finite
+differences or delegate differentiation ownership to a backend. A **learning rate** is an
+optimizer configuration scale, not part of differentiation: plain SGD applies
+`parameter - learning_rate * gradient`.
+
+The tutorial's first objective has weight gradient -40; its rate 0.05 gives a weight update of +2.
+Changing the objective's reduction or data scale changes this reasoning. The
+[worked step](explanation/tensors-and-gradients.md#the-first-training-step) distinguishes the
+pre-update objective from a new evaluation after the update. See also
+[Compiler-owned AD](architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation).
+
+### Inference and evaluation
+
+**Inference** computes outputs from current model state without requesting an optimizer update.
+**Evaluation** assesses those outputs, commonly on data not used for the current training step.
+These describe a computation or application procedure. Module train/eval mode is a separate
+captured-state property for mode-sensitive layers; calling an optimizer is not a mode toggle.
+Owned static Models guard their captured module modes. Follow the
+[owned-Model contract](architecture/contracts/extensions-training.md#owned-tensor-models)
+rather than mutating a captured mode and assuming automatic recapture.
 
 ### Aggregate reduction
 
@@ -99,12 +144,12 @@ occurrence across FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64, returning logica
 coordinates through scalar or complete-output-cell parallel-scalar execution. It supports legal
 array, `MemorySegment`, and mixed carriers and arbitrary legal non-negative layouts, while using
 zero workspace and materialization. See
-[Numeric aggregate expressions](api/tensor-api.md#numeric-aggregate-expressions), [Aggregate
-reduction semantic kinds and attributes](api/tensor-api.md#aggregate-reduction-semantic-kinds-and-attributes),
-[Boolean aggregate expressions](api/tensor-api.md#boolean-aggregate-expressions), [Arg-extrema
-expressions](api/tensor-api.md#arg-extrema-expressions), [Multi-axis and statistical reduction
-expressions](api/tensor-api.md#multi-axis-and-statistical-reduction-expressions), and [Masked sum and mean
-expressions](api/tensor-api.md#masked-sum-and-mean-expressions).
+[Numeric aggregate expressions](reference/tensor/reductions.md#numeric-aggregate-expressions), [Aggregate
+reduction semantic kinds and attributes](reference/tensor/operation-reductions.md#aggregate-reduction-semantic-kinds-and-attributes),
+[Boolean aggregate expressions](reference/tensor/masked-index-reductions.md#boolean-aggregate-expressions), [Arg-extrema
+expressions](reference/tensor/masked-index-reductions.md#arg-extrema-expressions), [Multi-axis and statistical reduction
+expressions](reference/tensor/reductions.md#multi-axis-and-statistical-reduction-expressions), and [Masked sum and mean
+expressions](reference/tensor/masked-index-reductions.md#masked-sum-and-mean-expressions).
 
 ### Sum-to-Shape
 
@@ -135,7 +180,7 @@ element count; from ordinary fixed-axis SUM, whose axes are known when the expre
 and from broadcasting, which repeats values toward a larger compatible Shape. A future compiler
 may use this public semantic variant when constructing adjoints, but compiler-generated backward
 graphs and target binding proof are not current capabilities. See [Binding-aware sum-to-Shape
-expressions](api/tensor-api.md#binding-aware-sum-to-shape-expressions).
+expressions](reference/tensor/reductions.md#binding-aware-sum-to-shape-expressions).
 
 ### Multi-axis reduction
 
@@ -194,7 +239,7 @@ Shape reference, and gradient eligibility; `Tensor.argsort` preserves the exact 
 but produces non-differentiable INT64 indices. Both construct metadata and independent
 single-output provenance without comparing values or providing compiler, backend, runtime, or
 execution behavior. See [Stable sort and argsort
-expressions](api/tensor-api.md#stable-sort-and-argsort-expressions).
+expressions](reference/tensor/sort-topk.md#stable-sort-and-argsort-expressions).
 Current Metal realizes both kinds for all seven carriers under the one Model contract over canonical dense
 fully static positive unsigned-32-bit-bounded geometry. Its custom route uses integer raw-word
 ordering and copies selected representations exactly. Floating SORT backward uses stable ARGSORT.
@@ -214,7 +259,7 @@ zero and one. Construction replaces the selected Shape dimension with static `k`
 static extent, and defers a dynamic or expression-bound capacity obligation to later compiler or
 binding validation. This is model meaning and provenance, not value evaluation, an algorithm,
 gradient construction, compiler support, backend lowering, runtime behavior, or execution. See
-[Top-K values and indices](api/tensor-api.md#top-k-values-and-indices).
+[Top-K values and indices](reference/tensor/sort-topk.md#top-k-values-and-indices).
 Current Metal realizes positive-K top-K for all seven carriers under the same profile-free contract over the same
 canonical dense unsigned-32-bit-bounded domain. One custom native step owns both values and INT64
 indices through target subsets, composition, reuse, and publication; floating values-output
@@ -237,8 +282,8 @@ layout unresolved, and records exact `[data, indices]` provenance without readin
 or checking bounds. The current CPU portable route executes one fully static resolved-layout
 occurrence with complete deterministic pre-write bounds validation; this does not move bounds
 checking into Model construction or make dynamic layouts executable. See [Gather and Gather Elements semantic kinds and
-attributes](api/tensor-api.md#gather-and-gather-elements-semantic-kinds-and-attributes) and
-[axis-gather expressions](api/tensor-api.md#axis-gather-expressions).
+attributes](reference/tensor/operation-indexing.md#gather-and-gather-elements-semantic-kinds-and-attributes) and
+[axis-gather expressions](reference/tensor/gather.md#axis-gather-expressions).
 
 ### Embedding
 
@@ -254,7 +299,7 @@ fresh Tensor identity. Construction reads no index values. Negative and out-of-r
 invalid for later ordinary Gather execution, and there is no wrapping, padding row, sparse
 gradient, maximum-norm, or frequency-scaling option. Gradient construction, compiler analysis,
 bounds enforcement, lowering, backend behavior, and execution remain separately owned. See the
-[embedding convenience](api/tensor-api.md#embedding-convenience).
+[embedding convenience](reference/tensor/gather.md#embedding-convenience).
 
 The final NN `Embedding` module owns exactly one `Parameter` named `weight`. Its caller-supplied
 table must additionally be gradient-eligible, fully static, rank two, and positive on both axes.
@@ -308,7 +353,7 @@ clamp, select a default, or produce an all-false row. Compiler analysis and grad
 remain separately owned. The current CPU portable route supplies the first fully static resolved-
 layout backend lowering, strict bounds enforcement, and execution path; other layouts, backends,
 and general composition remain planned. See
-[one-hot encoding expressions in the Tensor API](api/tensor-api.md#one-hot-encoding-expressions).
+[one-hot encoding expressions in the Tensor API](reference/tensor/gather.md#one-hot-encoding-expressions).
 
 ### Gather Elements
 
@@ -350,7 +395,7 @@ Construction reads no values, checks no bounds, performs no addition, mutates no
 no gradient, compiler, backend, runtime, or execution behavior. This differs from
 [Scatter Elements](#scatter-elements), whose indices and updates are aligned and same-rank with
 data, and [Scatter-ND](#scatter-nd), whose indices contain multi-axis coordinate tuples. See
-[Gather-compatible Scatter Add expressions](api/tensor-api.md#gather-compatible-scatter-add-expressions).
+[Gather-compatible Scatter Add expressions](reference/tensor/scatter.md#gather-compatible-scatter-add-expressions).
 
 The current CPU portable route separately executes one fully static resolved-layout occurrence.
 It validates every INT32/INT64 index before any output write or worker submission, then adds the
@@ -382,7 +427,7 @@ payload, sign, signaling, source, fixed factor sequence, or bitwise result is pr
 Data and updates keep one exact type without promotion, widening, saturation, or conversion.
 `NONE`, configurable `ADD`, and fixed [Scatter Add](#scatter-add) retain their existing meanings,
 and the forward contract chooses no derivative or subgradient policy. See
-[Scatter Elements expressions](api/tensor-api.md#scatter-elements-expressions).
+[Scatter Elements expressions](reference/tensor/scatter.md#scatter-elements-expressions).
 
 ### Scatter Elements
 
@@ -398,9 +443,9 @@ construction validates types, reduction
 eligibility, axis, rank, and Shape, preserves exact data Shape/type with unresolved layout,
 combines data/update gradient eligibility, and records ordered provenance. It reads no values,
 checks no bounds or duplicate targets, and performs no write or reduction. See
-[Scatter Elements expressions](api/tensor-api.md#scatter-elements-expressions) and
+[Scatter Elements expressions](reference/tensor/scatter.md#scatter-elements-expressions) and
 [axis-scatter semantic kinds, reduction, and
-attributes](api/tensor-api.md#axis-scatter-semantic-kinds-reduction-and-attributes).
+attributes](reference/tensor/operation-indexing.md#axis-scatter-semantic-kinds-reduction-and-attributes).
 
 The current CPU portable route separately executes one fully static resolved-layout occurrence.
 It validates all bounds before the `NONE` target-uniqueness pass and before writing. Numeric
@@ -451,8 +496,8 @@ Gather-ND differs from [scalar select](#scalar-select),
 whose coordinate is an intrinsic attribute; [Gather](#gather), whose index values
 address one selected data axis; and scatter-ND, which writes or combines updates. Gradients,
 compiler behavior, materialization, backend behavior, and execution remain separately owned. See
-[Gather-ND semantic kind and attributes](api/tensor-api.md#gather-nd-semantic-kind-and-attributes)
-and [Gather-ND expressions](api/tensor-api.md#gather-nd-expressions).
+[Gather-ND semantic kind and attributes](reference/tensor/operation-indexing.md#gather-nd-semantic-kind-and-attributes)
+and [Gather-ND expressions](reference/tensor/scatter.md#gather-nd-expressions).
 
 ### Scatter-ND
 
@@ -488,8 +533,8 @@ Shape/type, data/update gradient-eligibility OR, and ordered `[data, indices, up
 Construction does not read values, check bounds or duplicates, mutate data, write, or reduce.
 Scatter-ND differs from [Gather-ND](#gather-nd), which
 reads selected data, and [Scatter Elements](#scatter-elements), whose indices address one selected axis.
-See [Scatter-ND semantic kind and attributes](api/tensor-api.md#scatter-nd-semantic-kind-and-attributes)
-and [Scatter-ND expressions](api/tensor-api.md#scatter-nd-expressions).
+See [Scatter-ND semantic kind and attributes](reference/tensor/operation-indexing.md#scatter-nd-semantic-kind-and-attributes)
+and [Scatter-ND expressions](reference/tensor/scatter.md#scatter-nd-expressions).
 
 The current CPU portable route separately executes one fully static resolved-layout occurrence.
 It validates tuple components in logical scalar order, then checks `NONE` tuple uniqueness within
@@ -515,9 +560,9 @@ same-offset logical view descriptor, while unresolved geometry remains unresolve
 package-private compiler autograd reverses supported floating rank edits through the opposite
 public Tensor operation. Public gradient requests/publication, materialization, backend behavior,
 and execution remain planned. See
-[Expand-dimensions and squeeze expressions](api/tensor-api.md#expand-dimensions-and-squeeze-expressions)
+[Expand-dimensions and squeeze expressions](reference/tensor/axis-transforms.md#expand-dimensions-and-squeeze-expressions)
 and [Axis-transform semantic kinds and
-attributes](api/tensor-api.md#axis-transform-semantic-kinds-and-attributes).
+attributes](reference/tensor/operation-geometry.md#axis-transform-semantic-kinds-and-attributes).
 
 ### Architecture contract
 
@@ -1963,7 +2008,7 @@ than one operation's elementwise or matrix coordinates. For matrix multiplicatio
 before the final two matrix axes is a batch dimension; rank-one operands have no batch prefix.
 The two prefixes broadcast right-aligned before row and column result axes are appended. A batch
 dimension is logical Shape metadata, not a runtime batch scheduler, storage partition, or backend
-execution unit. See [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
+execution unit. See [Matrix-multiplication expressions](reference/tensor/matmul-linear.md#matrix-multiplication-expressions).
 
 ### Scaled dot-product attention
 
@@ -2133,7 +2178,7 @@ storage. Compiler's existing reverse rule applies only to floating-to-floating c
 same-type cotangent or constructing one ordinary cast back to the source type. Redundant-cast and
 cast-chain canonicalization, concrete backend support, and execution remain separate owning-layer
 concerns. A cast expression is therefore not converted storage, a compiler graph node, or proof
-that a requested conversion can execute. See [cast expressions](api/tensor-api.md#cast-expressions).
+that a requested conversion can execute. See [cast expressions](reference/tensor/selection-casts.md#cast-expressions).
 
 ### Canonical host snapshot
 
@@ -2310,7 +2355,7 @@ single-owner or mixed CPU/Metal preparation, execution, transfers, and publicati
 representation-level lifecycle. Those later lifecycle responsibilities do not belong to Compiler
 or this port.
 
-The port also has a separate [cold source boundary](api/compile-api.md#current-cold-source-capture-and-reconstruction).
+The port also has a separate [cold source boundary](reference/compiler/cold-source.md#current-cold-source-capture-and-reconstruction).
 Its `SourceCapture` pairs a verified raw graph with a borrowed immutable snapshot of exact
 provenance-free leaves in graph-input order. Cold reconstruction accepts positional,
 full-descriptor-compatible Tensors, including ordinary expressions, and returns ordinary symbolic
@@ -2406,8 +2451,8 @@ gradient eligibility. Fully static results receive newly resolved canonical layo
 dynamic results remain unresolved. Construction records exact one-input provenance without
 inspecting input geometry or storage and without choosing an alias or copy, allocating storage,
 or defining compiler, planning, prepare, backend, runtime, gradient, or execution behavior. See
-[Contiguous expressions](api/tensor-api.md#contiguous-expressions), [Contiguous semantic
-kind](api/tensor-api.md#contiguous-semantic-kind), [Layout](#layout), and
+[Contiguous expressions](reference/tensor/reshape-expand.md#contiguous-expressions), [Contiguous semantic
+kind](reference/tensor/operation-geometry.md#contiguous-semantic-kind), [Layout](#layout), and
 [Materialization](#materialization).
 
 ### Cotangent
@@ -2451,7 +2496,7 @@ owner-bound handle that exposes only final caller-input `TensorId` and descripto
 privately retains the compile recipe needed for preparation but exposes no graph-local identity,
 partition, diagnostic, storage, or execution authority. It has no close lifecycle, and its
 metadata remains readable after Engine closure. See the
-[Compile API](api/compile-api.md#current-model-contracts).
+[Compile API](reference/compiler/capture.md#current-model-contracts).
 
 ### Concrete backend
 
@@ -2506,7 +2551,7 @@ rounding rule. The CPU backend separately executes exactly one fully static, res
 parallel-scalar realization retains sequential same-type accumulation and rounds BFLOAT16 or
 FLOAT16 after each operation; this is not a NaN-payload, cross-backend bitwise, vector-scan, or in-place promise.
 See
-[Cumulative-scan semantic kinds and attributes](api/tensor-api.md#cumulative-scan-semantic-kinds-and-attributes).
+[Cumulative-scan semantic kinds and attributes](reference/tensor/operation-reductions.md#cumulative-scan-semantic-kinds-and-attributes).
 
 ### Dropout / inverted dropout
 
@@ -2523,7 +2568,7 @@ route, retains the saved mask for backward, and gives each run isolated output/s
 There is no model-level training flag, inference rewrite, implicit seed, or portable stream
 promise. See
 [Neural-network module, parameter, buffer, and forward context](#neural-network-module-parameter-buffer-and-forward-context)
-and [Explicit-state dropout construction](api/tensor-api.md#explicit-state-dropout-construction).
+and [Explicit-state dropout construction](reference/tensor/graph-randomness.md#explicit-state-dropout-construction).
 
 ### Contraction dimension
 
@@ -2532,7 +2577,7 @@ current `MATMUL`, it is the final left axis and either the final right axis for 
 penultimate right axis otherwise. Equal static extents are required; equality involving an
 unresolved extent is deferred because the contraction extent is absent from the output Shape.
 The term describes mathematical and Shape meaning, not an accumulation loop or kernel choice.
-See [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
+See [Matrix-multiplication expressions](reference/tensor/matmul-linear.md#matrix-multiplication-expressions).
 
 ### Conv1d composition
 
@@ -2544,7 +2589,7 @@ operation with `Conv2dAttrs(1, stride, 0, padding, 1, dilation, groups)` and opt
 then squeezes axis 2. Compiler inference and current gradients consequently reuse the existing
 rank-edit and Conv2d nodes. There is no `CONV1D` or public/private `ConvNd`, and this Model
 composition does not claim backend execution or performance. See
-[Grouped NCW Conv1d composition](api/tensor-api.md#grouped-ncw-conv1d-composition).
+[Grouped NCW Conv1d composition](reference/tensor/convolution.md#grouped-ncw-conv1d-composition).
 
 ### Convolution / Conv2d
 
@@ -2562,7 +2607,7 @@ separately executes the fully static, resolved-layout FLOAT64/FLOAT32/BFLOAT16/F
 directly, including optional intrinsic bias, groups/depthwise geometry, scalar or parallel-scalar
 complete-output-cell ranges, and the bounded fusion/materialized-suffix forms documented in the
 CPU backend guide. Other backend algorithms and execution forms remain planned. See
-[Tensor API](api/tensor-api.md#grouped-nchw-conv2d-expressions).
+[Tensor API](reference/tensor/convolution.md#grouped-nchw-conv2d-expressions).
 
 For FLOAT32, CONV2D and CONV3D preserve exact geometry, conceptual padding, bias,
 and contributor membership. Every term participates exactly once while arithmetic recurses through
@@ -2600,11 +2645,11 @@ contract, retaining unresolved channel and spatial relations as ordered constrai
 grouped convolution rules derive input, weight and optional bias cotangents through public window,
 matrix and reduction operations. Static CPU FLOAT32/FLOAT64 and Metal FLOAT32 training are
 qualified; source construction alone does not grant a backend or persistence domain. See
-[grouped NCDHW Conv3d expressions](api/tensor-api.md#grouped-ncdhw-conv3d-expressions).
+[grouped NCDHW Conv3d expressions](reference/tensor/convolution.md#grouped-ncdhw-conv3d-expressions).
 
 ### Data type / `DataType`
 
-The logical kind of scalar stored in each element of a tensor, such as `FLOAT32`, `INT64`, or `BOOL`. `DataType` records model-level facts including category and width, which lets model and compiler code interpret values consistently. It does not claim that every backend supports the type, prescribe a physical allocation alignment, or select a conversion route. See [Data types](api/tensor-api.md#data-types).
+The logical kind of scalar stored in each element of a tensor, such as `FLOAT32`, `INT64`, or `BOOL`. `DataType` records model-level facts including category and width, which lets model and compiler code interpret values consistently. It does not claim that every backend supports the type, prescribe a physical allocation alignment, or select a conversion route. See [Data types](reference/tensor/data-types.md#data-types).
 
 The OFP8 formats `FLOAT8_E4M3` and `FLOAT8_E5M2` store one raw byte per element. E4M3 has
 finite magnitude at most 448 and no infinity; non-saturating overflow narrows to NaN.
@@ -2624,7 +2669,7 @@ pairs reject, requiring an explicit [`cast`](#cast-expression).
 
 Promotion selects expression metadata only. It does not insert a cast producer, convert or read
 values, capture a graph, choose a backend, or execute. See
-[numeric promotion](api/tensor-api.md#numeric-promotion).
+[numeric promotion](reference/tensor/data-types.md#numeric-promotion).
 
 <a id="numerical-profile"></a>
 
@@ -2696,7 +2741,7 @@ storage, provenance, or executable state. Its inspectors require the exact store
 convert. Scalar/clamp and padding attributes retain these values, while receiver-aware public
 Tensor expression construction enforces exact value/input type equality. Existing primitive
 TensorFactory scalar/full methods remain separate eager Tensor-construction APIs. See [exact typed
-scalar values](api/tensor-api.md#exact-typed-scalar-values).
+scalar values](reference/tensor/data-types.md#exact-typed-scalar-values).
 
 ### Data-transfer object / DTO
 
@@ -2767,7 +2812,7 @@ unknown.
 Every non-static form is dynamic. Only the named form has a `dynamicSymbol()`: an expression or
 unknown has no caller-defined name. Dynamic dimensions are explicit values, not negative-number
 sentinels, and local code does not assume that different names or distinct unknowns are equal. See
-[Shapes and dimensions](api/tensor-api.md#shapes-and-dimensions).
+[Shapes and dimensions](reference/tensor/shapes.md#shapes-and-dimensions).
 
 ### Symbolic batch binding
 
@@ -2865,7 +2910,7 @@ no binding map, substitution, public evaluation API, serialization format, or ex
 It also excludes value-dependent obligations such as index contents and bounds, duplicate scatter
 targets, categorical target contents, numerical results, and storage validity, which cannot be
 decided from descriptor-only graph values. See [current package-private verification
-inference](api/compile-api.md#current-package-private-verification-inference).
+inference](reference/compiler/verification-scan.md#current-package-private-verification-inference).
 
 Accepting a binding-dependent `Tensor.expand` expression in Model does not itself create a
 deferred graph constraint. Model retains only the exact target Shape and the EXPAND occurrence.
@@ -2946,7 +2991,7 @@ The selected fold matrix is limited to BOOL logic, signed-integral binary arithm
 and same-typed signed-integral scalar arithmetic over explicit splats. It does not evaluate
 floating/BFLOAT16 facts, casts, unselected operations, or dense payloads; construct autograd;
 derive publication or planning; allocate physical values; or expose a public compiler API. See
-[Compile API](api/compile-api.md#current-package-private-canonicalization-and-whole-graph-optimization).
+[Compile API](reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization).
 
 ### Pre-capture Tensor-expression autograd
 
@@ -2973,7 +3018,7 @@ orders one and two and remain target-distinct when several targets share one fin
 This design is compile-local. It creates no third reverse stage, arbitrary nested derivative
 chain, persistent or runtime tape, mutable Tensor gradient state, `Tensor.backward()`, second
 gradient algebra, or backend-owned global autograd. The maintained
-[Compile API](api/compile-api.md#current-package-private-pre-capture-autograd) records the current
+[Compile API](reference/compiler/autograd.md#current-package-private-pre-capture-autograd) records the current
 operation-specific, fail-closed derivative matrix.
 
 ### Neural-network module, parameter, buffer, and forward context
@@ -3099,7 +3144,7 @@ Save accepts fully bound native and matching heap leaves on the validated CPU ro
 loaded trees. After complete preflight, internal raw-preserving contiguous requests normalize
 unique leaf outputs without rebinding NN state; this is not generic leaf-output Engine support.
 The retained aggregate payload ceiling counts schema and every path, including aliases, not
-transient Engine workspace or peak heap. See the [model checkpoint API](api/model-checkpoint-api.md).
+transient Engine workspace or peak heap. See the [model checkpoint API](reference/checkpoint/models.md).
 A separately gated optional Training Checkpoint adapter would coordinate Training-owned state and
 caller-owned continuation data without making the model-only project depend on Training. A
 bounded caller-owned in-memory private-candidate restore is exercised by an integration test;
@@ -3553,7 +3598,7 @@ Prepare/CPU/Engine execution, with root validation and the sole bounded probe co
 MAIN acceptance remains pending in that task record. Static length-aware persistence and the
 separately qualified owned RNN workflow use bounded v5 without Pool3d, or v6 for outer/body Pool3d,
 not all PURE bodies. See the
-[source-construction example](api/tensor-api.md#length-aware-source-only-construction),
+[source-construction example](reference/tensor/general-scan.md#length-aware-source-only-construction),
 [changing-B execution example](user-guide/running-models.md#symbolic-length-scan-with-changing-batch-size)
 and [combined CPU scope](backend-guide/cpu-backend.md#symbolic-length-scan-cpu-execution).
 The owned all-valid workflow below does not widen length-mode NN or cold admission.
@@ -3710,9 +3755,9 @@ update, training orchestration, graph capture, compilation, preparation, or exec
 existing final `Linear` and recurrent cells may initialize their own input-dependent parameters
 when reached by ordinary Java forward traversal, but this is a layer-local contract rather than a
 general Model build/initialize lifecycle or whole-body transaction. See [Current NN typed Model
-composition contract](api/training-api.md#current-nn-typed-model-composition-contract) and
+composition contract](reference/nn/composition.md#current-nn-typed-model-composition-contract) and
 [Current NN automatic parameter initialization
-contract](api/training-api.md#current-nn-automatic-parameter-initialization-contract).
+contract](reference/nn/composition.md#current-nn-automatic-parameter-initialization-contract).
 
 ### Declarative model specification and descriptor-only skeleton
 
@@ -3736,7 +3781,7 @@ description entry points read current bindings under caller quiescence, includin
 after legal replacement or strict loading. Training's duplicate/overlap rejection is unchanged.
 See the [reconstruction guide](user-guide/declarative-models.md). ModelSpecification description and
 descriptor-only reconstruction perform no file I/O. NN also owns the separate `nn.checkpoint`
-facade/codecs: [whole-model persistence](api/model-checkpoint-api.md#whole-model-save-and-automatic-load)
+facade/codecs: [whole-model persistence](reference/checkpoint/models.md#whole-model-save-and-automatic-load)
 stores this closed configuration and detached values, delegates generic file I/O to ArtifactFile,
 then returns a value-loaded model.
 Neither capability supplies training resume or arbitrary Java model capture.
@@ -3826,7 +3871,7 @@ no producer, consumer, or role flag. The owning implemented
 and validates graph-wide existence, uniqueness, and topology without storing an index. A graph
 value is compile-time model state, not the implemented public mutable [`Tensor`](#tensor), a physical
 memory slot, storage, or runtime residency. See [Graph values and compiled
-nodes](api/tensor-api.md#graph-values-and-compiled-nodes).
+nodes](reference/tensor/compiled-graph.md#graph-values-and-compiled-nodes).
 
 ### Graph phase
 
@@ -3915,7 +3960,7 @@ so sampled replay is bounded to the same conforming prepared implementation and 
 A future graph serializer must preserve both words losslessly, but no byte encoding, parser,
 schema version, or stable enum token exists. Current construction does not sample, materialize an
 advanced state value, allocate storage, execute, capture a graph, define gradients, or add runtime
-or backend state. See [Explicit graph RNG state](api/tensor-api.md#explicit-graph-rng-state).
+or backend state. See [Explicit graph RNG state](reference/tensor/graph-randomness.md#explicit-graph-rng-state).
 
 ### State threading
 
@@ -3947,7 +3992,7 @@ RIGHT/TIME_MAJOR counts into a fresh ordinary canonical non-gradient heap INT64 
 including empty B; it never reads or repacks values. The application binds that mutable export
 through existing NN/Engine APIs. Logical axis order does not prove physical layout or execution
 support, and LEFT support does not extend the scan's right-padded valid-prefix semantics.
-See the [Data sequence batching API](api/data-api.md#explicit-runtime-scan-lengths).
+See the [Data sequence batching API](reference/data/sequences.md#explicit-runtime-scan-lengths).
 
 ### Frozen whitespace tokenizer
 
@@ -3958,7 +4003,7 @@ ordinary IDs start at 2, padding (PAD) is 0 and unknown (UNK) is 1. Listed spell
 and preserves exact case, punctuation and UTF-16 without normalization. Each absent run emits
 one UNK. `TextSequenceBatcher` encodes rows and delegates padding and host counts to Data;
 neither token IDs nor counts add masking, execution or runtime length binding. See the
-[Text API](api/text-api.md) and [host sequence metadata](#host-sequence-metadata).
+[Text API](reference/text/tokenization.md) and [host sequence metadata](#host-sequence-metadata).
 
 ### Host storage
 
@@ -3987,7 +4032,7 @@ implemented `TensorFactory` may pass an existing caller-supplied borrowed object
 construction path or create a matching primitive-array heap segment whose capacity is exactly the
 resolved referenced span. The factory introduces no arena, close operation, external owner, or
 deterministic lifetime. Neither path changes the wrapper's sizing, borrowed/non-closing ownership,
-or raw-access contract. See [Host-visible storage](api/tensor-api.md#host-visible-storage).
+or raw-access contract. See [Host-visible storage](reference/tensor/host-storage.md#host-visible-storage).
 
 ### Kernel
 
@@ -4116,7 +4161,7 @@ guide](backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route).
 
 ### Layout
 
-The logical mapping from a tensor's multidimensional indices to positions in storage. A layout can describe contiguous, offset-contiguous, strided, or broadcast views using facts such as element strides and storage offset. Layout describes geometry and aliasing; it does not own storage or decide whether a copy must be materialized. See the [Tensor API](api/tensor-api.md#resolved-layouts).
+The logical mapping from a tensor's multidimensional indices to positions in storage. A layout can describe contiguous, offset-contiguous, strided, or broadcast views using facts such as element strides and storage offset. Layout describes geometry and aliasing; it does not own storage or decide whether a copy must be materialized. See the [Tensor API](reference/tensor/layouts.md#resolved-layouts).
 
 ### Logical splat
 
@@ -4252,7 +4297,7 @@ current `extensions/nn` `Linear` module is the separate stateful owner that dele
 construction to this convenience. The visible floating PERMUTE/MATMUL/ADD primitive chain is
 differentiable by current package-private compiler autograd when each primitive satisfies its
 closed rule guards. See
-[Linear-projection convenience](api/tensor-api.md#linear-projection-convenience).
+[Linear-projection convenience](reference/tensor/matmul-linear.md#linear-projection-convenience).
 
 The receiver placement is unchanged because linear projection is a natural one-input,
 one-output last-axis contraction. `Tensor.linear` owns only the stateless Model operation
@@ -4308,7 +4353,7 @@ never broadcasts the target. It records exact ordered `[prediction, target]` pro
 values. Current package-private compiler autograd supports both roles: prediction uses
 `2 * (prediction - target)` and target uses `-2 * (prediction - target)`, with reduced cotangents
 restored through logical Tensor counts before exact descriptor normalization. See
-[Mean-squared-error loss expressions](api/tensor-api.md#mean-squared-error-loss-expressions).
+[Mean-squared-error loss expressions](reference/tensor/statistics-losses.md#mean-squared-error-loss-expressions).
 
 ### Matrix multiplication / `MATMUL`
 
@@ -4347,7 +4392,7 @@ epilogue, K split, packed panel, automatic tuning, or late fallback. See
 [the current portable MATMUL family](backend-guide/cpu-backend.md#current-portable-matmul-family),
 [the current narrow OpenBLAS MATMUL route](backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route),
 and
-[Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
+[Matrix-multiplication expressions](reference/tensor/matmul-linear.md#matrix-multiplication-expressions).
 
 ### Buffer slot / `BufferSlot`
 
@@ -4363,7 +4408,7 @@ A `BufferSlot` is deeply immutable and may be retained by the current
 residency fact, or per-run binding. Constructing one performs no allocation or resource operation.
 Prepare assignment is current; physical binding and scheduled execution remain planned. Current
 `RunState` uses the entry-list position rather than this numeric value for direct representation access. See the
-[Runtime API](api/runtime-api.md#current-slot-identities).
+[Runtime API](reference/runtime/memory.md#current-slot-identities).
 
 ### Buffer validity
 
@@ -4579,11 +4624,11 @@ local list invariants and checks final input/output counts against the selected
 referenced-value existence, producer uniqueness, topology, and graph boundaries, while
 operand-aware descriptor compatibility remains separate. A compiled node is compile-time model state and
 must not enter runtime hot paths. See [Graph values and compiled
-nodes](api/tensor-api.md#graph-values-and-compiled-nodes).
+nodes](reference/tensor/compiled-graph.md#graph-values-and-compiled-nodes).
 
 ### `NodeId`
 
-A validated non-negative identifier for a node occurrence within one owning graph. It identifies where operation semantics occur, not the operation kind itself. Its numeric value may be reused in another graph, so it has meaning only with its graph context. See [Identifiers](api/tensor-api.md#typed-identifiers).
+A validated non-negative identifier for a node occurrence within one owning graph. It identifies where operation semantics occur, not the operation kind itself. Its numeric value may be reused in another graph, so it has meaning only with its graph context. See [Identifiers](reference/tensor/identifiers.md#typed-identifiers).
 
 ### Operation capability query / `OperationCapabilityQuery`
 
@@ -4936,8 +4981,8 @@ expression with normalized attributes and provenance `[input]`. It requires exac
 type equality but does not bind or evaluate a symbolic extent, convert the constant, or
 materialize values. Current package-private compiler autograd crops a supported floating PAD
 cotangent by the exact before widths. See [Pad and tile
-expressions](api/tensor-api.md#pad-and-tile-expressions) and [Pad and tile semantic kinds and
-normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
+expressions](reference/tensor/composition.md#pad-and-tile-expressions) and [Pad and tile semantic kinds and
+normalized attributes](reference/tensor/operation-indexing.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
 
 ### Permutation
 
@@ -4955,8 +5000,8 @@ reorders exact Dimension references and resolved strides, preserves resolved ele
 records normalized attributes with provenance `[input]`. Unresolved layout remains unresolved. A
 rank-two transpose convenience uses mapping `[1, 0]`. The resulting view descriptor is logical
 metadata, not attached storage or a zero-copy guarantee. See [Permute and transpose
-expressions](api/tensor-api.md#permute-and-transpose-expressions) and [Axis-transform semantic kinds
-and attributes](api/tensor-api.md#axis-transform-semantic-kinds-and-attributes).
+expressions](reference/tensor/axis-transforms.md#permute-and-transpose-expressions) and [Axis-transform semantic kinds
+and attributes](reference/tensor/operation-geometry.md#axis-transform-semantic-kinds-and-attributes).
 
 ### Partition
 
@@ -5311,7 +5356,7 @@ lookup. Every active logical run continues to require its own isolated mutable `
 Prepare now supplies the transactional resource handoff. Engine 0010 is implemented: ordinary
 and advanced Engine prepared handles are closeable outward owners of exactly one inward Runtime
 execution. See the
-[Runtime API](api/runtime-api.md#current-prepared-execution).
+[Runtime API](reference/runtime/prepared-execution.md#current-prepared-execution).
 
 The outward Engine owner has one accepted future metadata-only exception under the
 [Engine geometry memo](#engine-geometry-memo): replacing immutable facts cannot change prepared
@@ -5547,7 +5592,7 @@ published `Tensor -> TensorProvenance -> TensorProducer -> outputs -> Tensor` cy
 result may retain siblings; the cycle owns no external resource and is ordinarily collectable
 when unreachable. The producer still gains no label, storage, value, gradient, compiler, backend,
 runtime, or execution state. See [Expression producers and indexed
-provenance](api/tensor-api.md#expression-producers-and-indexed-provenance).
+provenance](reference/tensor/identity.md#expression-producers-and-indexed-provenance).
 
 ### Provenance
 
@@ -5565,7 +5610,7 @@ producers also differs. Provenance is not intermediate representation (IR), grap
 graph capture, or executable behavior. It contains no graph-local `NodeId` or `ValueId`, does not
 validate cycles or graph structure, and does not change when Tensor host storage is replaced,
 cleared, or becomes dead. A later compiler owns traversal and conversion into immutable graph
-records. See [Public Tensor state](api/tensor-api.md#public-tensor-state).
+records. See [Public Tensor state](reference/tensor/identity.md#public-tensor-state).
 
 The implemented binary Tensor methods create provenance whose operation uses the exact matching
 `BinaryArithmeticKind` and `NoOperationAttrs.INSTANCE`, and whose two input positions preserve the
@@ -5782,8 +5827,8 @@ non-empty, fully static, resolved-layout plan to be registered and supported. Th
 covers returned canonical payload lengths only. Use
 `compile -> prepare -> run(explicit inputs) -> materialize` for ordinary repeated runs or selective
 publication copying; direct prepared-handle ownership remains available at the lower level. See
-[Public API](api/public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
-[Runtime API](api/runtime-api.md#current-ordinary-engine-boundary).
+[Public API](reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
+[Runtime API](reference/runtime/engine-boundary.md#current-ordinary-engine-boundary).
 
 ### One-shot scalar-objective backward execution
 
@@ -5807,8 +5852,8 @@ state. Explicit seeds, multiple outputs, `ZERO`, higher-order/full policies, sel
 and reuse stay on the existing lower-level ordinary or advanced APIs. Current execution requires a
 supported non-empty static/resolved composition; ordinary CPU/Metal mixed-owner execution is
 bounded to its exact transfer domain, and pure zero-node compositions remain unsupported. See
-[Public API](api/public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
-[Compile API](api/compile-api.md#current-ordinary-and-advanced-engine-compile-boundaries).
+[Public API](reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
+[Compile API](reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries).
 
 ### Run state / `RunState`
 
@@ -5870,7 +5915,7 @@ support, or runtime allocation. Its total element count is known only when every
 static. A prefix Shape used by [target-relative crop](#target-relative-crop) applies that same
 extent model to the number of logical positions preceding a region on each axis; it is not an
 index Tensor or a storage offset. See [Shapes and
-dimensions](api/tensor-api.md#shapes-and-dimensions) and [symbolic extent
+dimensions](reference/tensor/shapes.md#shapes-and-dimensions) and [symbolic extent
 expressions](#symbolic-extent-expression).
 
 ### Symbolic extent expression
@@ -5895,7 +5940,7 @@ uses object identity, so only reuse of the same unknown proves equality.
 Expression construction performs local checked arithmetic and canonicalization only. It does not
 bind named dimensions, evaluate concrete sizes, solve graph-wide constraints, construct Tensor
 operations, or add compiler, prepare, runtime, storage, or backend state. See [Symbolic extent
-expressions](api/tensor-api.md#symbolic-extent-expressions).
+expressions](reference/tensor/shapes.md#symbolic-extent-expressions).
 
 ### Scalar select
 
@@ -5931,7 +5976,7 @@ retries scalar select after its input geometry resolves, retaining the exact ind
 without choosing a physical copy. CPU lowering and execution support the existing fully static,
 resolved-layout, one-input/one-output SELECT domain with exact same-type family geometry;
 unproved or empty result geometry remains unresolved, not newly executable. See [Scalar select semantic kind and
-attributes](api/tensor-api.md#scalar-select-semantic-kind-and-attributes).
+attributes](reference/tensor/operation-indexing.md#scalar-select-semantic-kind-and-attributes).
 
 ### Sigmoid linear unit / SiLU
 
@@ -5990,9 +6035,9 @@ read values, capture or canonicalize a graph, materialize storage, lower a backe
 operation, or execute selection. Current package-private compiler autograd scatters a supported
 floating SLICE cotangent into an input-shaped exact typed zero, including length-defined regions
 whose selected source extent remains unresolved after occurrence-owned constraint retention. See
-[Slice expressions](api/tensor-api.md#slice-expressions)
+[Slice expressions](reference/tensor/slicing.md#slice-expressions)
 and [Slice semantic kind and normalized
-attributes](api/tensor-api.md#slice-semantic-kind-and-normalized-attributes).
+attributes](reference/tensor/operation-geometry.md#slice-semantic-kind-and-normalized-attributes).
 
 ### Slice Update
 
@@ -6021,7 +6066,7 @@ define lowering, backend, or execution behavior. Current package-private compile
 supported floating base cotangent and extracts the supported floating update cotangent for both
 `SliceAttrs` and target-relative `CropToShapeAttrs` after exact constraint-aware preflight. See
 [Slice update and
-target-relative crop expressions](api/tensor-api.md#slice-update-and-target-relative-crop-expressions).
+target-relative crop expressions](reference/tensor/slicing.md#slice-update-and-target-relative-crop-expressions).
 
 The current CPU portable route separately executes exactly one fully static, resolved-layout
 SLICE_UPDATE occurrence with either attribute form. Its output-domain pass has copy-base-then-
@@ -6053,7 +6098,7 @@ placement and ordered `[base, update]` provenance. Model stores no deferred cons
 current compiler inference, preflight, and first-order autograd retain and adopt the placement
 form. See
 [Slice update and target-relative crop
-expressions](api/tensor-api.md#slice-update-and-target-relative-crop-expressions).
+expressions](reference/tensor/slicing.md#slice-update-and-target-relative-crop-expressions).
 
 ### Softmax / log-softmax
 
@@ -6083,8 +6128,8 @@ They still calculate none of the example values. Current package-private compile
 the exact forward output `y`: softmax constructs `y * (g - sum(g * y, axis, true))`, while
 log-softmax constructs `g - exp(y) * sum(g, axis, true)`. This compiler behavior defines no
 forward numerical algorithm, backend route, or execution result. See [Softmax
-expressions](api/tensor-api.md#softmax-expressions) and [Softmax
-semantic kinds and attributes](api/tensor-api.md#softmax-semantic-kinds-and-attributes).
+expressions](reference/tensor/normalization.md#softmax-expressions) and [Softmax
+semantic kinds and attributes](reference/tensor/operation-reductions.md#softmax-semantic-kinds-and-attributes).
 
 The current CPU portable route admits exactly one explicit first-class occurrence with fully
 static resolved geometry, FLOAT64/FLOAT32/BFLOAT16/FLOAT16 identity, and a positive selected-axis
@@ -6123,7 +6168,7 @@ metadata and provenance but does not calculate statistics, capture a graph, sele
 or execute. Current package-private compiler autograd supports the input in both forms and the
 scale/bias roles in the affine form. It rebuilds the population statistics through ordinary
 Tensor expressions over the exact trailing axes. See [Layer-normalization
-expressions](api/tensor-api.md#layer-normalization-expressions).
+expressions](reference/tensor/normalization.md#layer-normalization-expressions).
 
 The current `extensions/nn` `LayerNorm` module is a separate stateful composition owner for the
 mandatory affine form. It narrows parameter state to one positive fully static normalized Shape,
@@ -6154,7 +6199,7 @@ Current `Tensor.rmsNorm` constructs metadata and provenance but does not calcula
 square, capture a graph, create saved statistics, select an algorithm, or execute. Current
 package-private compiler autograd supports the input and optional scale roles through ordinary
 population-mean Tensor expressions.
-See [RMS-normalization expressions](api/tensor-api.md#rms-normalization-expressions).
+See [RMS-normalization expressions](reference/tensor/normalization.md#rms-normalization-expressions).
 
 The current CPU portable route executes only the explicit first-class input-only or two-input
 scaled occurrence when Shapes and layouts are fully static and resolved. Its two complete passes
@@ -6230,8 +6275,8 @@ then its exact next variance. A Model failure before that complete result preser
 the two later replacement operations provide no transaction, rollback, thread safety, numerical
 execution, or persistence guarantee.
 
-See [batch-normalization inference](api/tensor-api.md#batch-normalization-inference-expressions) and
-[batch-normalization training](api/tensor-api.md#batch-normalization-training-and-statistic-transition-expressions).
+See [batch-normalization inference](reference/tensor/normalization.md#batch-normalization-inference-expressions) and
+[batch-normalization training](reference/tensor/statistics-losses.md#batch-normalization-training-and-statistic-transition-expressions).
 
 ### Normalized Shape
 
@@ -6362,8 +6407,8 @@ resolve layout. Compiler canonicalization, materialization, backend support, and
 outside Model construction. Generic
 [`Operation`](#operation) composition retains the exact kind and attributes references but does
 not enforce the family pairing or one-input context. See [Reshape
-expressions](api/tensor-api.md#reshape-expressions) and [Expand
-expressions](api/tensor-api.md#expand-expressions).
+expressions](reference/tensor/reshape-expand.md#reshape-expressions) and [Expand
+expressions](reference/tensor/reshape-expand.md#expand-expressions).
 
 ### Tensor composition
 
@@ -6545,7 +6590,7 @@ each unstack output has an independent one-output producer and provenance index 
 does not claim shared producer grouping; its zero-count result creates no Tensor or ID.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
-state](api/tensor-api.md#public-tensor-state).
+state](reference/tensor/identity.md#public-tensor-state).
 
 ### Tensor factory
 
@@ -6763,7 +6808,7 @@ a gradient rule or backend support. The optional is compared by value rather tha
 identity; when present, it contains the exact immutable layout object supplied at construction. A
 descriptor describes logical facts and does not own a public mutable `Tensor`, graph identity, host
 storage, device buffers, runtime residency, materialization policy, or backend execution state. See
-[Tensor descriptors](api/tensor-api.md#tensor-descriptors).
+[Tensor descriptors](reference/tensor/descriptors.md#tensor-descriptors).
 
 ### `TensorId`
 
@@ -6774,7 +6819,7 @@ The value type itself does not allocate or guarantee uniqueness. The implemented
 among its allocations in one JVM; callers may still construct equal numeric values manually. Two
 tensor objects remain unequal even when their IDs compare equal. An implemented
 `ForwardPublicationBinding` can associate an ID with a graph value without storing graph-local
-IDs on the tensor. See [Identifiers](api/tensor-api.md#typed-identifiers).
+IDs on the tensor. See [Identifiers](reference/tensor/identifiers.md#typed-identifiers).
 
 ### Tiling
 
@@ -6798,8 +6843,8 @@ attributes and provenance `[input]`. It does not bind or evaluate the formula, r
 materialize storage. Current package-private compiler autograd reshapes a supported floating TILE
 cotangent to interleaved repeat/input axes, sums the repeat axes, and restores the input Shape. See
 [Pad and tile
-expressions](api/tensor-api.md#pad-and-tile-expressions) and [Pad and tile semantic kinds and
-normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
+expressions](reference/tensor/composition.md#pad-and-tile-expressions) and [Pad and tile semantic kinds and
+normalized attributes](reference/tensor/operation-indexing.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
 
 ### Trace
 
@@ -6969,7 +7014,7 @@ represented bytes from current heap or native host storage into fresh caller-own
 native storage. It changes each existing Tensor's borrowed host-storage association, not its
 identity or graph provenance, and leaves source storage ownership with the caller. The caller
 keeps the destination Arena alive through session close. It is not a backend transfer or an
-implicit behavior of `TrainingSession.open`. See [Training API](api/training-api.md#explicit-native-parameter-copy).
+implicit behavior of `TrainingSession.open`. See [Training API](reference/training/parameters.md#explicit-native-parameter-copy).
 
 ### Live parameter source / `TrainingParameters`
 
@@ -6979,7 +7024,7 @@ that frozen list, and rejects changed membership. NN's `Module.trainingParameter
 retains and validates exact wrappers through fresh root traversal. Membership deliberately does
 not freeze storage associations or bytes, so the same source survives explicit native copying
 and may open a session afterward. Training owns descriptor, storage and finite-value validation.
-See [generic admission](api/training-api.md#generic-live-parameter-admission).
+See [generic admission](reference/training/parameters.md#generic-live-parameter-admission).
 
 ### Parameter group / `ParameterGroup`
 
@@ -6988,7 +7033,7 @@ or AdamW configuration.
 Paths come from `TrainingParameters.entries()` (NN adapters use recursive Module paths). One Training session may assign disjoint
 groups while unlisted parameters use its default optimizer. Both group order and path order participate
 in exact Training-state restore compatibility; groups do not create separate counters or freeze
-gradient targets. See [Training API](api/training-api.md#session-construction-and-input-mapping).
+gradient targets. See [Training API](reference/training/sessions.md#session-construction-and-input-mapping).
 
 ### Training session / `TrainingSession`
 
@@ -7038,14 +7083,14 @@ An optimizer that tracks first and second moments of each parameter's gradient a
 their startup bias using the one-based global optimizer step. Adam couples weight decay by adding
 it to the gradient before both moments; AdamW decouples decay by scaling the master parameter
 before the adaptive subtraction. Both use Training-owned state after Engine execution, not a
-backend optimizer kernel. See [Training API](api/training-api.md#optimizers-and-gradient-modes).
+backend optimizer kernel. See [Training API](reference/training/optimizers.md#optimizers-and-gradient-modes).
 
 ### First optimizer slot / `firstMomentBytes()`
 
 The per-parameter FLOAT32 or FLOAT64 slot exposed in a detached `TrainingState`. It is SGD
 momentum or Adam/AdamW's first moment. `momentumBytes()` remains an exact compatible alias;
 `secondMomentBytes()` exists only for Adam/AdamW and has the same element width. See
-[Training API](api/training-api.md#atomicity-state-concurrency-and-close).
+[Training API](reference/training/optimizers.md#atomicity-state-concurrency-and-close).
 
 ### Typed trace DTO
 
@@ -7059,7 +7104,7 @@ backend attribute escape hatch also remains planned. See
 
 ### `ValueId`
 
-A validated non-negative identifier for an input, intermediate, or output logical value within one owning graph. It does not identify a computation occurrence or a physical buffer. Its numeric value may be reused in another graph. See [Identifiers](api/tensor-api.md#typed-identifiers).
+A validated non-negative identifier for an input, intermediate, or output logical value within one owning graph. It does not identify a computation occurrence or a physical buffer. Its numeric value may be reused in another graph. See [Identifiers](reference/tensor/identifiers.md#typed-identifiers).
 
 ### View
 
@@ -7146,7 +7191,7 @@ The current CPU backend executes only the fully static resolved-layout overlap-f
 described in [CPU overlap fold](#cpu-overlap-fold); this backend-specific coverage does not change
 the broader Model contract or imply other backend execution. See
 [Window-transform semantic kinds and
-attributes](api/tensor-api.md#window-transform-semantic-kinds-and-attributes).
+attributes](reference/tensor/operation-windows.md#window-transform-semantic-kinds-and-attributes).
 
 ### NCHW pooling window geometry
 
@@ -7177,8 +7222,8 @@ one final division; **accumulation** here names the intermediate arithmetic doma
 algorithm or traversal order. Current package-private compiler autograd routes maximum pooling
 through the reconstructed first eligible logical winner without adding saved indices, and routes
 average pooling through the fixed logical kernel count. See [NCHW maximum-pooling
-expressions](api/tensor-api.md#nchw-maximum-pooling-expressions), [NCHW average-pooling
-expressions](api/tensor-api.md#nchw-average-pooling-expressions), and [Window transform](#window-transform).
+expressions](reference/tensor/pooling.md#nchw-maximum-pooling-expressions), [NCHW average-pooling
+expressions](reference/tensor/pooling.md#nchw-average-pooling-expressions), and [Window transform](#window-transform).
 
 ### Pool1d composition
 
@@ -7194,7 +7239,7 @@ its actual descriptors and attributes, never a synthetic Pool1d capability. The 
 backend additionally recognizes only the exact private single-use three-node topology, keeps both
 rank edits virtual, and reuses the Pool2d family projection under the current schema-70 envelope. Recognition is an
 optimization over the visible components, not a new operation, capability, or artifact. See
-[NCW Pool1d composition](api/tensor-api.md#ncw-pool1d-composition).
+[NCW Pool1d composition](reference/tensor/pooling.md#ncw-pool1d-composition).
 
 ### Pool3d / NCDHW pooling
 
@@ -7228,7 +7273,7 @@ These grants do not imply dynamic/named-B pooling, Metal Scan, pooling fusion or
 performance. Fluent maximum/average Pool3d steps use kernel stride, zero padding, unit dilation
 and floor geometry. Cold sources retain complete typed geometry and select graph-model.v6,
 including otherwise-qualified all-valid/length bodies; no optimizer/session state is persisted. See
-[NCDHW Pool3d expressions](api/tensor-api.md#ncdhw-pool3d-expressions).
+[NCDHW Pool3d expressions](reference/tensor/pooling.md#ncdhw-pool3d-expressions).
 
 ## Common distinctions
 
@@ -7398,4 +7443,4 @@ opcodes34/35, twelve i64 kernel/stride/padding/dilation fields in depth/height/w
 by canonical ceil flag), including contained occurrences. Unchanged sources retain byte-identical
 smallest v1–v5 bytes. All-version decode invokes metadata-only `GraphCompilationPort.validateSource`
 before any candidate Tensor, without Tensor identities or host copying.
-See the [graph API](api/graph-checkpoint-api.md).
+See the [graph API](reference/checkpoint/graph.md).

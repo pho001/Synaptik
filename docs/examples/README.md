@@ -74,10 +74,11 @@ There are no separate chapter snippets to keep in sync.
 ## Expected application stdout
 
 [expected-stdout.txt](learning-journey/expected-stdout.txt) is the complete expected stdout for
-`all`. Chapter pages show their own portions. These are **source-derived expectations**, not a
-claim that this new project has been executed. Maven logs, JVM diagnostics and stderr are not
-part of that file. Every numerical checkpoint is also checked by executable conditions that
-throw `AssertionError` without requiring `-ea`; the program does not merely print success labels.
+`all`. Chapter pages show their own portions. The complete stdout was checked byte-for-byte
+against the installed private candidate using a fresh external Maven consumer and JDK26.
+This is bounded execution evidence, not qualification of other backends, geometries or versions.
+Maven logs/JVM stderr are not part of that transcript. Numerical and ownership checkpoints throw
+`AssertionError` without requiring `-ea`; the program does not merely print success labels.
 
 The gradient mode obtains the derivative from `Engine.backward`, not from a hardcoded formula.
 The train mode obtains the pre-update objective and committed step number from `TrainingStep`.

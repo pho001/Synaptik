@@ -86,4 +86,4 @@ prevents new runs and is the final cleanup boundary for a handle the caller leav
 - [Compile a graph](compiling-graphs.md)
 - [Run a prepared graph](running-models.md)
 - [Runtime/Prepare/backend boundary](../architecture/runtime-prepare-backend-boundary.md)
-- [Public API status](../api/public-api.md)
+- [Public API status](../reference/index.md)

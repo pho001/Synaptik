@@ -2,20 +2,20 @@
 
 ## Status and authorization
 
-Status: Draft — user-requested follow-on work, queued after the completed public-readiness audit.
-The user approved a reader-oriented structure and explicitly required an explanation of the whole
-framework, every package and commented examples with explanations. No implementation is launched
-by this record. Existing normative authority and numerical/ownership contracts do not change.
+Status: Complete — the user-authorized editorial scope is integrated and qualified below.
+The reader-oriented structure, whole-framework explanation, every-package atlas and commented
+examples are the execution scope. Existing normative authority and numerical/ownership contracts
+do not change. Classification: A; no production Java, native implementation or dependency change.
 
-Depends on: the completed source-matched public-readiness audit and its current
-`0.1.0-public-audit.20261104` capability/distribution receipt. Conflicts with: no active audit edits
-after its final documentation freeze. Parallel group: None until a Ready execution split assigns
-exclusive files. Common base revision: select the completed audit join at activation.
-Integration order: reader entry/one complete learning journey, then topical guides,
-framework explanation/package atlas, reference and old-link migration. Shared-document integration
-owner: coordinator. Integration validation: runnable external public-API examples, documentation
-link/anchor validation, affected Javadoc and human learning-journey review. Classification: A for
-editorial changes; B/C if a later executable/API/ownership boundary is actually changed.
+Depends on: the completed source-matched audit and private `0.1.0-public-audit.20261104` artifacts.
+Common base revision: `f3f7c2face52c1fa886e075a68faa6d11765cbd0`.
+Parallel group: `DOC-REDESIGN-2026-11-04`, with isolated writer worktrees and exclusive scopes
+recorded below. Integration owner: coordinator for navigation, framework explanation, glossary,
+link migration outside reference, release-source inventory and combined verification.
+Integration order: learning/reference and atlas slices in any order, then shared navigation.
+Integration validation: external public-API examples, package/native coverage, local links/anchors,
+affected Javadoc review and independent reader-oriented review. Record actual human observations
+separately; an automated review is not a human usability study.
 
 ## Goal
 
@@ -59,8 +59,38 @@ behavior match execution. Canonical example sources and displayed excerpts canno
 Record human observations separately from automated link/API checks. Do not add incidental
 source-text/default/count tests or rewrite product semantics to make an example appear to work.
 
-## Activation
+## Completed execution slices
 
-After audit closure, reconcile the approved proposal with current sources and documentation,
-choose the audited base, inventory packages/examples/links, and create bounded Ready frontiers
-with explicit file ownership. Only then launch editorial/executable-example work.
+The coordinator inventoried the audited selected sources: 78 Java packages, including the three
+testing marker packages, plus the Metal native source/build components. The teaching project is
+one FLOAT32 linear model with input `[2,1]`, supplied weight zero, no bias, inputs `[1,3]`, targets
+`[2,6]`, sum-squared loss and `Sgd(0.05)`. Its first step has loss 40 and weight gradient -40,
+yielding weight 2. These fixed numbers connect the tutorial, architectural explanation and atlas.
+
+| Completed brief | Exclusive write scope | Prerequisite |
+|---|---|---|
+| [DOC0001 learning journey](documentation/tasks/0001-learning-journey.md) | `docs/tutorials/`, `docs/examples/` | Completed audit |
+| [DOC0002 Model atlas](documentation/tasks/0002-model-atlas.md) | `docs/explanation/packages/model.md` | Completed audit and package inventory |
+| [DOC0003 execution atlas](documentation/tasks/0003-execution-atlas.md) | `docs/explanation/packages/execution.md` | Completed audit and package inventory |
+| [DOC0004 CPU atlas](documentation/tasks/0004-cpu-atlas.md) | `docs/explanation/packages/cpu.md` | Completed audit and package inventory |
+| [DOC0005 Metal/native atlas](documentation/tasks/0005-metal-atlas.md) | `docs/explanation/packages/metal.md` | Completed audit and native inventory |
+| [DOC0006 extensions/tools atlas](documentation/tasks/0006-extensions-atlas.md) | `docs/explanation/packages/extensions-tools.md` | Completed audit and package inventory |
+| [DOC0007 reference migration](documentation/tasks/0007-reference-migration.md) | `docs/api/`, `docs/reference/`, `docs/history/reference/` | Completed audit and existing anchor inventory |
+| [DOC0008 independent reader/source review](documentation/tasks/0008-reader-review.md) | Read-only; coordinator integrates corrections | Integrated DOC0001–DOC0007 |
+
+All seven editorial slices and the final independent review are complete. The coordinator
+integrated shared navigation, framework explanations, glossary, current link migration and
+the reviewed source inventory. No documentation frontier remains active in this group.
+
+## Qualification and limits
+
+See [the complete qualification record](documentation-redesign-validation.md): all seven
+independent learning modes and the 38-line complete transcript, 55 reference classes / 53 main
+programs, 78 packages / 43 native components, 542 preserved incoming anchors, supplied/example
+Javadoc, actual local reader navigation and 11 accessible diagrams in light/dark.
+
+Independent automated reader/source reviews found and resolved stale semantic statements.
+There were no human-reader observations; this is not a usability study. Framework/authority
+inputs and sealed private artifacts remain unchanged. The generated local receipt separately
+binds final source selection, source-only packaging and exact verification artifacts; this work
+does not qualify a new backend or authorize public distribution.

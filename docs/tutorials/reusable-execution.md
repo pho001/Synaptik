@@ -70,7 +70,7 @@ java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney reuse
 ```
 
-Expected application stdout (source-derived, not a benchmark or executed transcript):
+Expected application stdout, checked against the installed private candidate; this is not a benchmark:
 
 ```text
 == reuse ==

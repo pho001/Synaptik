@@ -55,7 +55,7 @@ java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney first
 ```
 
-Expected application stdout (not yet an executed transcript):
+Expected application stdout, checked against the installed private candidate:
 
 ```text
 == first ==

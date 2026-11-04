@@ -141,7 +141,7 @@ non-overlapping transfer domain.
 
 ## Related documentation
 
-- [Public API status](../api/public-api.md)
+- [Public API status](../reference/index.md)
 - [Module boundaries](../architecture/module-boundaries.md)
 - [Partition scoring](../architecture/partition-scoring.md)
 - [Prepare execution](preparing-execution.md)

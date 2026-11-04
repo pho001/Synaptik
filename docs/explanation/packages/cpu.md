@@ -22,20 +22,21 @@ backends. Installing a native library does not make an unsupported operation sup
 
 The arrows below show handoffs, not calls made once per tensor element:
 
-```text
-operation + exact descriptors/attributes/gradient roles
-  -> CPU capability answer used by Planning
-  -> CPU-owned planned partition
-  -> CPU analysis: form units, lower, prove layouts, choose routes
-     | immutable typed IR + specialization + exact resource declarations
-     v
-shared Prepare: assign buffer/workspace slots and representation positions
-  -> CPU finalization: verify assignments, realize code/native resources
-  -> immutable prepared executable + physical creation recipes
-  -> Runtime creates one RunState, borrows inputs, creates run-owned memory
-  -> cold bind: typed direct references, geometry, validators, native handles
-  -> synchronous execution of already-bound work
-  -> completed result owning run resources until close
+```mermaid
+flowchart TD
+    accTitle: CPU capability, preparation and invocation handoffs
+    accDescr: A supported partition is lowered and analyzed before shared assignment and finalization; each run binds current memory and executes already selected work until result closure.
+    QUERY["Exact operation, descriptors, attributes and derivative roles"] --> CAP["CPU capability answer used by Planning"]
+    CAP --> PART["CPU-owned planned partition"]
+    PART --> ANALYZE["CPU analysis: units, typed IR, layouts and selected routes"]
+    ANALYZE --> REQ["Immutable specialization and resource declarations"]
+    REQ --> ASSIGN["Shared Prepare: slots and representation positions"]
+    ASSIGN --> FINAL["CPU finalization: verify assignments, realize code and resources"]
+    FINAL --> PREP["Immutable executable and physical-creation recipes"]
+    PREP --> RUN["Runtime: borrowed inputs and run-owned memory"]
+    RUN --> BIND["Cold bind: direct typed references, geometry and validators"]
+    BIND --> EXEC["Synchronous execution of already-bound work"]
+    EXEC --> RESULT["Completed result: run resources retained until close"]
 ```
 
 A **unit** is CPU's selected computation region inside a partition. **Lowering** translates graph

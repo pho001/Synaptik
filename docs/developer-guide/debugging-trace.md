@@ -116,4 +116,4 @@ it neither changes capability answers nor selects a numerical policy or runtime 
 See [tracing architecture](../architecture/tracing.md),
 [CPU native configuration](../backend-guide/cpu-backend.md#explicit-onednn-composition),
 [Metal guide](../backend-guide/metal-backend.md) and
-[public API status](../api/public-api.md).
+[public API status](../reference/index.md).

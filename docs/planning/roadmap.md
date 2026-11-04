@@ -21,14 +21,16 @@ for source/build navigation; historical commands and hashes remain original-revi
   successful focused evidence; run one combined checkpoint after ordered integration.
 - Follow the [planning guide](planning-guide.md); never derive architecture from old task prose.
 
-## Queued documentation redesign
+## Completed checkpoint: didactic documentation redesign
 
-The user requested a [didactic documentation redesign](documentation-redesign.md) after the completed
-public-readiness audit. Status: Draft, not an execution frontier. Scope includes a coherent learning
-journey, a connected explanation of the whole framework, every production package and native
-component, accessible diagrams, and commented runnable examples with explanations and expected
-results. Activate against the completed audit base with explicit editorial/example ownership;
-do not replace current technical verification or silently move normative authority.
+The user-authorized [documentation redesign](documentation-redesign.md) is complete: one actual
+learning project, clear tutorial/how-to/explanation/reference routes, a connected whole-framework
+explanation, all-package/native atlas, topic-sized reference and preserved incoming anchors.
+[Qualification and limits](documentation-redesign-validation.md) record actual external examples,
+local navigation/diagram rendering, source accounting and three independent automated review lenses.
+Human-reader observations: none; this is not a usability study. The audited framework authority,
+numerical/ownership semantics, licensing and sealed private candidate are unchanged. No execution
+frontier remains active in the completed documentation group.
 
 
 ## Completed checkpoint: repository review repairs
@@ -125,9 +127,9 @@ after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the 
 | [Compiler](modules/compiler/master-plan.md) | Capture/AD/binding,0018 cold,0017A/B lexical/shared checked construction and0019 RESHAPE are Complete. General Scan0017 composes ordinary selected-proof/activity semantics withCPU0081. Conv3d0006C is Complete after CPU F32/F64 and Metal F32 numerical/train/persist proof, independent reviews, root test/build/distribution and fresh Maven/no-Git-source consumers. |
 | [Prepare](modules/prepare/master-plan.md) | Complete0011–0015 includes accepted static/named-B F32/F64 length projection/execution. Neutral activity/context-copy/typed projection is integrated with qualified CPU0081 under the existing resource owners. |
 | [OpenBLAS provider](backends/openblas-provider/master-plan.md) | 0001–0003 Complete. Optional direct BF16 0004 Blocked on ABI and one-final-narrowing evidence; F32/F64 unaffected. |
-| [CPU](backends/cpu/master-plan.md) | General Scan0081, Conv3d/Pool3d and operation-audit closure retain their bounded F32/F64 receipts. The approved BF16/F16/E4M3/E5M2 parity cutover supersedes CPU0078's lock through existing CPU owners; optional oneDNN has target/API-specific qualification, with native F64 excluded. Current numerical/exact-count and diagnostic repairs are in the public-release audit; final joined qualification is pending. |
-| [Engine](modules/engine/master-plan.md) | Engine0021–0024 lifecycle and standard eighteen-product local distribution mechanisms are Complete. Earlier private/internal 0.1.0 root/consumer receipts bind their own source/artifacts. Audit lifecycle/tuning-diagnostic repairs require new joined qualification; public publication is Blocked pending the owner's licence/publisher decision. |
-| [Metal](backends/metal/master-plan.md) | Current shared typed source covers bounded F32/BF16/F16 ordinary, convolution/pooling, fixed-cell first-order and native Scan domains; exact/raw F64 is not general F64 arithmetic, and CPU parity grants no FP8 capability. Identity41/schema21 is a historical candidate, not the current source frontier. The public-release audit owns native repair/authentication and new source-matched device/package/consumer qualification; hosted GPU CI0047 and official trusted prebuilt publication remain separate. |
+| [CPU](backends/cpu/master-plan.md) | General Scan0081, Conv3d/Pool3d, low-precision parity and numerical/exact-count/diagnostic repairs have the completed public-release audit's source-matched native/root/Maven/source qualification. Optional oneDNN remains target/API-specific, with native F64 excluded. |
+| [Engine](modules/engine/master-plan.md) | Lifecycle, tuning diagnostics and eighteen-product distribution passed the completed audit's joined and isolated-consumer qualification. Historical 0.1.0 receipts bind their original source. Public publication remains Blocked pending the owner's licence/publisher decision. |
+| [Metal](backends/metal/master-plan.md) | The completed audit qualifies current identity45/schema22/Scan2 native, package and public consumers. Seven-carrier occurrence guards remain independent of CPU; no FP8 or general F64 arithmetic. Hosted GPU CI0047 and official trusted prebuilt publication remain separate. |
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
 | [Data](extensions/data/master-plan.md) | 0001–0003 Complete; [0003 shared padded representation and INT64 batching](extensions/data/tasks/0003-padded-integral-sequence-batching.md) accepted after final independent APPROVE and module/architecture-consumer gates, 2026-10-20; Text program root join complete, 2026-10-21. Frontier None; broader batching Draft, no runtime binding. |

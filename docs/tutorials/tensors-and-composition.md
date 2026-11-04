@@ -63,7 +63,7 @@ java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney tensors
 ```
 
-Expected application stdout (source-derived, not runtime evidence):
+Expected application stdout, checked against the installed private candidate:
 
 ```text
 == tensors ==

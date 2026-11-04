@@ -67,7 +67,7 @@ reconstructible source merely because it has the same operations. The borrowed s
 owns no storage or close lifecycle; it is not retained in graph/artifact state. Only after complete
 preflight does reconstruction use a call-local identity table, discarded on return or failure.
 No storage read/allocation, backend discovery, preparation, execution or runtime graph is added.
-See the [cold source API example](../api/compile-api.md#current-cold-source-capture-and-reconstruction).
+See the [cold source API example](../reference/compiler/cold-source.md#current-cold-source-capture-and-reconstruction).
 
 ```text
 forward Tensor outputs

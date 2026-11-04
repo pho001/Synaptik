@@ -363,7 +363,7 @@ sample/sequence preparation boundary with only a Model API dependency. Its initi
 added no production types or batching API; build registration and enforcement belong to
 [Data0001](../planning/extensions/data/tasks/0001-data-extension-boundary.md).
 
-The implemented [Data sequence batching API](../api/data-api.md) provides copied host
+The implemented [Data sequence batching API](../reference/data/sequences.md) provides copied host
 `ValidSequenceLengths`, logical `SequenceAxisOrder`, explicit `PaddingSide` and a
 `PaddedSequenceBatch` record borrowing an existing Tensor. The record replaces the unpublished
 right-only type without a compatibility alias. For caller-supplied values of Shape `[4,3]`,
@@ -393,7 +393,7 @@ meaning, model execution or runtime length binding. Floating/sample batching rem
 
 Neither metadata construction path reads host storage or promises its liveness. The implemented
 `PaddedSequenceBatch.toScanLengthsTensor()` method is a separate opt-in materialization step,
-used by the [numeric inference workflow](../api/data-api.md#complete-numeric-inference-example).
+used by the [numeric inference workflow](../reference/data/sequences.md#complete-numeric-inference-example).
 For a RIGHT/TIME_MAJOR batch with counts `[3,1,0]`, it creates a fresh canonical non-gradient
 INT64 `[3]` heap Tensor holding those counts. The application passes `batch.values()` and that
 Tensor to the existing `model.compute(values, lengths)` boundary; Data does not bind or execute.
@@ -416,7 +416,7 @@ widen the scan's right-padded valid-prefix contract.
 
 ### `extensions/text`
 
-The implemented [Text API](../api/text-api.md) follows the
+The implemented [Text API](../reference/text/tokenization.md) follows the
 [Text contract](contracts/extensions-training.md#extensionstext): a concrete frozen
 whitespace tokenizer and Data-delegating adapter. Text exports
 only Data; Model is available transitively. Text owns token-ID meaning, while Data owns counts,
@@ -429,7 +429,7 @@ the external integration project verifies actual numerical values, including an 
 nonzero PAD row. Adding NN/Engine to Text to perform this work would reverse the boundary.
 LEFT preparation does not change the scan's right-prefix semantics or bind host counts at runtime.
 See [ADR 0043](../design/decisions/0043-whitespace-text-and-padded-integral-batches.md) for migration
-and the [Text API example](../api/text-api.md#complete-example) for caller-owned composition.
+and the [Text API example](../reference/text/tokenization.md#complete-example) for caller-owned composition.
 Vision remains separately gated.
 
 ### `extensions/nn`
@@ -572,7 +572,7 @@ Generic Checkpoint owns cold graph/value copy/save/load/rebind through GraphChec
 opaque artifact package. Its public Model edge and implementation-only Compiler edge expose no
 NN/Training/Engine dependency. A static input prototype contributes only its descriptor; named
 host leaves contribute raw values by exact identity. Load returns ordinary symbolic Tensors,
-without execution or a second ownership copy. See the [graph API](../api/graph-checkpoint-api.md).
+without execution or a second ownership copy. See the [graph API](../reference/checkpoint/graph.md).
 
 General-body in-memory copy/rebind now retains each immutable scanBody attachment unchanged while
 normalizing only outer node/value IDs. Coincident numeric IDs do not cross body scopes; Compiler
@@ -617,8 +617,8 @@ typed inspection. Load checks the caller fingerprints and complete file, then re
 Tensors and asks NN to install the entire state dictionary. A fully bound target defines v1
 alias groups; unbound/lazy targets fail. NN paths stay in metadata while fixed ordinal artifact
 keys carry bytes. For example, a buffer named `重み` is stored as metadata path `重み` while its
-bytes reside at `state/00000000`. See the [model checkpoint API](../api/model-checkpoint-api.md),
-[artifact API](../api/checkpoint-artifact-api.md),
+bytes reside at `state/00000000`. See the [model checkpoint API](../reference/checkpoint/models.md),
+[artifact API](../reference/checkpoint/artifacts.md),
 [envelope decision](../design/decisions/0032-checkpoint-artifact-envelope.md), and
 [model schema decision](../design/decisions/0033-model-candidate-schema.md). The
 [public model checkpoint decision](../design/decisions/0034-public-model-checkpoint.md)
@@ -658,7 +658,7 @@ A TrainingState value ending in `00000000` instead differs: positive and negativ
 interchangeable stored values. Rejection precedes publication of the private replacement.
 Matching bytes alone do not establish optimizer/session compatibility; Training still validates
 restore, and NN still owns installation. The model operations are available; the adapter scenario
-is not a runnable current API. The [file-free API example](../api/model-checkpoint-api.md#file-free-example)
+is not a runnable current API. The [file-free API example](../reference/checkpoint/values-examples.md#file-free-example)
 demonstrates public descriptor and raw-byte access without implementing that adapter.
 
 Exact training continuation is a different problem: it also requires Training-owned state and

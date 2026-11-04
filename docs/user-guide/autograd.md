@@ -28,7 +28,7 @@ drawn from the complete original forward expression inventory.
 
 The snippets below are conceptual API-shape examples. They assume that the shown Tensors have
 compatible descriptors and live input storage and that `engine` or `advanced` is an open Engine.
-See the [ordinary and advanced compile reference](../api/compile-api.md#current-ordinary-and-advanced-engine-compile-boundaries)
+See the [ordinary and advanced compile reference](../reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries)
 for complete lifecycle ownership and current execution restrictions.
 
 ## Compute a scalar objective and first gradients
@@ -183,7 +183,7 @@ and then appends each previously unseen gradient value once in binding order.
 | An absent seed is rejected | The selected output is not scalar, floating, and gradient-eligible. | Supply a matching explicit seed, or select an eligible scalar output. |
 | An explicit seed is rejected | Its Shape or floating type differs from the output, or it requests gradients. | Use the exact output Shape and type with gradient eligibility disabled. |
 | A target is rejected as disconnected | The selected outputs have no differentiable route to that target under `ERROR`. | Select a connected target or use the advanced request with `ZERO` when a typed zero is intended. |
-| A public Tensor method exists but autograd rejects the route | Expression construction does not guarantee a derivative rule for every operation, attribute, or role. | Check the maintained [Compiler derivative matrix](../api/compile-api.md#current-package-private-pre-capture-autograd). |
+| A public Tensor method exists but autograd rejects the route | Expression construction does not guarantee a derivative rule for every operation, attribute, or role. | Check the maintained [Compiler derivative matrix](../reference/compiler/autograd.md#current-package-private-pre-capture-autograd). |
 | A two-stage request is rejected structurally | Stage one does not use `createGraph == true`, stage two uses it, or stage two references a forward Tensor. | Use `true` only on stage one and select stage-two outputs by first-stage target index. |
 | Compilation succeeds but preparation fails | Current backend preparation supports a narrower executable subset than compiler graph construction. | Treat compile and prepare as separate boundaries and stay within the documented backend subset. |
 
@@ -200,9 +200,9 @@ numerical or backend coverage from formula construction alone.
 
 ## Related documentation
 
-- [Compile API and functional-gradient examples](../api/compile-api.md#functional-gradient-examples)
+- [Compile API and functional-gradient examples](../reference/compiler/autograd.md#functional-gradient-examples)
 - [Compiler-owned automatic differentiation contract](../architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation)
 - [Training graph explanation](../architecture/training-graph.md)
-- [Public API lifecycle](../api/public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
-- [Tensor API](../api/tensor-api.md)
-- [Training API status](../api/training-api.md)
+- [Public API lifecycle](../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+- [Tensor API](../reference/tensor/index.md)
+- [Training API status](../reference/training/index.md)

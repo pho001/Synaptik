@@ -63,7 +63,7 @@ java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney gradients
 ```
 
-Expected application stdout (source-derived, not an execution claim):
+Expected application stdout, checked against the installed private candidate:
 
 ```text
 == gradients ==

@@ -17,9 +17,9 @@ The profiles explain how to present existing contracts and behavior. [`ARCHITECT
 | Document purpose | Primary profile | Typical location |
 |---|---|---|
 | Teach a contributor how the project or an internal mechanism works | [Developer guide](developer-guide-style.md) | `docs/developer-guide/` |
-| Help a user complete a product task | [User guide](user-guide-style.md) | `docs/user-guide/`, `docs/getting-started.md` |
-| Explain architectural principles, boundaries, and rationale | [Architecture](architecture-style.md) | `docs/architecture/` |
-| Define a Java or public API contract | [API and Javadoc](api-and-javadoc-style.md) | `docs/api/`, Java Javadoc |
+| Teach a connected learning journey or help a user complete a task | [User guide](user-guide-style.md) and [example format](example-format.md) | `docs/tutorials/`, `docs/how-to/`, existing `docs/user-guide/`, `docs/examples/` |
+| Explain architectural principles, boundaries, and rationale | [Architecture](architecture-style.md) | `docs/explanation/`, focused `docs/architecture/` explanations |
+| Define or look up a Java/public API contract | [API and Javadoc](api-and-javadoc-style.md) | `docs/reference/`, Java Javadoc; old `docs/api/` paths retain incoming navigation |
 | Teach backend integration or implementation | [Backend guide](backend-guide-style.md) | `docs/backend-guide/` |
 | Coordinate executable implementation work | [Planning](planning-style.md) | `docs/planning/` |
 | Record a significant decision and its consequences | [Decision record](decision-record-style.md) | `docs/design/decisions/` |

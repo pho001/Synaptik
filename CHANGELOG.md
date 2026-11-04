@@ -4,6 +4,14 @@
 
 ### Added
 
+- Reader-oriented documentation now separates tutorials, how-to, explanation and reference.
+  One complete seven-stage FLOAT32 Java project runs against installed private artifacts;
+  the source-grounded atlas explains all 78 Java packages and 43 native code/build components.
+  Focused reference pages retain all 542 original incoming anchors, archive superseded inventories
+  and correct stale Scan/BPTT/normalization claims. Actual examples, Javadoc, reader navigation and
+  light/dark diagrams are qualified separately from automated reader reviews; no public licence
+  or new backend capability is implied.
+
 - Public-readiness stabilization preserves full-precision logical/master restore identity,
   bounded linear namespace acquisition, session-only cache isolation and exact tuning-batch
   rebinding; caller-storage prefixes, partial resource adoption and terminal shutdown retain

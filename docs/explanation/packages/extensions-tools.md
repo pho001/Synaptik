@@ -6,16 +6,21 @@ Read the [framework journey](../framework.md) first, or use the [package index](
 
 ## Mental model: three different kinds of state
 
-```text
-Text -> Data -> ordinary input tensors
-                        |
-NN composition -> ordinary tensor expressions -> Engine execution
-      |                                         |
-      +-- parameters/buffers <--- Training -------+
-      |
-      +-- cold source/current values -> Checkpoint -> file
-
-benchmarks -> reports only     explicit tuning requests -> decisions/cache files
+```mermaid
+flowchart TD
+    accTitle: Host data, model state and execution collaborations
+    accDescr: Text delegates batching to Data, NN builds expressions and state, Training updates parameters through Engine execution and Checkpoint stores cold source and current values.
+    TEXT["Text tokenization"] --> DATA["Data host batching"]
+    DATA --> INPUT["Ordinary input tensors"]
+    NN["NN composition"] --> EXPR["Ordinary Tensor expressions"]
+    INPUT --> EXPR
+    NN --> STATE["Parameters and buffers"]
+    STATE --> EXPR
+    EXPR --> ENGINE["Engine execution"]
+    TRAIN["Training transaction"] --> ENGINE
+    TRAIN -->|updates| STATE
+    NN -->|cold source and current values| CP["Checkpoint"]
+    CP --> FILE["Model file"]
 ```
 
 Read arrows as data or collaboration flow, not as permission for every module to depend on every other module. Text depends on Data; NN does not depend on either. Training uses public Model and Engine APIs without an NN dependency. Generic Checkpoint uses Model and Compiler's cold reconstruction boundary, not Engine or Training.

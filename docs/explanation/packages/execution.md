@@ -20,19 +20,21 @@ shared packages.
 
 ## The distinctions to keep while reading
 
-Read the following flow from top to bottom. The left column is a stage, not a dependency graph.
-The right column identifies what survives that stage.
+Read the flow top to bottom as stage handoffs, not module dependency arrows. Each stage names the
+information or owned resources that survive it.
 
-```text
-Tensor expressions               meaning and caller-owned leaves
-  -> Compiler                    immutable CompileArtifacts: graph + logical recipes
-     -> Planning                 backend ownership + partitions + logical value requirements
-  -> Prepare                     analysis -> shared slot assignment -> backend finalization
-                                 immutable executable/schedule/creation recipes
-                                 + explicitly owned persistent prepared resources
-  -> Runtime run                 one RunState + borrowed inputs + fresh physical representations
-                                 -> completed publication occurrences -> closeable RunResult
-  -> explicit materialization    detached HostTensorValue, independent of all execution owners
+```mermaid
+flowchart TD
+    accTitle: Information retained across execution stages
+    accDescr: Expressions become compile recipes, then analyzed and assigned prepared resources, one run state, live publications and finally independent host values.
+    EXPR["Tensor expressions and caller-owned leaves"] --> COMP["Compiler with Planning: graph, owners and logical recipes"]
+    COMP --> ANALYZE["Prepare: backend analysis"]
+    ANALYZE --> ASSIGN["Shared slot assignment"]
+    ASSIGN --> FINAL["Backend finalization: executable, schedule and creation recipes"]
+    FINAL --> PERSIST["Reusable preparation with owned persistent resources"]
+    PERSIST --> RUN["One RunState: borrowed inputs and fresh representations"]
+    RUN --> RESULT["Completed publications in a closeable RunResult"]
+    RESULT --> HOST["Explicit materialization: independent HostTensorValue"]
 ```
 
 | Term | What it means here | What it is not |

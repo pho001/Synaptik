@@ -127,5 +127,5 @@ retains its `requiresGrad=false` gate; consult the
 
 - [Prepare execution](preparing-execution.md)
 - [Run a reusable inference session](running-models.md)
-- [Public API status](../api/public-api.md)
+- [Public API status](../reference/index.md)
 - [Lifecycle architecture](../architecture/lifecycle.md)

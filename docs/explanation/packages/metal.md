@@ -46,27 +46,32 @@ ordinary operations and scans. It does not implement a second derivative algebra
 
 ## The lifecycle and its three kinds of state
 
-Read the flow top to bottom. The left column identifies the caller; the right column identifies
-what becomes fixed or newly owned at that stage.
+Read this successful-path sequence from top to bottom. The Engine lifecycle lane summarizes calls
+through Compiler, shared Prepare and Runtime; their [distinct owners](execution.md) do not merge.
+Native failures preserve their cause and do not publish a successful result.
 
-```text
-application -> MetalBackendIntegration.open(absolute library path)
-                 -> FFM lookup + ABI check + default device/command queue
-                 -> one integration-owned MetalDeviceContext
-
-Compiler/Planning -> exact OperationCapabilityQuery -> capability answer
-shared Prepare   -> MetalNegPartitionPreparer.analyze
-                     -> descriptors + physical layouts + selected route
-                     -> exact buffer/workspace declarations (no physical allocation)
-                 -> shared slot assignment
-                 -> MetalNegPartitionFinalizer
-                     -> native executable/pipelines + immutable prepared recipe
-
-Runtime, per run -> cold-bind exact context-local representations
-                 -> run-owned buffers + address table + numerical/Scan workspace
-                 -> one Java-to-native route call
-                     -> encode / commit / wait for device completion
-                 -> completed RunResult, retaining run resources until close
+```mermaid
+sequenceDiagram
+    accTitle: Successful explicit Metal execution sequence
+    accDescr: The application opens a verified integration; compilation queries capability, preparation finalizes assigned resources and Runtime binds then executes and waits before publishing results.
+    participant App as Application
+    participant Life as Engine lifecycle
+    participant Java as Metal Java
+    participant Native as Native device
+    App->>Java: Open verified library
+    Java->>Native: ABI check and context
+    App->>Life: Transfer integration ownership
+    Life->>Java: Compile: capability query
+    Java-->>Life: Qualified answer
+    Life->>Java: Prepare: analyze
+    Java-->>Life: Resource declarations
+    Life->>Java: Prepare: finalize assigned slots
+    Java->>Native: Authenticate and build
+    Life->>Java: Run: bind current representations
+    Java->>Native: Execute and wait
+    Native-->>Java: Completion
+    Java-->>Life: Completed publications
+    Life-->>App: RunResult lease
 ```
 
 A **descriptor** describes a logical value's type, shape, layout, and gradient eligibility. A
@@ -206,23 +211,25 @@ opening path creates no trace producer.
 
 ## Ownership from Java to `MTLBuffer`
 
-The indentation below means ownership or a retained lifetime relationship, not execution order.
-A run borrows prepared resources; it does not become their second owner.
+Solid arrows show ownership; dashed arrows show retained lifetime relationships, not execution
+order. A run borrows prepared resources rather than becoming their second owner.
 
-```text
-Engine (after explicit ownership transfer)
-  MetalBackendIntegration
-    MetalBackendRuntime
-      MetalDeviceContext: native context + command queue + library lookup
-        child leases: buffers, workspaces, prepared executable/pipeline resources
-
-PreparedExecution
-  MetalProgramExecutableResource / MetalNegKernelPipelineResource
-  immutable prepared-splat resource (fresh read-only bindings per run)
-
-RunResult -> RunState
-  run-owned MetalBufferRepresentation + MetalWorkspaceRepresentation
-  direct bound references; invocation-private address/control/numerical storage
+```mermaid
+flowchart TD
+    accTitle: Metal context, prepared resources and run lifetimes
+    accDescr: Engine owns the integration and context; prepared executable resources and run-owned buffers retain context child leases, while a run only borrows prepared work.
+    ENGINE["Engine after explicit ownership transfer"] --> INTEGRATION["MetalBackendIntegration"]
+    INTEGRATION --> RUNTIME["MetalBackendRuntime"]
+    RUNTIME --> CONTEXT["MetalDeviceContext: native context, queue and library lookup"]
+    PREP["PreparedExecution"] --> RESOURCE["Executable or pipeline resources"]
+    PREP --> SPLAT["Immutable prepared-splat resource"]
+    RESOURCE -.->|child lease| CONTEXT
+    RESULT["RunResult"] --> STATE["RunState"]
+    STATE --> REPS["Run-owned Metal buffer and workspace representations"]
+    STATE --> PRIVATE["Invocation-private address, control and numerical storage"]
+    REPS -.->|child leases| CONTEXT
+    STATE -.->|borrows prepared work| RESOURCE
+    SPLAT -.->|fresh read-only bindings per run| STATE
 ```
 
 [MetalDeviceContext][context] starts with one owner reference. A successful child acquisition adds
@@ -443,11 +450,14 @@ its native bridge, or its packaging scripts is on that default execution path.**
 `[2,1] = [1,3]`, gradient-eligible supplied weight `[1,1] = 0`, no bias, target `[2,6]`, squared-error
 SUM, and `Sgd(0.05)` teach one fixed calculation:
 
-```text
-prediction [0,0] -> objective 40 -> weight gradient -40
-weight 0 - 0.05 * (-40) = 2 -> prediction [2,6]
-fresh values [2,4] with that weight -> [4,8]
-```
+| Checkpoint in the CPU learning project | Value |
+|---|---|
+| Initial prediction | `[0,0]` |
+| Squared-error sum | `40` |
+| Weight gradient | `-40` |
+| Weight after `0 - 0.05*(-40)` | `2` |
+| Updated prediction on the original input | `[2,6]` |
+| Prediction on fresh `[2,4]` | `[4,8]` |
 
 Those values explain Model/Compiler/training semantics; they are not evidence that the tutorial
 loaded Metal or that a GPU benchmark ran. Do not replace `Engine.standard()` with a claimed

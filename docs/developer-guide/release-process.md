@@ -109,5 +109,5 @@ They are not hidden prerequisites for building and technically qualifying the lo
 ## Related documentation
 
 - [Production target](../planning/production-release-goal.md)
-- [Public API status](../api/public-api.md)
+- [Public API status](../reference/index.md)
 - [Documentation rules](documentation-rules.md)

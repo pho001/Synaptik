@@ -80,9 +80,10 @@ java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
 
 Expected application stdout is [the complete expected transcript](../examples/learning-journey/expected-stdout.txt).
 It includes the initial prediction, objective `40`, derivative `-40`, fitted weight `2`, and
-fresh prediction `[4,8]`. These are source-derived expectations awaiting execution, not a runtime
-qualification claim. The executable checks its assumptions and fails rather than printing an
-unearned success marker. The graph destination is replaced if it exists.
+fresh prediction `[4,8]`. The complete transcript was checked against an external Maven consumer
+of the installed private candidate. This does not qualify different backends or geometry.
+The executable checks its assumptions and fails rather than printing an unearned success marker.
+The graph destination is replaced if it exists.
 
 **Useful variation:** run `first` instead of `all` to inspect only ownership and prediction;
 all modes are independent, so no earlier process needs to remain alive.

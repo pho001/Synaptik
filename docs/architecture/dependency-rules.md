@@ -94,8 +94,8 @@ Generic Checkpoint exposes only Model publicly and uses Compiler's existing cold
 reconstruction privately. For example, saving a MATMUL/PERMUTE/ADD graph reads named host leaves,
 not prototype input values, without opening an Engine; load returns ordinary symbolic Tensors.
 It does not call NN or retain a second Tensor DAG. Device-only state rejects rather than triggering
-execution. The [graph API](../api/graph-checkpoint-api.md) explains static signatures; the
-[old NN API](../api/model-checkpoint-api.md) retains flexible leading dimensions and old defaults.
+execution. The [graph API](../reference/checkpoint/graph.md) explains static signatures; the
+[old NN API](../reference/checkpoint/models.md) retains flexible leading dimensions and old defaults.
 
 ## Concrete forbidden dependencies
 

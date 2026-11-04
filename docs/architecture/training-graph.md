@@ -368,7 +368,7 @@ outputs for unique provenance-free leaves through the existing public Engine pat
 replace NN bindings or add generic zero-node Engine/Prepare support. The fixture strict-loads a
 private heap tree, directly re-saves it, checks complete artifact equality, and loads it again
 before native parameter copying. This proves a bounded model round trip, not durable Training
-continuation or cross-owner atomicity. See the [model checkpoint lifecycle](../api/model-checkpoint-api.md#lifecycle-and-invariants).
+continuation or cross-owner atomicity. See the [model checkpoint lifecycle](../reference/checkpoint/values.md#lifecycle-and-invariants).
 Read this sequence as moving from detached evidence to private mutation to publication:
 
 ```text

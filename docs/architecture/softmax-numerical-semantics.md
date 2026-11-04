@@ -57,5 +57,5 @@ loss formulas retain their own semantics and need no implementation change.
 ## Related decisions and documentation
 
 - [ADR 0029](../design/decisions/0029-stable-finite-softmax.md)
-- [Softmax API reference](../api/tensor-api.md#softmax-expressions)
+- [Softmax API reference](../reference/tensor/normalization.md#softmax-expressions)
 - [CPU route guide](../backend-guide/cpu-backend.md#current-stable-softmax-family)

@@ -84,7 +84,7 @@ public final class LearningJourney {
     }
 
     private static void configure(Model<Tensor, Tensor> model) {
-        model.configureTraining(target().descriptor(), LearningJourney::squaredErrorSum, new Sgd(0.05));
+        model.configureTraining(descriptor(false, 2, 1), LearningJourney::squaredErrorSum, new Sgd(0.05));
     }
 
     private static Tensor weight(Model<Tensor, Tensor> model) {
@@ -106,7 +106,10 @@ public final class LearningJourney {
     }
 
     private static void expect(HostTensorValue actual, float... expected) {
-        require(Arrays.equals(values(actual), expected), "Unexpected publication: " + Arrays.toString(values(actual)));
+        float[] actualValues = values(actual);
+        if (!Arrays.equals(actualValues, expected)) {
+            throw new AssertionError("Unexpected publication: " + Arrays.toString(actualValues));
+        }
     }
 
     private static void print(String label, HostTensorValue value) {

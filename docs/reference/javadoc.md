@@ -16,12 +16,12 @@ for artifact in trace backend-contract model config planning compiler runtime pr
     destination="$output/$artifact"
     mkdir -p "$destination"
     archive="$repository/$artifact/$version/$artifact-$version-javadoc.jar"
-    (cd "$destination" && jar --extract --file "$archive") || exit 1
+    jar --extract --file "$archive" --dir "$destination" || exit 1
 done
 printf 'Extracted Javadoc directory: %s\n' "$output"
 ```
 
-Open `index.html` inside the desired artifact directory printed by the command. For example, Model's `io/github/pho001/synaptik/model/tensor/Tensor.html` documents Tensor. NN's corresponding entry is `io/github/pho001/synaptik/nn/module/Model.html`; Engine's is `io/github/pho001/synaptik/engine/Engine.html`. The archives were inspected as source artifacts for this migration; the extraction command was not executed here. If a supplied JAR is missing, obtain that exact private candidate first rather than silently replacing it with another version. Cross-module links in module-generated Javadoc may require returning to the neighboring artifact's index.
+Open `index.html` inside the desired artifact directory printed by the command. For example, Model's `io/github/pho001/synaptik/model/tensor/Tensor.html` documents Tensor. NN's corresponding entry is `io/github/pho001/synaptik/nn/module/Model.html`; Engine's is `io/github/pho001/synaptik/engine/Engine.html`. Extraction of all 18 supplied archives was exercised during documentation qualification. If a supplied JAR is missing, obtain that exact private candidate first rather than silently replacing it with another version. Cross-module links in module-generated Javadoc may require returning to the neighboring artifact's index.
 
 ## Generate HTML from this checkout
 
@@ -31,7 +31,7 @@ Prerequisites: the repository's supported JDK 26/Gradle environment and any ordi
 ./gradlew :modules:model:javadoc :modules:engine:javadoc :extensions:nn:javadoc :extensions:training:javadoc :extensions:checkpoint:javadoc
 ```
 
-Expected output: each requested module's `build/docs/javadoc/index.html` and package/type pages. The links below resolve only after those tasks produce HTML. Generating documentation from a later source revision is not proof that it matches the sealed candidate; use its supplied JARs when exact candidate documentation matters. No Gradle or Javadoc task was run in this editorial migration.
+Expected output: each requested module's `build/docs/javadoc/index.html` and package/type pages. The links below resolve only after those tasks produce HTML. Generating documentation from a later source revision is not proof that it matches the sealed candidate; use its supplied JARs when exact candidate documentation matters. Production Javadoc was not regenerated for this editorial change because its Java/Javadoc input bytes are unchanged. The standalone learning source was separately checked with `javadoc -Xdoclint:all`.
 
 ## All 18 supported artifact indexes
 

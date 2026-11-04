@@ -26,7 +26,8 @@ access; it does not choose a backend, require an installed BLAS library or chang
 Use `Model.builder()` when fixed-shape inputs should flow through dense, convolutional or
 recurrent layers without a definition callback. Static `rnn/gru/lstm` and explicit runtime-length
 `rnnScan/gruScan/lstmScan` are separate recipes. A build creates a private evaluation-mode Model
-with one working weight set for compute and supported saves; sources without fixed scans may also train.
+with one working weight set for compute and supported saves. Ordinary, fixed-scan and general-scan
+sources may configure first-order training when their actual source, derivatives and backend qualify.
 It creates no Engine. Use Java 26 and `:extensions:nn`. Close the Model when finished; compute
 results are detached values.
 
@@ -164,7 +165,7 @@ rejection occurs before file work, leaving absent targets absent and existing ta
 A failed unsupported save does not freeze Engine selection, invalidate the Model, or disable
 compute/training. Persistence does not make
 every builder occurrence executable: the selected Engine's dtype/layout/gradient capabilities apply.
-See [builder API and lifecycle](../api/public-api.md#fluent-model-builder).
+See [builder API and lifecycle](../reference/nn/model-builder.md#fluent-model-builder).
 
 ### Run a runtime-length scan Model
 
@@ -267,8 +268,8 @@ there is no implicit conversion, layout copy or CPU fallback for unsupported com
 | Compute rejects length input | Match canonical non-gradient INT64 `[B]` and all declared descriptor fields. Values must lie in `[0,T]`; repair out-of-range values and reuse the Model. |
 | Configure/train rejects | Check the selected backend's actual forward/AD closure and use a scalar gradient-eligible F32/F64 objective. Low objectives need an explicit cast; fixed versus general recipe identity is preserved rather than bypassed. |
 
-See [builder API details](../api/public-api.md#fluent-model-builder) and
-[training admission](../api/training-api.md#owned-model-training-convenience).
+See [builder API details](../reference/nn/model-builder.md#fluent-model-builder) and
+[training admission](../reference/training/sessions.md#owned-model-training-convenience).
 
 ### Train a runtime-length RNN
 
@@ -404,9 +405,11 @@ INT64 lengths, explicit states and packed parameters. Fresh input storage must c
 referenced span, including any offset prefix and strided gaps, not only its logical element count.
 Prepare reads no length values;
 each run checks all lengths in `[0,T]` before writing scan results. Repair invalid lengths and
-reuse the preparation with the same descriptors. Backpropagation through time and serialized
-prepared loops remain unsupported. Scan gradient flags remain intact even in eval. Owned Model
-compute uses the same Engine path, while fixed-scan training and BPTT remain unsupported. Compile selected `outputs()`,
+reuse the preparation with the same descriptors. Qualified first-order backpropagation through time
+uses Compiler's existing fixed-cell/Scan derivative machinery and the same Engine/Training owners;
+higher-order recurrence and serialized prepared loops remain unsupported. Scan gradient flags remain
+intact in eval. Owned Model compute and configured fixed/general training use these same qualified
+paths; loading still requires a fresh objective and optimizer, not restored history. Compile selected `outputs()`,
 `finalHidden()` and `finalCell()` Tensors and bind every compiled input slot, including weights
 and states. Follow [fresh-value binding](#run-fresh-values-in-compiled-order), replacing lengths
 with `[0,2]` under the same descriptors to reuse the preparation; row 0 then preserves its initial
@@ -415,7 +418,7 @@ For symbolic continuation, pass both final-state Tensors to another LSTM `forwar
 separate runs, explicitly supply materialized states matching the next graph's descriptors.
 Existing builder `rnn/gru/lstm` and bidirectional containers remain static; explicit builder scan
 recipes opt into runtime lengths. Data integration is not part of this API.
-See the [cold scan scenario](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence)
+See the [cold scan scenario](../reference/checkpoint/graph-formats.md#selected-cnn-and-recurrent-persistence)
 and [CPU execution scope](../backend-guide/cpu-backend.md#fixed-recurrent-forward-execution).
 Low fixed-scan source constructors, storage and cold files remain supported in their declared
 source domain. CPU BFLOAT16, FLOAT16 and both FP8 types use the existing fixed-scan owner,
@@ -683,8 +686,8 @@ No caller Arena is required for this workflow.
 Definition/graph acquisition uses the bounded
 [cold source slice](../architecture/contracts/compiler-autograd.md#compile-lifecycle), including its
 general-body exception, not all NN layers or arbitrary PURE bodies. Save/load uses the
-[body-free persistence slice](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence)
-or [bounded v4 body persistence](../api/graph-checkpoint-api.md#bounded-general-scan-persistence),
+[body-free persistence slice](../reference/checkpoint/graph-formats.md#selected-cnn-and-recurrent-persistence)
+or [bounded v4 body persistence](../reference/checkpoint/graph-formats.md#bounded-general-scan-persistence),
 through the same Model API.
 Execution and training support are independent of raw graph persistence's nine data types.
 FP8 graph sources select v7; NN values/definitions select their separate v2 formats only when
@@ -788,7 +791,7 @@ Short save/load forms use 256 MiB file/aggregate, 4 MiB manifest, 16384 entries,
 `whole-model.v1` files still use `nn.checkpoint.ModelCheckpoint`, not `Model.load`.
 Zero-node source may save/load but retains Engine's empty-plan rejection. Model/Training autotuning
 is not integrated; advanced `Engine.prepareTuned` remains separate. See the
-[API contracts](../api/public-api.md#owned-tensor-model-capability).
+[API contracts](../reference/nn/owned-model.md#owned-tensor-model-capability).
 
 ### Train an all-valid general scan
 
@@ -913,7 +916,7 @@ No input batch or residual history is saved.
 Single-boundary sources use `Model.load` instead. Execution remains limited to qualified occurrences.
 Focused tests cover this save/load workflow; main accepted final module/Javadoc, integration,
 architecture and configured root gates in CP0013. This capability does not migrate `.rnn` or
-reinterpret an old file. See [bounded v4 persistence](../api/graph-checkpoint-api.md#bounded-general-scan-persistence).
+reinterpret an old file. See [bounded v4 persistence](../reference/checkpoint/graph-formats.md#bounded-general-scan-persistence).
 
 ### Two Linear layers with an activation
 
@@ -997,7 +1000,7 @@ execution is stored in the file.
 
 Use an explicit `:extensions:nn` dependency and import `nn.checkpoint.ModelCheckpoint`;
 the generic Checkpoint project no longer exports NN. The old flexible readers/defaults are
-unchanged, distinct from [static generic graph persistence](../api/graph-checkpoint-api.md).
+unchanged, distinct from [static generic graph persistence](../reference/checkpoint/graph.md).
 This complete Java 26 example needs NN and its public dependencies on the classpath.
 Its trusted local directory is created before save. The source has
 FLOAT32 diagonal weights `[1, 0; 0, 2]` followed by RELU. Both source owners close before load;
@@ -1074,7 +1077,7 @@ The short calls use absent input-artifact identity. If the file stores one, defa
 `ArtifactFormatException`; pass an application-verified `InputArtifactFingerprint` and explicit
 `ArtifactLimits` instead. A values-only `model.v1` file needs the existing fully bound target-load
 API, not automatic topology inference. Custom modules, unbound state and recurrent models are not
-supported by this whole-model workflow. See [whole-model limits and failures](../api/model-checkpoint-api.md#bounds-lifetime-and-failures)
+supported by this whole-model workflow. See [whole-model limits and failures](../reference/checkpoint/models.md#bounds-lifetime-and-failures)
 before selecting advanced encoded bounds; they are not peak-heap budgets.
 
 ## Compile and prepare once
@@ -1234,10 +1237,10 @@ falling back during a run.
 
 ## Related documentation
 
-- [Whole-model and values-only checkpoint API](../api/model-checkpoint-api.md)
+- [Whole-model and values-only checkpoint API](../reference/checkpoint/models.md)
 - [Describe, reconstruct and load a closed NN model](declarative-models.md)
 - [Compile a graph](compiling-graphs.md)
 - [Prepare execution](preparing-execution.md)
-- [Runtime API](../api/runtime-api.md#current-ordinary-engine-boundary)
-- [Public API status](../api/public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+- [Runtime API](../reference/runtime/engine-boundary.md#current-ordinary-engine-boundary)
+- [Public API status](../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
 - [Lifecycle architecture](../architecture/lifecycle.md#current-public-engine-lifecycle)

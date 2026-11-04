@@ -144,7 +144,7 @@ The current Model surface is ScanBody, Scan.apply and ScanResult, ScanKind/ScanA
 CompiledScanBody, with optional attachments on existing TensorProducer/CompiledNode.
 The [normative inventory](contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)
 is exhaustive; this explanation selects no extra type, module or dependency. The
-[Tensor API example](../api/tensor-api.md#complete-metadata-construction-example) constructs source
+[Tensor API example](../reference/tensor/general-scan.md#complete-metadata-construction-example) constructs source
 metadata with these current APIs; it does not run a scan.
 
 A formal is a storage/provenance-free Tensor standing for a declared carry, sequence step or
@@ -219,7 +219,7 @@ public final class ScanSourceShapes {
 The static form prints `Shape[10, 32, 16]` and `true`; the symbolic form prints
 `Shape[10, Rows, 16]` and `false`. Named-axis equality is structural, so a separately constructed
 `DynamicDimension("Rows")` matches. Supplying a numeric `[32,16]` carry to the symbolic template
-does not bind it and fails. The [API example](../api/tensor-api.md#static-and-symbolic-construction-through-the-same-api)
+does not bind it and fails. The [API example](../reference/tensor/general-scan.md#static-and-symbolic-construction-through-the-same-api)
 also shows a fixed shared weight and its canonical `[T,F,H]` history beside symbolic row ports.
 
 The source validator checks unused declarations and canonical siblings, not only live roots.
@@ -789,7 +789,7 @@ becomes actual axis r+1 after the time axis. At B=1, same-shape sumToShape prese
 whereas an explicit row-axis SUM creates a terminal shared contribution. Each shared accumulator
 uses its own `old.add(contribution)` with exactly matching contribution shape/dtype, not an
 implicit broadcast. Neither its updated state nor a row-reduced dependency may feed row feedback.
-The [source-construction API example](../api/tensor-api.md#length-aware-source-only-construction) builds
+The [source-construction API example](../reference/tensor/general-scan.md#length-aware-source-only-construction) builds
 and inspects this metadata without compiling or running it.
 
 For example, take the conceptual body `next = h + x*w`, emitting next, with T=3/B=3,

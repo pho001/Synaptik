@@ -15,7 +15,7 @@ Implementation plans live under [`docs/planning/`](../planning/README.md). They 
 
 Data is registered at `extensions/data`, using the default Gradle path `:extensions:data`
 and namespace `io.github.pho001.synaptik.data`, exporting only Model through
-`api(project(":modules:model"))`. The [Data sequence batching API](../api/data-api.md) provides
+`api(project(":modules:model"))`. The [Data sequence batching API](../reference/data/sequences.md) provides
 copied host counts, explicit padding side/axis order, a borrowed Tensor batch record and an
 INT64 host-array batcher. Metadata construction does not allocate values; integral batching does.
 Neither executes models or binds runtime length inputs.
@@ -23,7 +23,7 @@ Neither executes models or binds runtime length inputs.
 Text is registered at `extensions/text`, `:extensions:text`, namespace
 `io.github.pho001.synaptik.text`. Its flat package contains `WhitespaceTokenizer` and
 `TextSequenceBatcher`, with a nested configuration Builder. Its sole edge is api(Data), with
-Model transitive. The [Text API](../api/text-api.md) connects frozen token IDs to Data padding;
+Model transitive. The [Text API](../reference/text/tokenization.md) connects frozen token IDs to Data padding;
 the integration-test project separately composes NN/Engine. Vision remains absent and separately gated.
 
 ## Backend path migration and historical navigation
@@ -75,4 +75,4 @@ Generic Checkpoint is physically `modules/checkpoint`, with unchanged Gradle pro
 packages; the nine old NN model files now belong to `extensions/nn` under `nn.checkpoint`.
 For example, a generic artifact user keeps its dependency/import, while a ModelCheckpoint user
 adds an explicit NN dependency and changes `checkpoint.model` imports to `nn.checkpoint`; no
-compatibility forwarding package is retained. See the [graph API](../api/graph-checkpoint-api.md).
+compatibility forwarding package is retained. See the [graph API](../reference/checkpoint/graph.md).

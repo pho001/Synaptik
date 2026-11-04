@@ -6,16 +6,18 @@ This atlas explains how `modules/model` describes a computation without executin
 
 ## Read the model in three layers
 
-```text
-application expression                         captured graph
-Tensor --provenance--> TensorProducer            CompiledNode (NodeId)
-  |                    | ordered inputs              | ordered ValueIds
-  | descriptor         | canonical outputs           v
-  v                    v                         GraphValue (ValueId)
-TensorDescriptor <-----+                              | descriptor
-  | dtype + Shape + optional LayoutDescriptor <-------+
-  |
-Tensor --optional borrowed association--> HostTensorStorage --> caller-owned memory
+```mermaid
+flowchart TD
+    accTitle: Tensor expression and graph identity relationships
+    accDescr: Tensor provenance points to a producer with ordered inputs and outputs; capture creates separate node and value identities, while descriptors describe meaning and host storage remains a borrowed association.
+    T["Tensor"] -->|provenance| P["TensorProducer"]
+    P -->|ordered inputs and canonical outputs| T
+    T -->|descriptor| D["TensorDescriptor: dtype, shape, optional layout"]
+    P -.->|capture creates graph-local identities| N["CompiledNode: NodeId"]
+    N -->|ordered input and output ValueIds| V["GraphValue"]
+    V -->|descriptor| D
+    T -->|optional borrowed association| H["HostTensorStorage"]
+    H --> M["Caller-owned memory"]
 ```
 
 Read the upper arrows as semantic relationships, not execution. A Tensor has stable expression origin even when its borrowed storage is replaced or cleared. Capture creates graph-local identities; it does not turn a Tensor into a node. The bottom arrow concerns host memory only, not a device allocation or prepared executable.
@@ -24,17 +26,17 @@ The operation-family sections below share a specific boundary: kind and attribut
 
 ## A concrete walk through LearningJourney
 
-This is a paper trace of the canonical program, not a claim that it was executed for this document. Use the runnable [examples entry point](../../examples/README.md) and [training guide](../../user-guide/training.md) for prerequisites and commands.
+This trace connects the canonical program's actual Tensor expression families. The [examples entry point](../../examples/README.md) supplies the complete source, commands and checked runtime output; the algebra below explains why that output follows.
 
 The program supplies FLOAT32 input `[2,1]` containing `[1,3]`, a gradient-eligible weight `[1,1]` containing zero, no bias, and target `[2,1]` containing `[2,6]`. The public builder copies the supplied weight into model-owned parameter state; that ownership is above this Model module.
 
 1. `linear(weight)` describes `input @ transpose(weight)`. Transpose is a `PERMUTE` with axes `[1,0]`; MATMUL contracts the feature axes. Its result descriptor is FLOAT32 `[2,1]`, not a computed array.
-2. Squared-error SUM means `sum((prediction-target)^2)`. The loss family can represent this objective as one semantic occurrence; its mathematical formula does not require separate public SUB/MUL/SUM occurrences. Initial prediction is `[0,0]` and objective is `4+36=40`.
+2. `squaredErrorSum` explicitly constructs `prediction.sub(target)`, `error.mul(error)` and `.sum()`: binary arithmetic followed by aggregate reduction. Initial prediction is `[0,0]` and objective is `4+36=40`. A first-class loss-family occurrence is an alternative representation of this teaching objective, not the occurrence used by LearningJourney.
 3. The Compiler captures producer occurrences and assigns NodeIds and ValueIds. It owns automatic differentiation. `requiresGrad` in a descriptor requests eligibility; no gradient field is installed on Tensor.
 4. The weight sensitivity is `2*((0-2)*1 + (0-6)*3) = -40`. `Sgd(0.05)` updates the weight to `0 - 0.05*(-40) = 2`. Training/NN owns that state transition, not an operation-kind enum or Tensor provenance.
 5. Re-execution predicts `[2,6]`; fresh values `[2,4]` under the same `[2,1]` signature predict `[4,8]`. Replacing values is different from changing shape: a mismatching static signature is an error, not implicit recompilation.
 
-The direct path therefore exercises datatype, shape, layout, storage, tensor, graph, operation, operation.layout, operation.linalg, and operation.loss. Binary/scalar/reduction families explain the equivalent elementary formula and derivative algebra; this does not promise its exact captured decomposition. Other families below are intentionally absent from this tiny linear example.
+The direct expression path therefore exercises datatype, shape, layout, storage, tensor, graph, operation, operation.layout, operation.linalg, operation.elementwise.binary and operation.reduction. Compiler constructs derivative algebra from those expressions before capture; this trace does not promise an exact optimized node decomposition. The loss family is an alternative, and other families below are intentionally absent from this tiny linear example.
 
 ## io.github.pho001.synaptik.model.datatype
 
@@ -86,17 +88,14 @@ The important distinction is visible in LearningJourney: its prediction expressi
 
 [ScanBody](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/ScanBody.java), [Scan](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Scan.java), and [ScanResult](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/ScanResult.java) describe fixed-count composition over ordinary Tensor algebra. This is not a callback retained for runtime invocation.
 
-```text
-outer occurrence: initial carry + sequences + invariants
-                          |
-                          v
-body scope: carry formal + step formal + invariant formal
-                          |
-                     ordinary producers
-                          |
-                    next carry + emissions
-                          |
-outer results: final carry + stacked emissions + residual ports
+```mermaid
+flowchart TD
+    accTitle: Scan actual bindings and a lexical body
+    accDescr: Outer carries, sequences and invariants bind body-local formals; ordinary producers define next carries and emissions, which form outer final results and residual ports.
+    ACTUALS["Outer actuals: initial carries, sequences, invariants"] --> FORMALS["Body-local carry, step and invariant formals"]
+    FORMALS --> BODY["Ordinary Tensor producers in one lexical scope"]
+    BODY --> STEP["Next carries and emissions"]
+    STEP --> OUT["Outer results: final carries, stacked emissions, residual ports"]
 ```
 
 The diagram separates outer actual bindings from body-local formals. Body leaves must be the exact declared formals by identity; hidden Tensor constants must instead be explicit invariants. Formals are distinct, storage/provenance-free and disjoint from actual bindings. Unused declared formals are allowed; repeated actual identities in different positions are not deduplicated. Free leaves, host-backed constants, mutation, RNG, and nested/recursive bodies reject.
