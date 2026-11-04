@@ -19,6 +19,8 @@ import java.util.Objects;
  * <p>Centered squares, L2 squares and log-sum-exp arithmetic use binary32 for FLOAT32 and low
  * storage, binary64 for FLOAT64. Genuine individual-square and aggregate overflow remains
  * infinity through the mandatory final divisor and square root; NaN is not clamped away.</p>
+ * <p>Singleton L2 domains retain the exact absolute-value point identity without a square
+ * or square-root site, including largest finite and smallest subnormal values.</p>
  */
 public final class CpuAdvancedReductionReferenceKernel {
     private static final long CANONICAL_NAN = 0x7ff8000000000000L;
@@ -101,6 +103,10 @@ public final class CpuAdvancedReductionReferenceKernel {
         if (kind == CpuAdvancedReductionIr.Kind.LOG_SUM_EXP && domain == 1) {
             double point = value(input, offset, strides, coordinates);
             return Double.isNaN(point) ? canonicalNaN() : point;
+        }
+        if (kind == CpuAdvancedReductionIr.Kind.L2_NORM && domain == 1) {
+            double point = value(input, offset, strides, coordinates);
+            return Double.isNaN(point) ? canonicalNaN() : Math.abs(point);
         }
         BigDecimal exact = BigDecimal.ZERO;
         double maximum = Double.NEGATIVE_INFINITY, normSquares = 0.0;

@@ -11,6 +11,8 @@ import java.lang.constant.MethodTypeDesc;
 
 /**
  * Emits direct L1/L2 norm bodies and shared declared-working-precision arithmetic sites.
+ * Singleton selected domains preserve the Model's exact absolute-value point identity;
+ * only genuine reductions evaluate working-precision squares.
  * Controlled ordinary entries guard their proved output ROW cell before any selected-domain
  * loads or exact-state reset; SHARED and standalone entries retain the same traversal.
  */
@@ -112,6 +114,19 @@ public final class CpuNormEmitter {
         code.loadConstant(0).istore(nan).loadConstant(0).istore(anyInfinity);
         code.loadConstant(0.0).dstore(squares).loadConstant(0.0).dstore(compensation);
         if (exact != null) exact.emitReset();
+        var nonPoint = l1 ? null : code.newLabel();
+        var normDone = l1 ? null : code.newLabel();
+        if (!l1) {
+            geometry(code, geometry, 2).loadConstant(1L).lcmp().branch(Opcode.IFNE, nonPoint);
+            carriers.load(type, specialization.carrierPattern().getFirst(), 0, inputBase, false);
+            if (type == DataType.FLOAT64) code.dstore(represented);
+            else if (type == DataType.FLOAT32) code.fstore(represented);
+            else code.istore(represented);
+            decodeRepresented(code, type, represented, value);
+            classify(code, value, nan, -1, anyInfinity);
+            code.dload(value).invokestatic(MATH, "abs", doubleUnary()).dstore(result)
+                    .branch(Opcode.GOTO, normDone).labelBinding(nonPoint);
+        }
 
         emitPass(code, carriers, specialization, type, selected, inputRank, geometry,
                 inputExtentsIndex, inputStridesIndex, inputBase, domain, remaining, coordinate,
@@ -130,6 +145,7 @@ public final class CpuNormEmitter {
             exact.emitFinish(represented);
             decodeRepresented(code, type, represented, result);
         } else unary(code, type, "sqrt", squares, result);
+        if (!l1) code.labelBinding(normDone);
         var noNan = code.newLabel(); var noInfinity = code.newLabel(); var specialsDone = code.newLabel();
         code.iload(nan).branch(Opcode.IFEQ, noNan).loadConstant(Double.longBitsToDouble(
                 0x7ff8000000000000L)).dstore(result).branch(Opcode.GOTO, specialsDone)

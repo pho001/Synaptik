@@ -244,6 +244,53 @@ class CpuAdvancedReductionGeneratedKernelTest {
         }
     }
 
+    @Test void l2PointDomainsPreserveAbsoluteExtremesWithoutSquaring() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            double maximum = switch (type) {
+                case FLOAT64 -> Double.MAX_VALUE;
+                case FLOAT32 -> Float.MAX_VALUE;
+                case BFLOAT16 -> Float.intBitsToFloat(0x7f7f0000);
+                case FLOAT16 -> 65504d;
+                case FLOAT8_E4M3 -> 448d;
+                case FLOAT8_E5M2 -> 57344d;
+                default -> throw new AssertionError(type);
+            };
+            double minimum = switch (type) {
+                case FLOAT64 -> Double.MIN_VALUE;
+                case FLOAT32 -> Float.MIN_VALUE;
+                case BFLOAT16 -> 0x1p-133;
+                case FLOAT16 -> 0x1p-24;
+                case FLOAT8_E4M3 -> 0x1p-9;
+                case FLOAT8_E5M2 -> 0x1p-16;
+                default -> throw new AssertionError(type);
+            };
+            double[] points = {maximum, -maximum, minimum, -minimum, -0d, Double.NaN};
+            for (boolean emptyAxes : List.of(true, false)) {
+                Shape shape = emptyAxes ? Shape.of(points.length) : Shape.of(points.length, 1);
+                var selected = plan(AggregateReductionKind.L2_NORM, type, shape,
+                        new MultiAxisReductionAttrs(emptyAxes ? List.of() : List.of(1), false),
+                        Shape.of(points.length), List.of(arrayCarrier(type), arrayCarrier(type)));
+                Object output = represented(type, new double[points.length]);
+                invoke(selected, represented(type, points), output);
+                double[] actual = CpuLayerNormGeneratedKernelTest.decoded(type, output);
+                double[] reference = io.github.pho001.synaptik.backend.cpu.internal.reference
+                        .CpuAdvancedReductionReferenceKernel.evaluate(
+                                io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIr.Kind.L2_NORM,
+                                type, points, shape.toLongArray(), 0,
+                                emptyAxes ? new long[] {1} : new long[] {1, 1},
+                                emptyAxes ? new int[0] : new int[] {1}, false, 0);
+                for (int i = 0; i < points.length - 1; i++) {
+                    long expected = Double.doubleToRawLongBits(Math.abs(points[i]));
+                    assertEquals(expected, Double.doubleToRawLongBits(actual[i]), type + "/point/" + i);
+                    assertEquals(expected, Double.doubleToRawLongBits(reference[i]), type + "/reference/" + i);
+                }
+                assertTrue(Double.isNaN(actual[points.length - 1]), type + "/NaN");
+                assertTrue(Double.isNaN(reference[points.length - 1]), type + "/reference NaN");
+            }
+        }
+    }
+
     @Test void invalidStatisticalCorrectionsFailBeforeGeneration() throws Throwable {
         for (long correction : new long[] {2, Long.MAX_VALUE}) assertThrows(
                 IllegalArgumentException.class, () -> plan(AggregateReductionKind.VARIANCE,
