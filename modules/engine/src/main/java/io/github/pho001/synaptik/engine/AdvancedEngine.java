@@ -772,7 +772,38 @@ public final class AdvancedEngine implements AutoCloseable {
             Engine owner, CompiledGraph compiledGraph, ModelAutotuningRequest request) {
         beginOperation();
         return prepareTunedOrdinaryAlreadyAdmitted(
-                owner, compiledGraph, request, tuningOverride);
+                owner, compiledGraph, request, tuningOverride, null);
+    }
+
+    /**
+     * Admits an explicitly observed transaction before inspecting any argument. An outer occurrence
+     * of the existing Engine admission covers the terminal callback after the canonical session
+     * has published or rejected and released its own admission. This preserves self-close rejection
+     * and makes concurrent closure wait for the observer without a new lease protocol or callback
+     * under a lifecycle lock. The unobserved overload has no producer or extra admission.
+     *
+     * @param owner raw ordinary facade reference
+     * @param compiledGraph raw owner-bound compile handle reference
+     * @param request raw public tuning request reference
+     * @param observer raw caller-owned observer, validated after close admission
+     * @return the same selected or evidence-empty fallback preparation as the unobserved path
+     * @throws RuntimeException if validation, tuning, preparation, cleanup, or production fails
+     * @throws Error if inward work, cleanup, or diagnostic production fails
+     */
+    ModelAutotuningPreparation prepareTunedOrdinary(
+            Engine owner,
+            CompiledGraph compiledGraph,
+            ModelAutotuningRequest request,
+            EngineTuningObserver observer) {
+        beginOperation();
+        try {
+            EngineTuningTraceProducer producer = new EngineTuningTraceProducer(observer);
+            beginOperation();
+            return prepareTunedOrdinaryAlreadyAdmitted(
+                    owner, compiledGraph, request, tuningOverride, producer);
+        } finally {
+            finishFailure();
+        }
     }
 
     /**
@@ -803,14 +834,15 @@ public final class AdvancedEngine implements AutoCloseable {
                     ModelAutotuningRequest request,
                     ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning) {
         beginOperation();
-        return prepareTunedOrdinaryAlreadyAdmitted(owner, compiledGraph, request, tuning);
+        return prepareTunedOrdinaryAlreadyAdmitted(owner, compiledGraph, request, tuning, null);
     }
 
     private ModelAutotuningPreparation prepareTunedOrdinaryAlreadyAdmitted(
             Engine owner,
             CompiledGraph compiledGraph,
             ModelAutotuningRequest request,
-            ModelAutotuningTuning<?, ?, ?, ?, ?, ?> suppliedTuning) {
+            ModelAutotuningTuning<?, ?, ?, ?, ?, ?> suppliedTuning,
+            EngineTuningTraceProducer producer) {
         RepresentativeExecutionSession session;
         ModelAutotuningConfig config;
         ModelAutotuningRequest.ModelIdentity modelIdentity;
@@ -858,7 +890,7 @@ public final class AdvancedEngine implements AutoCloseable {
             throw failure;
         }
         return prepareTunedOrdinaryWithSession(
-                owner, compiledGraph, config, modelIdentity, session, tuning);
+                owner, compiledGraph, config, modelIdentity, session, tuning, producer);
     }
 
     private <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K,
@@ -869,12 +901,14 @@ public final class AdvancedEngine implements AutoCloseable {
                     ModelAutotuningConfig config,
                     ModelAutotuningRequest.ModelIdentity modelIdentity,
                     RepresentativeExecutionSession session,
-                    ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning) {
+                    ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning,
+                    EngineTuningTraceProducer producer) {
         RuntimeException recoverable = null;
         boolean selectionAuthenticated = false;
         try {
             var optionalHandoff = tuning.candidateHandoff(compiledGraph.artifacts());
             if (optionalHandoff.isEmpty()) {
+                if (producer != null) producer.noEligibleHandoff();
                 throw new IllegalStateException("no eligible local-workload tuning handoff");
             }
             var handoff = optionalHandoff.orElseThrow();
@@ -885,14 +919,21 @@ public final class AdvancedEngine implements AutoCloseable {
             try {
                 result = WorkloadTuning.tune(tuningRequest, tuning,
                         (batch, candidate) -> {
-                            var trial = tuning.prepareTrial(
-                                    compiledGraph.artifacts(), batch, candidate);
+                            io.github.pho001.synaptik.runtime.execution.PreparedExecution trial;
+                            try {
+                                trial = tuning.prepareTrial(
+                                        compiledGraph.artifacts(), batch, candidate);
+                            } catch (IOException failure) {
+                                if (producer != null) producer.trialIoFailure();
+                                throw failure;
+                            }
                             session.execute(trial);
                         });
             } catch (RuntimeException failure) {
                 if (session.isRepresentativeExecutionFailure(failure)) throw failure;
                 throw failure;
             } catch (IOException failure) {
+                if (producer != null) producer.cacheIoFailure();
                 throw new UncheckedIOException(failure);
             } catch (Exception failure) {
                 throw new IllegalStateException("unexpected checked tuning failure", failure);
@@ -900,9 +941,11 @@ public final class AdvancedEngine implements AutoCloseable {
             BackendPartitionTuningHandoff<C, D> phaseOneSelected = authenticate(
                             result, handoff, tuningRequest, context);
             D phaseOneDecision = phaseOneSelected.selectedDecision().orElseThrow();
+            if (producer != null) producer.completePlanPhase();
             var optionalCompleteHandoff = tuning.completePlanCandidateHandoff(
                     compiledGraph.artifacts(), phaseOneDecision);
             if (optionalCompleteHandoff.isEmpty()) {
+                if (producer != null) producer.noEligibleHandoff();
                 throw new IllegalStateException("no eligible complete-plan tuning handoff");
             }
             var completeHandoff = optionalCompleteHandoff.orElseThrow();
@@ -918,15 +961,17 @@ public final class AdvancedEngine implements AutoCloseable {
                         completeRequest,
                         completePlanBackend(tuning, completeCompatibility),
                         completePlanCorrectness(
-                                tuning, compiledGraph.artifacts(), session),
+                                tuning, compiledGraph.artifacts(), session, producer),
                         completePlanMeasurement(
-                                tuning, compiledGraph.artifacts(), session));
+                                tuning, compiledGraph.artifacts(), session, producer));
             } catch (CompletePlanTuning.CorrectnessMismatchException failure) {
+                if (producer != null) producer.correctnessMismatch();
                 throw new IllegalStateException(
                         "complete-plan candidate correctness mismatch", failure);
             } catch (RuntimeException failure) {
                 throw failure;
             } catch (IOException failure) {
+                if (producer != null) producer.cacheIoFailure();
                 throw new UncheckedIOException(failure);
             } catch (Exception failure) {
                 throw new IllegalStateException(
@@ -985,6 +1030,7 @@ public final class AdvancedEngine implements AutoCloseable {
         }
         if (!allowed) {
             session.releaseAdmission();
+            if (producer != null) producer.requiredTuningRejected();
             throw recoverable;
         }
         try {
@@ -1009,7 +1055,10 @@ public final class AdvancedEngine implements AutoCloseable {
                 else if (inward != null) closeWithSuppression(inward, failure);
                 throw failure;
             }
-            return session.completeModelAutotuningPreparation(result);
+            ModelAutotuningPreparation completed =
+                    session.completeModelAutotuningPreparation(result);
+            if (producer != null) producer.fallbackSucceeded();
+            return completed;
         } catch (RuntimeException | Error fallbackFailure) {
             suppressDistinctOnce(fallbackFailure, recoverable);
             throw fallbackFailure;
@@ -2454,11 +2503,12 @@ public final class AdvancedEngine implements AutoCloseable {
             completePlanCorrectness(
                     ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning,
                     CompileArtifacts artifacts,
-                    RepresentativeExecutionSession session) {
+                    RepresentativeExecutionSession session,
+                    EngineTuningTraceProducer producer) {
         return new CompletePlanCorrectness<>() {
             @Override public CompleteCorrectnessReference capture(
                     PC batch, PK candidate, long maximumAggregateBytes) throws Exception {
-                var trial = tuning.prepareCompletePlanTrial(artifacts, batch, candidate);
+                var trial = prepareCompletePlanTrial(tuning, artifacts, batch, candidate, producer);
                 return new CompleteCorrectnessReference(
                         session.captureCorrectnessReference(trial, maximumAggregateBytes),
                         maximumAggregateBytes);
@@ -2472,7 +2522,7 @@ public final class AdvancedEngine implements AutoCloseable {
                     throw new IllegalArgumentException(
                             "complete-plan correctness byte ceiling changed");
                 }
-                var trial = tuning.prepareCompletePlanTrial(artifacts, batch, candidate);
+                var trial = prepareCompletePlanTrial(tuning, artifacts, batch, candidate, producer);
                 return switch (session.compareCorrectness(reference.reference(), trial)) {
                     case MATCH -> Outcome.MATCH;
                     case MISMATCH -> Outcome.MISMATCH;
@@ -2486,11 +2536,46 @@ public final class AdvancedEngine implements AutoCloseable {
             CompleteCandidateMeasurement<PC, PK> completePlanMeasurement(
                     ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning,
                     CompileArtifacts artifacts,
-                    RepresentativeExecutionSession session) {
+                    RepresentativeExecutionSession session,
+                    EngineTuningTraceProducer producer) {
         return (batch, candidate) -> {
-            var trial = tuning.prepareCompletePlanTrial(artifacts, batch, candidate);
+            var trial = prepareCompletePlanTrial(tuning, artifacts, batch, candidate, producer);
             session.execute(trial);
         };
+    }
+
+    /**
+     * Prepares one backend-owned trial, distinguishing its checked I/O from tuning-cache I/O
+     * without wrapping or retaining the original failure.
+     *
+     * @param tuning non-null typed backend collaboration
+     * @param artifacts exact admitted compile artifacts
+     * @param batch exact complete-plan candidate batch
+     * @param candidate exact complete-plan candidate
+     * @param producer optional transaction-local diagnostic producer; null disables diagnostics
+     * @param <C> local-workload batch type
+     * @param <D> local-workload decision type
+     * @param <K> local-workload candidate type
+     * @param <PC> complete-plan batch type
+     * @param <PD> complete-plan decision type
+     * @param <PK> complete-plan candidate type
+     * @return the fresh trial recipe without production publication
+     * @throws Exception the exact checked or unchecked backend preparation failure
+     */
+    private static <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K,
+            PC extends BackendTuningCandidateBatch, PD extends BackendTuningDecision, PK>
+            io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareCompletePlanTrial(
+                    ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning,
+                    CompileArtifacts artifacts,
+                    PC batch,
+                    PK candidate,
+                    EngineTuningTraceProducer producer) throws Exception {
+        try {
+            return tuning.prepareCompletePlanTrial(artifacts, batch, candidate);
+        } catch (IOException failure) {
+            if (producer != null) producer.trialIoFailure();
+            throw failure;
+        }
     }
 
     private static <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision>

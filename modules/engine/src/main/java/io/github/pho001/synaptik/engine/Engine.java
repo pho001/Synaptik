@@ -394,6 +394,47 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
+     * Performs the same bounded autotuning transaction as {@link
+     * #prepareTuned(CompiledGraph, ModelAutotuningRequest)}, with an explicit caller-owned observer
+     * for terminal fallback or required-tuning rejection diagnostics.
+     *
+     * <p>At most one typed PREPARE event is delivered synchronously, after successful representative
+     * cleanup and either successful publication of the fallback preparation or policy rejection.
+     * Its payload names the failed tuning phase and a producer-known reason category; it contains
+     * no throwable, graph, tensor values, cache paths, or cache bytes. Fallback still has empty
+     * tuning evidence. Successful tuning and failures outside this recoverable resolution boundary
+     * produce no event. This overload adds no per-run tracing or policy selection.</p>
+     *
+     * <p>The observer must support concurrent callbacks if shared. Engine neither owns nor closes
+     * it and does not retain it after this call. Callback {@link RuntimeException}s and
+     * {@link Error}s alone are contained without changing the result or adding suppressed failures.
+     * The callback remains admitted to Engine outside lifecycle locks: self-close rejects, and it
+     * must not wait for another thread to close this Engine. Argument validation, including
+     * observer nullness, follows Engine close admission. Use the two-argument overload to avoid
+     * all diagnostic producer, event, clock, and identity work.</p>
+     *
+     * @param compiledGraph non-null compile handle created by this exact Engine
+     * @param request non-null configuration, identity, and live representative inputs
+     * @param observer non-null caller-owned, thread-safe terminal diagnostic observer
+     * @return a complete non-null preparation with the sole closeable production owner and
+     *     unchanged tuned or evidence-empty fallback semantics
+     * @throws NullPointerException if an argument or required request value is null
+     * @throws IllegalArgumentException if ownership, representative binding, or tuning evidence
+     *     is invalid, or the plan is outside the supported single-partition owner domain
+     * @throws IllegalStateException if closure has begun or required tuning cannot complete
+     * @throws RuntimeException if tuning, preparation, execution, cleanup, or diagnostic production
+     *     fails; observer callback failures alone are contained
+     * @throws Error if inward work, cleanup, or diagnostic production reports a fatal failure;
+     *     observer callback errors alone are contained
+     */
+    public ModelAutotuningPreparation prepareTuned(
+            CompiledGraph compiledGraph,
+            ModelAutotuningRequest request,
+            EngineTuningObserver observer) {
+        return delegate.prepareTunedOrdinary(this, compiledGraph, request, observer);
+    }
+
+    /**
      * Runs one prepared recipe using current caller-owned host associations matched by Tensor ID.
      *
      * <p>The input list may use any order. Associations are snapshotted once after complete
