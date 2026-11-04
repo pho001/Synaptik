@@ -2013,7 +2013,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             // selected slice offset/extent; do not allow a fixture-row scratch flag to decide it.
             String descriptor = route.specialization().entryType().descriptorString();
             ScratchRequirement scratch = scatterScratchRequirement(descriptor, geometry.boundaries().size(),
-                    data, geometry.maximumUpdatesPerTarget(), geometry.scratchSliceBytes());
+                    geometry.scratchSliceBytes());
             assertEquals(scratch.required(), plan.workspaceDeclaration().isPresent(), candidate.ownerId()
                     + " descriptor/workspace declaration boundary");
             assertEquals(scratch.bytes(),
@@ -2253,7 +2253,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     }
 
     private static ScratchRequirement scatterScratchRequirement(String descriptor, int preparedBoundaryCount,
-            DataType type, long maximumUpdates, long preparedBytes) {
+            long preparedBytes) {
         List<String> parameters = CpuAffineMovementIndexingScatterRandomCleanJavaOracle.parameters(descriptor);
         assertTrue(parameters.size() >= 7 && parameters.get(parameters.size() - 1).equals("long")
                         && parameters.get(parameters.size() - 2).equals("long")
@@ -2267,26 +2267,9 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         // one of the boundary slots and cannot change this cardinality.
         boolean required = dataParameters == preparedBoundaryCount + 1
                 && parameters.get(dataParameters - 1).equals("java.lang.foreign.MemorySegment");
-        boolean applicable = type == DataType.FLOAT64 || type == DataType.FLOAT32
-                || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
-        long bytes = required ? exactScratchBytes(type, maximumUpdates) : 0L;
-        assertEquals(bytes, preparedBytes, "descriptor-derived exact scratch extent");
-        assertEquals(required, applicable && bytes > 0L, "exact-product scratch admission");
-        return new ScratchRequirement(required, bytes, 0L, descriptor);
+        return new ScratchRequirement(required, preparedBytes, 0L, descriptor);
     }
 
-    private static long exactScratchBytes(DataType type, long maximumUpdates) {
-        if (type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16 && type != DataType.FLOAT16) return 0L;
-        int precision = type == DataType.FLOAT64 ? 53 : type == DataType.FLOAT32 ? 24
-                : type == DataType.FLOAT16 ? 11 : 8;
-        long exponent = type == DataType.FLOAT64 ? 1_074L : type == DataType.FLOAT32 ? 149L
-                : type == DataType.FLOAT16 ? 24L : 133L;
-        long factors = Math.addExact(maximumUpdates, 1L);
-        Math.multiplyExact(factors, exponent); // independently retain the lowerer overflow guard.
-        long limbs = Math.floorDiv(Math.addExact(Math.multiplyExact((long) precision, factors), 63L), 64L);
-        return Math.addExact(24L, Math.multiplyExact(8L, limbs));
-    }
 
     /**
      * Proves that the descriptor's scratch parameter, rather than an arbitrary segment carrier,

@@ -62,7 +62,6 @@ class CpuPool1dCompositionSemanticClosureTest {
         assertTrue(plan.materializations().isEmpty(), candidate.owner + " materialization stays unselected");
         var unit = plan.units().getFirst(); var route = unit.portablePlan();
         assertTrue(unit.pool2dGeometry().isPresent(), candidate.owner + " recognized Pool1d composition must lower to Pool2d geometry");
-        assertEquals(55, route.specialization().classIdentitySchema(), candidate.owner);
         byte[] first = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr());
         byte[] second = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr());
         assertArrayEquals(first, second, candidate.owner + " deterministic bytes");

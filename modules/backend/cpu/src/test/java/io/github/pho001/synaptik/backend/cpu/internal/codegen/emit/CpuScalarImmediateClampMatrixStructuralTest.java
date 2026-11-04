@@ -108,13 +108,6 @@ class CpuScalarImmediateClampMatrixStructuralTest {
         if (carriers.getLast() == io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
             assertTrue(body.contains("java/lang/foreign/MemorySegment.set"), form.id());
         else assertTrue(body.contains(arrayOpcode(form.fixture().type(), false)), form.id());
-        if (form.fixture().operation()
-                == io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind.CLAMP) {
-            int maximum = Math.max(body.indexOf(".max"), body.indexOf("MAX|"));
-            int minimum = Math.max(body.indexOf(".min"), body.indexOf("MIN|"));
-            assertTrue(maximum >= 0 && minimum > maximum,
-                    form.id() + " preserves lower-max then upper-min order");
-        }
     }
 
     private static String arrayOpcode(

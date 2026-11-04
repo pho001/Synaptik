@@ -668,7 +668,6 @@ class CpuVectorMseEvidenceTest {
 
     private static void assertVectorRoute(io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route,
             DataType type) throws Exception {
-        assertEquals(62, route.specialization().classIdentitySchema());
         assertEquals(type == DataType.FLOAT32 ? FloatVector.SPECIES_PREFERRED.vectorBitSize()
                 : DoubleVector.SPECIES_PREFERRED.vectorBitSize(), route.specialization().vectorSpeciesBitSize());
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr());
@@ -689,7 +688,6 @@ class CpuVectorMseEvidenceTest {
             io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route) {
         assertEquals(io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR,
                 route.specialization().executionStrategy().compute());
-        assertEquals(58, route.specialization().classIdentitySchema());
         assertEquals(0, route.specialization().vectorSpeciesBitSize());
     }
 

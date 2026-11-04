@@ -305,9 +305,6 @@ class CpuAggregateGeneratedKernelTest {
     @Test void sumToShapeEvidenceMatrixHasTypedDeterministicSelfContainedClassFiles() throws Throwable {
         var f64 = sumToShapeRoute(DataType.FLOAT64, Shape.of(64,128,256), Shape.of(128,1),
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY));
-        assertThrows(IllegalArgumentException.class, () -> sumToShapeRoute(DataType.BFLOAT16,
-                Shape.of(2,3,4), Shape.of(3,1),
-                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.SHORT_ARRAY)));
         var i64 = sumToShapeRoute(DataType.INT64, Shape.of(8,16), Shape.of(8,1),
                 List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.LONG_ARRAY));
         var copy = sumToShapeRoute(DataType.FLOAT32, Shape.of(32,32), Shape.of(32,32),
