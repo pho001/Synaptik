@@ -26,10 +26,10 @@ uses the checked-in Gradle wrapper, so a separate Gradle installation is not req
 
 ## Install a versioned local candidate
 
-The owner selected **private/internal distribution** for the first production target. No public
-project licence or redistribution grant is selected; do not publish these artifacts to public
-registries. Archives are qualification candidates: the active public-readiness audit and final
-source-matched technical acceptance are not replaced by historical local-candidate receipts.
+The target is first-public-release readiness; current candidates remain **private/internal**.
+The owner has not selected a public project licence or redistribution grant, so do not publish
+these artifacts to public registries. Each candidate needs source-matched technical acceptance;
+historical local-candidate receipts do not qualify changed code.
 No official signing or bundled third-party native implementation is implied.
 Java CPU BF16, FP16 and both FP8 formats execute through the existing CPU owners with FLOAT32
 working values and declared low-result narrowing. Native oneDNN acceleration is independently
@@ -56,7 +56,11 @@ accepted source files are added or removed; the build does not discover arbitrar
 `source-provenance.json` records the version, base revision and each selected path/SHA256, both
 beside the archives and inside the extracted source root. A base revision alone is not the source.
 
-Outputs live under `build/release/0.1.0/`:
+The public-readiness audit uses `0.1.0-public-audit.20261104` with the same task and layout,
+leaving the earlier `0.1.0` candidate intact. Substitute that version consistently in the commands,
+archive names and dependency declaration when reproducing its receipt.
+
+For the earlier candidate, outputs live under `build/release/0.1.0/`:
 
 | Archive | Contents |
 |---|---|

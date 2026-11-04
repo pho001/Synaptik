@@ -17,8 +17,9 @@ identity or notarization credential has been selected.
 
 Use the exercised [installation commands](../getting-started.md#install-a-versioned-local-candidate)
 and [support matrix](../backend-guide/production-support.md), rather than inventing another
-packager or dependency list. Ordinary development defaults to `0.1.0-SNAPSHOT`; the explicit
-first candidate version is `0.1.0`. These coordinates do not establish a future compatibility
+packager or dependency list. Ordinary development defaults to `0.1.0-SNAPSHOT`; the earlier
+explicit candidate is `0.1.0`. The current audit qualifies `0.1.0-public-audit.20261104` separately,
+without overwriting those receipts. These coordinates do not establish a future compatibility
 or semantic-versioning guarantee.
 
 The sequence is repaired source → independent review/joined checks → matched archives and
