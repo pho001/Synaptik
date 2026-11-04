@@ -2,19 +2,20 @@
 
 ## Status and interpretation
 
-Reviewed scope freeze, 2026-11-01; current capability updated 2026-11-03 for the optional
-oneDNN peer and exact CPU/Metal singleton contractions. The bounded private/internal 0.1.0 matrix has operation-catalog,
-root and isolated source/artifact/installed-consumer qualification recorded below. This is not
-a claim about every Model geometry, public registry publication or a trusted native prebuilt.
-Earlier sealed candidate receipts below apply only to their frozen source and artifacts.
+Current public-readiness source and isolated candidate qualification, 2026-11-04, are recorded in
+the [audit receipt below](#public-readiness-audit-current-source-and-installed-candidate).
+The earlier bounded private/internal `0.1.0` matrix retains its own operation-catalog, root and
+isolated source/artifact/consumer evidence. None is a claim about every Model geometry, public
+registry publication or a trusted native prebuilt; sealed receipts apply only to their frozen bytes.
 General Scan and the bounded CPU/Metal neural journeys have component evidence. The
 [product goal](../planning/production-release-goal.md) and
 [owning contracts](../../ARCHITECTURE.md#scope-indexed-normative-contracts) control semantics.
 A source predicate, a generated-entry test and an actual Compiler backward run are different evidence.
 
-Post-audit working-source repairs are recorded separately in the
-[interchangeability follow-up](backend-interchangeability-audit.md#15-navazující-opravy-a-aktuální-hranice).
-They do not relabel the frozen distribution below as rebuilt or reissued.
+Post-candidate source work is recorded in the
+[interchangeability follow-up](backend-interchangeability-audit.md#15-navazující-opravy-a-aktuální-hranice)
+and [public-release audit](../planning/public-release-audit-2026-11-04.md#result).
+Neither relabels the earlier distribution as rebuilt or reissued.
 
 ## Common Java CPU domain
 
@@ -486,3 +487,37 @@ The successful root gate accepted 794 retained JUnit suite reports: 5,852 tests,
 zero failures and zero errors. Metal contributes 545 tests with ten skips; actual-GPU numerical
 and installed-consumer proof above is separate from those skips. Cached/up-to-date report
 acceptance is not reported as a fresh execution of every test.
+
+## Public-readiness audit: current source and installed candidate
+
+The framework-wide [audit](../planning/public-release-audit-2026-11-04.md#result) is complete.
+Its local candidate is `0.1.0-public-audit.20261104`, separate from the historical `0.1.0`
+archives above. Public publication is still blocked by the owner's retained no-licence/
+no-redistribution decision. Qualification is local macOS arm64 with JDK26, actual Metal and the
+explicit oneDNN 3.14.0 LP64 SEQ library; no x86 or trusted-public-prebuilt claim follows.
+
+| Evidence | Observed result and boundary |
+|---|---|
+| Joined root gate | `test build` and affected Javadoc: BUILD SUCCESSFUL; 159 actionable tasks, 22 executed and 137 up-to-date. |
+| Active-layout JUnit receipts | 790 suites, 6,012 tests, 67 skips, zero failures/errors. These accepted reports include up-to-date tasks; they are not a claim that every test was freshly executed. |
+| Metal module | 624 tests, ten skips, zero failures/errors. Independent actual-GPU public scenarios are additional evidence, not inferred from the suite count. |
+| Ordinary CPU workflow | 205 exact public checks across BF16/F16/E4M3/E5M2: arithmetic, shared Compiler AD, Pool2d/3d, changing/zero batch, length-aware Scan, repeated SGD and save/load with fresh training. Includes configured oneDNN policies where independently eligible. |
+| CPU recurrent workflow | 80 checks: active RNN/GRU/LSTM, both directions, actual Compiler gradients and length-aware Model save/load across all four low types. |
+| Metal recurrent workflow | 40 corresponding real-device checks across BF16/F16, both directions and persistence. No FP8 Metal domain is admitted. |
+| Targeted public repros and diagnostics | Overflow versus L2 point identity, categorical zero gradients, exact pooling divisor bits, contraction-before-bias, mixed-owner excess capacity, transactional restore, deep Scan/namespace and session-only tuning. CPU cold/fallback observers and native bounds/duplicate/BOOL failures preserve actual context and native causes. |
+| Fresh Maven installation | All 18 Java products published with binary/source/Javadoc artifacts. A consumer declaring only `nn` resolved 16 JARs from a fresh Maven cache and passed the same public programs using only extracted candidate native code. |
+| Extracted source installation | All 2,632 selected source hashes matched. All 16 Java compilation actions executed with project build caching disabled; native source rebuilt, ad-hoc signed and package-verified. The same public programs passed against those independently built Java/native outputs without checkout runtime paths. |
+
+The supported numerical, geometry, ownership and persistence boundaries remain the owning
+contracts and family-specific matrix above. The audit repaired defects; successful operation
+catalog rows still do not independently certify every legal value, shape or numerical outcome.
+Native FP8 is unavailable on this Arm target, so both FP8 formats stay ordinary CPU, without
+advertising widened FLOAT32 input as native FP8. Metal general F64 arithmetic remains excluded.
+No optimizer continuation, exhaustive allocation-failure injection or universal performance
+qualification is implied.
+
+`build/release/0.1.0-public-audit.20261104/verification.json`, `SHA256SUMS` and `qualification/`
+bind exact source/artifact hashes, commands, current-layout reports, exercised source programs,
+installed/source output and failed-gate recovery history. The final documentation-only refresh
+must retain the 1,813 frozen non-Markdown source hashes, all 18 runtime JARs and the installed
+native-library fingerprint; record the comparison without pretending to re-execute every test.

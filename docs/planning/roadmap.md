@@ -23,7 +23,7 @@ for source/build navigation; historical commands and hashes remain original-revi
 
 ## Queued documentation redesign
 
-The user requested a [didactic documentation redesign](documentation-redesign.md) after the active
+The user requested a [didactic documentation redesign](documentation-redesign.md) after the completed
 public-readiness audit. Status: Draft, not an execution frontier. Scope includes a coherent learning
 journey, a connected explanation of the whole framework, every production package and native
 component, accessible diagrams, and commented runnable examples with explanations and expected
@@ -63,10 +63,10 @@ The area rows summarize status. Only an explicitly Ready brief at an authorized 
 new execution. Training 0004 and bounded Checkpoint
 [0004A](extensions/checkpoint/tasks/0004a-direct-leaf-model-save.md) are Complete after independent
 review and configured integration gates.
-The [framework-wide public-release audit](public-release-audit-2026-11-04.md) now owns the active
-cross-area repair frontier. “None” below describes the linked area task queue, not a veto on the
-audit's explicitly Ready repairs. Completed task rows and earlier qualification remain historical;
-the coordinator has not yet recorded final acceptance of the changed audit source/artifacts.
+The [framework-wide public-release audit](public-release-audit-2026-11-04.md#result) is Complete,
+including preserving repairs, independent review, the native-enabled root gate and isolated
+Maven/source qualification of `0.1.0-public-audit.20261104`. Its Ready packets are now completion
+evidence, not open repair frontiers. Earlier task rows and candidate receipts remain historical.
 
 [Checkpoint 0005](extensions/checkpoint/tasks/0005-training-state-reconstruction.md) is Complete:
 defensive reconstruction, external-package tests, final Javadoc/example validation, and independent
@@ -280,13 +280,12 @@ Engine orchestration, tuning or generic execution abstraction. CPU0023 remains D
 
 ## Current priority and next design decision
 
-Current priority: the [public-release readiness audit](public-release-audit-2026-11-04.md) and its
-[Ready preserving-repair packet](public-release-audit-2026-11-04.md#confirmed-finding-repair-frontiers).
-The user requested framework-wide stabilization and actionable diagnostics before first public
-release. Numerical/exact-count boundaries, categorical AD, Scan traversal/admission, lifecycle,
-restore/import integrity, tuning and Metal/native diagnostics are the authorized slices there.
-Independent review and the coordinator's joined source/native/Javadoc/artifact/clean-consumer
-qualification follow integration; no unrun repair acceptance is claimed here.
+Next requested work: activate the [documentation redesign](documentation-redesign.md) against
+the completed audit base, with bounded Ready editorial/example tasks. Teach the whole framework,
+every production Java package/native component and a complete commented runnable learning journey.
+The [public-readiness audit result](public-release-audit-2026-11-04.md#result) records accepted
+source/native/Javadoc/artifact/clean-consumer evidence and the explicit limits of that checkpoint;
+it is not authority for unrelated implementation or public publication.
 
 The approved [CPU low-parity cutover](../architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover)
 supersedes CPU0078's temporary BF16/F16 lock and includes both FP8 formats through ordinary CPU
@@ -296,9 +295,9 @@ F64 is not a oneDNN native type. Metal retains its
 qualified F32/BF16/F16 and exact/raw carriers, not CPU-derived FP8 or general F64 arithmetic.
 
 Public readiness is the product goal, but the owner retains **no public redistribution grant
-for now**. Public publication is **Blocked** pending the licence/publisher decision. Technical
-stabilization and local candidate qualification continue; no registry, signing identity, hosted
-GPU runner or trusted prebuilt is selected by this roadmap.
+for now**. Public publication is **Blocked** pending the licence/publisher decision. Local technical
+qualification has passed; no registry, signing identity, hosted GPU runner or trusted prebuilt
+is selected by this roadmap.
 
 ### Historical Pool3d and operation-audit candidate
 

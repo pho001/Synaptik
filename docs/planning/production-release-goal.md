@@ -4,13 +4,12 @@
 
 Prepare Synaptik's first public production release for Java CPU inference and training, with
 equally supported FLOAT32 (F32) and FLOAT64 (F64), trainable networks, reliable model save/load
-and production-supported Metal. Current work is framework-wide audit → preserving repairs →
-independent review → source-matched candidate qualification.
+and production-supported Metal. The current technical checkpoint completed framework-wide audit,
+preserving repairs, independent review and source-matched local candidate qualification.
 
-Status: technical stabilization is active under the
-[public-release audit and Ready repair packet](public-release-audit-2026-11-04.md#confirmed-finding-repair-frontiers).
-Earlier private/internal candidates have bounded acceptance receipts; those do not qualify the
-changed audit source or its future artifacts. Public publication is **Blocked** by the owner's
+Status: the [audit result](public-release-audit-2026-11-04.md#result) accepts
+`0.1.0-public-audit.20261104` within its explicit matrix. Earlier private/internal candidates
+retain only their original bounded receipts. Public publication is **Blocked** by the owner's
 decision to retain **no public redistribution grant for now**.
 This goal is not an architecture contract, certification, Ready task or implementation grant.
 Current behavior follows [architecture authority](../../ARCHITECTURE.md#authority-incorporation-and-precedence) and the
@@ -26,7 +25,7 @@ Public readiness supersedes the earlier private-only product assumption, not the
 of distribution. Do not invent a public project licence, SPDX grant, POM licence, registry upload
 or trusted public prebuilt. Public publication requires a separate licence/publisher decision.
 Preserve and package the existing Cephes/Gradle third-party notices; they grant no rights to
-Synaptik's own code. Technical stabilization and local candidate qualification continue.
+Synaptik's own code. Public publication remains separate from the completed technical audit.
 
 The [production support ledger](../backend-guide/production-support.md) separates current
 capability, component evidence and exact historical candidate receipts. A previous documentation-

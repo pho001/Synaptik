@@ -187,13 +187,14 @@ execution owns complete output cells, keeps an exact true-position count, and us
 exact-state slice per simultaneously used range. It declares three buffers and no mask
 materialization, selected-count workspace, partial result, or combine state.
 The thirteenth family is exactly one resolved-layout `LOG_SUM_EXP`, `VARIANCE`,
-`STANDARD_DEVIATION`, `L1_NORM`, or `L2_NORM` occurrence. It accepts matching FLOAT64, FLOAT32,
-BFLOAT16, or FLOAT16 input and output, preserves the Model-owned ordered axes and correction, and
-walks each selected domain in canonical input-axis row-major order. Log-sum-exp uses a maximum-shifted
-two-pass sum; variance and standard deviation use corrected two-pass statistics; L1 uses the
-existing exact represented-sum state; and L2 uses scaled sum of squares. Scalar or parallel-scalar
-execution owns complete output cells. Only L1 and statistics use a run-owned exact-state slice;
-the family adds no materialization, partial result, combine state, vector body, or native route.
+`STANDARD_DEVIATION`, `L1_NORM`, or `L2_NORM` occurrence across the six floating representations.
+It preserves the Model-owned ordered axes and correction and walks each selected domain in
+canonical input-axis row-major order. Log-sum-exp uses a maximum-shifted two-pass sum; variance
+and standard deviation use the rounded mean and centered-square/count formula without a residual
+correction; L1 uses exact represented-sum state; L2 sums working-precision squares, retaining
+overflow except for the Model's exact point-domain absolute-value identity. Scalar or
+parallel-scalar execution owns complete output cells. Only L1 and statistics use run-owned exact
+state; the family adds no materialization, partial result, combine state, vector body or native route.
 The fourteenth family is exactly one resolved-layout `MAX_POOL2D` or `AVERAGE_POOL2D` occurrence
 over matching rank-four NCHW BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 input and output. It uses the
 Model's literal floor/ceiling grid, symmetric padding, stride, and dilation. Scalar or parallel-scalar
@@ -3207,7 +3208,7 @@ their existing owners.
 
 The portable advanced-reduction family accepts exactly one fully static, resolved-layout
 `LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, or `L2_NORM` occurrence. Input and
-output use the same FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 representation. CPU consumes the
+output use the same one of all six floating representations. CPU consumes the
 Model's normalized ordered axes, keep-Dimension choice, and non-negative statistical correction. Axis
 order remains specialization and diagnostic identity; selected values are visited in canonical
 input-axis row-major order. The selected-domain count `N` must fit `long`, and statistics fail
@@ -3215,18 +3216,20 @@ closed unless `N > correction`.
 
 The numerical owner is selected while the class is generated:
 
-| Family | Stable finite algorithm | Workspace |
+| Family | Current arithmetic and traversal | Workspace |
 |---|---|---|
-| `LOG_SUM_EXP` | Find the maximum, then compensate the binary64 sum of `exp(value - maximum)` | None |
-| `VARIANCE`, `STANDARD_DEVIATION` | Exact result-type mean, then compensated deviations and squared deviations with the correction term | Existing exact-state slice for the mean |
+| `LOG_SUM_EXP` | Find the maximum, then compensate the working-precision sum of `exp(value - maximum)` | None |
+| `VARIANCE`, `STANDARD_DEVIATION` | Rounded exact mean, then compensated working-precision centered squares divided by `N - correction` | Existing exact-state slice for the mean |
 | `L1_NORM` | Exact sum of represented absolute values, rounded once | Existing exact-state slice |
-| `L2_NORM` | Scaled sum of squares followed by square root | None |
+| `L2_NORM` | Working-precision squares and compensated sum followed by square root; exact absolute value for a point domain | None |
 
-FLOAT32, BFLOAT16, and FLOAT16 values use binary64 intermediates and narrow once at the output.
-That is a CPU-private implementation choice, not public type promotion or a cross-backend bitwise promise.
-Log-sum-exp preserves a finite singleton directly. Statistics clamp only a negative roundoff
-residue before division; standard deviation then takes the non-negative principal square root.
-The L2 scale prevents avoidable finite overflow or underflow from squaring first.
+FLOAT64 uses binary64 working sites. FLOAT32, BFLOAT16, FLOAT16 and both FP8 formats use binary32
+arithmetic sites, including shifts, squares, compensation, division and transcendental results.
+Only the declared low output is narrowed. These are Model working boundaries, not a CPU-private
+permission to widen arithmetic. Log-sum-exp preserves a finite singleton directly. Statistics
+do not subtract an extra deviation correction or clamp a negative variance. L2 does not replace
+the multi-contributor square sum with a scaled/hypot algorithm: square or sum overflow remains
+positive infinity. The Model's point-domain absolute-value identity is checked before squaring.
 
 Special values are classified before finite arithmetic. NaN has priority and produces the CPU
 canonical quiet NaN. Positive infinity dominates log-sum-exp; an empty or all-negative-infinity
@@ -3243,14 +3246,17 @@ execution validates carrier/access/alignment, complete spans, output/input and w
 and output injectivity before any mutation or worker submission. Heap arrays, native-order
 `MemorySegment` carriers, and all matching mixed input/output pairs use one typed generated entry.
 
-Schema 46 adds the focused advanced-reduction identity, ordered-axis membership, correction,
-algorithm/pass shape, exact resource facts, and dispatch to three numerical emitters:
-log-sum-exp, corrected statistics, and norms. The retained fifteen generated classes cover five
-kinds across three representations, with three unchanged-family controls. Complete Class-File
+The historical schema-46 checkpoint added the advanced-reduction identity, ordered-axis membership,
+correction, algorithm/pass shape, exact resources and the three emitters. Its retained fifteen
+generated classes covered five kinds across three representations, with three unchanged-family controls.
+Complete Class-File
 inspection found no forbidden generated member. All targets and controls passed five isolated
 forks against optimal clean Java implementations with the same algorithm, traversal, address
 work, and stores. The worst fork ratio was `1.099406784x` and the worst median aggregate ratio was
 `1.087934030x`, both FLOAT64 log-sum-exp, within the task-local `<= 1.15x` gate.
+That timing receipt describes the old algorithms; it is not requalification of the current
+working-site correction. The public-readiness audit uses selective compatibility projection79
+and independent numerical regressions/public execution for the changed bodies.
 
 This family does not add public or shared semantics, gradients, compiler behavior, vector or
 native execution, fusion, materialization, dynamic Shapes/layouts, partial/combine state, or a
@@ -3388,13 +3394,13 @@ exact Shape. The four admitted forms are:
 | RMS | `[input]` | Divide by the root mean square |
 | Scaled RMS | `[input, scale]` | Divide, then multiply by scale |
 
-Every input may independently be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64. Promotion follows
-occurrence order—input/scale/bias for affine Layer and input/scale for scaled RMS—and the output
-plus exact typed epsilon must use the resulting type. Reads convert each represented input to that
-result type before numerical work. BFLOAT16, FLOAT16, and FLOAT32 results use FLOAT32 formula
-boundaries, including the rounded Layer mean and final divide/multiply/add; FLOAT64 uses FLOAT64.
-BFLOAT16 and FLOAT16 are encoded once at the final store. This is a CPU-private conforming computation boundary, not a public cast,
-result-format change, or cross-backend bitwise promise.
+Every operand may independently use any of the six Model floating types. Promotion follows
+occurrence order—input/scale/bias for affine Layer and input/scale for scaled RMS—and determines
+the output type. Epsilon follows the Model's typed metadata rule, including FLOAT32 metadata for
+FLOAT16 and FP8 results. Each original stored operand is decoded before the promoted computation.
+Low and FLOAT32 results use FLOAT32 formula sites, including the rounded Layer mean and final
+divide/multiply/add; FLOAT64 uses FLOAT64. A low result is encoded once at its final store.
+These Model working sites are not a public cast, quantization mode or cross-backend bitwise promise.
 
 A Layer slice with values `x_i` and population count `N` requests:
 
@@ -3405,12 +3411,12 @@ standardized_i = (x_i - mean) / sqrt(variance + epsilon)
 ```
 
 The generated body uses three complete passes. The first classifies the slice and calculates its
-exact represented-value sum in the existing exact-state workspace before rounding the mean once.
-The second forms compensated sums of deviations and squared deviations, applies the correction
-`sumSquares - sumDeviation^2 / N`, clamps only a negative roundoff residue to positive zero, and
-divides by `N`. The third standardizes and, for the affine form, performs separate result-format
+exact represented-value mean in the existing exact-state workspace before rounding the mean once.
+The second rounds each subtraction and square in the working type, compensates their sum and
+divides by `N`, preserving square/sum overflow. No extra deviation correction or negative-variance
+clamp is applied. The third standardizes and, for the affine form, performs separate working-type
 multiply and add operations. A finite constant slice, including mixed signed zeros, standardizes
-to exact positive zero; NaN or either infinity makes every standardized value NaN.
+to exact positive zero; NaN or either input infinity makes every standardized value NaN.
 
 RMS normalization instead uses the uncentered population mean square:
 
@@ -3419,12 +3425,13 @@ root         = sqrt(sum_i(x_i * x_i) / N + epsilon)
 normalized_i = x_i / root
 ```
 
-Its first pass uses scaled sum of squares to avoid avoidable finite overflow or underflow while
-forming the root; its second divides and optionally scales. NaN has priority. Without NaN, an
+Its first pass sums working-precision squares with compensation, retaining overflow, then applies
+count division, epsilon addition and square root; the second divides and optionally scales.
+No scaled-square or hypot rewrite hides an overflowing square. NaN has priority. Without NaN, an
 infinite input makes the root positive infinity, so finite numerators produce signed zero and
 infinite numerators produce NaN. RMS requires zero workspace. Layer declares exactly one existing
-eight-byte-aligned `AGGREGATE_EXACT_STATE` slice per simultaneous range; neither family declares
-materialization, partial values, combine state, saved statistics, or another resource kind.
+eight-byte-aligned exact-state slice per simultaneous range; neither family declares materialization,
+partial values, combine state, saved statistics or another resource kind.
 
 Each range owns complete leading slices and never divides a normalized slice. Scalar and
 parallel-scalar execution therefore visit every slice in the same logical row-major order and are
@@ -3533,8 +3540,9 @@ outputs = [output, nextRunningMean, nextRunningVariance,
 All descriptors and layouts are fully static and resolved. The input rank is at least two, the
 arbitrary normalized channel axis has extent `C`, and the other four inputs plus outputs one
 through four are rank-one `[C]` vectors. Every output has an injective writable layout. The CPU
-route accepts independent BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 inputs, promotes them in the
-displayed order, and requires every output plus momentum and epsilon to have the promoted result type.
+route accepts independent operands across all six floating types, promotes them in the displayed
+order and requires every output to have that result type. Momentum and epsilon retain the Model's
+typed metadata rule, including FLOAT32 metadata for FLOAT16 and FP8 results.
 Equivalent decomposed reductions and arithmetic remain ordinary nodes; training never shares an
 identity or runtime mode with batch inference.
 
@@ -3546,22 +3554,22 @@ root, output write, or worker submission.
 
 For a non-empty channel, the generated body makes three complete traversals. The first obtains the
 exact represented-value sum from one existing `AGGREGATE_EXACT_STATE` slice and rounds
-`batchMean = sum / N` once to the result computation format. The second forms compensated sums of
-deviations and squared deviations, then uses the fixed correction and separate divisions:
+`batchMean = sum / N` once to the result computation format. The second rounds each centered
+subtraction and square in the working type, compensates their sum and performs separate divisions:
 
 ```text
-numerator        = sumSquaredDeviation - sumDeviation * sumDeviation / N
+numerator        = sumSquaredDeviation
 biasedVariance   = numerator / N
 unbiasedVariance = numerator / (N - 1)
 savedInv         = 1 / sqrt(biasedVariance + epsilon)
 ```
 
-Only a finite negative roundoff residue in `numerator` is clamped to positive zero. Forward
-normalization and the saved inverse standard deviation therefore use biased population variance;
-the next running variance uses the separately divided unbiased estimate. Epsilon affects only the
-saved inverse-standard-deviation radicand. The four channel statistics are stored once in output
-slots one through four before the third traversal computes each normalized output as separate
-`input - mean`, multiply by `savedInv`, multiply by scale, then add bias operations.
+There is no extra deviation correction or negative-variance clamp; working-square and sum
+overflow remain observable. Forward normalization and saved inverse standard deviation use biased
+population variance; the next running variance uses the separately divided unbiased estimate.
+Epsilon affects only the inverse-standard-deviation radicand. The four channel statistics are
+stored once in output slots one through four before the third traversal computes each normalized
+output as separate `input - mean`, multiply by `savedInv`, multiply by scale, then add bias sites.
 
 Momentum is the weight of the new batch, not of the old statistic:
 
@@ -3570,12 +3578,13 @@ nextRunningMean     = (1 - momentum) * runningMean + momentum * batchMean
 nextRunningVariance = (1 - momentum) * runningVariance + momentum * unbiasedVariance
 ```
 
-ordinary graph outputs, not backend-created tape or persistent workspace. BFLOAT16, FLOAT16, and
-FLOAT32 results use FLOAT32 formula boundaries; FLOAT64 uses FLOAT64. BFLOAT16 and FLOAT16 narrow
-only at final stores. NaN or infinity in a non-empty input channel produces canonical NaN batch
-statistics and normalized results. Old running variance affects only its transition; it is not
-used, checked, or repaired for forward normalization. The written transition arithmetic remains authoritative at
-momentum endpoints, so a zero coefficient does not suppress NaN or infinity.
+All five results are ordinary graph outputs, not backend-created tape or persistent workspace.
+All four low formats and FLOAT32 results use FLOAT32 formula sites; FLOAT64 uses FLOAT64.
+Low results narrow only at final stores. NaN or infinity in a non-empty input channel produces
+canonical NaN batch statistics and normalized results. Old running variance affects only its
+transition; it is not used, checked or repaired for forward normalization. The written transition
+arithmetic remains authoritative at momentum endpoints: a zero coefficient does not suppress NaN
+or infinity.
 
 Preparation declares unique inputs once in first-occurrence order, then all five outputs, and
 exactly one eight-byte-aligned exact-state workspace slice per simultaneous range. A slice is

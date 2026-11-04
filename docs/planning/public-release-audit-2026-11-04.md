@@ -2,8 +2,8 @@
 
 ## Purpose and status
 
-Status: Implementation and source review complete; joined runtime/artifact qualification in progress.
-The user requested framework-wide verification, release-critical stabilization and actionable diagnostics.
+Status: Complete — source audit, preserving repairs, independent review, joined checks and
+isolated installed/source workflows accepted. Public publication remains Blocked by the owner.
 This audit supersedes private-distribution assumptions for readiness assessment, but does not
 select a licence, authorize public uploads or change numerical/ownership contracts.
 
@@ -78,11 +78,11 @@ artifact receipts in the production support matrix remain historical and are not
 ## Confirmed-finding repair frontiers
 
 Owner decision: retain no public redistribution grant for now. Public publication remains
-Blocked; technical audit, stabilization and local candidate qualification continue.
+Blocked; completion of the technical audit and local qualification does not grant publication rights.
 
-The coordinator source-confirmed the following findings. Status: Ready for each listed repair;
-baseline remains `564a9988349c259f6082b6905d98de24f2e216ff`. Dependencies: completed source
-investigation and stable existing contracts; parent records failing-before runtime receipts.
+R1–R14 repairs and R15/R16 reference migrations are integrated and locally accepted. The Ready
+packets below record their original execution baseline, not an open implementation frontier:
+`564a9988349c259f6082b6905d98de24f2e216ff`; source investigation and contract dependencies were satisfied.
 Parallel group: `PublicReleaseRepairs`. Conflicts: only the shared generated-identity seam
 assigned to R5 below; other write and semantic scopes are disjoint. Integration order: Any,
 with R6 before R5 so the combined numerical identity join follows both implementations.
@@ -222,3 +222,32 @@ on this Arm machine, universal numerical envelope or performance SLA is claimed.
 The [didactic documentation redesign](documentation-redesign.md) is queued as the separately
 requested next work, including the whole-framework explanation, package atlas and complete
 commented executable examples; it is not reported as implemented by this audit.
+
+## Result
+
+The joined native-enabled root `test build` and affected Javadoc gate passed. Source, standard
+Maven publications and the ad-hoc-signed native package were rebuilt into a distinct
+`0.1.0-public-audit.20261104` candidate. A fresh consumer resolved only `nn` and its published
+transitive closure. The same public programs then passed against Maven-only classes/native
+artifacts and independently rebuilt extracted Java/native source, without checkout runtime paths.
+Exact coverage and counts are in the
+[current support receipt](../backend-guide/production-support.md#public-readiness-audit-current-source-and-installed-candidate).
+
+The initial gates and recoveries are retained, not rewritten as successes. Besides production
+repair joins, native fixture corrections preserved canonical formals/typed controls, bound actual
+materialized fusion slots and asserted the now-observable native failure status. No production
+numerical semantics or capability domain was changed to make those fixtures pass.
+
+Versioned evidence belongs under
+`build/release/0.1.0-public-audit.20261104/verification.json` and `qualification/`: commands,
+source/runtime fingerprints, current-layout JUnit receipts, public output, original recovery
+history and the exercised consumer-source archive. The final documentation-only archive refresh
+must preserve all frozen non-Markdown source and runtime artifact hashes; the receipt records
+that comparison separately from the earlier execution.
+
+No known blocking source finding remains in the audited scope. This is bounded local technical
+acceptance, not a public licence, trusted publisher, exhaustive numerical proof, portable hardware
+qualification or universal performance claim. Existing Metal DTO Javadoc parameter warnings
+remain documentation work; they were not suppressed or mistaken for runtime failures.
+The next requested work is the [documentation redesign](documentation-redesign.md), including
+the whole-framework explanation, complete package/native atlas and commented runnable examples.

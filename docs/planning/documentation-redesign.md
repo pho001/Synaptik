@@ -2,15 +2,16 @@
 
 ## Status and authorization
 
-Status: Draft — user-requested follow-on work, queued after the active public-readiness audit.
+Status: Draft — user-requested follow-on work, queued after the completed public-readiness audit.
 The user approved a reader-oriented structure and explicitly required an explanation of the whole
 framework, every package and commented examples with explanations. No implementation is launched
 by this record. Existing normative authority and numerical/ownership contracts do not change.
 
-Depends on: the source-matched public-readiness audit and its current capability/distribution
-receipt. Conflicts with: active audit documentation edits. Parallel group: None until a Ready
-execution split assigns exclusive files. Common base revision: select the completed audit join
-at activation. Integration order: reader entry/one complete learning journey, then topical guides,
+Depends on: the completed source-matched public-readiness audit and its current
+`0.1.0-public-audit.20261104` capability/distribution receipt. Conflicts with: no active audit edits
+after its final documentation freeze. Parallel group: None until a Ready execution split assigns
+exclusive files. Common base revision: select the completed audit join at activation.
+Integration order: reader entry/one complete learning journey, then topical guides,
 framework explanation/package atlas, reference and old-link migration. Shared-document integration
 owner: coordinator. Integration validation: runnable external public-API examples, documentation
 link/anchor validation, affected Javadoc and human learning-journey review. Classification: A for

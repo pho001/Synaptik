@@ -51,9 +51,10 @@ CUDA, ONNX and CLI module markers are not usable products.
 
 Distribution remains **private/internal**: no public project licence or redistribution grant
 has been selected, and no public upload is authorized. The
-[public-readiness audit](docs/planning/public-release-audit-2026-11-04.md) is active.
-Earlier local-candidate receipts describe their original source and artifacts; they are not
-fresh acceptance evidence for changed code or a whole-release qualification claim.
+[public-readiness audit](docs/planning/public-release-audit-2026-11-04.md#result) and isolated
+local qualification passed for `0.1.0-public-audit.20261104`. See the
+[current support receipt](docs/backend-guide/production-support.md#public-readiness-audit-current-source-and-installed-candidate);
+earlier `0.1.0` receipts still describe only their original source and artifacts.
 
 
 ## Prerequisites
