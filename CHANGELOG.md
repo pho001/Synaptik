@@ -4,6 +4,21 @@
 
 ### Added
 
+- Public-readiness stabilization preserves full-precision logical/master restore identity,
+  bounded linear namespace acquisition, session-only cache isolation and exact tuning-batch
+  rebinding; caller-storage prefixes, partial resource adoption and terminal shutdown retain
+  ownership and original failure semantics.
+- Corrected CPU statistical working sites, square-overflow classes, L2 point identities,
+  exact pooling/attention divisors and categorical-loss gradients. Selective compatibility
+  projections 79/80 retire affected generated artifacts without bumping unrelated raw families.
+- Corrected Metal Conv2d/Conv3d contraction-before-bias ordering, active source-only BOOL Scan
+  validation, typed storage/control admission and empty-context lifetime checks. Scan grammar v2
+  declares a run-private first-failure record; coordinated identity45 and renewed shader
+  authentication reject stale layouts and decisions. Native causes remain attached to public errors.
+- Optional CPU preparation and ordinary Engine tuning observers report bounded detached facts
+  through the existing Trace envelope. Unobserved overloads perform no diagnostic allocation or
+  clock work; native execute/wait preserves the primary failure with later wait failure suppressed.
+
 - CPU BFLOAT16/FLOAT16 numerical execution and OFP8 `FLOAT8_E4M3`/`FLOAT8_E5M2` support through
   the existing operation, shared Compiler AD, Scan/recurrent, symbolic-batch and Training owners.
   Low arithmetic uses FLOAT32 work with one final narrowing; FP8 storage, selection and host

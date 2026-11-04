@@ -5,10 +5,10 @@
 Metal is a first-production backend, not an experimental CPU fallback. One backend owns each
 complete maximal Metal partition. The active protocol is native ABI 7 with thirteen exports,
 program schema 22 (`SM22`) and its 124-byte header, operation wires `1..116`, attribute wires `0..42`,
-type wires `1..7`, route wires `1..3`, and coordinated backend-local identity 44.
+type wires `1..7`, route wires `1..3`, and coordinated backend-local identity 45.
 Older program and decision identities are rejected. The authenticated fixed shader corpus has
-23 components and 190,688 UTF-8 bytes, SHA-256
-`f6a560fd381664d01e0ec7f65f2148646d9d9837015133c5571ebadfb2c776fc`.
+23 components and 190,781 UTF-8 bytes, SHA-256
+`0c936f49500dd5022ce55f5b4c2276fd000407520f3b6a11d50fc18e687b2568`.
 
 The [production support ledger](production-support.md#metal-production-target) separates
 operation-catalog execution, independent numerical oracles, composed training and final
@@ -470,7 +470,7 @@ device/library fingerprint.
 
 Schema22 workload bytes and compatibility include the fixed route, authenticated execution/body
 extension and manifest digest. Candidate/decision bytes retain route wires `1..3`,
-route-policy version43 and the target session.
+route-policy version45 and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable

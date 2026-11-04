@@ -1585,14 +1585,21 @@ BFLOAT16 and FLOAT16 ordinary, fixed-cell first-order and native Scan domains.
 Task-era qualification paragraphs retain their explicit checkpoint scope;
 they neither certify nor veto subsequent independently qualified occurrences.
 
-The interchangeability repair uses coordinated backend-local identity 44, retaining native ABI7
-and schema22/header124. Its authenticated fixed corpus is 190,688 UTF-8 bytes across 23 components,
-SHA-256 `f6a560fd381664d01e0ec7f65f2148646d9d9837015133c5571ebadfb2c776fc`.
+The public-readiness repair uses coordinated backend-local identity 45, retaining native ABI7
+and schema22/header124. Its authenticated fixed corpus is 190,781 UTF-8 bytes across 23 components,
+SHA-256 `0c936f49500dd5022ce55f5b4c2276fd000407520f3b6a11d50fc18e687b2568`.
 Physical unary/comparison/numeric-MATMUL reads share original-carrier layout authentication;
 ordinary empty outputs and zero-grid fused anchors preserve the family identities without reads
 or dispatch. Numeric GeneralScan may map proved strided ingress through ordinary CONTIGUOUS.
 Raw F64 Scan is canonical, non-gradient and source-only; no F64 body arithmetic, AD, implicit
 conversion, dynamic-B Metal or runtime fallback is authorized.
+Scan attribute grammar v2 authenticates a fifteen-word control prefix, including a five-word
+run-private first-failure record; v1 is incompatible. The added forty bytes per Scan are declared
+before shared assignment. Failure context reports category, original time, unit, operand and
+logical ordinal without capturing tensor data or replaying the body. Source-only active BOOL
+roles validate before publication; inactive sequence cells remain unread. External typed controls
+require canonical descriptors; independently proved local dense views retain their own admission.
+FP8 remains rejected at typed Metal storage and publication boundaries, including empty cases.
 
 
 Metal backend owns:
@@ -1804,12 +1811,13 @@ not a Runtime certificate, tolerance policy, retry, or fallback layer.
 
 Current generated CPU artifact envelopes use schema 71. Current Metal images use schema 22
 (`SM22`) with a 124-byte header, and coordinated workload, exact-policy, candidate, compatibility,
-route and codec identities use version 43. Native ABI7 retains thirteen exports. CPU schema68
+route and codec identities use version 45. Native ABI7 retains thirteen exports. CPU schema68
 and Metal schema19/identity29 are historical pre-cutover baselines. Metal identities30–38 record
 prior profile-free, elementary, boundary and view repairs;39 added FLOAT32 image folds,40 shared
 pooling overlap,41 the joined ordinary/native-Scan audit extension,42 shared original-typed
-FLOAT32/BFLOAT16/FLOAT16 execution and dynamic composition references, and43 the singleton
-MATMUL product repair without changing K>1 arithmetic. Stale identities reject.
+FLOAT32/BFLOAT16/FLOAT16 execution and dynamic composition references;43 the singleton
+MATMUL product repair;44 affine/empty ingress;45 contraction-before-bias convolution and Scan v2
+validation/workspace/exact admission. Stale identities reject.
 CPU schema 70
 corrected activation extremes and named low FLOAT32 working sites; those repairs changed neither
 Model semantics nor provider admission. CPU schema 71 retains those repairs and adds the bounded
@@ -2082,10 +2090,11 @@ recipe domain. Public checkpoint wire versions and strict descriptor rebind rema
 this does not admit arbitrary PURE bodies or optimizer/history/compiled-plan continuation.
 
 Ordinary operation/attribute identities are reused where their grammar suffices. Scan added wire
-116/attribute42 at schema21/identity41; current schema22/`SM22`/header124/identity43 retains the
+116/attribute42 at schema21/identity41; current schema22/`SM22`/header124/identity45 retains the
 shared typed execution and dynamic composition-reference grammar. Every caller uses that grammar,
 shader/component/source authentication is renewed and stale inputs reject. ABI7/thirteen exports
-remain. Metal general FLOAT64 numerical arithmetic, unsupported mixed-low domains, CPU low
-arithmetic and unqualified higher-order recurrent derivatives remain excluded. Source-matched
+remain. Metal general FLOAT64 numerical arithmetic, unsupported mixed-low domains and
+unqualified higher-order recurrent derivatives remain excluded. CPU low arithmetic follows its
+separate parity cutover, not this Metal qualification. Source-matched
 device execution and independent source review precede production-support claims; current
 component evidence is not final full-catalog or sealed-release qualification.

@@ -12,16 +12,16 @@ import java.util.Optional;
  * <p>The stable candidate order begins with the current safe heuristic. The value owns no
  * measurement, cache location, native handle, executable, physical allocation, or Runtime state.
  * Shared Prepare can transport it only through the method-free {@link BackendTuningCandidateBatch}
- * role. Version 44 binds authenticated affine numeric reads, ordinary empty identities and
- * mapped Scan ingress while retaining original carriers and singleton MATMUL products.
+ * role. Version 45 binds contraction-before-bias convolution, the Scan v2 failure workspace,
+ * source-only BOOL validation and the declared exact mixed-low admission boundary.
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 44;
+    static final int CANDIDATE_SCHEMA_VERSION = 45;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 44;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 45;
     /** Current exact Metal operation-composition policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 44;
+    static final int ROUTE_POLICY_VERSION = 45;
 
     /** Stable complete private route configurations. */
     enum Candidate {

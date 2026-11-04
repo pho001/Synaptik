@@ -16,9 +16,9 @@ import java.util.zip.CRC32;
  *
  * <p>The format is a backend-local defensive transport, not the tools-owned workload-cache
  * artifact. It contains no executable, native handle, file path, objective, sample, or timing.
- * Decoding is fail-closed and performs no I/O or native work. The current codec is version 40,
- * binding FLOAT32 Pool2d/Pool3d overlapping cotangents through shared image folds;
- * version 39 and earlier inputs are incompatible.
+ * Decoding is fail-closed and performs no I/O or native work. Version 45 binds the corrected
+ * convolution sites, Scan v2 failure workspace and exact control/storage admission;
+ * version 44 and earlier inputs are incompatible.
  */
 final class MetalNegTuningCodec {
     static final int MAX_WORKLOAD_BYTES = 64;
@@ -29,7 +29,7 @@ final class MetalNegTuningCodec {
     private static final int COMPATIBILITY_MAGIC = 0x4d4e434d; // MNCM
     private static final int CANDIDATE_MAGIC = 0x4d4e4341; // MNCA
     private static final int DECISION_MAGIC = 0x4d4e4443; // MNDC
-    private static final int CODEC_VERSION = 44;
+    private static final int CODEC_VERSION = 45;
     private static final int SESSION_SCOPE = 1;
 
     /**

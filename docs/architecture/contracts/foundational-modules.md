@@ -19,7 +19,11 @@ execution lifecycles, concrete backend implementation, or extensions.
 
 ### `modules/trace`
 
-`modules/trace` owns typed diagnostic DTOs only.
+`modules/trace` owns neutral typed diagnostic envelopes, correlation IDs and shared payload DTOs.
+The open `TracePayload` marker also permits immutable producer-specific DTOs in their owning
+module. Those DTOs contain detached diagnostic values only, not graph, Tensor, storage, native
+handle, exception or producer-domain object references. Producer ownership does not introduce
+any dependency from Trace back to Engine or a backend.
 
 Allowed:
 

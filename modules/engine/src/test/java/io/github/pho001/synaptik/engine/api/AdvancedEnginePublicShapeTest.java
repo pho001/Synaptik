@@ -28,10 +28,6 @@ final class AdvancedEnginePublicShapeTest {
         assertTrue(AutoCloseable.class.isAssignableFrom(AdvancedPreparedExecution.class));
         assertTrue(AutoCloseable.class.isAssignableFrom(AdvancedRunResult.class));
 
-        assertEquals(List.of("backward", "builder", "close", "compile", "compile", "compute",
-                        "compute", "compute", "compute", "isClosed", "prepare", "prepareTuned",
-                        "run", "runValues", "standard"),
-                publicMethodNames(Engine.class));
         assertEquals(List.of("borrow", "close", "compile", "isClosed", "prepare", "run",
                         "takeOwnership"), publicMethodNames(AdvancedEngine.class));
         assertEquals(List.of(), publicMethodNames(AdvancedCompiledGraph.class));

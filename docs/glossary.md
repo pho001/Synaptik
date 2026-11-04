@@ -3470,11 +3470,11 @@ keeps dense outputs aligned to original time, writes positive zero at padded pos
 returns the explicit final states. A zero-length row returns its initial states semantically; a
 zero-time input has empty output and requires all runtime lengths to be zero. CPU validates every
 length before writing any scan result, uses isolated run-owned row scratch and dense outputs,
-and preserves raw initial states for zero-length rows. Every current
-backward-capable Compiler mode rejects a complete forward inventory containing recurrence before
-constructing a seed or derivative Tensor. The supported first-order gradient inventory therefore
-remains unchanged; backpropagation through time (BPTT) is not implemented. Runtime remains
-recurrence-blind while invoking the CPU-owned direct Java loop.
+and preserves raw initial states for zero-length rows. Compiler-generated selected first-order
+derivatives execute through the existing ordinary and controlled Scan owners; there is no
+backend-owned backward engine. Fixed RNN/GRU/LSTM rounding remains distinct from an explicit
+general Scan cell program. Forward and each selected derivative qualify independently.
+Runtime remains recurrence-blind while invoking the backend-owned prepared executable.
 
 This differs from a [`cumulative scan`](#cumulative-scan), whose fixed associative addition or
 multiplication combines prefixes of one input and carries no recurrent state or parameters. It
@@ -3667,9 +3667,9 @@ length-role inference, and needs no prior forward. `finalHidden` immediately aft
 its existing semantic `[B,H]` final-state port, including initial zero for a zero-length row.
 `lastTimeStep` instead selects dense time `T-1`. Ordinary steps do not inherit a padding mask;
 only each scan skips its own suffix. Every appended selector counts in step-seed derivation.
-There is no hidden carry, and fixed-scan builder Models are inference-only. Flatten always preserves axis
-zero, which is time rather than batch in TBF. These are composition conventions, not new Tensor
-semantics, scan BPTT, a graph registry, or another execution lifecycle. See the
+There is no hidden carry. Fixed-scan builder Models may use configured first-order training when
+their selected Compiler/backend closure qualifies. Flatten always preserves axis zero, which is
+time rather than batch in TBF. These conventions introduce no separate execution or AD lifecycle. See the
 [fluent construction guide](user-guide/running-models.md#build-a-fluent-model).
 
 ### Detached Model results

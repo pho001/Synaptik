@@ -6,8 +6,9 @@ This directory builds the native ABI used by Synaptik Metal on Apple-silicon mac
 ABI 7 retains thirteen context, shared-storage buffer, executable and singleton-NEG exports.
 The current graph image is schema 22 (`SM22`) with a 124-byte header, operation wires1..116,
 attribute wires0..42, carrier wires1..7 and fixed graph route2 or3.
-Coordinated Java candidate/workload/policy/compatibility/codec identities are version43; stale inputs
-have no compatibility reader or migration alias.
+Coordinated Java candidate/workload/policy/compatibility/codec identities are version45; stale inputs
+have no compatibility reader or migration alias. Scan attribute grammar v2 authenticates the
+fifteen-word control prefix and its invocation-private forty-byte failure record; v1 rejects.
 
 Java and native code independently validate declared types, shapes, attributes, gradient bits,
 canonical result roles, physical layouts/spans and the authenticated execution plan.

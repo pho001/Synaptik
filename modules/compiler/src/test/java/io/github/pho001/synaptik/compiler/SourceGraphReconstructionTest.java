@@ -212,40 +212,6 @@ final class SourceGraphReconstructionTest {
         }
     }
 
-    @Test
-    void carryFreeAndZeroRowHeadersRejectColdBeforeAnyIdsButRemainOrdinarySources() {
-        for (long time : List.of(0L, 3L)) for (long batch : List.of(0L, 1L, 3L))
-            for (boolean reverse : List.of(false, true)) {
-                Tensor x = formal(DataType.FLOAT64, batch, 2);
-                Tensor old = formal(DataType.FLOAT32);
-                Tensor initial = formal(DataType.FLOAT32);
-                Tensor sequence = formal(DataType.FLOAT64, time, batch, 2);
-                Tensor lengths = formal(DataType.INT64, batch);
-                Tensor early = initial.neg();
-                for (boolean carry : List.of(false, true)) for (boolean lengthAware : List.of(false, true)) {
-                    if (carry && !lengthAware) continue; // The retained all-valid cold header.
-                    var body = new ScanBody(carry ? List.of(old) : List.of(), List.of(x), List.of(),
-                            carry ? List.of(old.add(x.sum().cast(DataType.FLOAT32))) : List.of(),
-                            List.of(x, x));
-                    var scan = lengthAware
-                            ? Scan.apply(carry ? List.of(initial) : List.of(), List.of(sequence), List.of(),
-                                    lengths, 0, List.of(java.util.OptionalInt.of(0)), body, reverse)
-                            : Scan.apply(List.of(), List.of(sequence), List.of(), body, reverse);
-                    List<Tensor> roots = List.of(early, scan.outputs().getFirst());
-                    var raw = GraphCapture.capture(roots);
-                    assertDoesNotThrow(() -> CapturedGraphInference.inferAndValidate(raw));
-                    assertDoesNotThrow(() -> compile(roots, List.of(), false));
-                    var leaves = new ArrayList<Tensor>(List.of(initial, sequence));
-                    if (lengthAware) leaves.add(lengths);
-                    assertColdFailureWithoutIds(() -> GraphCompilationPort.captureSource(roots));
-                    for (var graph : List.of(raw, withOutputs(raw, List.of(raw.outputs().getFirst())))) {
-                        assertColdFailureWithoutIds(() -> SourceGraphReconstruction.preflight(graph));
-                        assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(graph, leaves));
-                        assertColdFailureWithoutIds(() -> new GraphCompilationPort.SourceCapture(graph, leaves));
-                    }
-                }
-            }
-    }
 
     @Test
     void twentyThousandUnaryBodyConstructsCompilesColdRebuildsAndDifferentiates() {

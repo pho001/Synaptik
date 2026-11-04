@@ -976,13 +976,13 @@ row/algebra/activity rules stay unchanged. A no-ROW reverse can later use only S
 accumulators, or no carry when only floating sequence emissions are required. This authorizes no
 dummy state, discrete cotangent, replay, unrolling, map API or additional execution owner.
 
-Until separately qualified, Compiler inference/AD, direct Prepare and direct CPU independently
-reject `carryCount==0` or `lengthAware && rowCarryCount==0` before first-carry assumptions,
-derivative IDs, analyzer calls, resources or realization. Cold reconstruction and raw encoding/
-decoding independently retain opcode23's nonempty-carry and opcode33's positive-ROW domains,
-including pre-sizing/pre-allocation rejection. Mode remains opcode-derived on wire; no boolean,
-v6 or new opcode. Existing v1-v5 accepted bytes and qualified CPU internal IR/keys/generated
-bytes remain unchanged. The explicit source flag is not a blanket identity bump.
+The original positive-ROW consumer checkpoint rejected empty-carry/zero-ROW headers before
+first-carry assumptions. Subsequent ordinary inference/AD and CPU qualification supersede that
+checkpoint independently. Current graph-model v4/v5 cold reconstruction and encoding/decoding
+admit zero carry and zero ROW counts under their
+[existing scoped wire rules](extensions-training.md#canonical-graph-model-version-4).
+Mode remains opcode-derived on wire, with no new boolean, opcode or identity-wide bump.
+Preserve static geometry, role/axis/dtype guards and the qualified nonempty publication inventory.
 
 
 <a id="prospective-per-value-typed-length-aware-source"></a>

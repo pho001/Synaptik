@@ -49,8 +49,8 @@ import java.util.OptionalInt;
  * maximum/average Pool3d geometry and fixed flat scans, plus general scans with a bounded body-only
  * constructor closure. All-valid bodies retain applicable Model dtypes; length bodies require
  * static per-value floating types, including OFP8, and the retained rank/role/attribute intersection.
- * Cold headers still require nonempty carry and, in length mode, at least one ROW carry;
- * ordinary compilation and generated reverse scans have independent, broader admission.
+ * Carry-free and zero-ROW headers retain the qualified graph-model v4/v5 source domains;
+ * ordinary compilation and each generated reverse body still qualify independently.
  * Reconstruction creates fresh canonical formals for every declaration, invokes each public
  * family constructor once per occurrence and retains all canonical
  * ports, without time unrolling. New substitution ties are checked per occurrence before IDs.
@@ -108,10 +108,6 @@ final class SourceGraphReconstruction {
             var kind = node.operation().kind();
             if (kind == ScanKind.SCAN) {
                 var attrs = (ScanAttrs) node.operation().attrs();
-                if (attrs.carryCount() == 0 || attrs.lengthAware() && attrs.rowCarryCount() == 0) {
-                    throw new IllegalArgumentException(node.id()
-                            + ": cold scan requires nonempty carry and positive ROW carry in length mode");
-                }
                 if (bodyScope) throw new IllegalArgumentException("nested source scan");
                 var body = node.scanBody().orElseThrow();
                 var roles = new LinkedHashSet<>(body.nextCarry());

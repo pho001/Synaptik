@@ -3,7 +3,7 @@
 
 /* Included in the existing executable implementation after its ordinary metadata/build/encode
  * owners. No exported entry point, alternate ordinary decoder, or Runtime body executor is added.
- * This decoder consumes exactly MetalScanEncoding v1 attribute words in the authenticated
+ * This decoder consumes exactly MetalScanEncoding v2 attribute words in the authenticated
  * enclosing program schema. All mutable local/control storage is a declared invocation workspace region.
  */
 #include "synaptik_general_scan_binding_kernels.h"
@@ -95,7 +95,7 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
     if (wordData == nil) return nil;
     uint64_t *w = wordData.mutableBytes;
     for (uint32_t i = 0U; i < wordCount; i++) w[i] = synaptik_read_le64(bytes + (size_t)i * 8U);
-    if (w[0] != UINT64_C(0x5343414e504c414e) || w[1] != 1U || w[2] != wordCount || w[29] != wordCount
+    if (w[0] != UINT64_C(0x5343414e504c414e) || w[1] != 2U || w[2] != wordCount || w[29] != wordCount
             || w[3] > INT64_MAX || (w[4] & ~7U) != 0U || w[5] > 4096U || w[6] == 0U || w[6] > 4096U
             || w[7] > 4096U || w[8] > 4096U || w[9] > 4096U || w[10] > w[5] || w[11] > INT64_MAX
             || w[12] == 0U || w[12] > 4096U || w[13] > 512U || w[14] != w[5] + w[6] + w[7]

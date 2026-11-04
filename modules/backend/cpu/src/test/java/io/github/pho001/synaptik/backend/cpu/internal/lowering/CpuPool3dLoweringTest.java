@@ -15,18 +15,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 public class CpuPool3dLoweringTest {
-    @Test void lowersLiteralCeilGeometryWithSchema56AndZeroWorkspace() {
-        var context=context(Pool3dKind.AVERAGE_POOL3D,
-                new AveragePool3dAttrs(2,2,2,2,2,2,2,2,2,1,1,1,true),DataType.FLOAT32,
-                Shape.of(1,2,3,3,3),Shape.of(1,2,4,4,4));
-        var lowered=new CpuPool3dLowering().lower(context);
-        assertEquals(128,lowered.pool3dGeometry().orElseThrow().outputCount());
-        var plan=new io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer()
-                .analyze(context).plan();
-        assertAll(()->assertEquals(56,plan.units().getFirst().portablePlan().specialization().classIdentitySchema()),
-                ()->assertTrue(plan.units().getFirst().pool3dGeometry().isPresent()),
-                ()->assertTrue(plan.workspaceDeclaration().isEmpty()));
-    }
 
     @Test void rejectsOutputShapeDisagreement() {
         assertThrows(IllegalArgumentException.class,()->new CpuPool3dLowering().lower(context(

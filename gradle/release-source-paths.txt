@@ -415,6 +415,7 @@ docs/planning/backends/openblas-provider/tasks/0001-library-loading-and-required
 docs/planning/backends/openblas-provider/tasks/0002-float32-float64-row-major-gemm-invocation.md
 docs/planning/backends/openblas-provider/tasks/0003-thread-control-and-native-provider-checkpoint.md
 docs/planning/backends/openblas-provider/tasks/0004-optional-direct-bfloat16-output-gemm-capability.md
+docs/planning/documentation-redesign.md
 docs/planning/dynamic-batch-execution.md
 docs/planning/extensions/checkpoint/master-plan.md
 docs/planning/extensions/checkpoint/tasks/0001-checkpoint-module-boundary.md
@@ -815,6 +816,7 @@ docs/planning/planning-guide.md
 docs/planning/production-release-goal.md
 docs/planning/project-review-2026-10-13-findings.md
 docs/planning/project-review-2026-10-13.md
+docs/planning/public-release-audit-2026-11-04.md
 docs/planning/roadmap.md
 docs/planning/tools/benchmarks/master-plan.md
 docs/planning/tools/benchmarks/tasks/.gitkeep
@@ -1005,6 +1007,8 @@ modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/CpuBacke
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/CpuCapabilityProvider.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/CpuCompletePlanTuning.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/CpuLocalWorkloadTuning.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/CpuPreparationDiagnostics.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/CpuTraceObserver.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/cache/CpuGeneratedKernelArtifactStore.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/cache/CpuGeneratorSchema.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/cache/CpuKernelSpecialization.java
@@ -1159,6 +1163,7 @@ modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionPreparationPlan.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionPreparer.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPreparedScheduleAssembler.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuTraceProducer.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/package-info.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/reference/CpuAdvancedReductionReferenceKernel.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/reference/CpuAttentionReferenceKernel.java
@@ -1217,7 +1222,6 @@ modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/package-info.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/package-info.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/CpuAttentionCapabilityTest.java
-modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/CpuCapabilityProviderPublicShapeTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/CpuCapabilityProviderTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/CpuConv3dCapabilityTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/CpuGeneralScanCapabilityTest.java
@@ -1365,6 +1369,7 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuStableReductionStageCDirectOracle.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuStableReductionStageCPerformanceTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuStableReductionVectorNumericalSpikeTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuStatisticsWorkingSitesTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuStoredSubnormalProviderRegressionTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuSymbolicLengthScanCleanJavaOracle.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuSymbolicLengthScanEquivalentJavaOracle.java
@@ -1493,6 +1498,7 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasTuningBatchTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnLowPrecisionTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnNativeContractTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnWorkspaceFailureTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/CpuRecurrentScanCleanJavaOracle.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/CpuRecurrentScanScalarTimingTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/spi/CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest.java
@@ -1664,6 +1670,7 @@ modules/backend/metal/src/main/java/io/github/pho001/synaptik/backend/metal/Meta
 modules/backend/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalScanLowering.java
 modules/backend/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalScanOrdinaryOperation.java
 modules/backend/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalScanPlan.java
+modules/backend/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalScanValidationFailure.java
 modules/backend/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalScatterSupport.java
 modules/backend/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalTraceObserver.java
 modules/backend/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalTraceProducer.java
@@ -1775,6 +1782,7 @@ modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/Grap
 modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/GraphArtifactV7Test.java
 modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpointGeneralScanTest.java
 modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpointTest.java
+modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/GraphNameValidationTest.java
 modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/GraphValueStorageTest.java
 modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/Pool3dGraphArtifactTest.java
 modules/compiler/build.gradle.kts
@@ -1915,6 +1923,9 @@ modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java
 modules/engine/src/main/java/io/github/pho001/synaptik/engine/EngineBackendComposition.java
 modules/engine/src/main/java/io/github/pho001/synaptik/engine/EngineBackendRegistry.java
 modules/engine/src/main/java/io/github/pho001/synaptik/engine/EnginePreparation.java
+modules/engine/src/main/java/io/github/pho001/synaptik/engine/EngineTuningDiagnostic.java
+modules/engine/src/main/java/io/github/pho001/synaptik/engine/EngineTuningObserver.java
+modules/engine/src/main/java/io/github/pho001/synaptik/engine/EngineTuningTraceProducer.java
 modules/engine/src/main/java/io/github/pho001/synaptik/engine/HostTensorValue.java
 modules/engine/src/main/java/io/github/pho001/synaptik/engine/MetalEngineBackendComposition.java
 modules/engine/src/main/java/io/github/pho001/synaptik/engine/ModelAutotuningPreparation.java
@@ -1937,6 +1948,7 @@ modules/engine/src/test/java/io/github/pho001/synaptik/engine/EngineProducerless
 modules/engine/src/test/java/io/github/pho001/synaptik/engine/EngineStandardCompositionTest.java
 modules/engine/src/test/java/io/github/pho001/synaptik/engine/EngineSymbolicScanTest.java
 modules/engine/src/test/java/io/github/pho001/synaptik/engine/EngineSymbolicScanTimingTest.java
+modules/engine/src/test/java/io/github/pho001/synaptik/engine/EngineTuningDiagnosticsTest.java
 modules/engine/src/test/java/io/github/pho001/synaptik/engine/EngineTypedLifecycleTest.java
 modules/engine/src/test/java/io/github/pho001/synaptik/engine/ModelAutotuningCompositionTest.java
 modules/engine/src/test/java/io/github/pho001/synaptik/engine/RepresentativeExecutionSessionTest.java

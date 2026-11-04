@@ -110,7 +110,7 @@ class MetalScanPlanTest {
         var plan = MetalScanLowering.plan(additiveQuery(3, 2, false, false));
         long[] valid = MetalScanEncoding.encode(plan);
         assertDoesNotThrow(() -> MetalScanEncoding.validate(valid));
-        long[] stale = valid.clone(); stale[1] = 0;
+        long[] stale = valid.clone(); stale[1] = 1; // Prior control prefix has no failure record.
         assertThrows(IllegalArgumentException.class, () -> MetalScanEncoding.validate(stale));
         long[] repeated = valid.clone(); repeated[Math.toIntExact(repeated[27]) + 1] = 0;
         assertThrows(IllegalArgumentException.class, () -> MetalScanEncoding.validate(repeated));

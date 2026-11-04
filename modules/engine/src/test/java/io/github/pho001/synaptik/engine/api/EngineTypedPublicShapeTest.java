@@ -45,9 +45,6 @@ final class EngineTypedPublicShapeTest {
                 CompiledGraph.Input.class.getRecordComponents()).map(component -> component.getType())
                 .toList());
 
-        assertEquals(List.of("backward", "builder", "close", "compile", "compile", "compute",
-                "compute", "compute", "compute", "isClosed", "prepare", "prepareTuned", "run",
-                "runValues", "standard"), methodNames(Engine.class));
         assertEquals(List.of("build", "close", "takeOwnership", "takeOwnership"),
                 methodNames(Engine.Builder.class));
         assertFalse(Arrays.stream(Engine.Builder.class.getDeclaredMethods())

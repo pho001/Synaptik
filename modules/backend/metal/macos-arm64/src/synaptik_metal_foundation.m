@@ -419,7 +419,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
         { SynaptikTask0060ReductionKernelSource, 6287U, "8251b76eec9f0fac02f1143175f9e044e40533f1ec0e72dcceceb4b9f0b0b052" },
         { SynaptikTask0061MatmulKernelSource, 7013U, "cc7ba9eacdbfe9f423f704d53834e52daba018845e0b9c515ffa005c735ad607" },
         { SynaptikTask0063OrderingKernelSource, 8781U, "2636a8a4c9850a583cb7776a04305b7d35ba58fe577341baee9b1eebffd27fc8" },
-        { SynaptikTask0064ConvolutionPoolingKernelSource, 15807U, "00bc226b18320ca8f98a744abbd7fae0e6edc952fae0592b5c6c4e6b90a00faa" },
+        { SynaptikTask0064ConvolutionPoolingKernelSource, 15900U, "f5b3cc61b148c791f23334c915abc41ab18ec4152093ac60da1360b66d14bbe6" },
         { SynaptikTask0069AggregateKernelSource, 1061U, "411e6a254294f13e78bd9d851f64649c5f48cc994156426df470a272afe81dcd" },
         { SynaptikTask0065RngDropoutKernelSource, 1504U, "467e0304c8e48563ccceae0b8ae304fd787da58d5e94a61bca0159372e0006b0" },
         { SynaptikTask0066DtypeLayoutKernelSource, 31965U, "eabafc02f9ce15e1d16c9cf34e7efb1b1ea990dc3433e2336c70b00603e89310" },
@@ -444,7 +444,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
     }
     return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES
             && synaptik_source_digest_matches(fixed,
-                    "f6a560fd381664d01e0ec7f65f2148646d9d9837015133c5571ebadfb2c776fc")
+                    "0c936f49500dd5022ce55f5b4c2276fd000407520f3b6a11d50fc18e687b2568")
             ? fixed : nil;
 }
 
@@ -1190,7 +1190,7 @@ static BOOL synaptik_attribute_is_valid_in_context(
         uint32_t operation, uint32_t kind, const uint8_t *words, uint32_t count, BOOL scan_body) {
     if (operation == 116U) return !scan_body && kind == 42U && words != NULL && count >= 32U
             && count <= (1U << 20U) && synaptik_read_le64(words) == UINT64_C(0x5343414e504c414e)
-            && synaptik_read_le64(words + 8U) == 1U && synaptik_read_le64(words + 16U) == count;
+            && synaptik_read_le64(words + 8U) == 2U && synaptik_read_le64(words + 16U) == count;
     if (kind == 0U) return count == 0U;
     if (kind == 1U) {
         uint32_t cursor = 0U;

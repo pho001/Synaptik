@@ -7,13 +7,15 @@ import java.util.List;
  * Offsets and lengths are in 64-bit little-endian words. Every section is contiguous, every
  * record self-sizes, and the final offset equals the complete attribute payload length; unknown
  * versions, trailing words and overlapping sections fail closed.
+ * Version 2 authenticates the fifteen-word control prefix, including the five-word
+ * invocation failure record; version 1 control layouts are incompatible.
  * The enclosing ordinary program digest authenticates every byte, including the captured body,
  * structural activity, exact demand and all physical binding recipes. No invocation value occurs
  * here. This is not a second ordinary-operation decoder or a separately exported native ABI.
  */
 final class MetalScanEncoding {
     static final long MAGIC = 0x5343414e504c414eL;
-    static final int VERSION = 1;
+    static final int VERSION = 2;
     static final int HEADER_WORDS = 32;
     static final int MAX_VALUES = 4096;
     static final int MAX_UNITS = 512;

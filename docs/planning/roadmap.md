@@ -21,6 +21,16 @@ for source/build navigation; historical commands and hashes remain original-revi
   successful focused evidence; run one combined checkpoint after ordered integration.
 - Follow the [planning guide](planning-guide.md); never derive architecture from old task prose.
 
+## Queued documentation redesign
+
+The user requested a [didactic documentation redesign](documentation-redesign.md) after the active
+public-readiness audit. Status: Draft, not an execution frontier. Scope includes a coherent learning
+journey, a connected explanation of the whole framework, every production package and native
+component, accessible diagrams, and commented runnable examples with explanations and expected
+results. Activate against the completed audit base with explicit editorial/example ownership;
+do not replace current technical verification or silently move normative authority.
+
+
 ## Completed checkpoint: repository review repairs
 
 The user authorized [project review 2026-10-13](project-review-2026-10-13.md) against production

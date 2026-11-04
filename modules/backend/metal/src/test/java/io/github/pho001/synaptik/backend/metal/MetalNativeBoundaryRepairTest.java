@@ -58,8 +58,9 @@ class MetalNativeBoundaryRepairTest {
                     List.of(), List.of(data, indices), List.of(), body, false).outputs().getFirst();
             ByteBuffer controls = ByteBuffer.allocate(32).order(ByteOrder.nativeOrder());
             controls.putLong(0).putLong(1).putLong(0).putLong(scatter ? 0 : 2);
-            RuntimeException failure = assertThrows(scatter ? IllegalArgumentException.class
-                            : IndexOutOfBoundsException.class,
+            Class<? extends RuntimeException> failureType = scatter
+                    ? IllegalArgumentException.class : IndexOutOfBoundsException.class;
+            RuntimeException failure = assertThrows(failureType,
                     () -> prepared(List.of(output), Map.of(data.id(), numeric(DataType.FLOAT32, 1, 2, 3, 4),
                             indices.id(), controls.array()), Optional.empty()));
             org.junit.jupiter.api.Assertions.assertTrue(failure.getMessage().contains("time=1"), failure.getMessage());

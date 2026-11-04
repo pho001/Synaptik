@@ -40,7 +40,8 @@ public final class CpuAttentionEmitter {
    * Emits complete score, classification, normalization, output, and optional weights loops.
    *
    * @param c non-null Class-File code builder receiving the generated entry body
-   * @param s non-null literal-attention scalar specialization with an attention scratch parameter
+   * @param s non-null literal-attention scalar specialization with exact-count binary32 or
+   *     retained binary64/mixed-input compatibility and an attention scratch parameter
    * @param ir non-null attention identity containing only code-shaping facts
    * @throws IllegalArgumentException if the specialization and IR do not describe the supported
    *     current direct scalar attention family
@@ -48,7 +49,9 @@ public final class CpuAttentionEmitter {
   public void emit(CodeBuilder c, CpuKernelSpecialization s, CpuKernelIr ir) {
     if (!ir.familyIdentity().startsWith("attention:")
         || s.classIdentitySchema() != (s.boundaryDataTypes().getLast() == DataType.FLOAT64
-            ? CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
+            ? CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(ir)
+                ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
+                : CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
             : CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA)
         || !s.scratchParameter()
         || s.executionStrategy().compute()

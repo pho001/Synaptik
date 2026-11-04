@@ -19,21 +19,18 @@ fixed CPU ownership, while `Engine.builder()` explicitly owns opened CPU and/or 
 and composes their partitions into one prepared schedule. Tensor expressions can be compiled,
 prepared once, run repeatedly with isolated invocation state, and materialized as detached host
 values. One-shot forward computation and a bounded scalar-objective backward convenience are also
-current. The public Training extension adds one reusable backend-neutral Engine session,
-persistent SGD, gradient accumulation, and detached in-memory state over its bounded shareable-
-native parameter domain. BFLOAT16 and FLOAT16 parameters retain private FLOAT32 master, momentum,
-and accumulation values and publish one narrowed logical value only after a successful update.
-Metal executes an occurrence-qualified static domain under one profile-free Model numerical
-contract. Supported homogeneous FLOAT32 occurrences have independently queried BFLOAT16 and
-FLOAT16 counterparts with FLOAT32
-working values and accumulators and one final ties-to-even narrowing. Every BFLOAT16/FLOAT16
-partition uses one fixed custom program and exposes no MPSGraph, classic-MPS, MPP, CPU, retry, or
-fallback route. Mixed CPU/Metal plans use explicit
-bidirectional transfer for all seven model data types over exact rank-0..16 static canonical or
-positive-stride non-overlapping layouts with checked physical spans. A standard-Metal convenience,
-generic plugin registration/discovery, CUDA, broader optimizers, durable persistence, and generic
-graph/plan tuning remain planned. Each focused page distinguishes current contracts from those
-future capabilities.
+current. Training adds reusable backend-neutral sessions, optimizer state and transactional
+parameter updates. CPU supports FLOAT32/FLOAT64 and qualified BFLOAT16/FLOAT16/FP8 arithmetic
+through the same owners; Metal has its independently qualified seven-carrier domain without FP8.
+Bounded model/graph persistence and local workload/complete-plan tuning are implemented, but
+saved models do not contain executable plans or optimizer continuation.
+
+Start with CPU and the public Model/Engine workflows. Check the
+[support matrix](backend-guide/production-support.md) before selecting a backend, type or
+advanced geometry. CUDA, generic plugin discovery and unsupported broader domains are not
+implemented. The [public-readiness audit](planning/public-release-audit-2026-11-04.md) separates
+current repairs and verification from historical candidate receipts. Public redistribution
+remains blocked until the owner selects a licence/grant.
 
 ## Contributor guides
 

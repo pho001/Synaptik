@@ -5,14 +5,14 @@ This document explains the typed trace model required by
 
 The current `modules/trace` implementation provides the common event envelope, trace-local model
 and backend-execution correlation identifiers, and neutral backend preparation/invocation outcome
-payloads. Other compile, prepare, run, and backend payload families, typed backend attributes,
-serialization, and event emission remain planned.
+payloads. CPU preparation and ordinary Engine tuning also expose bounded producer-specific
+payloads through the open marker. Generic serialization, storage and viewing remain unimplemented.
 
 ## Mental model
 
 ```text
 producer-owned fact
-  -> producer translates it into a trace-owned TracePayload
+  -> producer translates it into a detached typed TracePayload
   -> TraceEvent adds event ID, lifecycle phase, level, and monotonic time
   -> a later diagnostic consumer inspects the typed DTO
 
@@ -24,6 +24,10 @@ producer-owned node / value / Tensor / backend / device / prepared-unit / invoca
 The producer owns the fact, identity assignment, clock, and eventual emission. The trace module
 owns only typed data-transfer objects (DTOs), so it does not traverse graphs, execute work, import
 producer-layer domain types, or control a lifecycle stage.
+Neutral envelopes, identifiers and shared payloads live in Trace. A producer-specific passive DTO
+may live in its owning module without introducing a reverse Trace dependency. CPU preparation,
+Engine tuning failure resolution and Metal Scan validation use that extension point. These
+records retain no graph, storage, Tensor, native handle or Throwable.
 
 Runtime profiling is one possible producer activity: it passively observes actual execution and
 translates selected facts into trace-owned DTOs. Trace remains observational. It does not compare
@@ -166,8 +170,8 @@ intentionally bounded. The following broader payload families remain conceptual:
 - **Broader backend payloads** for availability, capability, kernels, storage, and other
   backend-owned diagnostic facts during the applicable lifecycle phase.
 
-These families must continue to use trace-owned DTOs rather than expose producer objects. Their
-exact fields remain deferred until the relevant producer-layer contracts are stable.
+These families must use detached typed DTOs rather than expose producer objects. Neutral shared
+DTOs belong to Trace; producer-specific DTOs remain in their owning module.
 
 ## Planned correlation and attributes
 
