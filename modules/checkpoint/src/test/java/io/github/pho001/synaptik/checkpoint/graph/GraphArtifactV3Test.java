@@ -285,6 +285,31 @@ final class GraphArtifactV3Test {
             }
     }
 
+    @Test void lowFixedScansRetainEveryPortDirectionAndControlAcrossColdRoundTrips() throws Exception {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
+            for (int op = 20; op <= 22; op++) for (boolean bias : List.of(false, true))
+                for (var direction : RecurrentDirection.values())
+                    for (long[] dims : List.of(new long[]{2, 1}, new long[]{0, 1}, new long[]{2, 0})) {
+                        var inputs = scanInputs(op, bias, dims[0], dims[1]).stream().map(t ->
+                                t.descriptor().dataType().isFloating()
+                                        ? prototype(type, t.descriptor().shape(), t.descriptor().requiresGrad(), true) : t).toList();
+                        var ports = scan(inputs, op, direction);
+                        var source = new GraphCheckpoint.Source(inputs, List.of(ports.getLast()), List.of());
+                        var expected = GraphSource.capture(source).graph;
+                        var image = GraphArtifactCodec.encode(GraphSource.capture(source), LIMITS);
+                        for (var acquired : List.of(GraphCheckpoint.copy(source), GraphArtifactCodec.decode(image, LIMITS))) {
+                            assertEquals(expected, GraphSource.capture(acquired).graph);
+                            var producer = acquired.outputs().getFirst().provenance().orElseThrow().producer();
+                            assertEquals(ports.size(), producer.outputCount());
+                            assertSame(acquired.inputs().get(1), producer.inputs().get(1));
+                            for (int port = 0; port < ports.size(); port++)
+                                assertEquals(ports.get(port).descriptor(), producer.output(port).descriptor());
+                            var rebound = GraphCheckpoint.rebind(acquired, inputs);
+                            assertSame(inputs.get(1), rebound.getFirst().provenance().orElseThrow().inputs().get(1));
+                        }
+                    }
+    }
+
     /**
      * Rejects malformed scan records and dead producers while allowing unused sibling descriptors.
      * @throws Exception if fixture construction fails

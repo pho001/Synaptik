@@ -40,9 +40,11 @@ class ModelCheckpointTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void directLeavesSaveLoadAndResaveSevenTypesWithExactBits(boolean nativeSource) throws Exception {
+    void directLeavesSaveLoadAndResaveAllTypesWithExactBits(boolean nativeSource) throws Exception {
         var source = new Fixture();
         var target = new Fixture();
+        byte[] fp8 = new byte[256];
+        for (int i = 0; i < fp8.length; i++) fp8[i] = (byte) i;
         var cases = List.of(
                 new Case("f64", DataType.FLOAT64, Shape.of(8), words(8,
                         0, 0x8000000000000000L, 1, 0x8000000000000001L,
@@ -55,6 +57,8 @@ class ModelCheckpointTest {
                         0, 0x8000, 1, 0x8001, 0x7f80, 0xff80, 0x7fc1, 0xff81), short[].class),
                 new Case("f16", DataType.FLOAT16, Shape.of(8), words(2,
                         0, 0x8000, 1, 0x8001, 0x7c00, 0xfc00, 0x7e11, 0xfc11), short[].class),
+                new Case("e4m3", DataType.FLOAT8_E4M3, Shape.of(256), fp8, byte[].class),
+                new Case("e5m2", DataType.FLOAT8_E5M2, Shape.of(256), fp8, byte[].class),
                 new Case("i32", DataType.INT32, Shape.of(4), words(4,
                         0x80000000L, 0x7fffffffL, 0x87654321L, 0xffffffffL), int[].class),
                 new Case("i64", DataType.INT64, Shape.of(4), words(8,
@@ -466,7 +470,7 @@ class ModelCheckpointTest {
                     offset += 2;
                 }
             }
-            case BOOL -> { while (source.hasRemaining()) destination.set(ValueLayout.JAVA_BYTE, offset++, source.get()); }
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> { while (source.hasRemaining()) destination.set(ValueLayout.JAVA_BYTE, offset++, source.get()); }
         }
         return tensor;
     }
@@ -490,7 +494,7 @@ class ModelCheckpointTest {
             case BFLOAT16, FLOAT16 -> {
                 while (source.hasRemaining()) { segment.set(ValueLayout.JAVA_SHORT, offset, source.getShort()); offset += 2; }
             }
-            case BOOL -> { while (source.hasRemaining()) segment.set(ValueLayout.JAVA_BYTE, offset++, source.get()); }
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> { while (source.hasRemaining()) segment.set(ValueLayout.JAVA_BYTE, offset++, source.get()); }
         }
         return tensor;
     }

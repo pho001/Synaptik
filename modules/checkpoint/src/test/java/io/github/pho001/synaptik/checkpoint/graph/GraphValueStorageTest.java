@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 /** Host admission and bit preservation are independent of backend or Engine capability. */
 final class GraphValueStorageTest {
     @Test
-    void readOnlyUnalignedNativeAndHeapSourcesCopyAllSevenCarriersWithDetachedLifetime() {
+    void readOnlyUnalignedNativeAndHeapSourcesCopyAllCarriersWithDetachedLifetime() {
         for (DataType type : DataType.values()) {
             byte[] bits = raw(type, 3);
             GraphCheckpoint.Source copied;
@@ -48,7 +48,7 @@ final class GraphValueStorageTest {
             Class<?> carrier = switch (type) {
                 case FLOAT64 -> double[].class; case FLOAT32 -> float[].class;
                 case INT64 -> long[].class; case INT32 -> int[].class;
-                case BFLOAT16, FLOAT16 -> short[].class; case BOOL -> byte[].class;
+                case BFLOAT16, FLOAT16 -> short[].class; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> byte[].class;
             };
             assertEquals(carrier, result.hostStorage().orElseThrow().segment().heapBase().orElseThrow().getClass());
         }

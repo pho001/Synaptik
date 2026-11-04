@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Public version-one NN model persistence boundary, retained in NN after the generic split.
+ * Public NN model persistence boundary, retaining v1 and selecting v2 only for raw FP8 state.
  * Opaque artifacts still come from Checkpoint; this facade retains the old readers and flexible
  * declarative semantics without forwarding from the former package or converting to graph-model.v1.
  * Values-only operations require a recreated NN
@@ -28,8 +28,9 @@ import java.util.Objects;
  * continuation are not persisted. Whole-model roots are recognized only as
  * {@link io.github.pho001.synaptik.nn.module.Sequential} or {@link DeclarativeModel}; arbitrary
  * Java model definitions, custom children and recurrent layers are unsupported. Values-only
- * {@code model.v1} and whole-model {@code whole-model.v1} are distinct kinds: old target-load and
- * inspection operations do not infer topology or inspect the outer whole-model envelope.
+ * {@code model.v1}/{@code model.v2} and whole-model {@code whole-model.v1}/{@code whole-model.v2}
+ * are distinct kinds: old target-load and inspection operations do not infer topology or inspect
+ * the outer whole-model envelope. FP8 selects v2; all other sources retain the frozen v1 bytes.
  * Capture, save and target-load require caller-owned quiescence of module bindings and storage
  * for their entire calls. Whole-model description and values capture may each read state; there
  * is no combined snapshot or transaction. This
@@ -248,7 +249,7 @@ public final class ModelCheckpoint {
 
     /**
      * Captures one complete neural-network (NN) state snapshot as a detached, semantically
-     * validated {@code model.v1} envelope, without file I/O or changing source bindings.
+     * validated values envelope (v2 for FP8, otherwise unchanged v1), without file I/O or changing source bindings.
      * After metadata and bounds preflight, one bounded public Engine computation materializes
      * unique Tensor identities; empty state makes no Engine call. Each path retains its own
      * exact canonical logical bits, including signed zeros and NaN sign/payload bits. Fully bound
@@ -327,7 +328,7 @@ public final class ModelCheckpoint {
     }
 
     /**
-     * Materializes one complete state snapshot and publishes its v1 artifact through a forced,
+     * Materializes one complete state snapshot and publishes its artifact through a forced,
      * revalidated sibling file and one atomic move. A pre-move failure leaves the prior target
      * untouched; a failed move has provider-dependent target state and must be inspected. A
      * successful move gives atomic live visibility, not portable rename power-loss durability.
@@ -390,18 +391,18 @@ public final class ModelCheckpoint {
     }
 
     /**
-     * Rereads a complete v1 artifact, checks exact expected digest presence and bytes, and
+     * Rereads a complete v1/v2 artifact, checks exact expected digest presence and bytes, and
      * reconstructs native-order heap-backed dense leaf Tensors before one NN strict installation
      * attempt. A complete target snapshot is required, so lazy/unbound groups are rejected even
      * though NN's loader can initialize them. Target Tensor identity defines alias groups: each
      * group's stored path values must be byte-identical, then share one reconstructed Tensor.
      * Ordinary validation, alias, or reconstruction failure leaves all target bindings unchanged.
-     * This cannot verify source alias identity, which v1 does not store; the caller's versioned
+     * This cannot verify source alias identity, which neither values format stores; the caller's versioned
      * configuration fingerprint must cover intended sharing.
      * The target must not belong to an open Training session, whose captured bindings would
      * otherwise be invalidated. This restriction is caller-enforced; load does not inspect Training.
      *
-     * @param source non-null path to a quiescent regular v1 artifact
+     * @param source non-null path to a quiescent regular v1/v2 artifact
      * @param target non-null fully bound quiescent recreated NN tree with no open Training session
      * @param expectedConfigDigest non-null exact 32-byte expected configuration SHA-256
      * @param expectedInputDigest optional exact 32-byte expected input-artifact SHA-256, or null
@@ -486,7 +487,7 @@ public final class ModelCheckpoint {
         if (!Arrays.equals(expectedConfigDigest, candidate.configDigest())
                 || !Arrays.equals(expectedInputDigest, candidate.inputDigest()))
             throw new IllegalArgumentException("Model checkpoint fingerprint mismatch");
-        // NN's loader permits reserved lazy groups; v1 explicitly requires a complete target.
+        // NN's loader permits reserved lazy groups; values restoration requires a complete target.
         var current = target.stateDictionary();
         target.loadStateDictionary(ModelStateRestoration.reconstruct(candidate, current));
     }

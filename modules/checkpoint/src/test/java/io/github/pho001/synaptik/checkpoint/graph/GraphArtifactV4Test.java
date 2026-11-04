@@ -341,6 +341,7 @@ final class GraphArtifactV4Test {
             int wireType = switch (target) {
                 case FLOAT64 -> 1; case FLOAT32 -> 2; case BFLOAT16 -> 3;
                 case INT32 -> 4; case INT64 -> 5; case BOOL -> 6; case FLOAT16 -> 7;
+                case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new AssertionError("Old-domain fixture");
             };
             var fixture = fixture(32, new byte[]{(byte) wireType}, false, time);
             byte[] golden = fixture.bytes().clone();
@@ -609,6 +610,8 @@ final class GraphArtifactV4Test {
                     case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(negativeZero ? Integer.MIN_VALUE : 0xffc00123));
                     case BFLOAT16 -> ScalarValue.bfloat16Bits((short) (negativeZero ? 0x8000 : 0xffc3));
                     case FLOAT16 -> ScalarValue.float16Bits((short) (negativeZero ? 0x8000 : 0xfe23));
+                    case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) (negativeZero ? 0x80 : 0xff));
+                    case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) (negativeZero ? 0x80 : 0xfd));
                     case INT64 -> ScalarValue.int64(negativeZero ? Long.MIN_VALUE : 0x123456789abcdefL);
                     case INT32 -> ScalarValue.int32(negativeZero ? Integer.MIN_VALUE : 0x12345678);
                     default -> throw new AssertionError(type);

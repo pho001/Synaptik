@@ -291,7 +291,7 @@ final class GraphCheckpointTest {
     }
 
     @Test
-    void rawSevenTypesScalarEmptyAndLayoutPresenceRoundtripAndResaveExactly() throws Exception {
+    void rawTypesScalarEmptyAndLayoutPresenceRoundtripAndResaveExactly() throws Exception {
         for (DataType type : DataType.values()) {
             for (Shape shape : List.of(Shape.of(), Shape.of(0, 2), Shape.of(3))) {
                 for (boolean resolved : List.of(false, true)) {
@@ -525,6 +525,7 @@ final class GraphCheckpointTest {
             case FLOAT64, INT64 -> out.putLong(i % 3 == 0 ? 0xfff8000000000123L : i % 3 == 1 ? Long.MIN_VALUE : 42);
             case FLOAT32, INT32 -> out.putInt(i % 3 == 0 ? 0xffc00123 : i % 3 == 1 ? Integer.MIN_VALUE : 42);
             case BFLOAT16, FLOAT16 -> out.putShort((short) (i % 3 == 0 ? 0xffc3 : i % 3 == 1 ? 0x8000 : 42));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> out.put((byte) (i % 3 == 0 ? 0xff : i % 3 == 1 ? 0x80 : 42));
             case BOOL -> out.put((byte) (i % 2));
         }
         return out.array();

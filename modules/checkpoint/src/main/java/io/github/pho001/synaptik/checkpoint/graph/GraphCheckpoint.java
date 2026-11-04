@@ -22,16 +22,17 @@ import java.util.Objects;
  * GATHER index and scan length descriptors, never their values. Named index/length state, if any,
  * is still copied under ordinary named-leaf rules, or saved when independently wire-eligible.
  * Copy/rebind preserve general SCAN attachments in Compiler's bounded cold constructor slice,
- * including static homogeneous FLOAT32/FLOAT64 length mode with explicit row roles and separate
+ * including static per-value floating length mode with explicit row roles and separate
  * lengths. Rebind rejects incompatible new ROW/SHARED ties, including ties to retained named state.
  * Each reconstructed occurrence has fresh body formals and all canonical ports; no time
  * unrolling or backend support is implied. V4 save/load retains all-valid general scans;
- * v5 adds the same static homogeneous length-mode cold intersection with ordered row roles.
- * V6 adds MaxPool3d/AveragePool3d in outer graphs and otherwise-qualified bodies. These versions
- * store scoped body metadata and latent residual ports, never runtime histories
- * or external length values; v1/v2/v3 remain body-free.
+ * v5 adds the same static length-mode cold intersection with ordered row roles.
+ * V6 adds MaxPool3d/AveragePool3d in outer graphs and otherwise-qualified bodies. V7 adds FP8
+ * dtype IDs while retaining the same records, roles and raw byte values. These versions store
+ * scoped body metadata and latent residual ports, never runtime histories or external length
+ * values; v1/v2/v3 remain body-free and their old dtype namespaces remain closed.
  * The bounded body-only additions include tensor/scalar arithmetic, SUM reductions, static
- * shape/layout transforms and same-dtype CAST, not arbitrary PURE operations or nested scans.
+ * shape/layout transforms and admitted floating CASTs, not arbitrary PURE operations or nested scans.
  * Cold dtype admission does not qualify execution or differentiation.
  * Named host values use native-order logical lanes; all represented bits are preserved.
  * Callers exclude mutation, storage rebinding and closure throughout each operation.
@@ -116,7 +117,9 @@ public final class GraphCheckpoint {
      * format: original five kinds retain byte-identical v1, original eight kinds with activations
      * retain byte-identical v2, additional CNN/recurrent kinds use multi-output v3, and only
      * all-valid general SCAN selects v4. Length-aware general SCAN selects v5; maximum/average
-     * Pool3d anywhere in the source selects append-only v6 without changing old records.
+     * Pool3d anywhere in the source selects append-only v6. Any FP8 descriptor or scalar/cast
+     * attribute, including inside a body, selects v7; non-FP8 sources retain their smallest
+     * byte-identical old encoding. No existing dtype ID or operation record changes.
      * Its bounded body inventory is the existing Compiler cold slice, not arbitrary PURE
      * operations or a backend execution guarantee. Inline bodies preserve unused formals, tied
      * roles and every canonical residual port without saving histories or external length values.
@@ -141,7 +144,7 @@ public final class GraphCheckpoint {
 
     /**
      * Rereads and fully validates a graph file before importing state and publishing expressions.
-     * Accepts only exact graph-model.v1/v2/v3/v4/v5/v6 kind, magic and version tuples and closed scoped opcodes.
+     * Accepts only exact graph-model.v1 through v7 kind, magic and version tuples and closed scoped opcodes.
      * Complete outer/body preflight precedes host import and any body formal/producer allocation.
      * The returned ordinary mutable heap values need no arena or second ownership copy.
      * No Engine, saved batch, labels, compiled artifacts or runtime state is restored.

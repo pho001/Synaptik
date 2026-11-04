@@ -32,7 +32,8 @@ class WholeModelDefinitionCodecTest {
 
     @Test
     void everyFamilyAllAttributesGuardPoliciesAndExactEpsilonBitsRoundTrip() throws Exception {
-        for (DataType type : FLOATS) {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
             List<Step> steps = List.of(new LinearStep(3, 2, true, type, false),
                     new Sequence(List.of(new LinearStep(3, 2, false, type, true))),
                     new LayerNormStep(Shape.of(2, 3), type, epsilon(type)),
@@ -50,6 +51,10 @@ class WholeModelDefinitionCodecTest {
             assertEquals(spec.root(), decoded.root());
             assertEquals(spec.stateDescriptors(), decoded.stateDescriptors());
             assertArrayEquals(bytes, WholeModelDefinitionCodec.encode(decoded));
+            if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+                byte[] old = bytes.clone(); old[7] = '1'; ByteBuffer.wrap(old).putInt(8, 1);
+                assertThrows(ArtifactFormatException.class, () -> decode(old));
+            }
         }
     }
 

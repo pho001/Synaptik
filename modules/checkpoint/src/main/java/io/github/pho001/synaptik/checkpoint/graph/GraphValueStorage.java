@@ -17,7 +17,8 @@ import java.util.Optional;
 /**
  * Cold raw-lane copying for canonical Model host leaves. HostTensorStorage promises no byte order;
  * this boundary explicitly requires native-order logical lanes and uses unaligned integer access.
- * Float carriers are allocated by logical type but never undergo numeric conversion.
+ * Float carriers are allocated by logical type but never undergo numeric conversion; FP8 uses
+ * exact byte arrays and never passes through BOOL validation or normalization.
  */
 final class GraphValueStorage {
     private static final ValueLayout.OfLong LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
@@ -188,7 +189,7 @@ final class GraphValueStorage {
             case INT64 -> MemorySegment.ofArray(new long[count]);
             case INT32 -> MemorySegment.ofArray(new int[count]);
             case BFLOAT16, FLOAT16 -> MemorySegment.ofArray(new short[count]);
-            case BOOL -> MemorySegment.ofArray(new byte[count]);
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> MemorySegment.ofArray(new byte[count]);
         };
         return new MemorySegmentStorage(descriptor.dataType(), count, segment);
     }

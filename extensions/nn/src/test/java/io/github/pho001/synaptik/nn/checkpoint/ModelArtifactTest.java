@@ -164,6 +164,27 @@ class ModelArtifactTest {
     }
 
     @Test
+    void fp8ValuesUseTheNewDomainAndCannotBeSmuggledIntoFrozenV1() throws Exception {
+        for (DataType type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            var state = new ModelArtifactCodec.State("weight", StateKind.PARAMETER, type, Shape.of(4), 4);
+            var metadata = ModelArtifactCodec.encode(List.of(state), CONFIG, null, LIMITS);
+            byte[] raw = {0, (byte) 0x80, 0x7f, (byte) 0xff};
+            var values = new ArtifactEnvelope(ModelArtifactCodec.kind(metadata), List.of(
+                    new ArtifactEnvelope.Entry("schema", metadata.bytes()),
+                    new ArtifactEnvelope.Entry("state/00000000", raw)));
+            assertEquals(type, ModelCheckpoint.inspect(values, LIMITS).states().getFirst().dataType());
+            ByteBuffer canonical = ModelCheckpoint.canonicalStateBytes(values, LIMITS).get("weight");
+            byte[] actual = new byte[canonical.remaining()]; canonical.get(actual);
+            assertArrayEquals(raw, actual);
+            byte[] old = metadata.bytes(); old[7] = '1'; ByteBuffer.wrap(old).putInt(8, 1);
+            assertRejected(envelope(old, new ArtifactEnvelope.Entry("state/00000000", raw)), LIMITS);
+            assertRejected(new ArtifactEnvelope("model.v1", values.entries()), LIMITS);
+            var missing = new ArtifactEnvelope("model.v2", List.of(new ArtifactEnvelope.Entry("schema", metadata.bytes())));
+            assertRejected(missing, LIMITS);
+        }
+    }
+
+    @Test
     void fixedIdsAndAllSchemaFieldsAffectFingerprint() throws Exception {
         var kinds = List.of(StateKind.PARAMETER, StateKind.BUFFER);
         var types = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
@@ -388,7 +409,7 @@ class ModelArtifactTest {
             case BFLOAT16, FLOAT16 -> MemorySegment.ofArray((short[]) values);
             case INT32 -> MemorySegment.ofArray((int[]) values);
             case INT64 -> MemorySegment.ofArray((long[]) values);
-            case BOOL -> MemorySegment.ofArray((byte[]) values);
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> MemorySegment.ofArray((byte[]) values);
         };
         Shape shape = Shape.of(2);
         var descriptor = new TensorDescriptor(type, shape,

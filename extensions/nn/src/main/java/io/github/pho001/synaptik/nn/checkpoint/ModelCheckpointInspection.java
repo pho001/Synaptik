@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Detached, typed description of a completely validated version-one NN model checkpoint. It owns
+ * Detached, typed description of a completely validated NN model checkpoint (v1 or FP8 v2). It owns
  * no file, Tensor, module, Engine, or closeable resource. A later file load rereads its path;
  * envelope byte access and load independently validate their supplied image. None trusts this
  * snapshot as a validation credential. The digests identify caller-defined configuration and

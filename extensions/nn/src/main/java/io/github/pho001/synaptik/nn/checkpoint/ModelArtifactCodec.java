@@ -20,14 +20,16 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Version-one model metadata and its bounded mapping to opaque artifact entries. The wire IDs,
- * framing, and entry order here are independent of Java enum order and diagnostic names.
+ * Selective model.v1/v2 metadata and its bounded mapping to opaque artifact entries. V2 adds
+ * FP8 IDs 8/9 only; sources without FP8 retain the exact v1 bytes. Wire IDs, framing and entry
+ * order are independent of Java enum order and diagnostic names.
  */
 final class ModelArtifactCodec {
     private static final byte[] MAGIC = "SYNMOD01".getBytes(StandardCharsets.US_ASCII);
-    private static final int VERSION = 1;
+    private static final byte[] MAGIC_V2 = "SYNMOD02".getBytes(StandardCharsets.US_ASCII);
     private static final int ARRAY_CEILING = Integer.MAX_VALUE - 8;
     private static final String KIND = "model.v1";
+    private static final String KIND_V2 = "model.v2";
     private static final String SCHEMA = "schema";
     private static final int MAX_ORDINAL = 99_999_999;
 
@@ -107,11 +109,13 @@ final class ModelArtifactCodec {
         if (states.size() > MAX_ORDINAL + 1L) throw new IllegalArgumentException("Too many states");
         long size = 49L + (stableInput == null ? 0 : 32);
         long payload = 0;
+        boolean fp8 = false;
         preflight(states.size(), size, payload, limits);
         for (State state : states) {
             Objects.requireNonNull(state, "state");
             int pathBytes = pathLength(state.path());
             checkLength(state.type(), state.shape(), state.length());
+            fp8 |= state.type() == DataType.FLOAT8_E4M3 || state.type() == DataType.FLOAT8_E5M2;
             if (state.length() > limits.maxPayloadBytes())
                 throw new IllegalArgumentException("State payload exceeds limits");
             size = Math.addExact(size, Math.addExact(18L + pathBytes,
@@ -124,7 +128,8 @@ final class ModelArtifactCodec {
             if (!paths.add(state.path())) throw new IllegalArgumentException("Duplicate state path");
         }
         ByteBuffer out = ByteBuffer.allocate((int) size).order(ByteOrder.BIG_ENDIAN);
-        out.put(MAGIC).putInt(VERSION).put(stableConfig).put((byte) (stableInput == null ? 0 : 1));
+        out.put(fp8 ? MAGIC_V2 : MAGIC).putInt(fp8 ? 2 : 1)
+                .put(stableConfig).put((byte) (stableInput == null ? 0 : 1));
         if (stableInput != null) out.put(stableInput);
         out.putInt(states.size());
         for (State state : states) {
@@ -151,9 +156,10 @@ final class ModelArtifactCodec {
             throws ArtifactFormatException {
         Objects.requireNonNull(envelope, "envelope");
         Objects.requireNonNull(limits, "limits");
-        if (!KIND.equals(envelope.kind()) || envelope.entries().isEmpty()
+        int version = KIND.equals(envelope.kind()) ? 1 : KIND_V2.equals(envelope.kind()) ? 2 : 0;
+        if (version == 0 || envelope.entries().isEmpty()
                 || !SCHEMA.equals(envelope.entries().getFirst().key())) {
-            throw new ArtifactFormatException("Not a model.v1 artifact with schema");
+            throw new ArtifactFormatException("Not a model.v1/v2 artifact with schema");
         }
         try {
             long stateBytes = 0;
@@ -169,7 +175,8 @@ final class ModelArtifactCodec {
             require(in, 45);
             byte[] magic = new byte[8];
             in.get(magic);
-            if (!Arrays.equals(magic, MAGIC) || in.getInt() != VERSION) throw invalid();
+            if (!Arrays.equals(magic, version == 1 ? MAGIC : MAGIC_V2) || in.getInt() != version)
+                throw invalid();
             byte[] config = new byte[32];
             in.get(config);
             int present = Byte.toUnsignedInt(in.get());
@@ -199,7 +206,7 @@ final class ModelArtifactCodec {
                         .decode(ByteBuffer.wrap(pathBytes)).toString();
                 if (pathLength(path) != pathSize || !paths.add(path)) throw invalid();
                 StateKind kind = kind(in.get());
-                DataType type = type(in.get());
+                DataType type = type(in.get(), version);
                 int rank = in.getInt();
                 if (rank < 0 || rank > in.remaining() / 8 - 1) throw invalid();
                 long[] extents = new long[rank];
@@ -342,17 +349,29 @@ final class ModelArtifactCodec {
         return switch (type) {
             case FLOAT64 -> 1; case FLOAT32 -> 2; case BFLOAT16 -> 3;
             case INT32 -> 4; case INT64 -> 5; case BOOL -> 6; case FLOAT16 -> 7;
+            case FLOAT8_E4M3 -> 8; case FLOAT8_E5M2 -> 9;
         };
     }
 
-    private static DataType type(byte id) {
+    private static DataType type(byte id, int version) {
+        if (id >= 8 && version < 2) throw new IllegalArgumentException("FP8 requires model.v2");
         return switch (id) {
             case 1 -> DataType.FLOAT64; case 2 -> DataType.FLOAT32;
             case 3 -> DataType.BFLOAT16; case 4 -> DataType.INT32;
             case 5 -> DataType.INT64; case 6 -> DataType.BOOL;
             case 7 -> DataType.FLOAT16;
+            case 8 -> DataType.FLOAT8_E4M3; case 9 -> DataType.FLOAT8_E5M2;
             default -> throw new IllegalArgumentException("Unknown data type ID");
         };
+    }
+
+    /**
+     * Selects the values domain from already encoded canonical metadata.
+     * @param metadata validated metadata produced by this codec
+     * @return exact model.v1 or model.v2 envelope kind
+     */
+    static String kind(Metadata metadata) {
+        return metadata.bytes[7] == '2' ? KIND_V2 : KIND;
     }
 
     private static void require(ByteBuffer buffer, int bytes) {

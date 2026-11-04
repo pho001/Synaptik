@@ -109,6 +109,6 @@ final class ModelArtifactCapture {
             source.get(bytes);
             payloads.add(new ArtifactEnvelope.Entry(ModelArtifactCodec.ordinal(i), bytes));
         }
-        return new ModelArtifactCandidate(metadata, new ArtifactEnvelope("model.v1", payloads));
+        return new ModelArtifactCandidate(metadata, new ArtifactEnvelope(ModelArtifactCodec.kind(metadata), payloads));
     }
 }

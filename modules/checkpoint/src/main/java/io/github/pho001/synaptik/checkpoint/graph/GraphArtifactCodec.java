@@ -50,14 +50,15 @@ import java.util.Optional;
 import java.util.OptionalInt;
 
 /**
- * Selective closed graph-model.v1/v2/v3/v4/v5/v6 wire on the existing opaque envelope. IDs, flags and field order are
+ * Selective closed graph-model.v1 through v7 wire on the existing opaque envelope. IDs, flags and field order are
  * explicit and independent of Java enum ordinals. All parsing uses bounded views; only final
  * candidate leaves and Compiler reconstruction create Tensors. Complete metadata preflight precedes
  * host import and every body formal/producer allocation. Inline bodies retain independent local
  * IDs and latent residual metadata, never runtime histories or saved input storage.
  * V6 appends only 34=MAX_POOL3D and 35=AVERAGE_POOL3D, each with twelve i64 geometry fields
  * (kernel, stride, padding, dilation; depth/height/width within each), then one ceil-mode flag.
- * The smallest sufficient version is selected across outer and contained occurrences.
+ * V7 adds only FP8 dtype IDs 8/9, retaining raw byte lanes and all existing records. The smallest
+ * sufficient version is selected across every descriptor and attribute in outer and contained scopes.
  */
 final class GraphArtifactCodec {
     private static final long MAGIC = 0x53594e4752463031L;
@@ -72,12 +73,14 @@ final class GraphArtifactCodec {
     private static final String KIND_V5 = "graph-model.v5";
     private static final long MAGIC_V6 = 0x53594e4752463036L;
     private static final String KIND_V6 = "graph-model.v6";
+    private static final long MAGIC_V7 = 0x53594e4752463037L;
+    private static final String KIND_V7 = "graph-model.v7";
 
     private GraphArtifactCodec() { }
 
     /**
      * Dry-sizes all metadata and six encoded bounds before storage admission or bulk copying.
-     * Independently rechecks v5/v6 cold eligibility through Compiler before dry sizing;
+     * Independently rechecks v5/v6/v7 cold eligibility through Compiler before schema allocation;
      * a raw association is not a semantic admission credential.
      * @param source fully metadata-validated normalized source
      * @param limits explicit encoded ceilings
@@ -96,6 +99,7 @@ final class GraphArtifactCodec {
                     if (opcode(local, true) >= 34) version = 6;
             }
         }
+        if (requiresFp8(source.graph)) version = 7;
         if (version >= 5) {
             var leaves = new ArrayList<Tensor>(Math.addExact(source.source.inputs().size(), source.states.size()));
             leaves.addAll(source.source.inputs()); leaves.addAll(source.states);
@@ -120,7 +124,33 @@ final class GraphArtifactCodec {
             entries.add(new ArtifactEnvelope.Entry(ordinal(i),
                     GraphValueStorage.encode(source.states.get(i).descriptor(), segments.get(i))));
         return new ArtifactEnvelope(version == 1 ? KIND : version == 2 ? KIND_V2 : version == 3 ? KIND_V3
-                : version == 4 ? KIND_V4 : version == 5 ? KIND_V5 : KIND_V6, entries);
+                : version == 4 ? KIND_V4 : version == 5 ? KIND_V5 : version == 6 ? KIND_V6 : KIND_V7, entries);
+    }
+
+    /**
+     * Finds FP8 in every encoded descriptor and typed attribute, including independent body scopes.
+     * @param graph admitted cold metadata, never Tensor state or storage
+     * @return whether the new dtype namespace is required
+     */
+    private static boolean requiresFp8(CompiledGraphModel graph) {
+        for (GraphValue value : graph.values())
+            if (isFp8(value.descriptor().dataType())) return true;
+        for (CompiledNode node : graph.nodes()) {
+            var attrs = node.operation().attrs();
+            if (attrs instanceof ScalarValueAttrs scalar && isFp8(scalar.value().dataType())
+                    || attrs instanceof CastAttrs cast && isFp8(cast.targetDataType())) return true;
+            if (node.scanBody().isPresent() && requiresFp8(node.scanBody().orElseThrow().graph())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Recognizes only the two explicitly versioned one-byte floating types.
+     * @param type exact logical dtype
+     * @return whether v7 is needed to encode this dtype
+     */
+    private static boolean isFp8(DataType type) {
+        return type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2;
     }
 
     /**
@@ -156,10 +186,11 @@ final class GraphArtifactCodec {
         try {
             int version = KIND.equals(envelope.kind()) ? 1 : KIND_V2.equals(envelope.kind()) ? 2
                     : KIND_V3.equals(envelope.kind()) ? 3 : KIND_V4.equals(envelope.kind()) ? 4
-                    : KIND_V5.equals(envelope.kind()) ? 5 : KIND_V6.equals(envelope.kind()) ? 6 : 0;
+                    : KIND_V5.equals(envelope.kind()) ? 5 : KIND_V6.equals(envelope.kind()) ? 6
+                    : KIND_V7.equals(envelope.kind()) ? 7 : 0;
             if (version == 0 || envelope.entries().isEmpty()
                     || !envelope.entries().getFirst().key().equals("schema"))
-                throw invalid("Expected graph-model.v1/v2/v3/v4/v5/v6 schema");
+                throw invalid("Expected graph-model.v1 through v7 schema");
             long stateBytes = 0;
             for (int i = 1; i < envelope.entries().size(); i++) {
                 var entry = envelope.entries().get(i);
@@ -168,10 +199,10 @@ final class GraphArtifactCodec {
                 stateBytes = Math.addExact(stateBytes, entry.size());
             }
             preflight(envelope.entries().size() - 1, envelope.entries().getFirst().size(), stateBytes, limits);
-            Reader reader = new Reader(envelope.entries().getFirst().payload());
+            Reader reader = new Reader(envelope.entries().getFirst().payload(), version);
             ByteBuffer in = reader.bytes;
             if (in.getLong() != (version == 1 ? MAGIC : version == 2 ? MAGIC_V2 : version == 3 ? MAGIC_V3
-                    : version == 4 ? MAGIC_V4 : version == 5 ? MAGIC_V5 : MAGIC_V6)
+                    : version == 4 ? MAGIC_V4 : version == 5 ? MAGIC_V5 : version == 6 ? MAGIC_V6 : MAGIC_V7)
                     || in.getInt() != version)
                 throw invalid("Mismatched graph kind/magic/version");
             int inputCount = reader.count(7);
@@ -328,7 +359,7 @@ final class GraphArtifactCodec {
      */
     private static void write(Sink out, GraphSource source, int version) {
         out.i64(version == 1 ? MAGIC : version == 2 ? MAGIC_V2 : version == 3 ? MAGIC_V3
-                : version == 4 ? MAGIC_V4 : version == 5 ? MAGIC_V5 : MAGIC_V6); out.i32(version);
+                : version == 4 ? MAGIC_V4 : version == 5 ? MAGIC_V5 : version == 6 ? MAGIC_V6 : MAGIC_V7); out.i32(version);
         out.i32(source.source.inputs().size());
         for (Tensor input : source.source.inputs()) out.descriptor(input.descriptor());
         out.i32(source.states.size());
@@ -623,6 +654,7 @@ final class GraphArtifactCodec {
     /** Bounded-view wire reader; no raw length controls allocation without a remaining-byte check. */
     private static final class Reader {
         private final ByteBuffer bytes;
+        private final int version;
 
         private int formals, nodes, values, roles;
 
@@ -869,10 +901,13 @@ final class GraphArtifactCodec {
          * @throws IllegalArgumentException if the wire ID is unknown
          */
         DataType dtype() {
-            return switch (u8()) {
+            int id = u8();
+            if (id >= 8 && version < 7) throw invalid("FP8 requires graph-model.v7");
+            return switch (id) {
                 case 1 -> DataType.FLOAT64; case 2 -> DataType.FLOAT32; case 3 -> DataType.BFLOAT16;
                 case 4 -> DataType.INT32; case 5 -> DataType.INT64; case 6 -> DataType.BOOL;
-                case 7 -> DataType.FLOAT16; default -> throw invalid("Unknown dtype ID");
+                case 7 -> DataType.FLOAT16; case 8 -> DataType.FLOAT8_E4M3; case 9 -> DataType.FLOAT8_E5M2;
+                default -> throw invalid("Unknown dtype ID");
             };
         }
 
@@ -887,6 +922,8 @@ final class GraphArtifactCodec {
                 case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(bytes.getInt()));
                 case BFLOAT16 -> ScalarValue.bfloat16Bits(bytes.getShort());
                 case FLOAT16 -> ScalarValue.float16Bits(bytes.getShort());
+                case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits(bytes.get());
+                case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits(bytes.get());
                 case INT32 -> ScalarValue.int32(bytes.getInt());
                 case INT64 -> ScalarValue.int64(bytes.getLong());
                 case BOOL -> ScalarValue.bool(flag());
@@ -896,8 +933,12 @@ final class GraphArtifactCodec {
         /**
          * Borrows schema bytes through a private cursor without copying or trusting them.
          * @param bytes borrowed schema view; an independent big-endian cursor is used
+         * @param version closed enclosing format, gating dtype additions
          */
-        Reader(ByteBuffer bytes) { this.bytes = bytes.slice().order(ByteOrder.BIG_ENDIAN); }
+        Reader(ByteBuffer bytes, int version) {
+            this.bytes = bytes.slice().order(ByteOrder.BIG_ENDIAN);
+            this.version = version;
+        }
 
         /**
          * Consumes one fixed-width unsigned field without sign extension.
@@ -1049,6 +1090,7 @@ final class GraphArtifactCodec {
             u8(switch (type) {
                 case FLOAT64 -> 1; case FLOAT32 -> 2; case BFLOAT16 -> 3; case INT32 -> 4;
                 case INT64 -> 5; case BOOL -> 6; case FLOAT16 -> 7;
+                case FLOAT8_E4M3 -> 8; case FLOAT8_E5M2 -> 9;
             });
         }
 
@@ -1067,6 +1109,8 @@ final class GraphArtifactCodec {
                     short bits = value.dataType() == DataType.BFLOAT16 ? value.bfloat16Bits() : value.float16Bits();
                     u8(bits >>> 8); u8(bits);
                 }
+                case FLOAT8_E4M3 -> u8(value.float8E4m3Bits());
+                case FLOAT8_E5M2 -> u8(value.float8E5m2Bits());
                 case BOOL -> u8(value.booleanValue() ? 1 : 0);
             }
         }

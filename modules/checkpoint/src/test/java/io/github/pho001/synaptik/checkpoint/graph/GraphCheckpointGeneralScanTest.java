@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 final class GraphCheckpointGeneralScanTest {
     @Test void zeroCarryAndRowCountsCopySaveLoadAndRebindWithoutReadingExternalLengths(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             for (long time : new long[] {0, 3}) for (long batch : new long[] {0, 1, 3})
                 for (boolean reverse : List.of(false, true)) for (int topology = 0; topology < 4; topology++) {
                     boolean shared = topology >= 2, sharedSequence = topology == 3;
@@ -80,7 +80,7 @@ final class GraphCheckpointGeneralScanTest {
 
     @Test void zeroRowScalarAccumulatorRetainsMixedRoleTypesAndRawLowState(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
-        for (DataType stateType : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+        for (DataType stateType : List.of(DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             for (long time : List.of(0L, 3L)) for (long batch : List.of(0L, 3L))
                 for (boolean reverse : List.of(false, true)) {
                     Tensor old = f(DataType.FLOAT32), x = f(DataType.FLOAT64, batch, 2), w = f(stateType, 2);
@@ -142,7 +142,8 @@ final class GraphCheckpointGeneralScanTest {
     }
 
     @Test void staticLengthCopyPersistenceAndRebindPreservePrivateStateRawBitsAndUnreadExternalControls() throws Exception {
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16))
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             for (long batch : List.of(0L, 1L, 3L)) for (long time : List.of(0L, 3L))
                 for (boolean reverse : List.of(false, true)) {
                     Tensor h = f(type, batch, 2), x = f(type, batch, 2), w = f(type, 2);
@@ -193,7 +194,7 @@ final class GraphCheckpointGeneralScanTest {
 
     @Test void lowStateWithExplicitFloatWorkingSitesSurvivesSaveLoadCopyAndRebind(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
-        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             for (boolean gradient : List.of(false, true)) for (boolean lengthAware : List.of(false, true))
                 for (long batch : new long[]{0, 2}) for (long time : new long[]{0, 3})
                     for (boolean reverse : List.of(false, true)) {
@@ -434,7 +435,7 @@ final class GraphCheckpointGeneralScanTest {
         }
     }
 
-    /** Every applicable dtype is cold metadata, including low TANH and CPU-unsupported F32 RELU. */
+    /** Every applicable dtype is cold metadata; backend execution qualification is independent. */
     @Test void applicableModelDtypesAndExactBodyOnlySignaturesRoundTripWithoutBackendAdmission() throws Exception {
         for (DataType type : DataType.values()) {
             Tensor h = f(type, 2, 3), x = f(type, 2, 3), w = f(type, 2, 3);
@@ -572,6 +573,7 @@ final class GraphCheckpointGeneralScanTest {
         return switch (type) {
             case FLOAT64 -> ScalarValue.float64(2); case FLOAT32 -> ScalarValue.float32(2);
             case BFLOAT16 -> ScalarValue.bfloat16(2); case FLOAT16 -> ScalarValue.float16(2);
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3(2); case FLOAT8_E5M2 -> ScalarValue.float8E5m2(2);
             case INT32 -> ScalarValue.int32(2); case INT64 -> ScalarValue.int64(2);
             default -> throw new AssertionError(type);
         };

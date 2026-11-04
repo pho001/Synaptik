@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.nn.module.ModelSpecification;
 import io.github.pho001.synaptik.nn.module.Module;
 import io.github.pho001.synaptik.nn.module.Sequential;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -20,11 +21,14 @@ import java.util.Objects;
  * Whole-model framing and independent cross-owner coherence on the cold persistence path.
  * Values cross only the public ModelCheckpoint boundary; NN retains reconstruction/installation.
  * Encoded limits precede projected defensive copies and do not promise a peak-heap budget.
+ * FP8 definitions use whole-model.v2 with matching definition v2 and model.v2 values; unchanged
+ * definitions keep the frozen whole-model.v1 composition.
  */
 final class WholeModelComposition {
     static final ArtifactLimits DEFAULT_LIMITS = new ArtifactLimits(
             268435456L, 4194304, 16384, 64, 67108864, 268435456L);
     private static final String KIND = "whole-model.v1";
+    private static final String KIND_V2 = "whole-model.v2";
     private static final String DEFINITION = "definition/schema";
     private static final String PREFIX = "model/";
 
@@ -65,7 +69,8 @@ final class WholeModelComposition {
         List<ArtifactEnvelope.Entry> entries = new ArrayList<>(innerCount + 1);
         entries.add(new ArtifactEnvelope.Entry(DEFINITION, definition));
         for (var entry : values.entries()) entries.add(new ArtifactEnvelope.Entry(PREFIX + entry.key(), copy(entry)));
-        ArtifactEnvelope whole = new ArtifactEnvelope(KIND, entries);
+        ArtifactEnvelope whole = new ArtifactEnvelope(
+                WholeModelDefinitionCodec.version(specification) == 1 ? KIND : KIND_V2, entries);
         // Validate final correspondence anew, without constructing or publishing a model.
         validate(whole, inputBytes, limits);
         return whole;
@@ -109,9 +114,10 @@ final class WholeModelComposition {
         Objects.requireNonNull(limits, "limits");
         try {
             preflight(envelope, limits);
-            if (!KIND.equals(envelope.kind())) {
-                if ("model.v1".equals(envelope.kind()))
-                    throw new ArtifactFormatException("Missing whole-model definition; use existing target-load for values-only model.v1");
+            int version = KIND.equals(envelope.kind()) ? 1 : KIND_V2.equals(envelope.kind()) ? 2 : 0;
+            if (version == 0) {
+                if ("model.v1".equals(envelope.kind()) || "model.v2".equals(envelope.kind()))
+                    throw new ArtifactFormatException("Missing whole-model definition; use existing target-load for values-only models");
                 throw new ArtifactFormatException("Unsupported whole-model kind");
             }
             if (envelope.entries().isEmpty() || !DEFINITION.equals(envelope.entries().getFirst().key()))
@@ -125,13 +131,15 @@ final class WholeModelComposition {
                     throw new ArtifactFormatException("Unexpected whole-model key");
             ArtifactLimits projected = project(limits, size, envelope.entries().size() - 1);
             ModelSpecification specification = WholeModelDefinitionCodec.decode(definition.payload());
+            if (definition.payload().order(ByteOrder.BIG_ENDIAN).getInt(8) != version)
+                throw new ArtifactFormatException("Mismatched whole-model/definition versions");
             byte[] digest = hash(definition.payload());
             List<ArtifactEnvelope.Entry> entries = new ArrayList<>(envelope.entries().size() - 1);
             for (int i = 1; i < envelope.entries().size(); i++) {
                 var entry = envelope.entries().get(i);
                 entries.add(new ArtifactEnvelope.Entry(entry.key().substring(PREFIX.length()), copy(entry)));
             }
-            ArtifactEnvelope values = new ArtifactEnvelope("model.v1", entries);
+            ArtifactEnvelope values = new ArtifactEnvelope(version == 1 ? "model.v1" : "model.v2", entries);
             coherent(specification, values, digest, expectedInput, projected);
             return new Validated(specification, values, digest, projected);
         } catch (IllegalArgumentException | ArithmeticException failure) {

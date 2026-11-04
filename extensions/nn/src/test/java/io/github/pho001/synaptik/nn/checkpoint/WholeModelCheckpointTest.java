@@ -51,9 +51,12 @@ class WholeModelCheckpointTest {
     void wholeRoundTripPreservesAllFloatingRawBitsAndIndependentHeapLifetimes() throws Exception {
         long[][] patterns = {{0, Long.MIN_VALUE, 1, 0x7ff8000000001234L, 0xfff0000000002345L},
                 {0, 0x80000000L, 1, 0x7fc01234, 0xff801234L},
-                {0, 0x8000, 1, 0x7fc1, 0xff81}, {0, 0x8000, 1, 0x7e11, 0xfc11}};
-        for (int index = 0; index < FLOATS.size(); index++) {
-            DataType type = FLOATS.get(index);
+                {0, 0x8000, 1, 0x7fc1, 0xff81}, {0, 0x8000, 1, 0x7e11, 0xfc11},
+                {0, 0x80, 1, 0x7f, 0xff}, {0, 0x80, 1, 0x7d, 0xff}};
+        var types = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2);
+        for (int index = 0; index < types.size(); index++) {
+            DataType type = types.get(index);
             Tensor weight = tensor(type, Shape.of(1, 5), patterns[index]);
             Sequential source = new Sequential(List.of(new Linear(weight)));
             ArtifactEnvelope whole;
@@ -74,6 +77,31 @@ class WholeModelCheckpointTest {
                 ArtifactEnvelope resaved = ModelCheckpoint.captureWholeModel(second, engine, LIMITS);
                 assertEnvelopeEquals(whole, resaved);
             }
+        }
+    }
+
+    @Test
+    void fp8WholeModelsPreserveDeclaredTiesAndRejectOldDomainRelabeling() throws Exception {
+        for (DataType type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            Tensor weight = tensor(type, Shape.of(2, 2), 0x80, 0xff, 0x7f, 1);
+            var source = new Sequential(List.of(new Linear(weight), new Linear(weight)));
+            ArtifactEnvelope whole;
+            try (Engine engine = Engine.standard()) {
+                whole = ModelCheckpoint.captureWholeModel(source, engine, LIMITS);
+            }
+            assertEquals("whole-model.v2", whole.kind());
+            var loaded = ModelCheckpoint.loadWholeModel(whole, LIMITS);
+            var states = loaded.stateDictionary().entries();
+            assertSame(states.getFirst().value(), states.getLast().value());
+            assertEquals(ModelSpecification.describe(source).root(), loaded.describe().root());
+            assertEquals(ModelSpecification.describe(source).aliases(), loaded.describe().aliases());
+            assertThrows(ArtifactFormatException.class, () -> ModelCheckpoint.loadWholeModel(
+                    new ArtifactEnvelope("whole-model.v1", whole.entries()), LIMITS));
+            byte[] old = bytes(whole.entries().getFirst()); old[7] = '1'; ByteBuffer.wrap(old).putInt(8, 1);
+            var entries = new ArrayList<>(whole.entries());
+            entries.set(0, new ArtifactEnvelope.Entry("definition/schema", old));
+            assertThrows(ArtifactFormatException.class, () -> ModelCheckpoint.loadWholeModel(
+                    new ArtifactEnvelope("whole-model.v1", entries), LIMITS));
         }
     }
 
@@ -305,6 +333,7 @@ class WholeModelCheckpointTest {
             case 8 -> segment.set(ValueLayout.JAVA_LONG, i * 8L, bits[i]);
             case 4 -> segment.set(ValueLayout.JAVA_INT, i * 4L, (int) bits[i]);
             case 2 -> segment.set(ValueLayout.JAVA_SHORT, i * 2L, (short) bits[i]);
+            case 1 -> segment.set(ValueLayout.JAVA_BYTE, i, (byte) bits[i]);
             default -> throw new IllegalArgumentException();
         }
         return tensor;

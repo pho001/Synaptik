@@ -112,7 +112,7 @@ final class ModelStateRestoration {
                     offset += 2;
                 }
             }
-            case BOOL -> {
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> {
                 while (input.hasRemaining()) nativeBytes.set(ValueLayout.JAVA_BYTE, offset++, input.get());
             }
         }

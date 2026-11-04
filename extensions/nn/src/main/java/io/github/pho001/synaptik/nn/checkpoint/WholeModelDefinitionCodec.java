@@ -20,13 +20,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Cold, metadata-only SYNDEF01 codec. Wire identities are explicit, independent of enum order.
+ * Cold, metadata-only SYNDEF01/SYNDEF02 codec. V2 adds FP8 IDs 8/9 only; old definitions retain
+ * byte-identical v1 encoding. Wire identities are explicit, independent of enum order.
  * Raw admission bounds recursion, counts, rank and strings before decoded allocation; NN owns
  * semantic geometry and canonical parameter-identity validation. No values or Tensors are created.
  */
 final class WholeModelDefinitionCodec {
     static final int MAX_BYTES = 1048576;
     private static final long MAGIC = 0x53594e4445463031L;
+    private static final long MAGIC_V2 = 0x53594e4445463032L;
 
     private WholeModelDefinitionCodec() { }
 
@@ -67,7 +69,10 @@ final class WholeModelDefinitionCodec {
         if (bytes.remaining() > MAX_BYTES) throw malformed("Definition exceeds 1 MiB");
         try {
             Reader reader = new Reader(bytes.slice().order(ByteOrder.BIG_ENDIAN));
-            if (reader.bytes.getLong() != MAGIC || reader.bytes.getInt() != 1)
+            long magic = reader.bytes.getLong();
+            reader.version = reader.bytes.getInt();
+            if (reader.version != 1 && reader.version != 2
+                    || magic != (reader.version == 1 ? MAGIC : MAGIC_V2))
                 throw malformed("Unsupported definition magic/version");
             Step step = reader.node(1);
             if (!(step instanceof Sequence root)) throw malformed("Definition root must be Sequence");
@@ -98,7 +103,8 @@ final class WholeModelDefinitionCodec {
      * @throws ArithmeticException if checked byte counting overflows
      */
     private static void write(Sink sink, ModelSpecification specification) {
-        sink.i64(MAGIC); sink.i32(1);
+        int version = version(specification);
+        sink.i64(version == 1 ? MAGIC : MAGIC_V2); sink.i32(version);
         writeNode(sink, specification.root());
         sink.i32(specification.aliases().size());
         for (AliasGroup group : specification.aliases()) {
@@ -109,6 +115,17 @@ final class WholeModelDefinitionCodec {
                 for (int i = 0; i < path.length(); i++) sink.u8(path.charAt(i));
             }
         }
+    }
+
+    /**
+     * Selects the smallest definition domain from NN's complete parameter descriptors.
+     * @param specification validated closed definition, without state access
+     * @return 2 when a parameter is FP8, otherwise the unchanged domain 1
+     */
+    static int version(ModelSpecification specification) {
+        for (var state : specification.stateDescriptors())
+            if (state.dataType() == DataType.FLOAT8_E4M3 || state.dataType() == DataType.FLOAT8_E5M2) return 2;
+        return 1;
     }
 
     /**
@@ -177,6 +194,8 @@ final class WholeModelDefinitionCodec {
             case FLOAT32 -> s.i32(Float.floatToRawIntBits(value.float32Value()));
             case BFLOAT16 -> s.i16(value.bfloat16Bits());
             case FLOAT16 -> s.i16(value.float16Bits());
+            case FLOAT8_E4M3 -> s.u8(value.float8E4m3Bits());
+            case FLOAT8_E5M2 -> s.u8(value.float8E5m2Bits());
             case INT32 -> s.i32(value.int32Value());
             case INT64 -> s.i64(value.int64Value());
             case BOOL -> s.u8(value.booleanValue() ? 1 : 0);
@@ -184,7 +203,7 @@ final class WholeModelDefinitionCodec {
     }
 
     /**
-     * Assigns the frozen model.v1 wire IDs, deliberately unrelated to Java enum ordinals.
+     * Assigns frozen v1 IDs and the v2-only FP8 additions, unrelated to Java enum ordinals.
      * @param type non-null Model data type
      * @return stable positive unsigned-byte wire ID
      */
@@ -192,6 +211,7 @@ final class WholeModelDefinitionCodec {
         return switch (type) {
             case FLOAT64 -> 1; case FLOAT32 -> 2; case BFLOAT16 -> 3;
             case INT32 -> 4; case INT64 -> 5; case BOOL -> 6; case FLOAT16 -> 7;
+            case FLOAT8_E4M3 -> 8; case FLOAT8_E5M2 -> 9;
         };
     }
 
@@ -239,6 +259,7 @@ final class WholeModelDefinitionCodec {
     private static final class Reader {
         private final ByteBuffer bytes;
         private int nodes;
+        private int version;
         /**
          * Borrows a private view already bounded by the fixed definition ceiling.
          * @param bytes non-null big-endian view with an independent cursor
@@ -267,10 +288,13 @@ final class WholeModelDefinitionCodec {
          * @throws ArtifactFormatException if the type ID is unknown
          */
         DataType type() throws ArtifactFormatException {
-            return switch (u8()) {
+            int id = u8();
+            if (id >= 8 && version < 2) throw malformed("FP8 requires definition v2");
+            return switch (id) {
                 case 1 -> DataType.FLOAT64; case 2 -> DataType.FLOAT32; case 3 -> DataType.BFLOAT16;
                 case 4 -> DataType.INT32; case 5 -> DataType.INT64; case 6 -> DataType.BOOL;
-                case 7 -> DataType.FLOAT16; default -> throw malformed("Unknown definition DataType ID");
+                case 7 -> DataType.FLOAT16; case 8 -> DataType.FLOAT8_E4M3; case 9 -> DataType.FLOAT8_E5M2;
+                default -> throw malformed("Unknown definition DataType ID");
             };
         }
         /**
@@ -330,8 +354,9 @@ final class WholeModelDefinitionCodec {
                         throw malformed("Definition normalized rank exceeds remaining bytes");
                     int scalarPosition = bytes.position() + Math.toIntExact(8L * rank);
                     int scalarId = Byte.toUnsignedInt(bytes.get(scalarPosition));
+                    if (scalarId >= 8 && version < 2) throw malformed("FP8 requires definition v2");
                     int width = switch (scalarId) {
-                        case 1, 5 -> 8; case 2, 4 -> 4; case 3, 7 -> 2; case 6 -> 1;
+                        case 1, 5 -> 8; case 2, 4 -> 4; case 3, 7 -> 2; case 6, 8, 9 -> 1;
                         default -> throw malformed("Unknown scalar DataType ID");
                     };
                     if (8L * rank + 1 + width > bytes.remaining())
@@ -368,6 +393,8 @@ final class WholeModelDefinitionCodec {
                 case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(bytes.getInt()));
                 case BFLOAT16 -> ScalarValue.bfloat16Bits(bytes.getShort());
                 case FLOAT16 -> ScalarValue.float16Bits(bytes.getShort());
+                case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits(bytes.get());
+                case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits(bytes.get());
                 case INT32 -> ScalarValue.int32(bytes.getInt());
                 case INT64 -> ScalarValue.int64(bytes.getLong());
                 case BOOL -> ScalarValue.bool(flag());
