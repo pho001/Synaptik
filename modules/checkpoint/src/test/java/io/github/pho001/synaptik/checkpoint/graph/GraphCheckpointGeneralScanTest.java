@@ -174,7 +174,8 @@ final class GraphCheckpointGeneralScanTest {
                     assertSame(owned, p.inputs().get(2));
                     for (int port = 0; port < p.outputCount(); port++) assertSame(p.output(port), copy.outputs().get(port));
                     var image = GraphArtifactCodec.encode(GraphSource.capture(source), LIMITS);
-                    assertEquals("graph-model.v5", image.kind());
+                    assertEquals(type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
+                            ? "graph-model.v7" : "graph-model.v5", image.kind());
                     assertEquals(2, image.entries().size(), "only named weight bytes, never external lengths");
                     var loaded = GraphArtifactCodec.decode(image, LIMITS);
                     assertEquals(GraphSource.capture(source).graph, GraphSource.capture(loaded).graph);

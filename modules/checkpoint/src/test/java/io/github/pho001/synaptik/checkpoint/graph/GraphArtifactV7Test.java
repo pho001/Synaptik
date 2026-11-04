@@ -82,14 +82,15 @@ final class GraphArtifactV7Test {
         assertArrayEquals(raw, bytes(saved.entries().get(1)));
     }
 
-    @Test void fp8OnlyInScalarMetadataSelectsV7WithoutChangingFloatWorkingDescriptors() throws Exception {
+    @Test void containedFp8ScalarAndCastsSelectV7WithFloat32FormalsAndPublishedOutputs() throws Exception {
         for (DataType type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             for (byte bits : new byte[]{(byte) 0x80, (byte) 0xff}) for (long time : new long[]{0, 3}) {
                 ScalarValue scalar = type == DataType.FLOAT8_E4M3
                         ? ScalarValue.float8E4m3Bits(bits) : ScalarValue.float8E5m2Bits(bits);
                 Tensor h = prototype(DataType.FLOAT32, Shape.of(2), false, false);
                 Tensor x = prototype(DataType.FLOAT32, Shape.of(2), false, false);
-                var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h), List.of(h.add(scalar)));
+                var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h),
+                        List.of(h.cast(type).add(scalar).cast(DataType.FLOAT32)));
                 Tensor initial = prototype(DataType.FLOAT32, Shape.of(2), false, false);
                 Tensor sequence = prototype(DataType.FLOAT32, Shape.of(time, 2), false, false);
                 var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(), body, false);
