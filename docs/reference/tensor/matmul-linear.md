@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## The expression builder supplies both operands
+
+Application code or an NN `Linear` module calls `left.matmul(right)` with Tensor descriptions.
+The method retains those exact references and describes a result; it does not copy their values.
+`Tensor.linear` similarly composes a transpose, MATMUL and optional ADD; it does not acquire
+parameter ownership. For the geometry of that transpose see [axis transforms](axis-transforms.md);
+for the distinct state owner see [NN linear-layer initialization](../nn/composition.md#current-nn-automatic-parameter-initialization-contract).
+
 **[Reader model](../../glossary.md#term-reader-model).** A [vector](../../glossary.md#term-vector) is a [rank-one](../../glossary.md#axis-rank-scalar-vector-and-matrix) array; a [matrix](../../glossary.md#term-matrix-meanings) is a [rank-two](../../glossary.md#axis-rank-scalar-vector-and-matrix) array with rows and columns.
 Matrix multiplication combines each left row with each right column: multiply corresponding
 components, then sum them. That sum is a **[dot product](../../glossary.md#term-dot-product)**, and the shared component [axis](../../glossary.md#term-axis) is
@@ -53,14 +61,26 @@ right Shape [3, 2] = [[1, 2],
                       [5, 6]]
 ```
 
-Each output position is one left-row/right-column [dot product](../../glossary.md#term-dot-product):
+Let $A$ be the left $M$-by-$K$ matrix and $B$ the right $K$-by-$N$ matrix.
+For row $0\leq i<M$, output column $0\leq j<N$, and shared coordinate $0\leq k<K$,
+the ideal finite-real calculation is
 
-```text
-result[0,0] = 1*1 + 2*3 + 3*5 = 22
-result[0,1] = 1*2 + 2*4 + 3*6 = 28
-result[1,0] = 4*1 + 5*3 + 6*5 = 49
-result[1,1] = 4*2 + 5*4 + 6*6 = 64
-```
+$$
+C_{i,j}=\sum_{k=0}^{K-1}A_{i,k}B_{k,j}.
+$$
+
+Here $M=N=2$ and $K=3$. The four cells are
+
+$$
+\begin{aligned}
+C_{0,0}&=1(1)+2(3)+3(5)=22,& C_{0,1}&=1(2)+2(4)+3(6)=28,\\
+C_{1,0}&=4(1)+5(3)+6(5)=49,& C_{1,1}&=4(2)+5(4)+6(6)=64.
+\end{aligned}
+$$
+
+Each cell summarizes three matching products; the shared coordinate disappears from the output.
+This real-number formula does not choose a floating summation tree, authorize extra fused
+operations, or override the empty-contraction, signed-zero and result-rounding rules below.
 
 Therefore the mathematical result has Shape `[2, 2]` and values:
 
@@ -202,6 +222,7 @@ public final class LinearProducerChainExample {
         Tensor bias = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, Shape.of(4), Optional.empty(), true));
 
+        // Keep the primitive producer chain visible; linear() does not own the supplied weights.
         Tensor output = input.linear(weight, bias);
         TensorProducer add = output.provenance().orElseThrow().producer();
         Tensor product = add.inputs().getFirst();

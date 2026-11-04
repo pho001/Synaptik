@@ -2,6 +2,19 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Choose the boundary by who already has the data
+
+- If the application has only type/shape facts, it calls `TensorFactory.create`.
+- If it needs a new region for already resolved geometry, it calls `allocate`.
+- If it has primitive-array values, it calls an import method, which copies them.
+- If it already manages a memory region, the complete `create` overload can retain a compatible
+  storage wrapper without copying it. That application still keeps the region alive.
+
+“Caller” here is the application or framework component invoking the factory, not the eventual
+backend executor. Retaining an immutable descriptor is different from retaining mutable memory.
+For runnable examples use [flat/nested import](import.md); for the no-copy association's
+cleanup responsibility use [storage lifetimes](host-storage.md).
+
 **[Reader model](../../glossary.md#term-reader-model).** Choose among three different actions: `create` names a described [Tensor](../../glossary.md#tensor),
 `allocate` reserves storage for resolved geometry, and import copies supplied values into new
 storage. A **[carrier](../../glossary.md#term-storage-carrier)** is the Java primitive array holding values or raw encoded bits.

@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## What crosses the constructor boundary?
+
+Application code, or a framework component deriving an operation's output, calls
+`new TensorDescriptor(type, shape, layout, requiresGrad)`. It supplies immutable descriptions,
+not arrays of numeric values. The record keeps those facts and validates their consistency;
+it does not own or close a memory region. A known shape and a known layout are separate facts:
+six positions can be known before their storage mapping is chosen.
+Continue with [factory creation choices](creation.md) to attach values and
+[layout geometry](layouts.md#resolved-layouts) to understand a present layout.
+
 **[Reader model](../../glossary.md#term-reader-model).** A descriptor is a description of a value, not its data. **[Data type](../../glossary.md#data-type--datatype)** says how
 one [element](../../glossary.md#term-element) is represented, **[shape](../../glossary.md#shape)** gives the [axis](../../glossary.md#term-axis) sizes, and **[layout](../../glossary.md#layout)** optionally maps
 [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) to storage positions. A **[gradient](../../glossary.md#term-gradient)** describes how changing an input affects a
@@ -61,6 +71,7 @@ import java.util.Optional;
 public final class TensorDescriptorExample {
     public static void main(String[] args) {
         Shape staticShape = Shape.of(2, 3);
+        // Static sizes alone do not choose how the six positions map to memory.
         TensorDescriptor staticUnresolved = new TensorDescriptor(
                 DataType.FLOAT32, staticShape, Optional.empty(), false);
 
@@ -68,6 +79,7 @@ public final class TensorDescriptorExample {
         TensorDescriptor resolved = new TensorDescriptor(
                 DataType.FLOAT32, staticShape, Optional.of(rowMajor), true);
 
+        // A symbolic batch has no numeric strides until its size is resolved.
         Shape dynamicShape = Shape.ofDimensions(
                 new DynamicDimension("batch"), new StaticDimension(3));
         TensorDescriptor dynamicUnresolved = new TensorDescriptor(

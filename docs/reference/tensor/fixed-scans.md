@@ -2,6 +2,21 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Which API describes the repeated work?
+
+Application or layer-building code calls `input.cumSum(axis)` for every prefix total, or the
+static `RecurrentScan` methods for a fixed neural state update. Both receive Tensor descriptions,
+retain exact input references, and return storage-free result descriptions. They do not read
+length values or run the recurrence during construction. For a user-described step body rather
+than a fixed cell, use [general Scan](general-scan.md#formals-actual-positions-and-source-closure).
+
+For finite real values $x_0,\ldots,x_{D-1}$ along an axis of integer extent $D\geq0$,
+forward inclusive sum describes $y_i=\sum_{j=0}^{i}x_j$ for $0\leq i<D$;
+exclusive sum uses $\sum_{j=0}^{i-1}x_j$ with empty sum zero.
+Thus `[1, 2, 3]` gives final inclusive value $1+2+3=6$, while the first exclusive
+value is zero because no prior position exists. Floating accumulation is rounded under the
+rules below, not unrestricted real reassociation; an empty axis has no output position.
+
 **[Reader model](../../glossary.md#term-reader-model).** A **[scan](../../glossary.md#term-cumulative-scan)** visits an ordered [axis](../../glossary.md#term-axis) while carrying information from earlier
 visited positions. A cumulative sum returns every partial total, unlike a reduction that returns
 only the final total. **Inclusive** includes the current value; **exclusive** reports the total
@@ -115,24 +130,33 @@ common floating [data type](../../glossary.md#data-type--datatype), including ei
 The fixed transition equations match the current NN cells. With `X = x @ transpose(inputWeight)`
 plus the optional input-side bias and `H = h @ transpose(hiddenWeight)`:
 
-```text
-RNN_TANH:
-  nextHidden = tanh(X + H)
+For each finite real row/hidden coordinate, let $X$ and $H$ be the input and previous-hidden
+projections defined above, and $h$ the previous hidden value. Subscripts select blocks of
+the packed gate axis, not time positions. All products below are elementwise:
 
-GRU_RESET_AFTER, packed reset/update/candidate order:
-  r = sigmoid(X_r + H_r)
-  z = sigmoid(X_z + H_z)
-  n = tanh(X_n + r * H_n)
-  nextHidden = n + z * (h - n)
+$$
+h_{\mathrm{next}}=\tanh(X+H)\qquad\text{(RNN)}.
+$$
 
-LSTM, packed input/forget/candidate/output (IFGO) order:
-  i = sigmoid(X_i + H_i)
-  f = sigmoid(X_f + H_f)
-  g = tanh(X_g + H_g)
-  o = sigmoid(X_o + H_o)
-  nextCell = f * cell + i * g
-  nextHidden = o * tanh(nextCell)
-```
+For reset-after GRU, $r$ is the reset gate, $z$ the update gate and $n$ the candidate:
+
+$$
+r=\sigma(X_r+H_r),\quad z=\sigma(X_z+H_z),\quad
+n=\tanh(X_n+rH_n),\quad h_{\mathrm{next}}=n+z(h-n).
+$$
+
+For LSTM, $i,f,o$ are input/forget/output gates, $g$ the candidate, and $c$ the previous cell:
+
+$$
+i=\sigma(X_i+H_i),\quad f=\sigma(X_f+H_f),\quad
+g=\tanh(X_g+H_g),\quad o=\sigma(X_o+H_o),\quad
+c_{\mathrm{next}}=fc+ig,\quad h_{\mathrm{next}}=o\tanh(c_{\mathrm{next}}).
+$$
+
+Here $\sigma$ denotes sigmoid. If $X=H=0$, the ideal RNN next hidden value is zero;
+for an LSTM with $c=0$ and zero projections, $i=f=o=1/2$, $g=0$, so both next states
+are zero. These real formulas explain gates, not an IEEE rewrite rule: working precision and
+stored-state narrowing below still determine what a later state consumer reads.
 
 There is no hidden-side bias, configurable [activation](../../glossary.md#term-activation), gate order, peephole, projection,
 recurrent [dropout](../../glossary.md#dropout--inverted-dropout), arbitrary cell body, [callback](../../glossary.md#term-callback), nested [graph](../../glossary.md#graph), or region. `RecurrentScanKind`

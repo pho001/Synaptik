@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## State transitions and objectives are explicit expression inputs
+
+Application or NN layer-building code calls the Tensor methods with prediction/input Tensors,
+target/statistic Tensors and fixed typed attributes. Construction retains exact Tensor references
+and returns descriptions; it does not copy numeric data, update a running statistic or perform a
+training step. For batch normalization, the application or layer must explicitly consume the next
+running-statistic results. For a loss, Engine/Training later evaluates the selected objective.
+Use [normalization inference](normalization.md#batch-normalization-inference-expressions) when
+statistics are already known, and [reduction domains](reductions.md) to interpret SUM versus MEAN.
+
 **[Reader model](../../glossary.md#term-reader-model).** A **[statistic](../../glossary.md#term-statistic)** summarizes a set of values. [Batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) [mean](../../glossary.md#term-mean) and [variance](../../glossary.md#term-variance) summarize
 the current input; **running statistics** summarize prior inputs and have explicit next values
 here, rather than being silently mutated. Variance averages squared deviations from the mean;
@@ -50,18 +60,29 @@ including every axis before or after it, belongs to the reduction domain; there 
 distinguished batch axis or inferred [NCHW](../../glossary.md#term-nchw)/[NHWC](../../glossary.md#term-nhwc) [layout](../../glossary.md#layout). Let `N` be the product of those
 non-channel extents. For each channel `c`, the five mathematical outputs are:
 
-```text
-batchMean[c]             = sum_i(x_i) / N
-sumSquaredDeviation[c]   = sum_i((x_i - batchMean[c])^2)
-biasedBatchVariance[c]   = sumSquaredDeviation[c] / N
-unbiasedBatchVariance[c] = sumSquaredDeviation[c] / (N - 1)
-savedInvStd[c]           = 1 / sqrt(biasedBatchVariance[c] + epsilon)
-output_i                 = ((x_i - batchMean[c]) * savedInvStd[c]) * scale[c] + bias[c]
-nextRunningMean[c]       = (1 - momentum) * runningMean[c]
-                           + momentum * batchMean[c]
-nextRunningVariance[c]   = (1 - momentum) * runningVariance[c]
-                           + momentum * unbiasedBatchVariance[c]
-```
+For a channel $0\leq c<C$, enumerate its $N\geq2$ contributors as finite real
+$x_{c,i}$, $0\leq i<N$. Define batch mean $\mu_c$, squared-deviation sum $S_c$,
+population variance $v_c$, correction-one estimate $\hat v_c$, and saved inverse deviation $r_c$:
+
+$$
+\mu_c=\frac1N\sum_{i=0}^{N-1}x_{c,i},\quad
+S_c=\sum_{i=0}^{N-1}(x_{c,i}-\mu_c)^2,\quad
+v_c=S_c/N,\quad \hat v_c=S_c/(N-1),\quad
+r_c=1/\sqrt{v_c+\varepsilon}.
+$$
+
+Let $\gamma_c,\beta_c$ be scale and bias, $m_c,w_c$ old running mean and variance,
+$\lambda$ the new-batch momentum, and $\varepsilon>0$ epsilon. The output and next statistics are
+
+$$
+y_{c,i}=((x_{c,i}-\mu_c)r_c)\gamma_c+\beta_c,\qquad
+m'_c=(1-\lambda)m_c+\lambda\mu_c,\qquad
+w'_c=(1-\lambda)w_c+\lambda\hat v_c.
+$$
+
+Variance, $S_c$ and epsilon have squared input units. These finite-real formulas explain the
+roles; actual arithmetic retains the written momentum terms even at endpoints and the saved
+rounding boundaries. The zero-channel case below evaluates none of these formulas.
 
 Forward normalization therefore uses biased [population variance](../../glossary.md#population-variance), while the running-variance
 transition uses the corresponding correction-one unbiased estimate. [Momentum](../../glossary.md#term-momentum) is the [weight](../../glossary.md#term-weight) of
@@ -92,16 +113,15 @@ The goal is to show the biased-forward/unbiased-running distinction and [momentu
 one [FLOAT64](../../glossary.md#term-float64) [channel](../../glossary.md#term-channel) containing `[1, 2, 3]`, scale `2`, [bias](../../glossary.md#term-bias) `0.5`, old [mean](../../glossary.md#term-mean) `10`, old [variance](../../glossary.md#term-variance) `4`,
 momentum `0.25`, and [epsilon](../../glossary.md#epsilon) `1e-5`:
 
-```text
-batch mean                  = 2
-sum of squared deviations   = 2
-biased batch variance       = 2 / 3
-unbiased batch variance     = 1
-saved inverse std           = 1 / sqrt(2 / 3 + 1e-5)
-next running mean           = 0.75 * 10 + 0.25 * 2 = 8
-next running variance       = 0.75 * 4 + 0.25 * 1 = 3.25
-normalized output           ~= [-1.949471, 0.5, 2.949471]
-```
+Here $\mu=2$, $S=2$, $v=2/3$, $\hat v=1$ and
+$r=1/\sqrt{2/3+10^{-5}}$. The transitions are
+
+$$
+m'=0.75(10)+0.25(2)=8,\qquad w'=0.75(4)+0.25(1)=3.25.
+$$
+
+The normalized affine output is approximately `[-1.949471, 0.5, 2.949471]`.
+The different variance denominators explain why the running variance moves toward $1$, not $2/3$.
 
 This is a mathematical illustration. Expression construction reads no [Tensor](../../glossary.md#tensor) values and produces
 no numerical result. The convention matches official [PyTorch
@@ -177,12 +197,16 @@ Dimensions fail, and an unequal pair involving an unresolved Dimension defers an
 obligation to later [compiler](../../glossary.md#term-compiler) [capture](../../glossary.md#term-capture-meanings) or concrete [binding](../../glossary.md#term-binding). No [scalar](../../glossary.md#term-scalar), [singleton](../../glossary.md#term-singleton), leading-[axis](../../glossary.md#term-axis),
 right-aligned, or other target [broadcasting](../../glossary.md#broadcasting) is accepted.
 
-For each logical coordinate `i`, the selected mathematical loss is:
+For a finite-real prediction $p_i$ and target $t_i$ at matching coordinate $i$, define
+difference $d_i$ and coordinate loss $\ell_i$:
 
-```text
-d_i    = prediction_i - target_i
-loss_i = d_i * d_i
-```
+$$
+d_i=p_i-t_i,\qquad \ell_i=d_i^2.
+$$
+
+Here $i$ enumerates every logical position, not only batch rows. The squared loss has squared
+input units. Actual evaluation retains subtraction followed by multiplication; the real
+square notation does not authorize expansion into separate squares and cross terms.
 
 Let `E` be the complete logical [element](../../glossary.md#term-element) count after every unresolved Dimension is bound. The
 explicit reduction determines both output and [Shape](../../glossary.md#shape):
@@ -190,16 +214,17 @@ explicit reduction determines both output and [Shape](../../glossary.md#shape):
 | Reduction | Result | Result Shape |
 |---|---|---|
 | `LossReduction.NONE` | One `loss_i` for every logical coordinate | The exact prediction Shape reference |
-| `LossReduction.SUM` | `sum_i(loss_i)` | Shared `Shape.scalar()` |
-| `LossReduction.MEAN` | `sum_i(loss_i) / E` | Shared `Shape.scalar()` |
+| `LossReduction.SUM` | $\sum_{i=0}^{E-1}\ell_i$ | Shared `Shape.scalar()` |
+| `LossReduction.MEAN` | $\frac1E\sum_{i=0}^{E-1}\ell_i$ for $E>0$ | Shared `Shape.scalar()` |
 
 `E` counts every logical coordinate, not only a [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) or leading axis. A scalar has `E = 1`. A
 Shape with any zero [extent](../../glossary.md#term-extent) has `E = 0`: `NONE` is empty, `SUM` is [positive zero](../../glossary.md#nan-infinity-and-signed-zero), and `MEAN` is
 [NaN](../../glossary.md#term-nan) because it is the selected zero-over-zero empty mean.
 
-For prediction `[1, 2, 4]` and target `[1, 4, 1]`, the coordinate losses are `[0, 4, 9]`, `SUM`
-is `13`, and `MEAN` is `13 / 3`. This mathematical example explains the [metadata](../../glossary.md#term-metadata) request;
-constructing the expression reads no values. It is comparable to official
+For prediction `[1, 2, 4]` and target `[1, 4, 1]`, coordinate losses are `[0, 4, 9]`;
+SUM is $0+4+9=13$ and MEAN is $13/3$. The denominator counts all three positions.
+This mathematical example explains the request; constructing the expression reads no values.
+It is comparable to official
 [PyTorch MSE loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.mse_loss.html),
 while Synaptik deliberately has no default reduction, [weights](../../glossary.md#term-weight), or broadcasting.
 
@@ -272,11 +297,18 @@ The dense branch is unchanged: logits and target have equal [rank](../../glossar
 [Dimensions](../../glossary.md#dimension), both are floating, floating promotion selects the result type and combined [gradient](../../glossary.md#term-gradient)
 eligibility, and [broadcasting](../../glossary.md#broadcasting) is forbidden. For group `g` outside the normalized [class axis](../../glossary.md#class-axis):
 
-```text
-m[g]    = max_c(logits[g,c])
-lse[g]  = m[g] + log(sum_c(exp(logits[g,c] - m[g])))
-loss[g] = sum_c(target[g,c] * (lse[g] - logits[g,c]))
-```
+Let $C>0$ be class extent; $c$ ranges over integer classes $0\leq c<C$, while $g$
+denotes all coordinates outside that axis. For finite real logits $z_{g,c}$ and valid dense
+target weights $t_{g,c}$, define maximum $m_g$, log-sum-exp $a_g$ and group loss $\ell_g$:
+
+$$
+m_g=\max_{0\leq c<C}z_{g,c},\qquad
+a_g=m_g+\log\left(\sum_{c=0}^{C-1}\exp(z_{g,c}-m_g)\right),\qquad
+\ell_g=\sum_{c=0}^{C-1}t_{g,c}(a_g-z_{g,c}).
+$$
+
+The maximum shift expresses the intended class calculation; it is not a license to replace
+literal arithmetic sites elsewhere (such as attention) or ignore the exceptional-logit policy.
 
 Dense target slices remain caller-obligated to be [finite](../../glossary.md#term-finite), non-negative, and normalized to one.
 Construction reads no values and neither diagnoses nor renormalizes them. An exact zero target
@@ -295,15 +327,17 @@ wrapping, or clamping occurs. `NONE` retains the exact target Shape object, incl
 for [rank-one](../../glossary.md#axis-rank-scalar-vector-and-matrix) logits. Index results retain exact logits type and use only logits
 `requiresGrad` metadata.
 
-For index target `y[g]` and optional ignore value `I`, the requested mathematical meaning is:
+For integer class target $y_g$, optional exact ignore value $I$, and class extent $C$:
 
-```text
-if I is present and y[g] == I:
-    loss[g] = +0
-else:
-    require 0 <= y[g] < classExtent
-    loss[g] = lse[g] - logits[g,y[g]]
-```
+$$
+\ell_g=\begin{cases}
++0&I\text{ is present and }y_g=I,\\
+a_g-z_{g,y_g}&\text{otherwise, requiring }0\leq y_g<C.
+\end{cases}
+$$
+
+The group coordinate $g$ and log-sum-exp $a_g$ have the meanings above.
+This is a conditional definition: the ignored branch does not evaluate the logits slice.
 
 Exact ignore comparison occurs before bounds checking or logits [evaluation](../../glossary.md#term-evaluation), so the ignore value
 may itself be out of range. Every non-matching target must eventually be in range. [Model](../../glossary.md#term-model)

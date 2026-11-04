@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Read the name in its owning context
+
+The application obtains a `TensorId` from a factory-created Tensor. The Compiler separately
+assigns graph-local `NodeId` and `ValueId` names when capturing expressions. Passing those IDs
+to a graph record connects descriptions, not memory addresses, and copies no numeric values.
+For example, value `7` in graph A and value `7` in graph B do not name shared storage.
+See [compiled graph construction](compiled-graph.md#graph-values-and-compiled-nodes) for how
+the graph checks references and [producer identity](identity.md) for the objects before capture.
+
 **[Reader model](../../glossary.md#term-reader-model).** A typed identifier is a number labeled with what it identifies.
 `TensorId(7)`, `NodeId(7)`, and `ValueId(7)` are different kinds of names, not interchangeable
 references to the same entity. A [node](../../glossary.md#node) names a calculation [occurrence](../../glossary.md#term-occurrence); a value names data entering

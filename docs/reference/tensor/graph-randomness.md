@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Thread a description of state, not a hidden generator
+
+Application or NN training code calls `activations.dropout(probability, state)`.
+It supplies an input Tensor and immutable stream-position description. The method retains those
+references and returns descriptions of output and next state; it neither draws samples nor mutates
+the original state. This differs from [eager initialization](random-initialization.md), where
+`TensorRandoms` actually calls the application's `RandomGenerator` during the call.
+The [producer reference](identity.md#multi-output-and-hidden-output-identity) explains how a saved
+mask can belong to the same occurrence without appearing in the public result record.
+
 **[Reader model](../../glossary.md#term-reader-model).** RNG means **[random-number generator](../../glossary.md#graph-rng-state--graphrngstate)**. Its state identifies where [sampling](../../glossary.md#term-sampling-machine-learning-and-hyperparameters)
 continues, rather than representing a sampled value itself. A **key** names a stream or domain;
 a **counter** names a logical [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters) position. Passing the returned next state expresses
@@ -55,6 +65,7 @@ import io.github.pho001.synaptik.model.tensor.GraphRngState;
 
 public final class GraphRngStateExample {
     public static void main(String[] args) {
+        // Equal raw words request replay-equivalent positions, not equal wrapper identities.
         GraphRngState start = GraphRngState.initial(0x1234L, 0L);
         GraphRngState replay = GraphRngState.initial(0x1234L, 0L);
 
@@ -108,16 +119,20 @@ multi-output factory creates three fresh Tensor wrappers and three Tensor IDs, o
 slot. The slot-one wrapper is discarded from the public result, while the producer retained by
 slots zero and two still describes its BOOL mask position for later [compiler](../../glossary.md#term-compiler) [capture](../../glossary.md#term-capture-meanings).
 
-For logical [element](../../glossary.md#term-element) position `i`, the [operation](../../glossary.md#operation) means one abstract draw `u[i]` in `[0, 1)` and:
+For integer position $i$ with $0\leq i<N$, let $x_i$ be the input, $p\in[0,1)$ the finite
+drop probability, and $u_i\in[0,1)$ the abstract draw. With keep indicator $m_i=(u_i\geq p)$:
 
-```text
-keep[i] = u[i] >= probability
-output[i] = keep[i] ? input[i] / (1 - probability) : +0
-```
+$$
+y_i=\begin{cases}x_i/(1-p)&m_i\text{ is true},\\+0&m_i\text{ is false}.\end{cases}
+$$
+
+For example, at $p=1/2$ a kept finite value $x_i=3$ becomes $6$, and a dropped value
+becomes positive zero. For ideal uniform draws and finite real $x_i$, its expectation is
+$(1-p)x_i/(1-p)=x_i$. This expectation is not a per-draw equality or floating rewrite.
 
 This is inverted dropout: kept values are scaled so their ideal expectation matches the input.
 Dropped values are [positive zero](../../glossary.md#nan-infinity-and-signed-zero) even for [negative zero](../../glossary.md#nan-infinity-and-signed-zero), [NaN](../../glossary.md#term-nan), or infinite input. Kept [signed zero](../../glossary.md#term-signed-zero)
-and [infinity](../../glossary.md#term-infinity) retain their sign; kept NaN remains NaN without a [payload](../../glossary.md#artifact-envelope-and-atomic-publication) promise. Construction does
+and infinity retain their sign; kept NaN remains NaN without a [NaN-payload](../../glossary.md#term-nan-payload) promise. Construction does
 not evaluate this formula or select its finite-[precision](../../glossary.md#term-precision) algorithm.
 
 The current [Metal](../../glossary.md#term-metal) [backend](../../glossary.md#backend) executes `GraphRngState.initial` and [canonical](../../glossary.md#term-canonical-form)
@@ -165,6 +180,7 @@ public final class DropoutConstructionExample {
         DropoutResult first = activations.dropout(0.1d, start);
         DropoutResult replay = activations.dropout(
                 0.1d, GraphRngState.initial(0x1234L, 0L));
+        // Thread nextState to request a successor interval rather than branch from start again.
         DropoutResult second = first.output().dropout(0.1d, first.nextState());
 
         TensorProducer producer = first.output().provenance().orElseThrow().producer();

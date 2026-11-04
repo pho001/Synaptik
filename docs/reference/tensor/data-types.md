@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Separate a format decision from a value conversion
+
+An application or expression constructor calls `DataTypePromotion` with type labels and receives
+another type label; no array crosses that boundary. By contrast, the bit-conversion utilities
+receive a primitive value and return an encoding immediately. `ScalarValue` retains one typed
+encoding for an operation attribute. A [cast expression](selection-casts.md#cast-expressions)
+records a future conversion of a Tensor's values. These are three different actions.
+
 **[Reader model](../../glossary.md#term-reader-model).** An [element](../../glossary.md#term-element)'s numeric format determines which values fit and how they are encoded.
 Signed integer formats store whole numbers; [floating-point](../../glossary.md#term-floating-point) formats store a sign, an [exponent](../../glossary.md#term-exponent)
 (scale), and a [significand](../../glossary.md#term-significand) ([precision](../../glossary.md#term-precision)). Fewer bits generally [mean](../../glossary.md#term-mean) fewer representable values.
@@ -22,7 +30,7 @@ A **[subnormal](../../glossary.md#term-subnormal)** represents values closer to 
 relative precision. [Denormals-are-zero](../../glossary.md#subnormal-daz-ftz-overflow-and-underflow) (**[DAZ](../../glossary.md#term-daz)**) treats such an input as [signed zero](../../glossary.md#term-signed-zero) at a permitted
 arithmetic site; [flush-to-zero](../../glossary.md#subnormal-daz-ftz-overflow-and-underflow) (**[FTZ](../../glossary.md#term-ftz)**) does so for a permitted result. These are restricted
 permissions below, not universal behavior or permission to change stored comparisons.
-A NaN **[payload](../../glossary.md#artifact-envelope-and-atomic-publication)** is extra information in its bit pattern; a **quiet** NaN and a **signaling** NaN
+A NaN [payload](../../glossary.md#nan-infinity-and-signed-zero) is extra information in its bit pattern; a **quiet** NaN and a **signaling** NaN
 have different encodings. Preserving a numeric class is weaker than preserving every bit.
 **Two's complement** is the signed integer encoding in which fixed-width arithmetic can wrap
 modulo a power of two; that numeric wrapping differs from checked [shape](../../glossary.md#shape) arithmetic throwing.
@@ -87,6 +95,7 @@ values; promotion itself never inserts a cast or evaluates a value.
 For example:
 
 ```java
+// Promotion chooses a logical type; it does not widen any stored BFLOAT16 data here.
 DataType result = DataTypePromotion.promoteFloating(
         DataType.BFLOAT16, DataType.FLOAT64);
 ```
@@ -126,6 +135,7 @@ request or executable [constant](../../glossary.md#term-constant).
 Named factories make the representation explicit:
 
 ```java
+// Raw-bit factories preserve encodings; numeric factories express values instead.
 ScalarValue floatValue = ScalarValue.float32(0.5f);
 ScalarValue rawBfloatNaN = ScalarValue.bfloat16Bits((short) 0x7FC1);
 ScalarValue rawFloat16NaN = ScalarValue.float16Bits((short) 0x7E01);
@@ -149,6 +159,7 @@ conversion method. Scalar/clamp Tensor expressions require a matching floating v
 constant [padding](../../glossary.md#padding) accepts every [Model](../../glossary.md#term-model) data type when the value exactly matches the receiver:
 
 ```java
+// Match the receiver type explicitly: these calls describe work rather than convert storage now.
 Tensor scaled = float32Input.mul(ScalarValue.float32(0.5f));
 Tensor padded = boolInput.pad(before, after, ScalarValue.bool(false));
 ```

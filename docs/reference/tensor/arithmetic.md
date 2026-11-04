@@ -2,6 +2,21 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Which values are combined?
+
+Application code or a layer builder calls `left.div(right)` on the numerator Tensor.
+The method records both exact Tensor references, derives a result description, and reads no
+stored numbers. A leaf input has no producing expression; it may, as in this example, have
+no storage at all. Retaining inputs is not a copy of their values.
+For finite real inputs $x_{i,0}$ and $y_{0,j}\ne0$, broadcasting shapes `[2, 1]`
+and `[1, 3]` describes $z_{i,j}=x_{i,0}/y_{0,j}$ for $0\leq i<2$ and $0\leq j<3$.
+Each original position can participate in several quotients. For $x_{0,0}=6$ and
+$y_{0,1}=3$, the ideal $z_{0,1}=2$; the metadata example below does not evaluate it.
+Floating exceptional values and rounding still follow the operation's rules.
+
+Compare [selection and explicit casts](selection-casts.md) when you need a Boolean choice
+or a deliberate type conversion, rather than arithmetic promotion.
+
 **[Reader model](../../glossary.md#term-reader-model).** **Binary** means two inputs, not a binary number format.
 **[Elementwise](../../glossary.md#term-elementwise)** arithmetic combines corresponding logical positions, with compatible
 [broadcasting](shapes.md#broadcasting)<span data-glossary-navigation="true"> ([broadcasting glossary](../../glossary.md#broadcasting))</span> when [shapes](../../glossary.md#shape) differ. For conceptual rows `[2, 4]`
@@ -60,10 +75,10 @@ unresolved even when every [shape](../../glossary.md#shape)
 `requiresGrad` is the logical OR of the input requests; integral [descriptors](../../glossary.md#term-descriptor) necessarily have it
 false. That flag records [gradient](../../glossary.md#term-gradient) eligibility only and does not install a gradient rule.
 
-Integral ADD, SUB, and MUL [mean](../../glossary.md#term-mean) fixed-width [two's-complement modular arithmetic](../../glossary.md#arithmetic-rearrangement-and-finite-difference-checks) in the promoted
-result type: INT32 wraps modulo 2^32 and INT64 wraps modulo 2^64, reinterpreted as signed. Integral
-MIN and MAX use ordinary signed order. Construction records these requests but neither reads
-values nor detects [overflow](../../glossary.md#term-overflow).
+Integral ADD, SUB, and MUL use fixed-width two's-complement modular arithmetic in the promoted
+result type: INT32 wraps modulo $2^{32}$ and INT64 modulo $2^{64}$, then interprets the
+result as signed. These moduli count bit patterns, not a floating approximation. Integral
+MIN and MAX use ordinary signed order. Construction neither reads values nor detects overflow.
 
 The fresh result has a new factory [identity](../../glossary.md#term-identity-meanings), no label, and no [host storage](../../glossary.md#host-storage). Its provenance stores
 one [`Operation`](../../glossary.md#operation) with the matching `BinaryArithmeticKind` and `NoOperationAttrs.INSTANCE`, followed
@@ -104,6 +119,7 @@ public final class BinaryExpressionExample {
         Tensor right = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, Shape.of(1, 3), Optional.empty(), true));
 
+        // Record numerator/denominator order; constructing DIV does not read either input.
         Tensor result = left.div(right);
         TensorProvenance provenance = result.provenance().orElseThrow();
 
@@ -128,8 +144,8 @@ public final class BinaryExpressionExample {
 ##### Meaningful lines and intermediate results
 
 - [`BFLOAT16`](../../glossary.md#term-bfloat16) and [`FLOAT32`](../../glossary.md#term-float32) promote to `FLOAT32`.
-- Right [alignment](../../glossary.md#term-alignment) compares [shape](../../glossary.md#shape) [axes](../../glossary.md#term-axis) as `1` with `3` and `2` with `1`; each singleton expands,
-  producing shape <span data-glossary-navigation="true"> ([singleton glossary](../../glossary.md#term-singleton))</span>`[2, 3]`.
+- Pairing shape axes from the right compares `1` with `3` and `2` with `1`; each singleton
+  expands, producing shape `[2, 3]`. This is unrelated to byte-address alignment.
 - `left.div(right)` preserves the non-[commutative](../../glossary.md#arithmetic-rearrangement-and-finite-difference-checks) roles: `left` is the numerator and `right` is
   the denominator. The operation kind is <span data-glossary-navigation="true"> ([operation glossary](../../glossary.md#operation))</span>`DIV`, and the parameterless attributes are the canonical
   singleton.<span data-glossary-navigation="true"> ([canonical glossary](../../glossary.md#term-canonical-form))</span>
@@ -242,6 +258,7 @@ public final class ComparisonExpressionExample {
         Tensor right = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT64, Shape.of(1, 3), Optional.empty(), false));
 
+        // The promoted comparison domain is not the result type: the result remains BOOL.
         Tensor result = left.lessOrEqual(right);
         TensorProvenance provenance = result.provenance().orElseThrow();
 
@@ -267,8 +284,8 @@ public final class ComparisonExpressionExample {
 
 - [`BFLOAT16`](../../glossary.md#term-bfloat16) and [`FLOAT64`](../../glossary.md#term-float64) establish `FLOAT64` as the common comparison domain, but the result
   remains [`BOOL`](../../glossary.md#data-type--datatype).
-- Right [alignment](../../glossary.md#term-alignment) compares [shape](../../glossary.md#shape) [axes](../../glossary.md#term-axis) as `1` with `3` and `2` with `1`; singleton expansion
-  produces shape `[2, 3]`.
+- Pairing axes from the right compares `1` with `3` and `2` with `1`; singleton expansion
+  produces shape `[2, 3]`. This is a coordinate pairing, not a byte-address requirement.
 - `left.lessOrEqual(right)` preserves the ordered relation: `left` is compared to `right`, the
   operation kind is <span data-glossary-navigation="true"> ([operation glossary](../../glossary.md#operation))</span>`LESS_OR_EQUAL`, and the attributes are the [canonical](../../glossary.md#term-canonical-form) parameterless [singleton](../../glossary.md#term-singleton).
 - The true input gradient request does not propagate. A comparison result has false gradient

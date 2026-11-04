@@ -2,6 +2,17 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Reordering coordinates is not moving storage
+
+Application or layer-building code calls `input.permute(axes)` with a mutable Java axis array.
+The method copies that request, but retains the input Tensor itself as the source description.
+For input shape `[2, 3, 4]`, order `[1, 2, 0]` means output coordinate $(j,k,i)$ denotes
+input coordinate $(i,j,k)$, where $0\leq i<2$, $0\leq j<3$, and $0\leq k<4$.
+The output shape is `[3, 4, 2]`; there are still $2\times3\times4=24$ positions.
+This coordinate relationship does not itself copy values or extend the lifetime of borrowed storage.
+Use [layout geometry](layouts.md) for offsets/strides and [reshape](reshape-expand.md)
+when the goal is regrouping positions rather than changing axis order.
+
 **[Reader model](../../glossary.md#term-reader-model).** An [axis](../../glossary.md#term-axis) is one [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) direction, and rank counts those directions.
 **[Permutation](../../glossary.md#permutation)** reorders axes: exchanging rows and columns is a [rank-two](../../glossary.md#axis-rank-scalar-vector-and-matrix) **transpose**.
 It does not sort [element](../../glossary.md#term-element) values. Inserting a [singleton](../../glossary.md#term-singleton) axis changes [shape](../../glossary.md#shape) `[2, 3]` to,
@@ -69,6 +80,7 @@ public final class PermuteExpressionExample {
                 DataType.FLOAT32, shape, Optional.of(layout), true));
 
         int[] axes = {1, -1, 0};
+        // The request is copied; this later mutation must not rewrite the expression.
         Tensor result = input.permute(axes);
         axes[0] = 0;
         LayoutDescriptor resultLayout = result.descriptor().layout().orElseThrow();
@@ -208,6 +220,7 @@ public final class RankEditingExpressionExample {
         Tensor input = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, inputShape, Optional.empty(), true));
 
+        // Insertion counts output positions; squeezing selects an existing input axis.
         Tensor expanded = input.expandDims(-1);
         Tensor squeezed = input.squeeze(-2);
         AxisTransformAttrs expandedAttrs = (AxisTransformAttrs) expanded

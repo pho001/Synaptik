@@ -2,6 +2,18 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Identify the contributor set before the formula
+
+Application or layer-building code calls `input.sum(...)`, `mean(...)` or a related method.
+The input Tensor is retained as the source description; request arrays are cloned where
+specified, but numeric values are not copied or reduced. For a finite real row $x_{i,j}$
+with $0\leq i<M$ and $0\leq j<N$, reducing axis one describes
+$s_i=\sum_{j=0}^{N-1}x_{i,j}$ and, when $N>0$, $\mu_i=s_i/N$.
+Rows `[1, 2, 3]` and `[4, 5, 6]` therefore request totals $6$ and $15$, not one total.
+These ideal formulas fix contributors, not a floating traversal or reciprocal substitution.
+Use [masked reductions](masked-index-reductions.md) to exclude positions and
+[expand](reshape-expand.md#expand-expressions) to understand why repeated uses need summing back.
+
 **[Reader model](../../glossary.md#term-reader-model).** A **reduction** combines a group of input positions into one result.
 Reducing axis one of [shape](../../glossary.md#shape) `[2, 3]` combines each row's three values independently.
 Removing that axis gives `[2]`; keeping it gives `[2, 1]`, which helps align the result for
@@ -125,6 +137,7 @@ public final class NumericAggregateExpressionExample {
         Tensor input = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, inputShape, Optional.empty(), true));
 
+        // Full, removed-axis and retained-axis calls describe different result geometries.
         Tensor full = input.sum();
         Tensor removed = input.mean(-1);
         Tensor retained = input.prod(1, true);
@@ -285,6 +298,7 @@ public final class SumToShapeExpressionExample {
                 new StaticDimension(4)));
         Shape staticTarget = Shape.ofDimensions(
                 new StaticDimension(3), new StaticDimension(1));
+        // The target states the result geometry; sumToShape is not an arbitrary reshape.
         Tensor reduced = staticInput.sumToShape(staticTarget);
         SumToShapeAttrs attrs = (SumToShapeAttrs)
                 reduced.provenance().orElseThrow().operation().attrs();
@@ -390,14 +404,19 @@ preservation are unspecified unless an exact stored-value family rule says other
 - MIN/MAX propagate NaN, order infinities normally, select negative/positive zero respectively,
   and use positive/negative infinity for empty floating domains.<span data-glossary-navigation="true"> ([negative infinity glossary](../../glossary.md#nan-infinity-and-signed-zero))</span>
 - Empty ALL is true and empty ANY is false.
-- LOG_SUM_EXP means `log(sum(exp(x_i)))`: empty and all-negative-infinity domains produce negative
-  infinity; NaN produces NaN; positive infinity wins unless NaN exists; a finite point preserves
-  its value and signed zero.<span data-glossary-navigation="true"> ([positive infinity glossary](../../glossary.md#nan-infinity-and-signed-zero); [signed zero glossary](../../glossary.md#term-signed-zero))</span>
-- VARIANCE means `sum((x_i - mean)^2) / (N - correction)` and STANDARD_DEVIATION its non-negative
-  principal square root. `N` must exceed correction. NaN or infinity produces NaN; a valid constant
-  finite domain produces positive zero.<span data-glossary-navigation="true"> ([constant glossary](../../glossary.md#term-constant))</span>
-- [L1 norm](../../glossary.md#norms-elementary-functions-and-probability-distributions) is `sum(abs(x_i))`; [L2 norm](../../glossary.md#norms-elementary-functions-and-probability-distributions) is `sqrt(sum(x_i*x_i))`. Empty is positive zero, point is
-  absolute value, NaN produces NaN, and infinity produces positive infinity unless NaN exists.
+- LOG_SUM_EXP ideally means $\log(\sum_{i=0}^{N-1}\exp(x_i))$ for $N>0$ finite real values.
+  Empty and all-negative-infinity domains produce negative infinity; NaN produces NaN;
+  positive infinity wins unless NaN exists; a finite point preserves its value and signed zero.
+- For integer correction $c\geq0$, corrected variance is
+  $v=\sum_{i=0}^{N-1}(x_i-\mu)^2/(N-c)$, with
+  $\mu=\sum_{i=0}^{N-1}x_i/N$ and required $N>c$. Standard deviation is $\sqrt v$.
+  Here $i$ enumerates selected positions, not necessarily one original axis.
+  NaN or infinity produces NaN; a valid constant finite domain produces positive zero.
+- L1 norm is $\sum_{i=0}^{N-1}|x_i|$; L2 norm is
+  $\sqrt{\sum_{i=0}^{N-1}x_i^2}$. For `[3, 4]`, these ideal magnitudes are $7$ and $5$.
+  Empty is positive zero, point is absolute value, NaN produces NaN, and infinity produces
+  positive infinity unless NaN exists. Variance has squared input units; standard deviation
+  and both norms retain input units. Actual rounded sites and exceptional domains still apply.
 
 Every arithmetic aggregate inherits only its named primitive sites. Exact axes, mappings,
 contributor sets, [identities](../../glossary.md#term-identity-meanings), counts, correction, and divisors remain mandatory. Every selected
@@ -435,6 +454,7 @@ Tensor input = TensorFactory.create(new TensorDescriptor(
         DataType.FLOAT32, Shape.of(2, 3, 4), Optional.empty(), true));
 
 int[] axes = {2, 0};
+// Axis order is retained as configuration, while membership determines the reduction domain.
 Tensor totals = input.sum(axes, false);
 Tensor retained = input.mean(new int[] {-1, 0}, true);
 Tensor sampleVariance = input.variance(new int[] {2, 0}, false, 1);

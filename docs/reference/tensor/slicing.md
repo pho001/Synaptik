@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## The application supplies coordinates; the Tensor method describes a region
+
+Application or layer code calls extraction on `input`, or replacement on base `data` with
+an `update` Tensor. Mutable request arrays are cloned, while the exact input/update Tensor
+references remain in provenance. No stored values are read, copied or overwritten during
+construction. A logical view does not itself attach the input's storage or keep its arena alive.
+Compare [scalar select](gather.md#scalar-select-expressions) for removing an axis and
+[scatter](scatter.md) when coordinates come from a Tensor rather than Java configuration.
+
 **[Reader model](../../glossary.md#term-reader-model).** A **[slice](../../glossary.md#slice)** selects a [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) range on chosen [axes](../../glossary.md#term-axis).
 **[Half-open](../../glossary.md#term-half-open-interval)** means the start is included and the end is excluded; conceptual start `1`,
 end `6`, and step `2` select positions `1, 3, 5`. A negative step reverses traversal rather
@@ -33,11 +42,21 @@ zero therefore needs an end that normalizes below zero, such as raw `-D - 1` whe
 
 Checked formulas calculate selected lengths without negating `Long.MIN_VALUE`:
 
-```text
-step > 0 and start < end: length = 1 + (end - 1 - start) / step
-step < 0 and start > end: length = 1 - ((start - 1 - end) / step)
-otherwise:                length = 0
-```
+Let integer $s$ be the normalized start, $e$ the directional exclusive end, and $t\ne0$
+the signed step. The selected integer count is
+
+$$
+\ell=\begin{cases}
+1+\lfloor(e-1-s)/t\rfloor&t>0,\ s<e,\\
+1+\lfloor(s-1-e)/|t|\rfloor&t<0,\ s>e,\\
+0&\text{otherwise}.
+\end{cases}
+$$
+
+For $s=1$, $e=6$, $t=2$, $\ell=3$ selects $1,3,5$.
+For $s=4$, $e=-1$, $t=-1$, $\ell=5$ selects $4,3,2,1,0$ after normalization.
+The implementation's negative-step expression is `1 - ((start - 1 - end) / step)`;
+it must not negate `Long.MIN_VALUE` to form a primitive absolute value.
 
 Normalized `SliceAttrs` stores `start`, `length`, [normalized axis](../../glossary.md#normalized-axis), and unchanged signed step—not a
 normalized end. Empty entries use [canonical](../../glossary.md#term-canonical-form) start zero and length zero. A negative-step selected
@@ -55,10 +74,19 @@ and the result is non-empty and every step is positive, every resolved input kin
 logical `LayoutDescriptor`. Starting from the input offset and original strides, entry `i`
 performs checked calculations:
 
-```text
-resultOffset       += normalizedStart[i] * originalInputStride[axis[i]]
-resultStride[axis]  = originalInputStride[axis[i]] * step[i]
-```
+Let $o$ be the input element offset, $s_a$ its stride on axis $a$, and let $q$ be the number
+of selected entries. Integer entry $0\leq i<q$ names axis $a_i$, normalized start $b_i$
+and positive step $t_i$.
+For a nonempty resolved result:
+
+$$
+o'=o+\sum_{i=0}^{q-1}b_i s_{a_i},\qquad s'_{a_i}=s_{a_i}t_i.
+$$
+
+The sum visits each distinct selected axis once; other strides are unchanged. Offsets/strides
+are in storage elements, while starts/steps are in logical coordinates.
+For row stride $5$, column stride $1$, offset zero and column start one/step two,
+the new offset is $1$ and column stride $2$.
 
 `LayoutDescriptor` reclassifies the resulting geometry and calculates its [referenced element
 span](../../glossary.md#referenced-element-span). The view flag records logical view [metadata](../../glossary.md#term-metadata) only. Slice construction attaches no [host
@@ -94,10 +122,13 @@ varargs identity meaning.
 same normalized [`SLICE`](../../glossary.md#slice)/`SliceAttrs` meaning without first interpreting raw [half-open](../../glossary.md#term-half-open-interval) bounds.
 The arrays are parallel. Entry `i` directly requests:
 
-```text
-coordinate(k) = starts[i] + k * steps[i]
-0 <= k < lengths[i]
-```
+$$
+c_k=b_i+k\,t_i,\qquad 0\leq k<\ell_i.
+$$
+
+Entry $i$ selects an axis, $b_i$ is its supplied start, $t_i$ its non-zero signed step,
+$\ell_i\geq0$ its length, and integer $k$ the output coordinate on that axis.
+For start $4$, length $3$ and step $-2$, the source coordinates are $4,2,0$.
 
 Starts are already normalized non-negative logical [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix), lengths are [finite](../../glossary.md#term-finite) non-negative
 coordinate counts, [axes](../../glossary.md#term-axis) may use caller-facing positive or negative syntax, and steps are signed
@@ -153,6 +184,7 @@ public final class SliceExpressionExample {
                 Optional.of(LayoutDescriptor.contiguous(shape)),
                 true));
 
+        // Raw -1 is relative to the extent; -6 is needed to reverse through coordinate zero.
         Tensor positive = input.sliceAxis(1, 1, 5, 2);
         Tensor reverse = input.sliceAxis(1, 4, -6, -1);
         Tensor explicitMinusOne = input.sliceAxis(1, 4, -1, -1);
@@ -254,9 +286,14 @@ have the same [data type](../../glossary.md#data-type--datatype) and [rank](../.
 corresponding `SliceAttrs.lengths` entry. Every unselected update Dimension must be structurally
 equal to the matching base Dimension. Entry `i` maps update coordinate `k` to:
 
-```text
-normalizedStart[i] + k * steps[i], for 0 <= k < updateShape[normalizedAxis[i]]
-```
+$$
+c_k=b_i+k\,t_i,\qquad 0\leq k<u_{a_i}.
+$$
+
+Here entry $i$ selects normalized base axis $a_i$, $b_i$ is normalized start, $t_i\ne0$
+the signed step, $u_{a_i}$ the update extent there and $k$ an integer update coordinate.
+With $b_i=4$, $t_i=-2$, $u_{a_i}=3$, update positions $0,1,2$ replace base positions
+$4,2,0$. No addition or in-place mutation is implied.
 
 [Axes](../../glossary.md#term-axis) normalize once and must be distinct; steps are signed and non-zero. A negative start adds
 one static base [extent](../../glossary.md#term-extent) once. For a static base axis, the first and final mapped coordinates must
@@ -359,6 +396,7 @@ public final class SlicePlacementExample {
     public static void main(String[] args) {
         Tensor base = tensor(Shape.of(5, 6));
         Tensor update = tensor(Shape.of(3, 2));
+        // Functional replacement records a new base-shaped result without writing into base.
         Tensor replaced = base.sliceUpdate(
                 update,
                 new long[] {-1, 1},
@@ -472,6 +510,7 @@ public final class DynamicSliceMetadataExample {
         Shape staticShape = Shape.of(3, 8);
         Tensor staticInput = tensor(
                 staticShape, Optional.of(LayoutDescriptor.contiguous(staticShape)));
+        // Length is explicit; unresolved input size defers only the upper-bound proof.
         Tensor staticSlice = staticInput.sliceByLength(
                 new long[] {1}, new long[] {3}, new int[] {1}, new long[] {2});
 

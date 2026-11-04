@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Who keeps the region alive?
+
+In the example, application code first asks `Arena` to allocate native memory, then calls
+`new MemorySegmentStorage(type, capacity, segment)` to describe that exact region.
+The wrapper borrows the segment; it neither copies its bytes nor acquires the right to close
+the arena. The application remains responsible for keeping the arena open during every access.
+Retaining the wrapper does not extend that lifetime. A Tensor association is another reference,
+not a closeable owner: see [attaching and replacing storage](storage-association.md).
+
 **[Reader model](../../glossary.md#term-reader-model).** **Host** means memory visible to the Java-side program, as opposed to memory
 managed only by a [device](../../glossary.md#term-device) route. A storage wrapper describes an existing region; it does not own
 the region's [lifetime](../../glossary.md#term-lifetime). **[Borrowed](../../glossary.md#ownership-borrowing-and-lease)** means the caller must keep that region usable for as long as
@@ -75,6 +84,7 @@ import java.lang.foreign.MemorySegment;
 public final class HostStorageExample {
     public static void main(String[] args) {
         Arena arena = Arena.ofConfined();
+        // The application owns this arena; the storage wrapper will not close it.
         MemorySegment segment = arena.allocate(16, 1);
         MemorySegmentStorage storage = new MemorySegmentStorage(
                 DataType.FLOAT32, 4, segment);
@@ -84,6 +94,7 @@ public final class HostStorageExample {
         System.out.println(storage.segment() == segment);
         System.out.println(storage.isAlive());
 
+        // Closing invalidates access even though the wrapper still retains the segment.
         arena.close();
         System.out.println(storage.isAlive());
         System.out.println(storage.segment() == segment);
@@ -96,7 +107,8 @@ public final class HostStorageExample {
 
 - `arena.allocate(16, 1)` creates the caller-owned input region. [Alignment](../../glossary.md#term-alignment) `1` is sufficient for
   this raw wrapper because it performs no typed access.
-- Capacity `4` with [`FLOAT32`](../../glossary.md#term-float32) requires exactly `4 × 4 = 16` bytes, matching the supplied segment.
+- Capacity $4$ elements times FLOAT32 width $4$ bytes per element requires
+  $4\times4=16$ bytes, exactly matching the supplied segment.
 - The [identity](../../glossary.md#term-identity-meanings) comparison demonstrates exact segment retention rather than a copy or [slice](../../glossary.md#slice).
 - Closing [`arena`](../../glossary.md#term-arena) ends the [scope](../../glossary.md#term-scope) because the caller, not the wrapper, owns the [lifetime](../../glossary.md#term-lifetime).
 

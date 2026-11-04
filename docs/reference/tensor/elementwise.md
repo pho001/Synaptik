@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## One position at a time
+
+Application or layer-building code calls a transform on the input Tensor, or supplies a
+`ScalarValue` as fixed configuration. The result retains the input reference as its source;
+the scalar attribute is immutable and is not another Tensor input. Neither boundary reads or
+copies input storage. Compare [binary arithmetic](arithmetic.md) for two Tensor inputs and
+[numeric formats](data-types.md) for when an eventual result must round.
+
 **[Reader model](../../glossary.md#term-reader-model).** **Unary** means one input; an **[elementwise](../../glossary.md#term-elementwise)** function transforms each
 position without mixing it with neighboring positions. A **scalar** [parameter](../../glossary.md#term-parameter) supplies one
 same-typed value for all positions. A **clamp** limits values to a range.
@@ -11,10 +19,10 @@ interval from zero to one. A floating **classification** instead returns a true/
 identifying [finite](../../glossary.md#term-finite) values, NaNs, or [infinities](../../glossary.md#nan-infinity-and-signed-zero); it is not a machine-learning class [prediction](../../glossary.md#term-prediction).
 The exact functions and exceptional-value rules remain in the tables below.
 
-For the function names below, a **reciprocal** is `1/x`; **[exp](../../glossary.md#term-expx)** is the [natural exponential](../../glossary.md#norms-elementary-functions-and-probability-distributions)
-with base `e`, approximately `2.71828`; and the natural **logarithm** is its inverse.
-Thus `exp(0) = 1` and `log(1) = 0` in exact mathematics. **[Tanh](../../glossary.md#term-tanh)** smoothly maps real inputs
-between negative one and one. The [Gaussian error function](../../glossary.md#norms-elementary-functions-and-probability-distributions) **[erf](../../glossary.md#term-erf)** is related to the probability
+For a finite real input $x$, a reciprocal is $1/x$ when $x\ne0$.
+The natural exponential $\exp(x)=e^x$ uses base $e\approx2.71828$; its inverse
+$\log(x)$ has real domain $x>0$. Thus $\exp(0)=1$ and $\log(1)=0$ in exact mathematics.
+Tanh maps real inputs between negative one and one. The [Gaussian error function](../../glossary.md#norms-elementary-functions-and-probability-distributions) **erf** is related to the probability
 of values falling within a centered [normal distribution](../../glossary.md#norms-elementary-functions-and-probability-distributions); [GELU](../../glossary.md#gaussian-error-linear-unit--gelu)'s [`Phi`](../../glossary.md#term-phi) is the cumulative
 probability up to its [argument](../../glossary.md#term-argument) for a [mean](../../glossary.md#term-mean)-zero, unit-standard-deviation normal distribution.
 These explanations orient the reader; the formulas and special-value rules below remain exact.
@@ -60,13 +68,21 @@ rules. [Finite](../../glossary.md#term-finite) thresholds are route-qualified in
 error envelopes. Composite `RSQRT`, sigmoid, GELU, tanh GELU, and SiLU inherit only their named
 primitive sites and exact guards; no final-output [tolerance](../../glossary.md#term-tolerance) applies.
 
-Exact GELU uses `0.5 * x * (1 + erf(x / sqrt(2)))`. Its [constants](../../glossary.md#term-constant), square root, division, `ERF`,
-addition, and two multiplications are its complete sites. The explicitly named tanh approximation
-uses `0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))`; its constants, `x*x`, `x^2*x`,
-root, division, additions, remaining multiplications, and `TANH` are complete. Sigmoid uses
-`1/(1+exp(-x))` for nonnegative input and `exp(x)/(1+exp(x))` for negative input. SiLU uses
-`x/(1+exp(-x))` and `x*exp(x)/(1+exp(x))` on the corresponding branches. Comparison, negation,
-exponential, additions, multiplication, and divisions are explicit sites. The [API](../../glossary.md#term-application-programming-interface-api) uses [canonical](../../glossary.md#term-canonical-form)
+For real $x$, exact GELU is
+$\frac12 x(1+\operatorname{erf}(x/\sqrt2))=x\Phi(x)$, where $\Phi$ is the
+standard-normal cumulative probability and $\operatorname{erf}$ the Gaussian error function.
+For example, $\Phi(0)=1/2$ and GELU at zero is zero.
+Its constants, square root, division, `ERF`, addition, and two multiplications are its complete
+arithmetic sites. The explicitly named approximation is
+$\frac12 x(1+\tanh(\sqrt{2/\pi}(x+0.044715x^3)))$, where $\pi$ is the circle constant;
+its constants, `x*x`, `x^2*x`, root, division, additions, remaining multiplications,
+and `TANH` remain complete sites.
+
+Sigmoid uses $1/(1+\exp(-x))$ for $x\geq0$ and $\exp(x)/(1+\exp(x))$ for $x<0$.
+SiLU uses $x/(1+\exp(-x))$ and $x\exp(x)/(1+\exp(x))$ on those corresponding branches.
+At $x=0$, ideal sigmoid is $1/2$ and SiLU is zero. These real formulas do not replace the
+required branches or authorize IEEE rearrangements. Comparison, negation, exponential,
+additions, multiplication, and divisions are explicit sites. The API uses canonical
 `silu` naming and provides no `swish` [alias](../../glossary.md#aliasing-and-arena). None of these first-class operations gains a
 whole-result tolerance envelope.
 
@@ -90,7 +106,7 @@ Three separate floating-classification methods describe [BOOL](../../glossary.md
 | Method | True exactly when |
 |---|---|
 | `isFinite` | The input is finite: normal, [subnormal](../../glossary.md#term-subnormal), positive zero, or negative zero. |
-| `isNaN` | The input is NaN, independent of sign, quiet/signaling encoding, or [payload](../../glossary.md#artifact-envelope-and-atomic-publication). |
+| `isNaN` | The input is NaN, independent of sign, quiet/signaling encoding, or [NaN payload](../../glossary.md#term-nan-payload). |
 | `isInf` | The input is positive or negative infinity. |
 
 Classification accepts the same four floating input types but always produces `BOOL`, retains the
@@ -130,6 +146,7 @@ public final class FloatingMetadataExample {
         Tensor input = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, shape, Optional.empty(), true));
 
+        // These independent requests share an input, not an evaluated output buffer.
         Tensor transformed = input.gelu();
         Tensor classified = input.isNaN();
         TensorProvenance transformOrigin = transformed.provenance().orElseThrow();
@@ -272,7 +289,7 @@ The compiler reads only its exact type and typed value; it does not inspect Tens
 expose a public compiler [API](../../glossary.md#term-application-programming-interface-api). A later current [scan](../../glossary.md#term-cumulative-scan) can combine an explicit integral logical-splat
 fact for the graph-valued input with an exact same-typed integral attribute for scalar `ADD`,
 `SUB`, `MUL`, `MIN`, or `MAX`. That result is a new fixed [logical splat](../../glossary.md#logical-splat), not a Tensor, dense
-[payload](../../glossary.md#artifact-envelope-and-atomic-publication), or physical allocation. Floating scalar [evaluation](../../glossary.md#term-evaluation), CLAMP, DIV, POW, multiplication by
+data payload, or physical allocation. Floating scalar [evaluation](../../glossary.md#term-evaluation), CLAMP, DIV, POW, multiplication by
 zero as an identity rewrite, [cancellation](../../glossary.md#term-cancellation), other exponents, bounds/clamp identities, and broader
 algebra remain unsupported compiler rewrites.
 
@@ -329,6 +346,7 @@ public final class ScalarExpressionExample {
         ScalarValue negativeZero = ScalarValue.float32(-0.0f);
         ScalarValue payloadNaN = ScalarValue.float32(
                 Float.intBitsToFloat(0x7FC0_0042));
+        // Keep the exact zero sign and NaN bits as attributes; do not evaluate them here.
         Tensor scaled = input.mul(negativeZero);
         Tensor result = scaled.clamp(negativeZero, payloadNaN);
         TensorProvenance scaledFrom = scaled.provenance().orElseThrow();

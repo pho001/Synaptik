@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## A pooling call describes one summary per window
+
+Application or NN layer-building code calls a pooling method on the input Tensor with immutable
+window attributes. The method retains the exact input and attribute references, derives output
+dimensions and returns a storage-free expression. It does not inspect the input's numbers,
+copy them or own a result buffer yet. [Window transforms](windows.md) explain the sampled
+coordinates; [convolution](convolution.md) uses similar geometry but adds learned weights and
+channel mixing. Consult the [production matrix](../../backend-guide/production-support.md) for
+the independent execution and generated-gradient domains.
+
 **[Reader model](../../glossary.md#term-reader-model).** [Pooling](../../glossary.md#term-pooling) summarizes a moving neighborhood independently in each [channel](../../glossary.md#term-channel).
 Maximum pooling selects its greatest eligible [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters); average pooling adds samples and divides
 by a count. Unlike [convolution](../../glossary.md#term-channels-first-convolution-layers), pooling has no learned [kernel](../../glossary.md#kernel) [weights](../../glossary.md#term-weight) and does not combine
@@ -38,11 +48,15 @@ width:  kernel=kernelWidth, stride=strideWidth, padding=paddingWidth, dilation=d
 The [singleton](../../glossary.md#term-singleton) height has output [extent](../../glossary.md#term-extent) one in both floor and literal-ceil modes. Width therefore
 uses the existing Pool2d formula without alteration:
 
-```text
-effectiveKernel = dilationWidth * (kernelWidth - 1) + 1
-numerator       = W + 2 * paddingWidth - effectiveKernel
-W_out           = floor(numerator / strideWidth) + 1
-```
+For integer width $W\geq0$, kernel count $k>0$, dilation $d>0$, padding $p\geq0$
+per side and stride $s>0$, define effective span $e$ and start-distance $n$:
+
+$$
+e=d(k-1)+1,\qquad n=W+2p-e,\qquad W_{\mathrm{out}}=\lfloor n/s\rfloor+1.
+$$
+
+Valid geometry requires $n\geq0$. With $W=9$, $k=3$, $d=1$, $p=1$, $s=2$,
+the example below has $e=3$, $n=8$ and five output positions.
 
 When `ceilMode` is true, the quotient uses literal ceiling division. A static negative numerator
 fails before any [producer](../../glossary.md#term-producer) is created. Checked `long` [overflow](../../glossary.md#term-overflow) fails with `ArithmeticException`.
@@ -78,6 +92,7 @@ import java.util.Optional;
 
 Tensor input = TensorFactory.create(new TensorDescriptor(
         DataType.FLOAT32, Shape.of(2, 3, 9), Optional.empty(), true));
+// Inspect the composed rank edits and Pool2d; no pooling arithmetic happens here.
 Tensor maximum = input.maxPool1d(new MaxPool1dAttrs(3, 2, 1, 1, false));
 Tensor average = input.averagePool1d(new AveragePool1dAttrs(3, 2, 1, 1, false));
 
@@ -151,12 +166,16 @@ exact attributes reference in [provenance](../../glossary.md#provenance).
 For either [spatial axis](../../glossary.md#spatial-axes-channels-and-window-sampling), let `D` be its input [extent](../../glossary.md#term-extent), `k` the kernel sample count, `p` the
 [padding](../../glossary.md#padding) on each side, `d` the [dilation](../../glossary.md#term-dilation), and `s` the [stride](../../glossary.md#term-stride):
 
-```text
-effectiveKernel = d * (k - 1) + 1
-numerator       = D + 2 * p - effectiveKernel
-floor output    = floor(numerator / s) + 1
-ceil output     = ceil(numerator / s) + 1
-```
+$$
+e=d(k-1)+1,\qquad n=D+2p-e,\qquad
+Q_{\mathrm{floor}}=\lfloor n/s\rfloor+1,\qquad
+Q_{\mathrm{ceil}}=\lceil n/s\rceil+1.
+$$
+
+All quantities count integer positions: $D,p\geq0$, $k,d,s>0$, and valid geometry
+requires $n\geq0$. Here $e$ is effective span and $Q$ the output count for that axis.
+For the example below, $D=2$, $k=d=1$, $p=0$, $s=3$, hence $n=1$:
+floor mode gives one position, literal ceiling mode two.
 
 All literal geometry uses checked signed-`long` arithmetic. A static negative numerator fails
 before result construction. For an unresolved extent, construction retains the [canonical](../../glossary.md#term-canonical-form)
@@ -185,6 +204,7 @@ public final class MaxPool2dShapeExample {
         MaxPool2dAttrs floor = new MaxPool2dAttrs(1, 1, 3, 3, 0, 0, 1, 1, false);
         MaxPool2dAttrs ceil = new MaxPool2dAttrs(1, 1, 3, 3, 0, 0, 1, 1, true);
 
+        // Literal ceil retains the terminal grid position even when its window is all padding.
         System.out.println(input.maxPool2d(floor).descriptor().shape());
         System.out.println(input.maxPool2d(ceil).descriptor().shape());
     }
@@ -276,12 +296,15 @@ There is no count-padding option, valid-sample averaging mode, or divisor overri
 [spatial axis](../../glossary.md#spatial-axes-channels-and-window-sampling), input [extent](../../glossary.md#term-extent) `D`, kernel-position count `k`, padding per side `p`, [dilation](../../glossary.md#term-dilation) `d`, and
 [stride](../../glossary.md#term-stride) `s` produce:
 
-```text
-effectiveKernel = d * (k - 1) + 1
-numerator       = D + 2 * p - effectiveKernel
-floor output    = floor(numerator / s) + 1
-ceil output     = ceil(numerator / s) + 1
-```
+$$
+e=d(k-1)+1,\qquad n=D+2p-e,\qquad
+Q_{\mathrm{floor}}=\lfloor n/s\rfloor+1,\qquad
+Q_{\mathrm{ceil}}=\lceil n/s\rceil+1.
+$$
+
+The integer effective span is $e$ and output count is $Q$; $D,p\geq0$, $k,d,s>0$,
+and $n\geq0$ is required. These are the same geometry rules as maximum pooling,
+not the average's numeric divisor.
 
 Literal geometry uses checked signed-`long` arithmetic. A static negative numerator fails before
 result construction. An unresolved extent retains the canonical add, floor-or-ceiling divide,
@@ -314,11 +337,14 @@ Consider one conceptual [FLOAT32](../../glossary.md#term-float32) input plane wi
 unit [stride](../../glossary.md#term-stride) and [dilation](../../glossary.md#term-dilation), and padding one. The top-left window contains input value `1` and three
 padding positions. The selected average is:
 
-```text
-count-padding numerator = 1 + 0 + 0 + 0 = 1
-fixed divisor           = 2 * 2 = 4
-result                  = 1 / 4 = 0.25
-```
+$$
+\text{numerator}=1+0+0+0=1,\qquad
+\text{divisor}=2\times2=4,\qquad
+\text{result}=1/4=0.25.
+$$
+
+The four terms are the four kernel positions, not four valid input samples. This exact
+worked case illustrates the fixed divisor; other floating sums obey the rounding rules below.
 
 Valid-[sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters) averaging would divide by one and return `1.0`; that is deliberately not this
 [operation](../../glossary.md#operation). The calculation explains eventual semantics. Current [model](../../glossary.md#term-model) construction does not
@@ -381,12 +407,16 @@ padding, adaptive/global mode, valid-[sample](../../glossary.md#term-sample-mach
 For each spatial input [extent](../../glossary.md#term-extent) `X`, kernel count `k`, symmetric padding per side `p`, dilation `d`,
 and stride `s`:
 
-```text
-effectiveKernel = d * (k - 1) + 1
-numerator       = X + 2 * p - effectiveKernel
-floor output    = floor(numerator / s) + 1
-ceil output     = ceil(numerator / s) + 1
-```
+$$
+e=d(k-1)+1,\qquad n=X+2p-e,\qquad
+Q_{\mathrm{floor}}=\lfloor n/s\rfloor+1,\qquad
+Q_{\mathrm{ceil}}=\lceil n/s\rceil+1.
+$$
+
+For each depth/height/width axis independently, $e$ is effective span and $Q$ output count.
+All sizes are integers with $X,p\geq0$, $k,d,s>0$ and $n\geq0$.
+For the depth example below, $X=4$, $k=2$, $p=1$, $d=1$, $s=2$ give
+$n=4$ and three output positions.
 
 `ceilMode == true` selects the literal ceiling formula independently for depth, height, and
 width. It does not remove a terminal window that begins wholly in trailing padding. Static
@@ -441,6 +471,7 @@ MaxPool3dAttrs maxAttrs = new MaxPool3dAttrs(
 AveragePool3dAttrs averageAttrs = new AveragePool3dAttrs(
         2, 3, 2, 2, 2, 3, 1, 1, 1, 1, 1, 1, false);
 
+// Both calls share geometry, but maximum exclusion and average divisors remain different.
 Tensor maximum = input.maxPool3d(maxAttrs);
 Tensor average = input.averagePool3d(averageAttrs);
 

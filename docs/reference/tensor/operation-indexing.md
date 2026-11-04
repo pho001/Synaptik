@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Know whether you are configuring an operation or indexing values
+
+Expression helpers call these attribute constructors with fixed widths, axes or reduction choices,
+then pass the immutable objects to `Operation`, which retains them by exact reference.
+List snapshots protect configuration from later mutation; they do not copy the Tensor data.
+Neither constructor receives stored indices, so bounds and duplicate destinations cannot be
+checked here. Read [gather's descriptor/value boundary](gather.md) and
+[scatter's duplicate rules](scatter.md#scatter-elements-expressions) before using a kind as
+evidence that an indexed request can execute.
+
 **[Reader model](../../glossary.md#term-reader-model).** Indexing uses integer [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) to relate input and output positions.
 **Gather** reads selected sources; **scatter** sends updates to selected destinations.
 The [ND](../../glossary.md#term-nd) forms use coordinate tuples addressing several [axes](../../glossary.md#term-axis). **Functional** scatter produces
@@ -36,6 +46,7 @@ Describe one-dimensional [constant](../../glossary.md#term-constant) [padding](.
 before, two positions after, and fill those logical positions with `-1`.
 
 ```java
+// Describe border widths; an input-aware call must still check rank and constant type.
 PadAttrs attrs = new PadAttrs(List.of(1L), List.of(2L), -1.0d);
 Operation padded = new Operation(PadKind.PAD, attrs);
 ```
@@ -58,6 +69,7 @@ Describe [tiling](../../glossary.md#tiling) conceptual input `[[1, 2], [3, 4]]` 
 axis one.
 
 ```java
+// Counts repeat the complete pattern, not each individual value consecutively.
 TileAttrs attrs = new TileAttrs(List.of(2L, 3L));
 Operation tiled = new Operation(TileKind.TILE, attrs);
 ```
@@ -146,6 +158,7 @@ the normalized zero-based scalar coordinate as a `long`.
 Describe selecting [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) `2` on [axis](../../glossary.md#term-axis) `1` from a conceptual source with [Shape](../../glossary.md#shape) `[2, 3, 4]`.
 
 ```java
+// The coordinate is normalized already; this record cannot prove an input bound.
 SelectAttrs attrs = new SelectAttrs(1, 2L);
 Operation select = new Operation(SelectKind.SELECT, attrs);
 ```
@@ -248,6 +261,7 @@ tuple-depth Dimension remains in the result.
 Compare zero-[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) selection, batched selection, and selection of one complete [scalar](../../glossary.md#term-scalar):
 
 ```java
+// Shared batch count is configuration; tuple depth still comes from the indices shape.
 GatherNdAttrs attrs = new GatherNdAttrs(1);
 Operation gatherNd = new Operation(GatherNdKind.GATHER_ND, attrs);
 ```
@@ -377,6 +391,7 @@ or subgradient policy.
 The following is a conceptual composition example, not a public Tensor expression:
 
 ```java
+// ADD permits duplicate destinations semantically; no index values are read here.
 ScatterNdAttrs attrs = new ScatterNdAttrs(1, ScatterReduction.ADD);
 Operation scatterNd = new Operation(ScatterNdKind.SCATTER_ND, attrs);
 ```

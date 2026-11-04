@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Who supplies the graph records?
+
+The Compiler normally translates Tensor expressions into these records; the example's application
+constructs them directly to teach the same structural boundary. `CompiledNode` receives IDs and
+an operation description, not current input arrays. Its list copies freeze the connections,
+not tensor values. `CompiledGraphModel` then checks that those connections form a closed graph.
+A graph-local value ID names a data position, not a physical memory slot.
+Read [operation signatures](operation-foundation.md) for the node's port-count checks and
+[Tensor identity and provenance](identity.md) for the source objects that capture translates.
+
 **[Reader model](../../glossary.md#term-reader-model).** A computation graph separates data from the operations using it:
 a **value** is one described input or result, and a **node** is one particular use of an [operation](../../glossary.md#operation).
 Two nodes may perform the same kind of calculation without being the same [occurrence](../../glossary.md#term-occurrence).
@@ -136,6 +146,7 @@ public final class GraphElementExample {
     }
 
     public static void main(String[] args) {
+        // Reusing a descriptor shares immutable facts, not input/output value identity.
         TensorDescriptor scalar = new TensorDescriptor(
                 DataType.FLOAT32, Shape.scalar(), Optional.empty(), false);
         GraphValue input = new GraphValue(new ValueId(0), scalar);
@@ -149,6 +160,7 @@ public final class GraphElementExample {
                 List.of(input.id()),
                 List.of(output.id()));
 
+        // Graph construction checks the connections; it does not execute IDENTITY.
         CompiledGraphModel graph = new CompiledGraphModel(
                 List.of(input, output),
                 List.of(node),

@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Replacing a reference does not transfer memory ownership
+
+Application code or a framework publication component calls `tensor.replaceHostStorage(storage)`
+with a wrapper for an existing region. `Tensor` checks compatibility, keeps that exact wrapper
+and returns the previous association; it does not copy values or close the previous region.
+For arena-backed memory, whoever created/manages the arena still decides when it closes and must
+keep it alive during use. `clearHostStorage` removes only the association, not the region.
+The [borrowed-lifetime example](host-storage.md#borrowed-lifetime-example) shows invalidation;
+[flat import](import.md#complete-flat-import-example) is the contrasting independent-copy path.
+
 **[Reader model](../../glossary.md#term-reader-model).** A storage **association** is a [Tensor](../../glossary.md#tensor)'s current reference to a borrowed memory
 wrapper. Replacing that reference is not copying values, changing the [descriptor](../../glossary.md#term-descriptor), or freeing the
 previous memory. Multiple tensors can refer to the same wrapper, so changing one association does

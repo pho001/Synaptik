@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Read these as reusable meanings, not calls on data
+
+A Tensor expression helper, or code constructing a compiled graph, calls `new Operation` with
+a kind and immutable attributes. That constructor retains those exact objects; no left/right
+Tensor or array crosses this boundary. A producer or compiled node later connects the operation
+to operands. For example, the ADD description can be reused for different pairs of Tensors
+without those pairs becoming the same occurrence.
+Use [binary Tensor calls](arithmetic.md#binary-arithmetic-expressions) when starting from operands,
+and [signature checks](operation-foundation.md) when starting from semantic records.
+
 **[Reader model](../../glossary.md#term-reader-model).** These **kinds** are typed names for calculations, not functions that evaluate
 data. **[Binary](../../glossary.md#term-binary-descriptor-and-metadata)** arithmetic consumes two logical inputs; **[elementwise](../../glossary.md#term-elementwise)** means corresponding
 positions are combined. A comparison returns truth values, Boolean logic combines truth values,
@@ -32,6 +42,7 @@ The enum values are semantic [identities](../../glossary.md#term-identity-meanin
 explicitly with the existing generic [descriptor](../../glossary.md#term-descriptor):
 
 ```java
+// Describe addition without operands; a producer or node will supply the two inputs.
 Operation addition = new Operation(
         BinaryArithmeticKind.ADD,
         NoOperationAttrs.INSTANCE);
@@ -78,6 +89,7 @@ All six kinds are parameterless semantic [identities](../../glossary.md#term-ide
 [operation](../../glossary.md#operation) [descriptor](../../glossary.md#term-descriptor):
 
 ```java
+// Comparison's result will be Boolean; this descriptor alone has no values to compare.
 Operation comparison = new Operation(
         BinaryComparisonKind.GREATER_THAN,
         NoOperationAttrs.INSTANCE);
@@ -120,6 +132,7 @@ The public enum
 All three kinds are parameterless semantic [identities](../../glossary.md#term-identity-meanings). Their explicit generic composition is:
 
 ```java
+// Elementwise AND has two ports, unlike a one-input all() reduction.
 Operation conjunction = new Operation(
         BooleanLogicalKind.AND,
         NoOperationAttrs.INSTANCE);
@@ -152,6 +165,7 @@ The public enum
 `WHERE` has no intrinsic [parameters](../../glossary.md#term-parameter). Its explicit generic composition is:
 
 ```java
+// WHERE records three roles; it is not a Java branch evaluating just one expression.
 Operation selection = new Operation(
         WhereSelectionKind.WHERE,
         NoOperationAttrs.INSTANCE);
@@ -188,6 +202,7 @@ The source data type is not duplicated in the attributes because it belongs to t
 [descriptor](../../glossary.md#term-descriptor). The explicit generic composition is:
 
 ```java
+// Store only the destination type: the eventual input descriptor supplies the source type.
 Operation cast = new Operation(
         CastKind.CAST,
         new CastAttrs(DataType.FLOAT64));

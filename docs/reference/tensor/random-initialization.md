@@ -2,6 +2,18 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## There are two call boundaries during initialization
+
+The application calls `TensorRandoms` with a generator object it created and configured.
+`TensorRandoms` then becomes the caller of that object's `nextGaussian`, bounded integer,
+or double-draw method, once per logical position as specified below. It uses the returned
+primitive values immediately to fill a temporary carrier, then flat import copies that carrier
+into the returned Tensor's independent heap storage. The generator itself is borrowed only during
+the call and is not retained, reset, synchronized or closed; its advancement remains observable
+to the application even if a later step fails.
+Contrast [graph RNG state](graph-randomness.md), which describes future draws without consuming
+a Java generator, and [import ownership](import.md) for the final copy.
+
 **[Reader model](../../glossary.md#term-reader-model).** **Eager** initialization [samples](../../glossary.md#term-sample-machine-learning-and-hyperparameters) and stores data immediately, unlike a [graph](../../glossary.md#graph)
 expression describing future [sampling](../../glossary.md#term-sampling-machine-learning-and-hyperparameters). A **[distribution](../../glossary.md#term-distribution)** specifies how draws are spread:
 normal ([Gaussian](../../glossary.md#term-gaussian-distribution)) draws cluster around a [mean](../../glossary.md#term-mean) with spread set by [standard deviation](../../glossary.md#term-standard-deviation);
@@ -28,6 +40,7 @@ import java.util.Optional;
 
 public final class IntegerRangeExample {
     public static void main(String[] args) {
+        // Exclusive end 8 is a bound, not an extra emitted element.
         Tensor range = TensorFactory.range(
                 1, 8, 3, Optional.of("indices"));
 
@@ -133,6 +146,7 @@ public final class NormalRandomExample {
 
     public static void main(String[] args) {
         ScriptedGenerator source = new ScriptedGenerator();
+        // Sampling advances this exact source now, unlike building a random graph expression.
         Tensor tensor = TensorRandoms.randomNormal(
                 Shape.of(2, 2),
                 DataType.FLOAT32,
@@ -158,8 +172,11 @@ public final class NormalRandomExample {
 - The source implements only the methods needed by `RandomGenerator` and overrides
   `nextGaussian()` with four known values. `TensorRandoms` uses that exact object and does not call
   `nextLong()` or select another generator.
-- Each output applies `1 + gaussian × 2` in binary64 before narrowing to the requested FLOAT32
-  carrier. The four transformed values are <span data-glossary-navigation="true"> ([binary64 glossary](../../glossary.md#floating-point-precision-and-rounding); [narrowing glossary](../../glossary.md#term-narrowing); [FLOAT32 glossary](../../glossary.md#term-float32); [carrier glossary](../../glossary.md#term-storage-carrier))</span>`-1`, `1`, `3`, and `2` in [row-major](../../glossary.md#term-row-major) order.
+- Each ideal finite-real output is $x_i=\mu+\sigma g_i$, where $g_i$ is the scripted Gaussian
+  draw, $\mu=1$ the mean and $\sigma=2$ the standard deviation. For $g_0=-1$,
+  $x_0=1+2(-1)=-1$; the four results are $-1,1,3,2$ in row-major order.
+  Actual evaluation multiplies in binary64, then adds in binary64, then narrows to FLOAT32;
+  the real identity does not authorize fused multiply-add or a changed rounding boundary.
 - Heap-base inspection makes the already implemented raw storage observable for the example; it
   is not a typed Tensor access or export API.<span data-glossary-navigation="true"> ([Heap glossary](../../glossary.md#term-heap); [Tensor glossary](../../glossary.md#tensor); [API glossary](../../glossary.md#term-application-programming-interface-api))</span>
 
@@ -262,6 +279,7 @@ public final class UniformRandomExample {
 
     public static void main(String[] args) {
         ScriptedGenerator source = new ScriptedGenerator();
+        // The sampling interval is binary64; stored FLOAT32 values may round to its upper bound.
         Tensor tensor = TensorRandoms.randomUniform(
                 Shape.of(2, 2),
                 DataType.FLOAT32,
@@ -388,6 +406,7 @@ public final class IntegralRandomExample {
 
     public static void main(String[] args) {
         ScriptedGenerator source = new ScriptedGenerator();
+        // Primitive int bounds select both the bounded generator method and result carrier.
         Tensor tensor = TensorRandoms.randomInt(
                 Shape.of(2, 2), -3, 5, source, Optional.of("indices"));
 
@@ -499,6 +518,7 @@ public final class BernoulliRandomExample {
 
     public static void main(String[] args) {
         ScriptedGenerator source = new ScriptedGenerator();
+        // Even endpoint probabilities consume one draw per logical position.
         Tensor tensor = TensorRandoms.randomBernoulli(
                 Shape.of(2, 2), 0.5, source, Optional.of("mask"));
 

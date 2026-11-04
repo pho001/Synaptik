@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Attribute values are not extra data inputs
+
+The expression helper constructs an `Operation` from a kind and attributes before connecting
+the receiver Tensor through a producer. `Operation` keeps the exact immutable attributes
+reference, not an array copy. For scalar MUL, the multiplier is fixed configuration and the
+receiver is the sole data input; Tensor-to-Tensor MUL instead has two input ports.
+This difference matters to signatures and differentiation: scalar attributes receive no
+Tensor cotangent. Compare [scalar Tensor calls](elementwise.md#scalar-arithmetic-and-clamp-expressions)
+and [binary kinds](operation-arithmetic.md#binary-arithmetic-semantic-kinds).
+
 **[Reader model](../../glossary.md#term-reader-model).** **Unary** operations have one input, and **[elementwise](../../glossary.md#term-elementwise)** operations act at each
 logical position without mixing positions. A numeric transform returns a number; a [floating
 classification](../../glossary.md#floating-classification) returns a true/false answer such as “is this [NaN](../../glossary.md#term-nan)?” A scalar [operation](../../glossary.md#operation) uses one
@@ -44,6 +54,7 @@ declares exact [`NoOperationAttrs`](../../glossary.md#nooperationattrs), one inp
 explicit:
 
 ```java
+// A kind plus attributes defines meaning; it does not run EXP on an input.
 Operation exponential = new Operation(
         UnaryElementwiseKind.EXP,
         NoOperationAttrs.INSTANCE);
@@ -112,6 +123,7 @@ The following example creates semantic [descriptors](../../glossary.md#term-desc
 Tensor expression methods or execute an operation:
 
 ```java
+// Preserve the signed-zero attribute exactly, without multiplying any Tensor values.
 Operation scaled = new Operation(
         ScalarElementwiseKind.MUL,
         new ScalarValueAttrs(ScalarValue.float32(-0.0f)));
@@ -137,7 +149,7 @@ intermediate [producers](../../glossary.md#term-producer):
 
 | Input or bounds | Result |
 |---|---|
-| Input, `minValue`, or `maxValue` is NaN | NaN, with no [payload](../../glossary.md#artifact-envelope-and-atomic-publication) promise |
+| Input, `minValue`, or `maxValue` is NaN | NaN, with no [NaN-payload](../../glossary.md#term-nan-payload) promise |
 | Equal non-NaN, same-representation bounds | That bound for every non-NaN input |
 | Bounds `[-0, +0]` | Negative inputs and [negative zero](../../glossary.md#nan-infinity-and-signed-zero) produce `-0`; positive inputs and [positive zero](../../glossary.md#nan-infinity-and-signed-zero) produce `+0` |
 | Bounds `[+0, -0]` | Every non-NaN input produces `-0` |
@@ -159,6 +171,7 @@ provenance.
 The following types are examples local to a test or explanation. They are not production [operation](../../glossary.md#operation) kinds or promises about a future operation-family [API](../../glossary.md#term-application-programming-interface-api).
 
 ```java
+// This sample declares a structural contract only; it is not a production operation family.
 private enum SampleKind implements OperationKind {
     SAMPLE;
 

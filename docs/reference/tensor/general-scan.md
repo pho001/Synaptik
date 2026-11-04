@@ -2,6 +2,17 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## The body builder is not the loop executor
+
+Application or NN composition code constructs a `ScanBody` from placeholder Tensors and expression
+roots, then calls `Scan.apply` with actual initial state, time sequences and invariant inputs.
+The placeholders are leaves because no expression produces them; they intentionally contain no
+stored data. Body and apply calls snapshot role lists but retain exact Tensor references,
+not copies of their values. Compiler later captures this description; a qualified backend executes
+the repeated body. Compare [fixed scans](fixed-scans.md) when the transition is already a built-in
+RNN/GRU/LSTM formula, and [compiled attachments](compiled-graph.md#graph-values-and-compiled-nodes)
+for the separately scoped representation after capture.
+
 **[Reader model](../../glossary.md#term-reader-model).** General Scan describes a repeated calculation with a fixed number of steps.
 The **body** is the expression template for one step. **[Carry](../../glossary.md#term-carry)** is state passed to the next
 step; a **sequence** supplies the current time [slice](../../glossary.md#slice); an **[invariant](../../glossary.md#term-invariant)** supplies the same input
@@ -215,10 +226,12 @@ public final class StaticAndSymbolicScanSourceExample {
         Shape carryShape = Shape.ofDimensions(batch, new StaticDimension(64));
         Shape stepShape = Shape.ofDimensions(batch, new StaticDimension(16));
         Tensor h = leaf(carryShape), step = leaf(stepShape), weight = leaf(Shape.of(16, 64));
+        // Declare placeholders first: only these leaves may be used inside this body.
         Tensor next = step.matmul(weight).add(h).tanh();
         ScanBody body = new ScanBody(List.of(h), List.of(step), List.of(weight),
                 List.of(next), List.of(h, weight));
         Shape sequenceShape = Shape.ofDimensions(new StaticDimension(10), batch, new StaticDimension(16));
+        // Actual values occupy the same roles without being the placeholder objects.
         return Scan.apply(List.of(leaf(carryShape)), List.of(leaf(sequenceShape)),
                 List.of(leaf(Shape.of(16, 64))), body, false);
     }
@@ -434,6 +447,7 @@ public final class LengthScanMetadataExample {
         Tensor sequence = leaf(DataType.FLOAT32, true, 0, 1, 2);
         Tensor actualBias = leaf(DataType.FLOAT32, false, 1, 2);
         Tensor lengths = leaf(DataType.INT64, false, 1);
+        // Lengths is an outer control input, not a value the body closes over.
         var result = Scan.apply(List.of(initial), List.of(sequence), List.of(actualBias),
                 lengths, 1, List.of(OptionalInt.of(0)), body, false);
         var producer = result.finalCarry().getFirst().provenance().orElseThrow().producer();
@@ -485,6 +499,7 @@ public final class ScanMetadataExample {
                 List.of(next), List.of(h));
         Tensor initial = leaf(Shape.scalar(), false);
         Tensor sequence = leaf(Shape.of(2), true);
+        // Bind separate actual leaves; formals describe body input positions, not those objects.
         ScanResult result = Scan.apply(List.of(initial), List.of(sequence), List.of(), body, false);
 
         System.out.println(result.outputs().getFirst().descriptor().shape().equals(Shape.of(2)));

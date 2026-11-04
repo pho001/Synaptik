@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Configuration is checked before an input exists
+
+Tensor helpers or graph-building code construct these immutable attributes from axis lists and
+shape descriptions, then pass them to `Operation`. Mutable lists are snapshotted where specified;
+immutable Shapes are retained exactly. There is no data array to move or memory region to own.
+For example, non-negative axis `5` can be a valid attribute without being a valid axis of a
+particular rank-two Tensor. [Input-aware axis transforms](axis-transforms.md) and
+[slicing calls](slicing.md) perform those additional checks.
+
 **[Reader model](../../glossary.md#term-reader-model).** Geometry describes how logical positions are arranged, not the numerical
 values at those positions. **Contiguous** requests dense [row-major](../../glossary.md#term-row-major) placement; **reshape**
 regroups the same ordered [elements](../../glossary.md#term-element); **expand** repeats compatible positions; **[permutation](../../glossary.md#permutation)**
@@ -24,6 +33,7 @@ context; the enum stores no input, [arity](../../glossary.md#term-arity), [descr
 The kind has no intrinsic [parameters](../../glossary.md#term-parameter) and composes explicitly with the generic descriptor:
 
 ```java
+// Request canonical geometry without inspecting or copying an input buffer.
 Operation contiguous = new Operation(
         ContiguousKind.CONTIGUOUS,
         NoOperationAttrs.INSTANCE);
@@ -62,6 +72,7 @@ exact result `Shape`, carried by `TargetShapeAttrs(targetShape)` rather than sto
 The pairings are explicit:
 
 ```java
+// Both descriptions retain this immutable target; neither proves compatibility with an input.
 TargetShapeAttrs attrs = new TargetShapeAttrs(Shape.of(3, 2));
 Operation reshape = new Operation(ShapeTransformKind.RESHAPE, attrs);
 Operation expand = new Operation(ShapeTransformKind.EXPAND, attrs);
@@ -119,6 +130,7 @@ Describe a [permutation](../../glossary.md#permutation) that swaps the conceptua
 `[rows, columns, channels]`, and the normalized permutation is `[1, 0, 2]`.
 
 ```java
+// Output position zero takes input axis one; this is not an ordering of element values.
 PermutationAttrs permutation = new PermutationAttrs(List.of(1, 0, 2));
 AxisTransformAttrs position = new AxisTransformAttrs(1);
 
@@ -172,9 +184,13 @@ meanings. At entry `i`, it identifies exactly `lengths[i]` [coordinates](../../g
 `starts[i]` and advancing by signed non-zero `steps[i]` on normalized input [axis](../../glossary.md#term-axis) `axes[i]`.
 Coordinate `k` is:
 
-```text
-starts[i] + k * steps[i], for 0 <= k < lengths[i]
-```
+$$
+c_k=s_i+k\,t_i,\qquad 0\leq k<\ell_i.
+$$
+
+Here integer entry $i$ selects one axis, $s_i$ is its non-negative start, $t_i\ne0$
+its signed step, $\ell_i\geq0$ its length, and $c_k$ a logical coordinate, not a byte offset.
+For $s_i=4$, $t_i=-1$, $\ell_i=5$, coordinates are $4,3,2,1,0$.
 
 For extraction, an axis without an entry retains its complete logical coordinate range. For
 functional replacement, the selected sequences identify where the same-[rank](../../glossary.md#term-rank) update replaces base
@@ -208,6 +224,7 @@ reverses the columns. The already normalized [parameters](../../glossary.md#term
 [axes](../../glossary.md#term-axis) `[0, 1]`, and steps `[1, -1]`.
 
 ```java
+// Store start and length explicitly; no raw end sentinel remains in normalized attributes.
 SliceAttrs attrs = new SliceAttrs(
         List.of(0L, 4L),
         List.of(3L, 5L),
@@ -252,6 +269,7 @@ by the current public expression boundary described under [Slice expressions](sl
 The current single-axis convenience uses the same semantic kind with one step-one entry:
 
 ```java
+// This is the normalized step-one request, not another operation kind.
 new SliceAttrs(
         List.of(normalizedStart),
         List.of(selectedLength),

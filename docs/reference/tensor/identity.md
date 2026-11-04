@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Follow an expression back to its inputs
+
+When application or layer code calls `input.neg()`, the Tensor method creates a result
+description and records the exact `input` object in a new producer. It does not copy or negate
+the input's stored numbers at that moment. A leaf is an input with no producing expression;
+it may have data (as `zeros` does here) or be storage-free.
+The producer owns immutable connection lists, not an external memory lifetime.
+Use [creation](creation.md) to supply a leaf and [storage association](storage-association.md)
+to understand which mutable part of that Tensor can later change.
+
 **[Reader model](../../glossary.md#term-reader-model).** Identity answers “which particular object or [occurrence](../../glossary.md#term-occurrence)?”, not “do these
 descriptions have equal fields?” Two tensors may have equal [shapes](../../glossary.md#shape) and types without being the
 same tensor. A **[producer](../../glossary.md#term-producer)** represents one use of an [operation](../../glossary.md#operation), while **[provenance](../../glossary.md#provenance)** connects
@@ -86,6 +96,7 @@ public final class SingleOutputProducerExample {
     public static void main(String[] args) {
         Tensor input = TensorFactory.zeros(
                 Shape.of(2), DataType.FLOAT32, Optional.empty(), true);
+        // Zeros already contain data; negation only records how a later result is produced.
         Tensor result = input.neg();
 
         TensorProvenance origin = result.provenance().orElseThrow();

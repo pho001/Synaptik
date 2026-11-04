@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Choice and conversion are recorded, not performed here
+
+Application or layer code calls static `Tensor.where` with three Tensor references, or calls
+`input.cast(type)` on one Tensor with a destination type. Each method retains exact input
+references in a new expression and returns a description without copying or reading stored data.
+The condition is a Tensor of future Boolean values, not a Java `boolean` choosing which
+expression to construct. For integer-coordinate selection use [select/gather](gather.md);
+for type labels versus actual encodings use [data types and exact scalars](data-types.md).
+
 **[Reader model](../../glossary.md#term-reader-model).** `where` requests a per-position choice: use the true-branch value when the
 corresponding [Boolean](../../glossary.md#data-type--datatype) condition is true, otherwise the false-branch value. This is not a
 Java `if` that conditionally constructs only one branch, nor selection by an integer [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix).
@@ -79,6 +88,7 @@ public final class WhereExpressionExample {
         Tensor ifFalse = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT64, Shape.of(2, 1), Optional.empty(), false));
 
+        // Both branches exist as inputs; WHERE does not choose a Java construction branch.
         Tensor result = Tensor.where(condition, ifTrue, ifFalse);
         TensorProvenance provenance = result.provenance().orElseThrow();
 
@@ -189,7 +199,7 @@ with `RNE`, and BOOL maps to exact positive zero/one. [E4M3](../../glossary.md#t
 is an exception to the usual signed-infinity target behavior, not [saturation](../../glossary.md#term-saturation).
 
 Same-type conversion preserves every raw bit, including floating sign, [subnormal](../../glossary.md#term-subnormal) representation,
-and every NaN sign, quiet/signaling bit, and [payload](../../glossary.md#artifact-envelope-and-atomic-publication). `CastValueConversions.convert` returns the
+and every NaN sign, quiet/signaling bit, and [NaN payload](../../glossary.md#term-nan-payload). `CastValueConversions.convert` returns the
 exact source [`ScalarValue`](../../glossary.md#typed-scalar-value--scalarvalue) reference for this [scalar](../../glossary.md#term-scalar) case. `Tensor.cast`, however, always creates a
 fresh expression [occurrence](../../glossary.md#term-occurrence); [Tensor](../../glossary.md#tensor) construction does not call the scalar [oracle](../../glossary.md#term-test-oracle) or evaluate
 storage.
@@ -242,12 +252,14 @@ truthiness is false only for integer zero and floating `+0` or `-0`; every nonze
 positive or negative subnormal, infinity, and NaN is true. `ScalarValue` supplies only canonical
 [Boolean](../../glossary.md#data-type--datatype) values, so this contract does not assign meaning to non-canonical [backend](../../glossary.md#backend) BOOL bytes.
 
-Direct rounding matters for BFLOAT16. The exact binary64 value with bits
-`0x3FF0100000400000` (`1 + 2^-8 + 2^-30`) converts directly to BFLOAT16 `0x3F81`. A forbidden
-intermediate FLOAT32 conversion instead produces `0x3F808000`, which then rounds to BFLOAT16
-`0x3F80`. Likewise, exact binary64 `0x3FF02FFFFFC00000` converts directly to `0x3F81`, while a
-FLOAT32 intermediate `0x3F818000` would double-round to `0x3F82`. Integer-to-BFLOAT16 follows the
-same direct rule: INT32 `1077936129` converts to `0x4E81`, not the FLOAT32-mediated `0x4E80`.
+Direct rounding matters for BFLOAT16. The finite real value $1+2^{-8}+2^{-30}$,
+exactly represented by binary64 bits `0x3FF0100000400000`, converts directly to BFLOAT16
+`0x3F81`. A forbidden intermediate FLOAT32 conversion produces `0x3F808000`, then
+BFLOAT16 `0x3F80`: the small $2^{-30}$ term determines which side of the midpoint the
+original lies on, but the intermediate loses it. Likewise, exact binary64
+`0x3FF02FFFFFC00000` converts directly to `0x3F81`, while FLOAT32 `0x3F818000` would
+double-round to `0x3F82`. Integer-to-BFLOAT16 follows the same direct rule: INT32
+`1077936129` converts to `0x4E81`, not FLOAT32-mediated `0x4E80`.
 
 Cast changes the result data type but not its logical [dimensions](../../glossary.md#dimension). The result [descriptor](../../glossary.md#term-descriptor) therefore
 retains the input descriptor's exact [immutable](../../glossary.md#term-immutable) [`Shape`](../../glossary.md#shape) reference. Its [layout](../../glossary.md#layout) is always unresolved,
@@ -305,6 +317,7 @@ public final class CastExpressionExample {
         Tensor input = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, shape, Optional.of(inputLayout), true));
 
+        // Even a same-type cast remains a fresh expression, not a storage-copy operation.
         Tensor sameType = input.cast(DataType.FLOAT32);
         Tensor integral = sameType.cast(DataType.INT64);
         TensorProvenance firstOrigin = sameType.provenance().orElseThrow();

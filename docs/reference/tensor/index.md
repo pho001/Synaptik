@@ -13,6 +13,22 @@ calculation. **Gradient eligibility** requests that selected [derivatives](../..
 does not itself establish derivative support. Start with [shapes](shapes.md) for coordinates
 and [layouts](layouts.md) for how coordinates map to storage.
 
+## Follow the data boundary
+
+The caller is the application or framework component invoking a method. For example, an NN layer
+can call `Tensor.linear` while building an expression on the application's behalf.
+
+- `TensorFactory.create` can make a **leaf**: a Tensor with no producing expression, possibly
+  without any stored values.
+- [Import](import.md) copies the application's array values into independent storage.
+- [Attaching storage](storage-association.md) instead retains an existing wrapper without copying;
+  the memory's owner must keep it alive.
+- An arithmetic Tensor method retains its input Tensor references and returns a description of a
+  future result. Compiler and Engine perform the separate capture, preparation and execution work.
+
+Ownership is not a rule that every Tensor must be closed. Read
+[host-storage lifetimes](host-storage.md#borrowed-lifetime-example) before using arena-backed memory.
+
 ## Foundations and creation
 
 | Question | [Canonical](../../glossary.md#term-canonical-form) topics |
@@ -36,7 +52,14 @@ and [layouts](layouts.md) for how coordinates map to storage.
 | Project or attend | [MATMUL and linear projection](matmul-linear.md)<span data-glossary-navigation="true"> ([MATMUL glossary](../../glossary.md#matrix-multiplication--matmul))</span>, [attention](attention.md) |
 | Use [spatial](../../glossary.md#term-spatial-axes) operators | [Window transforms](windows.md), [convolution](convolution.md)<span data-glossary-navigation="true"> ([convolution glossary](../../glossary.md#term-channels-first-convolution-layers))</span>, [pooling](pooling.md)<span data-glossary-navigation="true"> ([pooling glossary](../../glossary.md#term-pooling))</span> |
 
-The first learning step needs only creation, a [descriptor](../../glossary.md#term-descriptor), [linear projection](../../glossary.md#linear-projection), subtraction, multiplication and SUM. It uses no [RNG](../../glossary.md#graph-rng-state--graphrngstate) or [Scan](../../glossary.md#term-cumulative-scan). Input `[1,3]` with [shape](../../glossary.md#shape) `[2,1]` times transposed [weight](../../glossary.md#term-weight) `0` produces `[0,0]`; squared error against `[2,6]` sums to `40`. Execution and [gradient](../../glossary.md#term-gradient) construction belong to [Engine](../engine/lifecycle.md)<span data-glossary-navigation="true"> ([Engine glossary](../../glossary.md#term-engine))</span> and [Compiler](../compiler/autograd.md)<span data-glossary-navigation="true"> ([Compiler glossary](../../glossary.md#term-compiler))</span>, not Tensor construction itself.
+The first learning step needs creation, descriptors, linear projection, subtraction, multiplication
+and SUM, but no RNG or Scan. For two finite real input values $x=[1,3]$ shaped `[2,1]`,
+one scalar weight $w=0$ gives predictions $p_i=x_iw=0$ for $i=0,1$.
+Against targets $t=[2,6]$, squared-error SUM is
+$(p_0-t_0)^2+(p_1-t_1)^2=(0-2)^2+(0-6)^2=40$.
+This explains the intended objective, not construction-time evaluation or permission to reorder
+rounded arithmetic. [Engine](../engine/lifecycle.md) evaluates the request and
+[Compiler](../compiler/autograd.md) constructs supported gradients.
 
 ## [Compiler](../../glossary.md#term-compiler)-facing semantic data
 

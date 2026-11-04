@@ -2,6 +2,21 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## A scalar argument and an index Tensor are different inputs
+
+Application or layer code calls `data.select(axis, index)` with one Java coordinate, or
+`data.gather(indices, axis)` with a Tensor describing many future coordinates. The methods
+retain the exact source Tensor (and index Tensor for gather); they do not copy stored data.
+Select can check a Java index against a static extent immediately. Gather construction checks
+the indices' type and shape, not their stored values, so bounds remain for a value-aware stage.
+Use [slicing](slicing.md#length-defined-extraction) for a regular coordinate sequence and
+[functional scatter](scatter.md) when coordinates name update destinations.
+
+For a conceptual rank-one source $x$ of extent $D$ and integer index vector $I$ of length $Q$,
+valid indices satisfy $0\leq I_j<D$ and gather means $y_j=x_{I_j}$ for $0\leq j<Q$.
+With $x=[10,20,30]$ and $I=[2,0,2]$, the requested result is $[30,10,30]$:
+repeated coordinates reuse a source position without implying shared result memory.
+
 **[Reader model](../../glossary.md#term-reader-model).** **Select** fixes one [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) and removes that axis. **Gather** lets an
 integer [tensor](../../glossary.md#tensor) supply many coordinates, potentially reusing the same source position.
 [Gather Elements](../../glossary.md#gather-elements) uses aligned per-position indices instead of inserting the full index [shape](../../glossary.md#shape).
@@ -84,6 +99,7 @@ public final class ScalarSelectExpressionExample {
                 Optional.of(LayoutDescriptor.contiguous(shape)),
                 true));
 
+        // Negative axis and coordinate normalize against different quantities.
         Tensor selected = input.select(-2, -1);
         SelectAttrs attrs = (SelectAttrs) selected.provenance().orElseThrow()
                 .operation().attrs();
@@ -221,6 +237,7 @@ public final class EmbeddingExpressionExample {
         Tensor weights = tensor(DataType.FLOAT32, Shape.of(10, 4), true);
         Tensor indices = tensor(DataType.INT64, Shape.of(2, 3), false);
 
+        // Keep the entire index shape, then append the table's feature width.
         Tensor embedded = weights.embedding(indices);
         var provenance = embedded.provenance().orElseThrow();
 
@@ -294,6 +311,7 @@ public final class AxisGatherExpressionExample {
         Tensor insertedIndices = tensor(DataType.INT64, Shape.of(5, 6), false);
         Tensor alignedIndices = tensor(DataType.INT32, Shape.of(2, 7, 4), false);
 
+        // Gather inserts the whole index shape; gatherElements keeps aligned positions.
         Tensor gathered = data.gather(insertedIndices, -2);
         Tensor elements = data.gatherElements(alignedIndices, 1);
 
@@ -410,6 +428,7 @@ These value arrays are conceptual expected results, not output produced by curre
 construction contract with storage-free metadata:
 
 ```java
+// Index values are not present here; this example demonstrates only the appended class axis.
 Tensor indices = TensorFactory.create(new TensorDescriptor(
         DataType.INT64, Shape.of(3), Optional.empty(), false));
 Tensor encoded = indices.oneHot(3);
@@ -438,7 +457,7 @@ does not prove or calculate the conceptual BOOL values.
 - Compiler capture/inference and qualified CPU/Metal execution are implemented independently
   of this metadata constructor. The BOOL result and index input remain non-differentiable.
   There is no configurable axis, Tensor-valued depth, on/off value, output type, ignore index
-  or sparse form; backend admission retains its exact type/shape/layout bounds.<span data-glossary-navigation="true"> ([Compiler glossary](../../glossary.md#term-compiler); [capture glossary](../../glossary.md#term-capture-meanings); [inference glossary](../../glossary.md#term-inference); [CPU glossary](../../glossary.md#term-cpu); [Metal glossary](../../glossary.md#term-metal); [metadata glossary](../../glossary.md#term-metadata); [BOOL glossary](../../glossary.md#data-type--datatype); [differentiable glossary](../../glossary.md#derivative-and-chain-rule); [axis glossary](../../glossary.md#term-axis); [ignore index glossary](../../glossary.md#ignore-index); [backend glossary](../../glossary.md#backend); [admission glossary](../../glossary.md#term-admission); [shape glossary](../../glossary.md#shape); [layout glossary](../../glossary.md#layout))</span>
+  or sparse form; backend admission retains its exact type/shape/layout bounds.
 
 
 ---

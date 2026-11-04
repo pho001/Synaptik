@@ -2,6 +2,22 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Read indices as destinations, not mutation commands
+
+Application or layer code calls `data.scatterAdd(indices, updates, axis)` (or another scatter
+form). The method retains the three exact Tensor references and derives a new result description.
+It neither copies their stored values nor writes into `data`. Index bounds and duplicate
+replacement destinations need stored values and are not checked by this constructor.
+Compare [gather](gather.md), where the same coordinate mapping selects sources instead.
+
+For a rank-one finite-real example, let base $b_c$ have extent $D$, updates $u_j$ have
+length $Q$, and integer destinations $I_j$ satisfy $0\leq I_j<D$ for $0\leq j<Q$.
+Scatter Add describes $y_c=b_c+\sum_{j:I_j=c}u_j$ for $0\leq c<D$.
+With base `[10, 20, 30]`, destinations `[2, 2]` and updates `[1, 2]`, position two
+receives $30+1+2=33$. Both updates count; they do not overwrite one another.
+An untouched coordinate preserves its exact base representation, rather than evaluating an
+invented zero addition. Floating accumulation and exceptional classes retain the rules below.
+
 **[Reader model](../../glossary.md#term-reader-model).** [Gather](../../glossary.md#gather) reads from indexed sources; **scatter** sends updates to indexed
 destinations. Scatter is **functional** here: it describes a new result, not mutation of the
 base [Tensor](../../glossary.md#tensor). **[ND](../../glossary.md#term-nd)** means indexing across multiple [dimensions](../../glossary.md#dimension): one [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) **tuple**, such
@@ -80,6 +96,7 @@ public final class GatherNdExpressionExample {
         Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), true);
         Tensor zeroBatchIndices = tensor(DataType.INT32, Shape.of(5, 2), false);
         Tensor batchedIndices = tensor(DataType.INT64, Shape.of(2, 5, 1), false);
+        // Tuple depth chooses addressed axes; no tuple values are read by these calls.
         Tensor zeroBatch = data.gatherNd(zeroBatchIndices);
         Tensor batched = data.gatherNd(batchedIndices, 1);
 
@@ -224,6 +241,7 @@ public final class ScatterAddExpressionExample {
         Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), true);
         Tensor indices = tensor(DataType.INT64, Shape.of(5, 6), false);
         Tensor updates = tensor(DataType.FLOAT32, Shape.of(2, 5, 6, 4), false);
+        // Shape agrees with gather's result, but the new result remains base-shaped.
         Tensor fixed = data.scatterAdd(indices, updates, -2);
 
         DynamicDimension batch = new DynamicDimension("batch");
@@ -318,7 +336,7 @@ final [narrowing](../../glossary.md#term-narrowing) at the declared low result. 
   See the <span data-glossary-navigation="true"> ([NaN glossary](../../glossary.md#term-nan); [infinity glossary](../../glossary.md#term-infinity); [dtype glossary](../../glossary.md#data-type--datatype); [DAZ glossary](../../glossary.md#term-daz); [FTZ glossary](../../glossary.md#term-ftz); [rounding glossary](../../glossary.md#term-rounding); [fusion glossary](../../glossary.md#term-fusion); [Finite glossary](../../glossary.md#term-finite))</span>[current aggregate floor](../../architecture/contracts/foundational-modules.md#aggregate-floor)<span data-glossary-navigation="true"> ([aggregate floor glossary](../../glossary.md#term-aggregate-floor))</span>.
 - When `U(c)` is non-empty, floating `MIN` and `MAX` propagate NaN without a payload, sign,
   signaling, source, or bitwise promise. Otherwise they use ordinary numeric order including
-  infinities. If both zero signs occur, <span data-glossary-navigation="true"> ([payload glossary](../../glossary.md#artifact-envelope-and-atomic-publication); [infinities glossary](../../glossary.md#nan-infinity-and-signed-zero))</span>`MIN` produces [negative zero](../../glossary.md#nan-infinity-and-signed-zero) and `MAX` positive zero,
+  infinities. If both zero signs occur, `MIN` produces negative zero and `MAX` positive zero,
   independent of encounter order. Equal non-zero candidates identify the represented numeric
   result, not a source occurrence.<span data-glossary-navigation="true"> ([positive zero glossary](../../glossary.md#nan-infinity-and-signed-zero))</span>
 - Integral `MUL` is exact-width [two's-complement](../../glossary.md#arithmetic-rearrangement-and-finite-difference-checks) modular multiplication, modulo `2^32` for INT32
@@ -350,6 +368,7 @@ Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), true);
 Tensor indices = tensor(DataType.INT32, Shape.of(2, 5, 4), false);
 Tensor updates = tensor(DataType.FLOAT32, Shape.of(2, 5, 4), false);
 
+// Replacement requires unique destinations at execution; MAX can combine duplicates.
 Tensor replacement = data.scatterElements(indices, updates, -2);
 Tensor maximum = data.scatterElements(indices, updates, 1, ScatterReduction.MAX);
 ```
@@ -443,6 +462,7 @@ public final class ScatterNdExpressionExample {
         Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), false);
         Tensor zeroBatchIndices = tensor(DataType.INT32, Shape.of(5, 2), false);
         Tensor zeroBatchUpdates = tensor(DataType.FLOAT32, Shape.of(5, 4), true);
+        // The short overload records replacement, not ADD, and never mutates data.
         Tensor replacement = data.scatterNd(zeroBatchIndices, zeroBatchUpdates);
         Tensor addition = data.scatterNd(
                 zeroBatchIndices, zeroBatchUpdates, ScatterReduction.ADD);

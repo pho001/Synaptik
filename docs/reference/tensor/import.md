@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## The application's arrays stop being inputs after the copy
+
+Application code calls `TensorFactory.fromFlatArray` or `fromNestedArray` with its arrays.
+The factory reads them during the call and returns a Tensor with independent heap storage.
+It does not retain the supplied arrays, so the application may modify them after return,
+but must not modify them concurrently with import. The returned Tensor is a leaf because
+there is no producing expression, not because “leaf” is another name for stored data.
+Contrast [retaining an existing region](storage-association.md), where lifetime remains with
+the region's owner, and read [creation constraints](creation.md) for exact accepted carriers.
+
 **[Reader model](../../glossary.md#term-reader-model).** Flat import receives one [linear](../../glossary.md#term-linear-meanings) primitive array and an explicit description
 of its [shape](../../glossary.md#shape) and type. Nested import receives arrays of arrays and infers the rectangular shape
 from their structure. **Rectangular** means corresponding [axes](../../glossary.md#term-axis) have consistent lengths, rather
@@ -39,6 +49,7 @@ public final class FlatImportExample {
                 false);
         byte[] source = {0, -2, 3};
 
+        // Import copies and normalizes BOOL bytes; it does not borrow source.
         Tensor tensor = TensorFactory.fromFlatArray(
                 descriptor, Optional.of("mask"), source);
         byte[] imported = (byte[]) tensor.hostStorage()
@@ -108,6 +119,7 @@ public final class NestedImportExample {
         float[] firstRow = {1.0f, 2.0f};
         float[][] source = {firstRow, {3.0f, 4.0f}};
 
+        // Both array levels are inspected now; later edits to firstRow are independent.
         Tensor tensor = TensorFactory.fromNestedArray(
                 source, Optional.of("weights"), true);
         float[] imported = (float[]) tensor.hostStorage()

@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Creating values now, not an expression for later
+
+The application calls `TensorFactory` with primitive values, a shape and explicit gradient intent.
+The factory creates independent heap-backed storage; no producing expression is attached, so
+these tensors are leaves. “Leaf” does not mean every leaf must contain data: `create` can make
+a storage-free one. Nor does it mean the Tensor must be closed; these heap arrays have automatic
+lifetimes. Contrast [borrowed arena memory](host-storage.md#borrowed-lifetime-example) with
+[value import](import.md), which also copies into independent storage.
+
 **[Reader model](../../glossary.md#term-reader-model).** A **[scalar](../../glossary.md#term-scalar)** has [rank](../../glossary.md#term-rank) zero: no [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) [axes](../../glossary.md#term-axis), but one value.
 `full` repeats one value throughout a [shape](../../glossary.md#shape); `zeros` and `ones` use particular fill values.
 An **identity [matrix](../../glossary.md#term-matrix-meanings)** has ones where row and column indices are equal and zeros elsewhere;
@@ -33,6 +42,7 @@ import java.util.Optional;
 
 public final class ConstantCreationExample {
     public static void main(String[] args) {
+        // Round the supplied float once into BFLOAT16 storage rather than retaining a float array.
         Tensor scalar = TensorFactory.scalarBFloat16(
                 1.00390625f, Optional.of("scale"), true);
         Tensor ones = TensorFactory.ones(
@@ -115,6 +125,7 @@ import java.util.Optional;
 
 public final class FullIdentityExample {
     public static void main(String[] args) {
+        // These initializers populate independent leaves; they do not build arithmetic producers.
         Tensor full = TensorFactory.full(
                 Shape.of(2, 3), -7L, Optional.of("weights"), false);
         Tensor identity = TensorFactory.identityMatrix(
@@ -140,9 +151,10 @@ public final class FullIdentityExample {
 - `full(Shape.of(2, 3), -7L, ...)` selects [INT64](../../glossary.md#data-type--datatype) from the Java `long` argument. Row-major
   positions <span data-glossary-navigation="true"> ([argument glossary](../../glossary.md#term-argument))</span>`0` through `5` all become `-7`, which can be read as two logical rows
   `[-7, -7, -7]` and `[-7, -7, -7]`.
-- `identityMatrix(2, 4, FLOAT32, ...)` creates a wide [matrix](../../glossary.md#term-matrix-meanings). Its diagonal length is
-  `min(2, 4) = 2`, so [row-major](../../glossary.md#term-row-major) indices `0 × 4 + 0 = 0` and `1 × 4 + 1 = 5` receive `1.0f`.
-  The other six positions retain `0.0f`.
+- `identityMatrix(2, 4, FLOAT32, ...)` creates two rows and four columns.
+  For row $i$ and column $j$, row-major position is $4i+j$, with $0\leq i<2$ and
+  $0\leq j<4$. The $\min(2,4)=2$ diagonal positions are $4(0)+0=0$ and $4(1)+1=5$.
+  They receive `1.0f`; the other six positions retain `0.0f`.
 - `heapBase()` inspection is used only to make the current raw values observable. It is not a
   typed Tensor access or export API.<span data-glossary-navigation="true"> ([Tensor glossary](../../glossary.md#tensor); [API glossary](../../glossary.md#term-application-programming-interface-api))</span>
 - The descriptor queries verify that identity creation retained the rectangular shape and

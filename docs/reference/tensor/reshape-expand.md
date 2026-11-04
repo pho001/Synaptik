@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Keep regrouping separate from repetition
+
+Application or layer code calls these methods on an input Tensor. The result records the exact
+input reference; it does not copy or borrow an output buffer during construction. Raw shape
+arrays are not retained, while an immutable target `Shape` is retained exactly.
+Reshaping `[2, 3]` to `[3, 2]` preserves $2\times3=3\times2=6$ positions.
+Expanding `[1, 3]` to `[2, 3]` instead describes two logical uses of each original column.
+Logical view geometry does not extend an input arena's lifetime or promise physical aliasing.
+Compare [axis reordering](axis-transforms.md) and [layout positions](layouts.md#resolved-layouts).
+
 **[Reader model](../../glossary.md#term-reader-model).** These requests change different aspects of representation.
 `contiguous` requests dense [row-major](../../glossary.md#term-row-major) geometry: last-[axis](../../glossary.md#term-axis) neighbors are adjacent, with no gaps
 between rows. **Reshape** regroups the same ordered [element](../../glossary.md#term-element) sequence under new [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix),
@@ -71,6 +81,7 @@ public final class ContiguousExpressionExample {
         Tensor dynamicInput = TensorFactory.create(new TensorDescriptor(
                 DataType.INT64, dynamicShape, Optional.empty(), false));
 
+        // Canonical result geometry is a request, not proof that any copy has occurred.
         Tensor staticResult = staticInput.contiguous();
         Tensor dynamicResult = dynamicInput.contiguous();
         LayoutDescriptor resultLayout = staticResult.descriptor().layout().orElseThrow();
@@ -205,6 +216,7 @@ public final class ReshapeExpressionExample {
                 DataType.FLOAT32, inputShape, Optional.of(inputLayout), true));
 
         long[] request = {3, -1};
+        // Infer only the missing extent; mutating the raw array later cannot edit the result.
         Tensor staticResult = input.reshape(request);
         request[0] = 99;
 
@@ -350,6 +362,7 @@ public final class ExpandExpressionExample {
                 DataType.FLOAT32, inputShape, Optional.of(inputLayout), true));
 
         long[] request = {2, 4, 3};
+        // Added and repeated axes can receive zero strides without allocating repeated data.
         Tensor staticResult = input.expand(request);
         request[0] = 99;
         LayoutDescriptor resultLayout = staticResult.descriptor().layout().orElseThrow();
@@ -380,9 +393,9 @@ public final class ExpandExpressionExample {
 <a id="meaningful-lines-and-intermediate-results-11"></a>
 ##### Meaningful lines and intermediate results
 
-- Right [alignment](../../glossary.md#term-alignment) maps input `[1, 3]` to the final two [target](../../glossary.md#term-target) [axes](../../glossary.md#term-axis) in `[2, 4, 3]`. The new leading
-  extent `2` and expanded [singleton](../../glossary.md#term-singleton) [extent](../../glossary.md#term-extent) `4` receive zero [strides](../../glossary.md#term-stride); the unchanged extent `3`
-  preserves stride one. The result strides are therefore `[0, 0, 1]`.
+- Pairing axes from the right maps input `[1, 3]` to the final two target axes of `[2, 4, 3]`.
+  The new leading extent `2` and expanded singleton extent `4` receive zero strides; the
+  unchanged extent `3` preserves stride one. Result strides are `[0, 0, 1]`.
 - The input offset five is preserved. The greatest referenced element index is seven, so the
   referenced element span is eight even though the result has 24 logical positions.<span data-glossary-navigation="true"> ([element glossary](../../glossary.md#term-element); [referenced element span glossary](../../glossary.md#referenced-element-span))</span>
 - Mutating the raw request cannot change the normalized target [Shape](../../glossary.md#shape).

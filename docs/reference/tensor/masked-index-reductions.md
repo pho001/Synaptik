@@ -2,6 +2,20 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Decide participation before doing arithmetic
+
+Application or layer code calls `input.sum(axis, mask)` or `mean(axis, mask)` with a data
+Tensor and a Boolean Tensor. Construction retains both exact references and checks their
+descriptions, not their values; neither a mask copy nor aggregation occurs.
+For one selected slice, let $J$ be its true-mask positions, $x_j$ the selected values and
+$n=|J|$ their integer count. The ideal sum is $\sum_{j\in J}x_j$ and, for $n>0$,
+the ideal mean is $\frac1n\sum_{j\in J}x_j$. False positions are not terms at all.
+Thus data `[2, NaN, 6]` with mask `[true, false, true]` requests sum $2+6=8$
+and mean $8/2=4$; multiplying NaN by zero would not achieve that exclusion.
+The empty-count and rounded-aggregate rules below remain binding.
+Compare [ordinary reduction domains](reductions.md) and
+[inserting the mask's singleton axis](axis-transforms.md#expand-dimensions-and-squeeze-expressions).
+
 **[Reader model](../../glossary.md#term-reader-model).** A **[mask](../../glossary.md#term-boolean-mask)** is a true/false [tensor](../../glossary.md#tensor) marking which positions participate.
 Masked reductions exclude false positions before arithmetic; multiplying all data by numeric
 zeros and ones is not equivalent when excluded values contain [NaN](../../glossary.md#term-nan) or [infinity](../../glossary.md#term-infinity).
@@ -28,7 +42,7 @@ The mask may use trailing [dimensions](../../glossary.md#dimension) and [singlet
 or enlarge an input singleton. A [scalar](../../glossary.md#term-scalar) mask broadcasts to the complete input. Equal symbolic or
 expression dimensions are accepted when the existing local [Shape](../../glossary.md#shape) rule can prove equality.
 
-Right [alignment](../../glossary.md#term-alignment) does not infer semantic axis intent. For input `[batch, time, features]`, a mask
+Pairing axes from the right does not infer semantic axis intent. For input `[batch, time, features]`, a mask
 shaped `[batch, time]` generally compares `time` with [`features`](../../glossary.md#term-feature) and is rejected. A caller that
 means the first two axes inserts a trailing singleton explicitly, producing
 `[batch, time, 1]`. That [rank](../../glossary.md#term-rank)-edit expression remains visible as the exact mask [producer](../../glossary.md#term-producer) consumed
@@ -93,6 +107,7 @@ public final class MaskedReductionExpressionExample {
                 Optional.empty(),
                 false));
 
+        // Insert the feature singleton explicitly; axis names do not drive broadcasting.
         Tensor alignedMask = mask.expandDims(2);
         Tensor sum = input.sum(1, alignedMask);
         Tensor mean = input.mean(-2, alignedMask);
@@ -123,8 +138,8 @@ public final class MaskedReductionExpressionExample {
 
 - `expandDims(2)` inserts a trailing [singleton](../../glossary.md#term-singleton), changing the [mask](../../glossary.md#term-boolean-mask) [Shape](../../glossary.md#shape) from `[batch, time]` to
   `[batch, time, 1]`. The new [Tensor](../../glossary.md#tensor) records the original mask as its [rank](../../glossary.md#term-rank)-edit [producer](../../glossary.md#term-producer) input.
-- Ordinary right [alignment](../../glossary.md#term-alignment) now compares [`batch`](../../glossary.md#term-batch-machine-learning-and-hyperparameters) with `batch`, `time` with `time`, and singleton
-  `1` with [feature](../../glossary.md#term-feature) [extent](../../glossary.md#term-extent) `4`, so the mask broadcasts exactly to the input Shape.
+- Pairing axes from the right now compares `batch` with `batch`, `time` with `time`,
+  and singleton `1` with feature extent `4`, so the mask broadcasts exactly to the input Shape.
 - Both `1` and `-2` normalize to input [axis](../../glossary.md#term-axis) `1`, the `time` axis.
 - Removing input axis `1` produces `[batch, 4]`. The exact `batch` [dimension](../../glossary.md#dimension) object is retained.
 - The masked [operation](../../glossary.md#operation)'s [provenance](../../glossary.md#provenance) stores the input first and the exact `alignedMask` Tensor

@@ -2,11 +2,30 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Calculate a position, not an allocation
+
+Application code or an expression constructor calls `LayoutDescriptor.of` with a static shape,
+strides and an offset. It receives immutable geometry; mutable stride arrays are copied.
+No storage is supplied or allocated. For rank $r$, coordinate $i_a$ on axis $a$,
+extent $d_a$, stride $s_a\geq0$ and offset $o\geq0$, the element position is
+
+$$
+p=o+\sum_{a=0}^{r-1}i_a s_a,\qquad 0\leq i_a<d_a.
+$$
+
+All coordinates, strides, offsets and positions are integers; strides and offset are in elements,
+not bytes. With `[2, 3]`, strides `[3, 1]` and offset $2$, coordinate $(1,2)$ gives
+$p=2+1(3)+2(1)=7$. For a nonempty domain, required span is
+$o+\sum_{a=0}^{r-1}(d_a-1)s_a+1$: capacity must include preceding offset positions and gaps.
+An empty domain has span zero instead. These checked integer calculations are not floating
+tensor arithmetic. Continue with [descriptor compatibility](descriptors.md) and
+[storage capacity/lifetimes](host-storage.md) before interpreting geometry as usable memory.
+
 **[Reader model](../../glossary.md#term-reader-model).** [Shape](../../glossary.md#shape) tells you which [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) exist; layout tells you how those coordinates
 map to storage-[element](../../glossary.md#term-element) positions. A **[stride](../../glossary.md#term-stride)** is the change in element position when one [axis](../../glossary.md#term-axis)
 coordinate increases by one. The **offset** is the element position for the all-zero coordinate.
 For shape `[2, 3]`, strides `[3, 1]`, and offset `2`, coordinate `[1, 2]` maps to
-`2 + 1 × 3 + 2 × 1 = 7`. These are element positions, not byte addresses.
+$2+1\times3+2\times1=7$. These are element positions, not byte addresses.
 
 **[Contiguous](../../glossary.md#term-contiguous) [row-major](../../glossary.md#term-row-major)** geometry places successive last-axis elements next to one another,
 then continues with the next row without gaps. **[Aliasing](../../glossary.md#term-aliasing)** means different logical references
@@ -50,12 +69,16 @@ Unbound dynamic shapes do not have numeric layout descriptors because their conc
 ### [Layout](../../glossary.md#layout) example
 
 ```java
+// Zero row stride describes reuse of positions; it does not allocate or attach a buffer.
 Shape shape = Shape.of(2, 3);
 LayoutDescriptor layout = LayoutDescriptor.of(
         shape, new long[] {0, 1}, 0, true);
 ```
 
-The logical [shape](../../glossary.md#shape) has six positions, but [axis](../../glossary.md#term-axis) 0 has [stride](../../glossary.md#term-stride) zero: both rows reuse the same three storage [elements](../../glossary.md#term-element). The [referenced span](../../glossary.md#referenced-element-span) is therefore `3`, computed as `(2 - 1) × 0 + (3 - 1) × 1 + 1`. The [descriptor](../../glossary.md#term-descriptor) is a `BROADCAST_ZERO_STRIDE` [view](../../glossary.md#term-view-meanings). This calculation describes [aliasing](../../glossary.md#term-aliasing) geometry; it does not authorize in-place writes or decide whether a [backend](../../glossary.md#backend) must materialize a copy.
+The logical shape has six positions, but axis zero has stride zero: both rows reuse the same
+three storage-element positions. Required span is $(2-1)0+(3-1)1+1=3$ elements.
+The descriptor is a `BROADCAST_ZERO_STRIDE` view. This describes aliasing geometry; it does not
+authorize in-place writes or decide whether a backend must materialize a copy.
 
 
 ---

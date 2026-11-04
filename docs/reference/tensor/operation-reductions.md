@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Port counts do not count contributors
+
+Tensor expression helpers construct these attributes and `Operation` values; Compiler graph
+construction connects them to input/output IDs. One SUM input port can describe millions of
+contributors, while masked SUM has two ports because its mask is a separate Tensor.
+Immutable attribute references are retained; mutable axis lists are snapshotted, not numeric data.
+The [reduction reference](reductions.md) teaches selected domains and
+[masked reductions](masked-index-reductions.md) explain why exclusion differs from multiplication.
+
 **[Reader model](../../glossary.md#term-reader-model).** A **reduction domain** is the group of positions combined into one result.
 SUM combines the whole group; a **[cumulative scan](../../glossary.md#cumulative-scan)** instead returns a partial result at every
 position. Softmax also preserves every position, but each probability depends on the complete
@@ -41,6 +50,7 @@ A full ordinary reduction combines every input axis and pairs the kind with
 absence of axis [parameters](../../glossary.md#term-parameter) rather than a negative numeric sentinel:
 
 ```java
+// No axis attributes means full reduction, not an empty axis list.
 Operation fullSum = new Operation(
         AggregateReductionKind.SUM,
         NoOperationAttrs.INSTANCE);
@@ -70,6 +80,7 @@ index is an axis position rather than a [storage offset](../../glossary.md#term-
 is never defaulted by the semantic value:
 
 ```java
+// Tie policy chooses a logical position, never a physical storage offset.
 Operation argMax = new Operation(
         AggregateReductionKind.ARG_MAX,
         new ArgExtremaAttrs(1, false, ArgExtremaTiePolicy.FIRST_INDEX));
@@ -143,6 +154,7 @@ preserves one output position for every input position and therefore preserves l
 The semantic pairings are explicit:
 
 ```java
+// Exclusive forward scans emit the identity before consuming the current position.
 CumulativeScanAttrs attrs = new CumulativeScanAttrs(0, true, false);
 Operation cumulativeSum = new Operation(CumulativeScanKind.CUM_SUM, attrs);
 Operation cumulativeProduct = new Operation(CumulativeScanKind.CUM_PROD, attrs);
@@ -207,16 +219,19 @@ and cumulative sum, which depends on an ordered prefix.
 The semantic pairings are explicit:
 
 ```java
+// Same slice axis, different first-class results: log-probabilities are computed directly.
 SoftmaxAttrs attrs = new SoftmaxAttrs(1);
 Operation probabilities = new Operation(SoftmaxKind.SOFTMAX, attrs);
 Operation logProbabilities = new Operation(SoftmaxKind.LOG_SOFTMAX, attrs);
 ```
 
-For an all-[finite](../../glossary.md#term-finite) slice, let `m` be the exact represented maximum and let `s` sum every
-`exp(x_j-m)` contributor once. SOFTMAX at position `i` is `exp(x_i-m)/s`; LOG_SOFTMAX is
-`(x_i-m)-log(s)`. They agree with the familiar unshifted formulas in exact mathematics, but
-do not evaluate unshifted [EXP](../../glossary.md#term-expx) for finite slices. A rounded probability can be zero even when
-its [log](../../glossary.md#term-log)-probability is finite, so LOG_SOFTMAX is not a subsequent `log(SOFTMAX)` [operation](../../glossary.md#operation).
+For one all-finite, nonempty slice of $N>0$ scores $x_j$, $0\leq j<N$, let
+$m=\max_{0\leq j<N}x_j$ and $s=\sum_{j=0}^{N-1}\exp(x_j-m)$.
+At $0\leq i<N$, SOFTMAX is $\exp(x_i-m)/s$ and LOG_SOFTMAX is
+$(x_i-m)-\log(s)$ ideally. Equal scores `[1000, 1000]` give $s=2$ and probabilities
+$1/2$ each without unshifted $\exp(1000)$.
+These real identities do not authorize evaluating unshifted `EXP` or taking `log` of rounded
+SOFTMAX: a probability may round to zero while its log-probability is finite.
 
 For the slice `[1, 2, 3]`, the ideal meanings are approximately:
 
@@ -257,6 +272,7 @@ INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
 Each kind has exactly one fixed two-input, one-output [signature](../../glossary.md#term-signature) with its exact attributes type:
 
 ```java
+// These are port counts, not batch sizes or reduction contributor counts.
 OperationSignature.fixed(MeanSquaredErrorAttrs.class, 2, 1)
 OperationSignature.fixed(DenseCategoricalCrossEntropyWithLogitsAttrs.class, 2, 1)
 OperationSignature.fixed(IndexCategoricalCrossEntropyWithLogitsAttrs.class, 2, 1)

@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Extracting windows and adding them back are different operations
+
+Application or layer-building code calls `input.unfold...` with window geometry, then can call
+fold with explicit target geometry on the column Tensor. Each call retains exact Tensor and
+immutable configuration references, derives a result description, and reads/copies no stored
+values at construction. “Materialize” describes the eventual requested operation, not work done
+by the constructor. Compare [pooling](pooling.md) for summaries of each window and
+[convolution](convolution.md) for learned weighted sums of the same kinds of samples.
+
 **[Reader model](../../glossary.md#term-reader-model).** A **window** is a small set of neighboring [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) sampled repeatedly
 across an input. **Unfold** exposes those [samples](../../glossary.md#term-sample-machine-learning-and-hyperparameters) as explicit window positions.
 **Fold** sends window contributions back to their source coordinates and adds overlaps;
@@ -62,12 +71,18 @@ Column and output batch Dimensions must be structurally equal. For each [spatial
 three 2D construction paths use checked static arithmetic or retain the corresponding canonical
 symbolic expression:
 
-```text
-effectiveKernel = dilation * (kernel - 1) + 1
-numerator       = input + 2 * padding - effectiveKernel
-positions       = floor(numerator / stride) + 1       in floor mode
-positions       = ceil(numerator / stride) + 1        in ceil mode
-```
+For a spatial axis, let integer $D\geq0$ be input extent, $k>0$ kernel count,
+$d>0$ dilation, $p\geq0$ symmetric padding and $s>0$ window stride:
+
+$$
+e=d(k-1)+1,\quad n=D+2p-e,\quad
+Q_{\mathrm{floor}}=\lfloor n/s\rfloor+1,\quad
+Q_{\mathrm{ceil}}=\lceil n/s\rceil+1.
+$$
+
+Here $e$ counts the effective sampled span and $Q$ the number of window starts.
+Valid geometry requires $n\geq0$. For $D=3$, $k=2$, $d=s=1$, $p=0$, both modes give
+$Q=2$; two positions in height and width make four image windows.
 
 The effective [kernel](../../glossary.md#kernel) must fit the padded input when static geometry can prove otherwise. An
 unresolved numerator retains its non-negativity obligation for later [binding](../../glossary.md#term-binding). Ceil mode avoids
@@ -107,15 +122,28 @@ input. `unfold3d` always returns the canonical rank-three Shape:
 For output-grid coordinate `(od, oh, ow)` and kernel coordinate `(kd, kh, kw)`, the logical input
 coordinate and two flattened column coordinates are:
 
-```text
-id = od * strideDepth  - paddingDepth  + kd * dilationDepth
-ih = oh * strideHeight - paddingHeight + kh * dilationHeight
-iw = ow * strideWidth  - paddingWidth  + kw * dilationWidth
+For each axis $a$ in depth, height and width, let $o_a$ be its output-grid coordinate,
+$r_a$ its kernel coordinate, $s_a$ stride, $p_a$ padding and $d_a$ dilation.
+With integer $0\leq o_a<Q_a$ and $0\leq r_a<k_a$, its input coordinate is
 
-q = (((c * kD + kd) * kH + kh) * kW + kw)
-p = ((od * HOut + oh) * WOut + ow)
-column = [n, q, p]
-```
+$$
+i_a=o_a s_a-p_a+r_a d_a.
+$$
+
+Out-of-range $i_a$ uses the selected padding rule, not an input read.
+Let $c$ be channel coordinate, $0\leq c<C$, and $n$ batch coordinate, $0\leq n<N$.
+The two flattened column coordinates are
+
+$$
+q=(((c k_D+r_D)k_H+r_H)k_W+r_W),\qquad
+p=((o_D Q_H+o_H)Q_W+o_W).
+$$
+
+The column coordinate is $(n,q,p)$, with
+$0\leq q<Ck_Dk_Hk_W$ and $0\leq p<Q_DQ_HQ_W$.
+Uppercase subscripts identify axes, not powers; $p$ here is a column coordinate,
+distinct from padding $p_a$. For one channel and a $2$-by-$2$-by-$2$ kernel,
+kernel coordinate $(1,0,1)$ gives $q=((1)2+0)2+1=5$.
 
 | Flattened coordinate | Outermost to fastest-changing component | Meaning |
 |---|---|---|
@@ -205,12 +233,14 @@ public final class TensorWindowExpressionExample {
     }
 
     public static void main(String[] args) {
+        // Construct window descriptions only; fold sums overlaps rather than averaging them.
         Tensor unfolded = tensor(Shape.of(2, 5, 3)).unfold(1, 3, 1);
         Tensor folded = tensor(Shape.of(3, 3)).foldAxis(0, 5, 1);
         Window2dAttrs window = new Window2dAttrs(
                 2, 2, 1, 1, 0, 0, 1, 1, false);
         Tensor columns = tensor(Shape.of(1, 1, 3, 3)).unfold2d(window);
         Tensor image = columns.fold2d(Shape.of(1, 1, 3, 3), window);
+        // Preserve this exact padding representation, including its negative-zero sign.
         ScalarValue padding = ScalarValue.float32(-0.0f);
         Tensor paddedColumns = tensor(Shape.of(1, 1, 3, 3)).unfold2d(window, padding);
 

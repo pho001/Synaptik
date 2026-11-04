@@ -2,6 +2,17 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## A value and its source coordinate travel together
+
+Application or layer-building code calls sort/argsort/Top-K on an input Tensor. The method
+retains its exact input reference and returns descriptions, without comparing or copying stored
+values. Sort describes reordered values; argsort describes the corresponding original axis
+coordinates. Top-K returns both roles from one producing occurrence so their pairing is explicit.
+For input shape `[2, 5]`, axis one and $k=3$, each of two independent rows contributes three
+pairs, giving shape `[2, 3]`, not the largest three across both rows together.
+Compare [arg extrema](masked-index-reductions.md#arg-extrema-expressions) for one winning coordinate
+and [producer output slots](identity.md#multi-output-and-hidden-output-identity) for shared occurrences.
+
 **[Reader model](../../glossary.md#term-reader-model).** Sorting reorders values along an [axis](../../glossary.md#term-axis) independently for each remaining
 [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix). **Stable** means candidates equal under the ordering retain original index order.
 `argsort` returns those source positions rather than sorted values. **Top-K** selects only
@@ -62,6 +73,7 @@ import java.util.Optional;
 
 Tensor input = TensorFactory.create(new TensorDescriptor(
         DataType.FLOAT64, Shape.of(5), Optional.empty(), true));
+// Separate calls create separate producers, even though their input is the same Tensor.
 Tensor values = input.sort(-1);
 Tensor indices = input.argsort(0, true);
 
@@ -143,6 +155,7 @@ import java.util.Optional;
 
 Tensor input = TensorFactory.create(new TensorDescriptor(
         DataType.FLOAT64, Shape.of(2, 5), Optional.empty(), true));
+// Ask for paired ports together; unsorted means original-index order, not random order.
 TopKResult result = input.topK(3, -1, true, false);
 
 System.out.println(result.values().descriptor().shape());

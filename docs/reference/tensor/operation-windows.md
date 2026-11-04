@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Attributes describe where samples would come from
+
+Tensor expression helpers call the window-attribute constructors with primitive geometry and,
+for fold, an explicit target Shape. The attributes retain immutable window/shape/scalar references;
+no input array or output buffer is supplied. `Operation` checks the matching kind and attribute
+class. [Tensor window calls](windows.md) then compare actual operand descriptors and derive
+the output shape. This boundary cannot choose a backend or prove that an output is a physical view.
+
 **[Reader model](../../glossary.md#term-reader-model).** A sliding window is a neighborhood sampled at successive [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) positions.
 **Unfold** exposes [samples](../../glossary.md#term-sample-machine-learning-and-hyperparameters) as windows or columns; **fold** adds their contributions back at
 destination coordinates. Overlap addition means fold is not generally a lossless inverse.
@@ -46,6 +54,7 @@ step `1`. The fold uses conceptual window input Shape `[3, 3]`, normalized [targ
 explicit output size `5`, and step `1`.
 
 ```java
+// Output size is explicit because window count alone cannot describe uncovered trailing positions.
 UnfoldAxisAttrs unfoldAttrs = new UnfoldAxisAttrs(1, 3, 1);
 FoldAxisAttrs foldAttrs = new FoldAxisAttrs(0, 5, 1);
 
@@ -65,9 +74,12 @@ For the unfold, the selected [extent](../../glossary.md#term-extent) `5` has thr
 stays in place, and the window size `3` is appended as the new final axis. For a static selected
 extent `D`, current public Shape construction calculates:
 
-```text
-windowCount = floor((D - size) / step) + 1
-```
+$$
+Q=\left\lfloor\frac{D-k}{s}\right\rfloor+1.
+$$
+
+Here integer $D$ is input extent, $k>0$ window size, $s>0$ step, and $Q$ the window
+count, with $D\geq k$. In this example $D=5$, $k=3$, $s=1$, so $Q=3$ starts.
 
 It first must prove `size <= D` and use checked `long` arithmetic. `UnfoldAxisAttrs` implements
 neither check nor calculation. General-axis unfold has no image, [padding](../../glossary.md#padding), or [dilation](../../glossary.md#term-dilation) assumption,
@@ -108,6 +120,7 @@ Describe both `UNFOLD2D` attribute variants for conceptual [NCHW](../../glossary
 same window geometry with an explicit fold output Shape.
 
 ```java
+// Keep padding value separate from window geometry; both are immutable descriptions.
 Window2dAttrs window = new Window2dAttrs(
         2, 2,
         1, 1,
@@ -140,12 +153,17 @@ its exact typed [scalar](../../glossary.md#term-scalar) for symmetric padding an
 [extent](../../glossary.md#term-extent). Effective kernel is the spatial span covered after dilation. For
 height and width independently, current public static-or-symbolic [Shape](../../glossary.md#shape) construction uses:
 
-```text
-effectiveKernel = dilation * (kernel - 1) + 1
-numerator       = input + 2 * padding - effectiveKernel
-output          = floor(numerator / stride) + 1       when ceilMode is false
-output          = ceil(numerator / stride) + 1        when ceilMode is true
-```
+For either spatial axis, let $D\geq0$ be input extent, $p\geq0$ padding per side,
+$k>0$ kernel count, $d>0$ dilation and $s>0$ window stride, all integers:
+
+$$
+k_{\mathrm{eff}}=d(k-1)+1,\quad n=D+2p-k_{\mathrm{eff}},\quad
+Q_{\mathrm{floor}}=\lfloor n/s\rfloor+1,\quad
+Q_{\mathrm{ceil}}=\lceil n/s\rceil+1.
+$$
+
+Valid geometry requires $n\geq0$; $Q$ counts starts, not samples per window.
+For $D=3$, $k=2$, $p=0$, $d=s=1$, both modes give two starts on each axis.
 
 Floor mode rounds the quotient down; ceil mode rounds it up. Current public expression
 construction folds static calculations with checked `long` arithmetic and requires the effective

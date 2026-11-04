@@ -2,6 +2,37 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## What the query call describes
+
+Application or layer-building code calls `query.scaledDotProductAttention(key, value, ...)`.
+The receiver and arguments are Tensor descriptions, not arrays being numerically inspected.
+The method retains the exact input Tensor references in a producing operation and returns fresh
+result descriptions; it neither copies their values nor allocates attention-output storage.
+The [matrix-product reference](matmul-linear.md) explains the underlying sum of matching coordinates;
+[normalization](normalization.md) explains why softmax mixes scores within a row.
+
+### Reading one finite row mathematically
+
+Suppress the independent batch/head coordinates. Let $L$ be the number of queries, $S$ the
+number of keys, $E>0$ the query/key feature width, and $E_v$ the value feature width.
+For query index $0 \leq i<L$, key index $0 \leq j<S$, query/key coordinate
+$0 \leq e<E$, and value coordinate $0 \leq v<E_v$, write the input values as
+$q_{i,e}$, $k_{j,e}$, and $V_{j,v}$. With positive scale $\alpha$ and eligible key set
+$J_i$, the ideal finite-score calculation for nonempty $J_i$ is
+
+$$
+s_{i,j}=\alpha\sum_{e=0}^{E-1}q_{i,e}k_{j,e},\qquad
+w_{i,j}=\frac{\exp(s_{i,j})}{\sum_{t\in J_i}\exp(s_{i,t})},\qquad
+O_{i,v}=\sum_{j\in J_i}w_{i,j}V_{j,v}.
+$$
+
+The default is $\alpha=1/\sqrt{E}$; excluded keys have zero weight. With two eligible
+equal finite scores, each ideal weight is $1/2$. Value components $2$ and $6$ then
+give the ideal output $(1/2)2+(1/2)6=4$: a mixture, not a selected winner.
+These are real-number explanations, not permission to reorder rounded operations.
+The accumulation rules, literal `EXP`/sum/division sites, exceptional scores, and empty-row
+rules below govern actual evaluation.
+
 **[Reader model](../../glossary.md#term-reader-model).** Attention is a content-based weighted [lookup](../../glossary.md#term-lookup). A **query** describes what is
 being sought; each **key** describes an available item, and its **value** carries the information
 to combine. A **[dot product](../../glossary.md#term-dot-product)** multiplies matching components and adds the products into one
@@ -134,8 +165,8 @@ key/value position therefore cannot contaminate a row. For each query row:
 
 Eligible value NaN still follows ordinary floating multiply/add even when its eligible weight is
 zero; only eligibility exclusion guarantees that a value is ignored. An empty key sequence is an
-all-masked-row case for every existing query row. Empty query, value-[feature](../../glossary.md#term-software-feature), and [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) [axes](../../glossary.md#term-axis) retain
-their ordinary [Shape](../../glossary.md#shape) meanings.
+all-masked-row case for every existing query row. Empty query,
+value-[feature](../../glossary.md#term-feature), and batch axes retain their ordinary Shape meanings.
 
 <a id="runnable-output-and-weights-metadata-example"></a>
 #### Runnable output-and-[weights](../../glossary.md#term-weight) [metadata](../../glossary.md#term-metadata) example
@@ -158,6 +189,7 @@ import java.util.Optional;
 
 public final class AttentionWeightsMetadataExample {
     public static void main(String[] args) {
+        // Storage-free inputs let this example inspect geometry without evaluating scores.
         Tensor query = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, Shape.of(2, 4, 8), Optional.empty(), false));
         Tensor key = TensorFactory.create(new TensorDescriptor(
@@ -166,6 +198,7 @@ public final class AttentionWeightsMetadataExample {
                 DataType.FLOAT32, Shape.of(2, 6, 10), Optional.empty(), true));
         var attrs = new ScaledDotProductAttentionAttrs(Optional.empty(), false);
 
+        // Request both ports of one operation, rather than recomputing weights separately.
         ScaledDotProductAttentionResult result =
                 query.scaledDotProductAttentionWithWeights(key, value, attrs);
         Tensor output = result.output();

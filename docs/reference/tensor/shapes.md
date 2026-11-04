@@ -2,6 +2,21 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## From coordinates to a size description
+
+Application code, or a framework component building an expression, supplies sizes to `Shape`.
+The resulting object describes an indexing domain; it does not hold the tensor's numbers.
+If rank is $r$ and axis $a$ has extent $d_a$, valid coordinates satisfy
+$0 \leq i_a < d_a$ for each integer $a$ with $0 \leq a < r$.
+For static extents the element count is $\prod_{a=0}^{r-1} d_a$.
+Thus `[2, 3]` permits coordinates `(0, 0)` through `(1, 2)` and has $2 \times 3=6$
+positions. The empty product for a scalar is one; an extent of zero leaves no valid coordinates.
+These are exact non-negative integer sizes, not rounded tensor arithmetic.
+
+Shape construction copies supplied mutable arrays so the application may reuse those arrays;
+immutable `Dimension` objects can be retained. To understand where a coordinate lands in memory,
+continue with [element offsets and strides](layouts.md#resolved-layouts), not broadcasting alone.
+
 **Reading a shape.** A [tensor](../../glossary.md#tensor) is an array addressed by one [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) per **[axis](../../glossary.md#term-axis)**.
 Its **[rank](../../glossary.md#term-rank)** is the number of axes; each axis has an **[extent](../../glossary.md#term-extent)**, the number of positions on it.
 Shape `[2, 3]` has rank two, with two rows and three columns. Axis numbering starts at zero;
@@ -94,6 +109,7 @@ import java.util.Optional;
 public final class SymbolicExtentExample {
     public static void main(String[] args) {
         Dimension n = new DynamicDimension("N");
+        // Names describe future sizes; constructing them does not bind N or M.
         Dimension m = new DynamicDimension("M");
         Dimension nPlusTwo = DimensionExpressions.addConstant(n, 2);
         Dimension canonicalSum = DimensionExpressions.add(
@@ -102,6 +118,7 @@ public final class SymbolicExtentExample {
                 DimensionExpressions.multiply(m, 2),
                 DimensionExpressions.add(new DynamicDimension("N"), new StaticDimension(2)));
         Dimension halfRoundedUp = DimensionExpressions.ceilingDivide(nPlusTwo, 2);
+        // Keep ceiling division explicit: it is not interchangeable with floor division.
         Dimension unknown = DimensionExpressions.unknown(1, Optional.of(nPlusTwo));
 
         DimensionExpression.LinearCombination inspected =
@@ -174,8 +191,10 @@ compatibility. Current package-private [compiler](../../glossary.md#term-compile
 broadcasting rule: it retains a symbolic obligation only when an [operation](../../glossary.md#operation) contract can already
 select one exact output [descriptor](../../glossary.md#term-descriptor).
 
-Read this [shape](../../glossary.md#shape)-[alignment](../../glossary.md#term-alignment) diagram from left to right. The absent leading [axis](../../glossary.md#term-axis) behaves as an
-[extent](../../glossary.md#term-extent)-one axis; matching does not infer names such as “[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)” or “[feature](../../glossary.md#term-software-feature).”
+Read this diagram from left to right: it pairs axis positions from the right, not byte addresses.
+The absent leading axis behaves as an extent-one axis; matching does not infer names such as
+“[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)” or
+“[feature](../../glossary.md#term-feature).”
 
 ```mermaid
 flowchart LR
@@ -192,13 +211,16 @@ Shape broadcasting does not calculate [strides](../../glossary.md#term-stride), 
 ### [Shape](../../glossary.md#shape) example
 
 ```java
+// Shape arithmetic describes positions only; no tensor-value storage is requested.
 Shape left = Shape.of(2, 1, 4);
 Shape right = Shape.of(3, 4);
 Shape result = ShapeBroadcast.broadcast(left, right);
 long count = result.knownElementCount().orElseThrow();
 ```
 
-[Broadcasting](../../glossary.md#broadcasting) aligns [axes](../../glossary.md#term-axis) from the right. The pairs are `4` with `4`, `1` with `3`, and the unmatched leading `2` with an implicit [singleton](../../glossary.md#term-singleton). The result is `Shape[2, 3, 4]`, and its [element](../../glossary.md#term-element) count is `2 × 3 × 4 = 24`. No storage is allocated.
+Broadcasting compares axes from the right. The pairs are `4` with `4`, `1` with `3`,
+and the unmatched leading `2` with an implicit singleton. The result is `Shape[2, 3, 4]`,
+with $2 \times 3 \times 4=24$ logical positions. No tensor-value storage is allocated.
 
 
 ---

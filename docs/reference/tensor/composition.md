@@ -2,6 +2,19 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## How does the indexing domain grow?
+
+Application or layer-building code calls these methods with Tensor descriptions and configuration.
+The method snapshots mutable request arrays or input containers, while keeping the exact Tensor
+references needed to describe the result. It does not copy their stored values during construction.
+For axis $a$, let $d_a\geq0$ be its input extent, $b_a,c_a\geq0$ its before/after padding,
+and $r_a>0$ its integer repeat count. Padding gives $d'_a=d_a+b_a+c_a$;
+tiling gives $d'_a=r_a d_a$. Thus an extent of $3$ padded by $0$ before and $4$ after
+becomes $7$, while repeating it four times gives $12$ positions. These are checked integer
+sizes, not floating-point formulas. Compare [window extraction](windows.md) for overlapping
+samples and [axis insertion](axis-transforms.md#expand-dimensions-and-squeeze-expressions)
+for adding a singleton without adding elements.
+
 **[Reader model](../../glossary.md#term-reader-model).** Padding adds [constant](../../glossary.md#term-constant)-filled border positions; tiling repeats a complete
 pattern. Neither is just a [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) rename. For example, tiling conceptual `[a, b]` twice
 requests `[a, b, a, b]`, not `[a, a, b, b]`.
@@ -19,9 +32,12 @@ checks both references and ranks, clones both arrays, and then validates and der
 the private copies; it never retains or mutates caller-owned arrays. At axis `i`, a static input
 [extent](../../glossary.md#term-extent) produces this checked result extent:
 
-```text
-inputExtent + before[i] + after[i]
-```
+$$
+d'_i=d_i+b_i+c_i.
+$$
+
+Here $i$ is the selected axis, $d_i$ its input extent, and $b_i,c_i$ the corresponding
+entries in `before` and `after`; all are non-negative integers measured in positions.
 
 For example, [Shape](../../glossary.md#shape) `[2, 3]`, before widths `[1, 0]`, and after widths `[2, 4]` produce Shape
 `[5, 7]`. Static zero extents and empty arrays for a [scalar](../../glossary.md#term-scalar) are valid. Every [Dimension](../../glossary.md#dimension) category
@@ -108,6 +124,7 @@ public final class PadTileExpressionExample {
         long[] before = {1, 0};
         long[] after = {2, 4};
         long[] repeats = {2, 4};
+        // The methods copy widths/repeats, so later array edits cannot change the request.
         Tensor padded = input.pad(before, after, ScalarValue.float32(-1.0f));
         Tensor tiled = input.tile(repeats);
         before[0] = 99;
@@ -204,6 +221,7 @@ requires a static selected [extent](../../glossary.md#term-extent) no larger tha
 result count before creating any output. It then returns the [immutable](../../glossary.md#term-immutable) list equivalent to:
 
 ```java
+// Each selection has its own producer; a list does not turn them into one multi-output operation.
 List.of(input.select(axis, 0), input.select(axis, 1), /* ... */)
 ```
 
@@ -239,6 +257,7 @@ Tensor first = TensorFactory.create(new TensorDescriptor(
 Tensor second = TensorFactory.create(new TensorDescriptor(
         DataType.FLOAT32, Shape.of(2, 2), Optional.empty(), true));
 
+// Concat joins an existing axis; stack adds a new axis even when an input reference repeats.
 Tensor concatenated = Tensor.concat(-1, first, second);
 Tensor stacked = Tensor.stack(0, first, first);
 List<Tensor> outputs = concatenated.unstack(1);

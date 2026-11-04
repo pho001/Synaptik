@@ -2,6 +2,26 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Who supplies the statistics and affine parameters?
+
+Application or NN layer-building code calls the receiver methods with an input Tensor and any
+explicit scale, bias or running-statistic Tensors. The method retains their exact references;
+it does not copy their values, acquire ownership of layer state, or update running statistics.
+Layer/RMS normalization describe reductions over the selected trailing axes; batch inference
+instead uses supplied statistics. For explicit next running values, read
+[batch-normalization training](statistics-losses.md#batch-normalization-training-and-statistic-transition-expressions).
+Use [reduction domains](reductions.md) to understand which coordinates share a statistic.
+
+### A finite softmax slice
+
+Let $x_0,\ldots,x_{N-1}$ be finite real scores in one nonempty slice, with $N>0$.
+Set $m=\max_{0\leq j<N}x_j$ and $s=\sum_{j=0}^{N-1}\exp(x_j-m)$.
+At index $0\leq i<N$, ideal softmax is $\exp(x_i-m)/s$ and log-softmax is
+$(x_i-m)-\log(s)$. Equal scores `[1000, 1000]` have $m=1000$, $s=2$ and
+probabilities $1/2$ each. Subtracting the maximum keeps these exponent inputs zero rather
+than requiring $\exp(1000)$. Floating evaluation still rounds at the named sites; special
+values, empty slices and admitted backend value domains are separate below.
+
 **[Reader model](../../glossary.md#term-reader-model).** Normalization rescales related values using a shared quantity.
 Softmax turns scores, often called **logits**, into relative probabilities along one [axis](../../glossary.md#term-axis).
 [Layer normalization](../../glossary.md#layer-normalization) subtracts a [slice](../../glossary.md#slice)'s [mean](../../glossary.md#term-mean) and divides by the [square root](../../glossary.md#norms-elementary-functions-and-probability-distributions) of its [variance](../../glossary.md#term-variance)
@@ -91,6 +111,7 @@ public final class SoftmaxExpressionExample {
         Tensor input = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, shape, Optional.empty(), true));
 
+        // Both axes name each row; logSoftmax is not log() of a rounded probability tensor.
         Tensor probabilities = input.softmax(-1);
         Tensor logProbabilities = input.logSoftmax(1);
         SoftmaxAttrs probabilitiesAttrs = (SoftmaxAttrs) probabilities
@@ -175,15 +196,19 @@ positive. It has the exact result type except that [FLOAT16](../../glossary.md#t
 [metadata](../../glossary.md#term-metadata) for its FLOAT32 arithmetic domain. There is no default epsilon, `double` convenience,
 axis-array overload, scale-only form, affine [broadcasting](../../glossary.md#broadcasting), or implicit scale or bias [Tensor](../../glossary.md#tensor).
 
-For a non-empty slice of `N` values, the semantic formula is:
+For finite real values $x_i$ in a slice of integer count $N>0$, with $0\leq i<N$,
+define mean $\mu$, population variance $v$ and standardized value $z_i$ by
 
-```text
-mean           = sum_i(x_i) / N
-variance       = sum_i((x_i - mean) * (x_i - mean)) / N
-standardized_i = (x_i - mean) / sqrt(variance + epsilon)
-output_i       = standardized_i                         // no affine
-output_i       = standardized_i * scale_i + bias_i      // affine
-```
+$$
+\mu=\frac1N\sum_{j=0}^{N-1}x_j,\qquad
+v=\frac1N\sum_{j=0}^{N-1}(x_j-\mu)^2,\qquad
+z_i=\frac{x_i-\mu}{\sqrt{v+\varepsilon}}.
+$$
+
+The positive finite stabilizer is $\varepsilon$ (epsilon). Without affine parameters,
+$y_i=z_i$; with scale $\gamma_i$ and bias $\beta_i$, $y_i=z_i\gamma_i+\beta_i$.
+If values have units, $v$ and epsilon have their squared units and $z_i$ is dimensionless.
+These ideal formulas do not relax the arithmetic-site, empty or special-value rules below.
 
 This is [population variance](../../glossary.md#population-variance), so correction is zero. Epsilon is inside the [square root](../../glossary.md#norms-elementary-functions-and-probability-distributions). Scale and
 bias [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) span the normalized Shape and are reused for every leading slice.
@@ -192,8 +217,8 @@ bias [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) span th
 #### [Finite](../../glossary.md#term-finite) numerical example
 
 The goal is to illustrate the selected formula, not current execution. For one [FLOAT64](../../glossary.md#term-float64) [slice](../../glossary.md#slice)
-`[1, 2, 3]`, [normalized Shape](../../glossary.md#normalized-shape) `[3]`, and [epsilon](../../glossary.md#epsilon) `0.00001`, [mean](../../glossary.md#term-mean) is `2`, [population variance](../../glossary.md#population-variance) is
-`2 / 3`, and the denominator is `sqrt(2 / 3 + 0.00001)`.
+`[1, 2, 3]`, normalized Shape `[3]`, and $\varepsilon=0.00001$, the mean is $\mu=2$,
+population variance is $v=2/3$, and the denominator is $\sqrt{2/3+0.00001}$.
 
 ```text
 no-affine result  ~= [-1.2247356859, 0.0, 1.2247356859]
@@ -281,15 +306,17 @@ strictly positive. It has the exact result type except that [FLOAT16](../../glos
 epsilon [metadata](../../glossary.md#term-metadata). There is no default epsilon. All four low types and FLOAT32 results accumulate
 squares and sums in FLOAT32; [FLOAT64](../../glossary.md#term-float64) results accumulate them in FLOAT64.
 
-For a non-empty slice of `N` values, the mathematical contract is:
+For finite real $x_i$, $0\leq i<N$, with integer $N>0$, define mean square $q$ and
+stabilized root $r$:
 
-```text
-meanSquare   = sum_i(x_i * x_i) / N
-rms          = sqrt(meanSquare + epsilon)
-normalized_i = x_i / rms
-output_i     = normalized_i                 // no-scale form
-output_i     = normalized_i * scale_i       // scaled form
-```
+$$
+q=\frac1N\sum_{j=0}^{N-1}x_j^2,\qquad r=\sqrt{q+\varepsilon},\qquad z_i=x_i/r.
+$$
+
+Here $\varepsilon>0$ is finite epsilon, in the same squared units as $q$.
+Without scale, output $y_i=z_i$; with scale $\gamma_i$, $y_i=z_i\gamma_i$.
+Unlike variance, $q$ does not subtract a mean. Actual overflow and exceptional inputs follow
+the rules below, not an alternative algebraically rearranged formula.
 
 For FLOAT64 input `[1, 2, 3]`, [normalized Shape](../../glossary.md#normalized-shape) `[3]`, and epsilon `1e-5`, `meanSquare` is
 `14 / 3`, `rms` is approximately `2.1602492140182963`, and the no-scale result is approximately
@@ -373,14 +400,17 @@ floating promotion in exact producer order: input with scale, then bias, running
 variance. [Epsilon](../../glossary.md#epsilon) must be [finite](../../glossary.md#term-finite) and strictly positive. It has the exact result type except that a
 [FLOAT16](../../glossary.md#term-float16) or FP8 result uses exact [FLOAT32](../../glossary.md#term-float32) epsilon [metadata](../../glossary.md#term-metadata). No cast producer or hidden default is inserted.
 
-For each output coordinate with channel `c`, the mathematical contract is:
+For one finite real input value $x$ at channel coordinate $c$, let $\mu_c$ and $v_c$ be
+the supplied running mean and variance, $\gamma_c$ scale and $\beta_c$ bias. When
+$v_c+\varepsilon>0$, the ideal output is
 
-```text
-centered     = input - runningMean[c]
-denominator  = sqrt(runningVariance[c] + epsilon)
-standardized = centered / denominator
-output       = standardized * scale[c] + bias[c]
-```
+$$
+y=\left(\frac{x-\mu_c}{\sqrt{v_c+\varepsilon}}\right)\gamma_c+\beta_c.
+$$
+
+The index satisfies $0\leq c<C$, where $C$ is the channel extent.
+Epsilon $\varepsilon>0$ is finite and shares variance's squared units.
+The exceptional-radicand rules below apply outside this real finite domain.
 
 Epsilon is inside the [square root](../../glossary.md#norms-elementary-functions-and-probability-distributions). The running variance is used directly as the estimated
 variance supplied by the caller; inference applies no [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters)/population correction conversion,
@@ -394,10 +424,10 @@ FLOAT64. There is no reduction [accumulator](../../glossary.md#accumulator-type)
 The goal is to show the formula and affine order. For [FLOAT64](../../glossary.md#term-float64) input `[1, 2]` in one [channel](../../glossary.md#term-channel),
 scale `2`, [bias](../../glossary.md#term-bias) `0.5`, running [mean](../../glossary.md#term-mean) `1`, running [variance](../../glossary.md#term-variance) `4`, and [epsilon](../../glossary.md#epsilon) `1e-5`:
 
-```text
-input 1: ((1 - 1) / sqrt(4 + 1e-5)) * 2 + 0.5 = 0.5
-input 2: ((2 - 1) / sqrt(4 + 1e-5)) * 2 + 0.5 ~= 1.4999987500023437
-```
+For those values, input $x=1$ gives
+$((1-1)/\sqrt{4+10^{-5}})2+0.5=0.5$; input $x=2$ gives
+$((2-1)/\sqrt{4+10^{-5}})2+0.5\approx1.4999987500023437$.
+The mean shifts the first input to zero before scale and bias are applied.
 
 This establishes direct variance use, epsilon placement, and scale-then-bias order. It does not
 show current numerical execution: constructing the expression reads no [Tensor](../../glossary.md#tensor) values.

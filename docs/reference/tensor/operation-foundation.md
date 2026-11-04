@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Three constructors answer three different questions
+
+The Tensor expression helper normally calls `new Operation(kind, attrs)` with immutable meaning
+and configuration. `Operation` retains those exact objects and checks their pairing, but receives
+no operand Tensor or data array. A producer or `CompiledNode` then supplies ordered input/output
+positions and checks their counts. Input-aware expression or Compiler checks separately validate
+types and shapes. No numeric values are copied or evaluated by these description constructors.
+Read [producer provenance](identity.md#expression-producers-and-indexed-provenance) for the source
+occurrence and [compiled nodes](compiled-graph.md) for graph-local connections.
+
 **[Reader model](../../glossary.md#term-reader-model).** An operation description separates **kind** (“what calculation?”) from
 **attributes** (“which fixed [parameters](../../glossary.md#term-parameter)?”). Its **signature** checks which attribute class and
 how many input/output positions are allowed. **[Arity](../../glossary.md#term-arity)** or **[cardinality](../../glossary.md#term-cardinality)** here means that position

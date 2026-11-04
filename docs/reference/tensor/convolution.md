@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Which component calls convolution?
+
+Application code or an NN layer builder calls `input.conv2d(weight, bias, attrs)` (or its
+rank-specific counterpart). `input` is the source Tensor; `weight` describes the learned
+coefficients and `bias` the optional output-channel offsets. This Tensor API retains those
+exact references in an expression; it does not take over NN parameter state, copy their values,
+or execute a kernel. The owning layer and execution lifecycle are separate from this call.
+Use [window extraction and overlap addition](windows.md) to understand spatial sampling and
+[matrix contraction](matmul-linear.md) to understand the sum of products.
+
 **[Reader model](../../glossary.md#term-reader-model).** [Convolution](../../glossary.md#term-channels-first-convolution-layers) here applies a small table of [weights](../../glossary.md#term-weight), the **[kernel](../../glossary.md#kernel)**, at successive
 [spatial](../../glossary.md#term-spatial-axes) positions. At each output position it multiplies sampled input values by weights and sums
 the products; this is a **[contraction](../../glossary.md#contraction-dimension)** over kernel positions and input channels.
@@ -39,10 +49,14 @@ and is passed directly to Conv2d without expansion.
 For input width `W`, positive static kernel width `K_w`, padding `p`, dilation `d`, and stride
 `s`, the result width is:
 
-```text
-effectiveKernel = d * (K_w - 1) + 1
-W_out           = floor((W + 2 * p - effectiveKernel) / s) + 1
-```
+$$
+k_{\mathrm{eff}}=d(K_w-1)+1,\qquad
+W_{\mathrm{out}}=\left\lfloor\frac{W+2p-k_{\mathrm{eff}}}{s}\right\rfloor+1.
+$$
+
+All sizes count integer positions: $W,p\geq0$ and $K_w,d,s>0$.
+The numerator must be non-negative. In the example below, $W=7$, $K_w=3$, $p=1$,
+$d=1$, $s=2$, so $k_{\mathrm{eff}}=3$ and $W_{\mathrm{out}}=\lfloor6/2\rfloor+1=4$.
 
 Static invalid geometry and statically provable group, channel, and bias mismatches fail before
 the first intermediate is constructed. An unresolved input width retains the same [canonical](../../glossary.md#term-canonical-form)
@@ -73,6 +87,7 @@ Tensor weight = TensorFactory.create(new TensorDescriptor(
 Tensor bias = TensorFactory.create(new TensorDescriptor(
         DataType.FLOAT64, Shape.of(6), Optional.empty(), false));
 
+// Build the visible rank-edit/Conv2d chain; no input numbers are read here.
 Tensor output = input.conv1d(weight, bias, new Conv1dAttrs(2, 1, 1, 2));
 var squeeze = output.provenance().orElseThrow();
 var conv2d = squeeze.inputs().getFirst().provenance().orElseThrow();
@@ -135,11 +150,14 @@ or execution state.
 For either [spatial axis](../../glossary.md#spatial-axes-channels-and-window-sampling), let `D` be its input [extent](../../glossary.md#term-extent), `k` its positive static kernel extent, `p`
 the padding on each side, `d` the dilation, and `s` the stride:
 
-```text
-effectiveKernel = d * (k - 1) + 1
-numerator       = D + 2 * p - effectiveKernel
-output          = floor(numerator / s) + 1
-```
+$$
+k_{\mathrm{eff}}=d(k-1)+1,\qquad n=D+2p-k_{\mathrm{eff}},\qquad
+D_{\mathrm{out}}=\left\lfloor n/s\right\rfloor+1.
+$$
+
+Here $k_{\mathrm{eff}}$ is the sampled span, $n$ the available start-distance, and
+$D_{\mathrm{out}}$ the output position count. Sizes are integers, $D,p\geq0$,
+$k,d,s>0$, and valid geometry requires $n\geq0$.
 
 All literal arithmetic is checked in signed `long`. A static negative numerator fails locally;
 zero produces one output position. A dynamic input extent retains the [canonical](../../glossary.md#term-canonical-form) symbolic
@@ -178,6 +196,7 @@ public final class GroupedConv2dMetadataExample {
                 DataType.FLOAT64, Shape.of(6), Optional.empty(), false));
         Conv2dAttrs attrs = new Conv2dAttrs(1, 1, 1, 1, 1, 1, 2);
 
+        // Attributes describe sampling and groups, not a selected backend algorithm.
         Tensor output = input.conv2d(weight, bias, attrs);
         var provenance = output.provenance().orElseThrow();
 
@@ -215,11 +234,15 @@ values, [capture](../../glossary.md#term-capture-meanings) a [graph](../../gloss
 For input [Shape](../../glossary.md#shape) `[N, 4, H, 9]`, [weight](../../glossary.md#term-weight) Shape `[6, 4, 3, 3]`, vertical [stride](../../glossary.md#term-stride) two, vertical [padding](../../glossary.md#padding)
 one, vertical [dilation](../../glossary.md#term-dilation) two, and unit horizontal geometry, height becomes:
 
-```text
-effectiveKernelHeight = 2 * (3 - 1) + 1 = 5
-H_out = floor((H + 2 - 5) / 2) + 1
-      = floor((H - 3) / 2) + 1
-```
+$$
+k_{\mathrm{eff},h}=2(3-1)+1=5,\qquad
+H_{\mathrm{out}}=\left\lfloor\frac{H+2-5}{2}\right\rfloor+1
+=\left\lfloor\frac{H-3}{2}\right\rfloor+1.
+$$
+
+Here $H$ is the eventual integer input height and must be at least $3$; the other
+symbols are the effective vertical span and output height. For $H=7$, this gives three
+vertical positions, while the horizontal result has seven positions.
 
 The result Shape is `[N, 6, floor((H - 3) / 2) + 1, 7]`. This is an exact symbolic Shape
 expression, not a value chosen for `H`. A later [binding](../../glossary.md#term-binding) must reject a concrete `H` for which the
@@ -290,11 +313,15 @@ Kernel extents come from the weight Shape, while choosing the three-input overlo
 For each [spatial axis](../../glossary.md#spatial-axes-channels-and-window-sampling), let `X` be the input [extent](../../glossary.md#term-extent), `K_x` the positive static kernel extent, `p_x`
 the symmetric padding on each side, `d_x` the dilation, and `s_x` the stride:
 
-```text
-effectiveKernel_x = d_x * (K_x - 1) + 1
-numerator_x       = X + 2 * p_x - effectiveKernel_x
-X_out             = floor(numerator_x / s_x) + 1
-```
+$$
+k_{\mathrm{eff},x}=d_x(K_x-1)+1,\qquad n_x=X+2p_x-k_{\mathrm{eff},x},\qquad
+X_{\mathrm{out}}=\left\lfloor n_x/s_x\right\rfloor+1.
+$$
+
+Subscript $x$ selects depth, height or width, not a tensor element. Each formula counts
+integer positions with $X,p_x\geq0$, $K_x,d_x,s_x>0$ and $n_x\geq0$.
+For the depth example below, $X=8$, $K_x=3$, $p_x=1$, $d_x=1$, $s_x=2$
+give $n_x=7$ and four output positions.
 
 Literal arithmetic is checked in signed `long`. A static negative numerator fails during [Model](../../glossary.md#term-model)
 construction, while zero produces one output position. If an input spatial Dimension is
@@ -333,6 +360,7 @@ public final class GroupedConv3dMetadataExample {
                 DataType.FLOAT64, Shape.of(6), Optional.empty(), false));
         Conv3dAttrs attrs = new Conv3dAttrs(2, 1, 2, 1, 1, 0, 1, 2, 1, 2);
 
+        // Inspect one first-class 3D occurrence; result storage is still absent.
         Tensor output = input.conv3d(weight, bias, attrs);
         var provenance = output.provenance().orElseThrow();
 

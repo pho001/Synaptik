@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+## Find the stage that can know the answer
+
+When application or layer code calls a Tensor method, that method can reject a wrong rank or
+type because descriptors cross the call boundary. It cannot reject an out-of-range stored index
+without reading values, which expression construction deliberately does not do.
+Later Compiler checks can reason about the captured descriptions; concrete binding or execution
+must discharge remaining obligations. A successful constructor is therefore not proof of a runnable
+backend route. Use [indexing examples](gather.md) for descriptor-versus-value checks and the
+[production support matrix](../../backend-guide/production-support.md) for executable domains.
+
 **How to read this summary.** Local [validation](../../glossary.md#term-validation) checks [descriptors](../../glossary.md#term-descriptor) and request [parameters](../../glossary.md#term-parameter) when
 an expression is constructed; it cannot check input values it never reads.
 A **[deferred obligation](../../glossary.md#term-deferred-obligation)** is a condition left for the stage that knows concrete sizes or values,
@@ -201,7 +211,7 @@ failure inventory, use [shapes](shapes.md)<span data-glossary-navigation="true">
   ordinary right-aligned broadcast whose result equals the input Shape, remove the axis, and
   construct exact `[input, mask]` provenance. Null, type, axis, and broadcast failures occur
   before result identity allocation. Construction performs no storage alignment, numerical work,
-  gradient rule, compiler behavior, backend behavior, or execution.<span data-glossary-navigation="true"> ([alignment glossary](../../glossary.md#term-alignment))</span>
+  gradient rule, compiler behavior, backend behavior, or execution.
 - `CumulativeScanAttrs` rejects a negative normalized axis with `IllegalArgumentException` and the
   exact message `axis must be non-negative: <axis>`. It retains every non-negative axis and both
   mode flags unchanged. The value itself neither validates an input rank nor constructs or
