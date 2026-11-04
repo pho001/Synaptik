@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0001: Layered architecture
 
+
+## Editorial reading context
+
+Follow the responsibility chain: the application supplies Tensor expressions to Engine; Engine coordinates Compiler, Prepare and Runtime. Compiler describes computation, Prepare makes reusable executable recipes, and Runtime supplies isolated state for each invocation. “Owner” here first means the component allowed to make a decision, not automatically an object that needs closing.
+
+Use the [lifecycle walkthrough](../../architecture/lifecycle.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — reflected in the current [architecture contract](../../glossary.md#architecture-contract). The original decision date and deliberation record are not present in the repository.

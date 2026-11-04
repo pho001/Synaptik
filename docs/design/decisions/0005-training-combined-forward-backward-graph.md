@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0005: Combined forward and backward [training graph](../../glossary.md#training-graph)
 
+
+## Editorial reading context
+
+Forward computation produces predictions or an objective; backward computation produces sensitivities of that objective to selected inputs. The historical choice was to expose both to graph-wide optimization. Compiler constructs derivatives, while Training chooses parameter updates. Read the supersession notice before treating the old capture sequence as current instructions.
+
+Use the [current forward/backward construction](../../architecture/training-graph.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Superseded — 2026-07-26, by

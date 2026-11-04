@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0038: Stored declarative models with [inference](../../glossary.md#term-inference) or owned training [resume](../../glossary.md#schema-serialization-and-checkpoint)
 
+
+## Editorial reading context
+
+A declarative specification stores supported topology as data instead of serializing a Java callback. NN interprets that description; Checkpoint encodes it; Training remains responsible for any session setup and updates. This record deliberately mixes accepted NN/Checkpoint sections with proposed Training/adapter sections. Its conceptual code must not be read as proof that every named method shipped.
+
+Use the [current model persistence boundary](../../api/model-checkpoint-api.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) decision — 2026-10-14; final independent review approved and coordinator verified NN0026

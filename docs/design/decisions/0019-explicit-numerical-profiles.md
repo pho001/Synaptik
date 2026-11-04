@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0019: Explicit Numerical Profiles
 
+
+## Editorial reading context
+
+A numerical profile was a graph-wide selector for permitted floating results. It was not a benchmark sampling profile or a speed promise. These selectors and their transport are historical; the supersession chain leads to operation-local numerical semantics. Keep signed-zero, NaN and empty-domain assertions scoped to the rule that actually authorized them.
+
+Use the [profile-removal decision](0026-profile-free-numerical-semantics.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Superseded by [ADR 0021](0021-total-recursive-accelerator-numerical-floor.md) — 2026-09-25

@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0032: Bounded [opaque](../../glossary.md#term-opaque) [artifact](../../glossary.md#term-artifact) and [atomic live publication](../../glossary.md#artifact-envelope-and-atomic-publication)
 
+
+## Editorial reading context
+
+An artifact envelope frames opaque payload bytes with names, lengths and digests. The application supplies limits; the decoder checks them before exposing a detached image. Saving publishes one complete file through an atomic move in a trusted directory. Atomic visibility to readers is different from surviving power loss, and SHA-256 checksums do not authenticate the writer.
+
+Use the [artifact framing, limits and save failures](../../api/checkpoint-artifact-api.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-13, after independent Class C review. The [architecture root](../../../ARCHITECTURE.md#module-ownership-routing)
@@ -12,7 +20,7 @@ are authoritative; this record explains the choice.
 adapters will eventually need a common way to [carry](../../glossary.md#term-carry) [opaque](../../glossary.md#term-opaque) byte payloads without moving [Tensor](../../glossary.md#tensor)
 meaning, [backend](../../glossary.md#backend) access, or restore policy into the [artifact](../../glossary.md#term-artifact) layer. The first format must reject
 corruption and unsafe resource demands before a caller can use an image. Java NIO can force bytes
-written through a file [channel](../../glossary.md#term-channel) and request an [atomic move](../../glossary.md#term-atomic-move), but it does not portably prove that a
+written through a file [channel](../../glossary.md#term-io-channel) and request an [atomic move](../../glossary.md#term-atomic-move), but it does not portably prove that a
 rename survives power [loss](../../glossary.md#loss) or that a failed move left the [target](../../glossary.md#term-target) unchanged.
 
 ## Decision drivers
@@ -67,7 +75,7 @@ The fixed [manifest](../../glossary.md#term-manifest) permits exact file-length 
 digests detect accidental corruption, while [canonical](../../glossary.md#term-canonical-form) order makes equal images byte-identical.
 They do not authenticate against an adversary able to rewrite both bytes and digests. One [atomic
 move](../../glossary.md#term-atomic-move) avoids deliberately publishing a partial [target](../../glossary.md#term-target). `FileChannel.force` applies to the
-temporary file's [channel](../../glossary.md#term-channel) writes, not portably to the later directory-entry change.
+temporary file's [channel](../../glossary.md#term-io-channel) writes, not portably to the later directory-entry change.
 
 ## Consequences
 

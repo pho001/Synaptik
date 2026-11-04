@@ -1,5 +1,22 @@
 # Memory [planning](../../glossary.md#term-planning) strategy
 
+
+## Editorial reading context
+
+The implementation-status statements below describe this note's original
+frontier. They are not current permission to add physical allocation to Planning.
+Use the [live lifecycle explanation](../../architecture/lifecycle.md) for current
+prepared and per-run contracts.
+
+A logical value identifies what must be preserved; a slot identifies a planned
+place to hold a resource; a backend representation is the actual storage used in
+one run. Shared Prepare calls backend analysis for exact requirements and assigns
+slots. Runtime later requests per-run allocation through backend implementations.
+Two values having disjoint lifetimes can motivate reuse, but the hypothetical slot
+example below is not evidence that a particular reuse algorithm shipped. See the
+[resource handoff](../../architecture/runtime-prepare-backend-boundary.md) for who
+borrows inputs, owns scratch and retains published outputs.
+
 ## Purpose and status
 
 This note separates current logical [compile](../../glossary.md#compile)-time requirements from planned prepared physical

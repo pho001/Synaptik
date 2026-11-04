@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0015: Explicit [Engine](../../glossary.md#term-engine) [Backend Composition](../../glossary.md#backend-composition)
 
+
+## Editorial reading context
+
+The application calls takeOwnership with freshly opened integrations. The builder must now clean them up until build successfully transfers that responsibility to Engine. That transfer is about native-resource lifetime, unlike Planning assigning a backend to computation. Closing a failed builder must not require the application to guess which registrations succeeded.
+
+Use the [builder-to-Engine ownership transition](../../architecture/lifecycle.md#explicit-backend-composition) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-09-23

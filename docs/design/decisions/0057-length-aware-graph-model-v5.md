@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0057: Length-aware [general Scan](../../glossary.md#general-differentiable-scan) [persistence](../../glossary.md#term-persistence)
 
+
+## Editorial reading context
+
+Checkpoint stores length-aware source metadata, not the application's current input batch or length values. A new version/opcode distinguishes the record from old all-valid bodies so old decoders reject rather than misparse it. Compiler cold reconstruction and backend execution still have separate admissions. The design acceptance below is not an inferred implementation or release receipt.
+
+Use the [current format selection and load boundary](../../api/graph-checkpoint-api.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status and date
 
 Accepted design — 2026-11-01 under continuous production delivery. Independent exact-wire review

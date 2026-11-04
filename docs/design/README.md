@@ -10,6 +10,44 @@ Decision records summarize rules present in the [architecture contract](../gloss
 when their original date or deliberation history is unavailable; current decisions record their
 acceptance date and considered alternatives.
 
+## Read a decision without mistaking it for a procedure
+
+An architecture decision record (ADR) answers why a boundary was chosen. A
+contributor reads its status first, then the problem, alternatives and consequences.
+“Accepted” records a decision; implementation and qualification require their own
+evidence. “Superseded” replaces only the stated scope, not the historical facts.
+A strategy note can describe an old implementation frontier even when it uses the
+word “current.” Separated editorial reading aids explain that context without
+rewriting the original decisions or experiment results.
+
+For a live change, follow the [contribution workflow](../developer-guide/index.md)
+and its owning contract before copying old API names or commands. Use
+[decision-record style](../developer-guide/documentation/decision-record-style.md)
+when recording a new choice, and [benchmarking](../developer-guide/benchmarking.md)
+when deciding what performance evidence can actually establish.
+
+## Find later decisions by the question they answer
+
+The early inventory below is retained. Later records cover these connected boundaries:
+
+- How does an application compose backends and retain prepared resources?
+  [Explicit Engine composition](decisions/0015-explicit-engine-backend-composition.md)
+  and [the owned-Model/prepared-owner cutover](decisions/0039-portable-graph-model-persistence.md).
+- Which numerical choices are historical, and which meaning belongs to each operation?
+  [Profile-free semantics](decisions/0026-profile-free-numerical-semantics.md) and
+  [stable finite softmax](decisions/0029-stable-finite-softmax.md).
+- What can be stored, reconstructed or resumed?
+  [Artifact framing](decisions/0032-checkpoint-artifact-envelope.md),
+  [private-candidate recovery](decisions/0035-private-candidate-training-restore.md)
+  and [bounded graph persistence](decisions/0047-bounded-general-scan-graph-persistence.md).
+- How does recurrence remain one described body rather than per-step Java callbacks?
+  [General differentiable Scan](decisions/0045-general-differentiable-scan.md),
+  [length-aware activity](decisions/0049-length-aware-general-scan.md) and
+  [ordinary-unit composition](decisions/0061-general-scan-ordinary-unit-composition.md).
+- Why can a logical reshape require physical copying?
+  [Materializing reshape closure](decisions/0062-ordinary-materializing-reshape-closure.md)
+  separates Compiler metadata proof from backend realization.
+
 ## Architecture decision records
 
 - [ADR 0001: Layered architecture](decisions/0001-layered-architecture.md)<span data-glossary-navigation="true"> ([ADR glossary](../glossary.md#term-architecture-decision-record-adr))</span>

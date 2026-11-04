@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0042 Data extension boundary
 
+
+## Editorial reading context
+
+The application prepares host batches through Data before calling a model. Data depends on generic Model Tensor descriptions, not NN layers or Engine execution. The empty-module foundation below establishes dependency permission only; later batch APIs have their own acceptance. Use the live repository map when locating the implementation rather than inferring features from this original foundation.
+
+Use the [Data and Text project locations](../../developer-guide/repository-layout.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 This [architecture decision record](../../glossary.md#adr-ci-and-qualification) explains the Data-only [host](../../glossary.md#term-host)-preparation boundary. The
 [architecture root](../../../ARCHITECTURE.md#dependency-rules) and its
 [owning scoped contract](../../architecture/contracts/extensions-training.md#extensionsdata)

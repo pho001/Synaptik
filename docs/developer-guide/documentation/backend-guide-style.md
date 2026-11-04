@@ -27,6 +27,20 @@ nor one successful example establishes the backend's entire supported domain.
 
 The sample should demonstrate one coherent path, such as capability declaration through preparation of one [partition](../../glossary.md#partition), rather than presenting a disconnected inventory of extension points.
 
+## Explain the shared-code/backend call boundary
+
+For each stage, write a small input/result pair: Planning asks the capability
+provider about an occurrence; shared Prepare asks the selected backend to analyze
+its partition; Runtime invokes the finalized work. “Occurrence” means the exact
+operation with its descriptors and attributes, not just a family name such as ADD.
+
+State which arguments are immutable descriptions and which are live borrowed
+storage. When finalization acquires persistent native state, explain who releases
+it if that stage fails and who owns it after preparation succeeds. The
+[partition preparer guide](../../backend-guide/partition-preparer.md) teaches the
+stages; [debugging traces](../debugging-trace.md) shows how a contributor observes
+the selected route without controlling it.
+
 ## Avoid
 
 - moving [backend](../../glossary.md#backend)-specific [lowering](../../glossary.md#lowering) or [kernel](../../glossary.md#kernel) selection into shared [planning](../../glossary.md#term-planning) or [runtime](../../glossary.md#term-runtime);
@@ -38,8 +52,8 @@ The sample should demonstrate one coherent path, such as capability declaration 
 
 ## [Validation](../../glossary.md#term-validation)
 
-- [Trace](../../glossary.md#trace) the [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters) through [compile](../../glossary.md#compile) [ownership](../../glossary.md#term-ownership-meanings), [prepare](../../glossary.md#prepare), and [run](../../glossary.md#term-run) boundaries.
-- Verify [dependency direction](../../glossary.md#java-platform-and-build-tools) against `ARCHITECTURE.md` and architecture tests.
+- Follow the sample through [compile](../../glossary.md#compile) [ownership](../../glossary.md#term-ownership-meanings), [prepare](../../glossary.md#prepare), and [run](../../glossary.md#term-run) boundaries.
+- Verify [dependency direction](../../glossary.md#term-dependency) against `ARCHITECTURE.md` and architecture tests.
 - Build and run the sample or label it conceptual with implementation prerequisites.
 - Run applicable [backend](../../glossary.md#backend)-[conformance](../../glossary.md#term-conformance) and integration tests.
 - Check native setup, cleanup, failure paths, links, and glossary terms.

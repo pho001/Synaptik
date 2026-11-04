@@ -1,5 +1,28 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0022: Auditable Custom [Metal](../../glossary.md#term-metal) Route Cost Evidence
 
+
+## Editorial reading context
+
+Backend authors compare only candidates already qualified for identical semantics and domain. Dispatch count counts submitted compute work; temporary bytes count route-owned transient storage, excluding steady inputs and outputs. A source ledger can establish those quantities only when the route owns every relevant action. A local timing report cannot fill missing observations for an opaque vendor implementation.
+
+Use the [evidence versus route-selection authority](../../architecture/performance-evidence-and-tuning.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
+### Mathematical reading aid: strict dominance
+
+Let $d_A,d_B$ be nonnegative integer compute-dispatch counts and $b_A,b_B$ be
+nonnegative integer transient-byte counts for qualified candidates $A$ and $B$ over
+the same complete invocation domain. The rule below means
+
+$$
+(d_A\le d_B)\land(b_A\le b_B)\land((d_A<d_B)\lor(b_A<b_B)).
+$$
+
+For example, hypothetical $A=(2,1024)$ and $B=(3,1024)$, in dispatches and bytes,
+make $A$ strictly dominant. Comparing $(2,2048)$ with $(3,1024)$ does not: one
+improves dispatches while worsening bytes. These exact integer comparisons are not
+a weighted timing estimate and add no new measured evidence.
+
 ## Status
 
 Accepted — 2026-09-25

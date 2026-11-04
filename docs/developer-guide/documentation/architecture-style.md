@@ -7,7 +7,9 @@ Architecture documentation explains the principles, boundaries, and rationale of
 Architecture explanations remain subordinate to [`ARCHITECTURE.md`](../../../ARCHITECTURE.md). Apply [General style](general-style.md) with this profile.
 
 A **boundary** separates responsibilities: who may decide something, depend on something, or own
-a resource. **[Ownership](../../glossary.md#term-ownership-meanings)** includes responsibility for retaining and releasing that resource.
+a resource. [Ownership](../../glossary.md#term-ownership-meanings) can mean authority over a decision,
+private mutable state, or responsibility for a resource's release. State which one applies;
+assigning a graph region to CPU is not the same action as transferring a native handle.
 A **lifecycle** is the sequence from creation through use to [release](../../glossary.md#term-release). Explain those relationships
 before listing class names. An **[architecture decision record](../../glossary.md#term-architecture-decision-record-adr) ([ADR](../../glossary.md#adr-ci-and-qualification))** preserves the reasons for a
 choice; it is not another source of architecture authority.
@@ -20,11 +22,24 @@ choice; it is not another source of architecture authority.
 - Show allowed and forbidden responsibilities or [dependency](../../glossary.md#term-dependency) directions.
 - Explain the rationale and the failure mode prevented by the boundary.
 - Include at least one concrete scenario that follows the boundary and, when useful, one counter-scenario that violates it.
-- Use a small diagram for flows, [dependency direction](../../glossary.md#java-platform-and-build-tools), [ownership](../../glossary.md#term-ownership-meanings), or state transitions when prose alone is harder to follow.
+- Use a small diagram for flows, [dependency direction](../../glossary.md#term-dependency), [ownership](../../glossary.md#term-ownership-meanings), or state transitions when prose alone is harder to follow.
 - Describe consequences for implementation, testing, and future changes.
 - Link to related ADRs, [API](../../glossary.md#term-application-programming-interface-api) documentation, and focused architecture pages.
 
 A diagram must have a clear reading direction and nearby prose explaining the relationship. Scenarios should use real architecture vocabulary and must not invent unapproved modules or APIs.
+
+## Teach one collaboration, not an inventory
+
+For staged preparation, name shared Prepare as the caller of backend analysis.
+Explain the input partition, the returned requirements and the later slot-assignment
+response before drawing arrows. Label an arrow as a call, dependency or transfer;
+those relationships are not interchangeable. A dependency arrow does not imply
+that the target closes the source's resources.
+
+Use [staged preparation](../../backend-guide/partition-preparer.md) for the concrete
+scenario and [architecture tests](../architecture-tests.md) for the narrower question
+of which forbidden relationships are enforced. Mermaid diagrams need `accTitle`
+and `accDescr` so their relationship is available without relying only on the picture.
 
 ## Avoid
 

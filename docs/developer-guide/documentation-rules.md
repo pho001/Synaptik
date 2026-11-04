@@ -27,6 +27,21 @@ Before drafting or reviewing documentation:
 
 If a document genuinely serves two purposes, choose one primary profile and apply only the relevant requirements from the secondary profile. Do not combine every profile into a larger checklist.
 
+## Follow one change through the review boundary
+
+The implementer supplies a diff, relevant source/tests and concise execution
+evidence. When the rules below require an independent pass, a separate reviewer
+reads those inputs and produces corrected explanations plus a bounded review result.
+The reviewer does not inherit the implementer's assumptions or automatically rerun
+all successful tests.
+
+A documentation handoff transfers information and editorial responsibility, not
+native-memory ownership or cleanup duties. For example, when a parameter-copy API
+changes, the reviewer checks who supplies the Arena, which values are copied and
+when the session stops using them; a list of new method names is not enough.
+Use [API/Javadoc style](documentation/api-and-javadoc-style.md) for that boundary
+and [example format](documentation/example-format.md) for its worked usage.
+
 ## Risk-based documentation workflow
 
 Every change receives a targeted documentation and [Javadoc](../glossary.md#term-javadoc) impact review. A separate clean

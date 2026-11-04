@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0058: Trainable [runtime](../../glossary.md#term-runtime)-length [RNN](../../glossary.md#term-recurrent-neural-network-rnn) composition
 
+
+## Editorial reading context
+
+NN composes the ordinary RNN cell equation into a general Scan; Compiler supplies first-order reverse construction and Engine executes the prepared result. Parameters are bound as invariant inputs, not copied per time step. The application still supplies values and lengths. Fixed scans, static unrolling and general scans have different compatibility boundaries despite similar recurrent mathematics.
+
+Use the [general Scan roles and differentiation](../../architecture/general-differentiable-scan.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status and date
 
 Accepted design — 2026-11-01 under continuous production delivery. Independent bounded

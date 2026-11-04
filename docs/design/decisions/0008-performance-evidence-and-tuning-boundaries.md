@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0008: Separate performance evidence and [model](../../glossary.md#term-model)-[autotuning](../../glossary.md#autotuning--model-autotuning) concerns
 
+
+## Editorial reading context
+
+The model author requests tuning with representative inputs and a budget; backend authors supply legal implementation candidates. The tuning tool compares those supplied choices and records evidence. A benchmark harness only reports a fixed workload: it does not install a choice. This decision describes the intended workflow; its future statements do not establish which stages are implemented today.
+
+Use the [implemented tuning stages and report limits](../../developer-guide/benchmarking.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-07-14

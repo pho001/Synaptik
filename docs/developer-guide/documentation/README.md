@@ -26,8 +26,21 @@ column, not with the name of the directory where a file happens to live.
 | Explain architectural principles, boundaries, and rationale | [Architecture](architecture-style.md) | `docs/explanation/`, focused `docs/architecture/` explanations |
 | Define or look up a Java/public [API](../../glossary.md#term-application-programming-interface-api) contract | [API and Javadoc](api-and-javadoc-style.md) | `docs/reference/`, Java [Javadoc](../../glossary.md#term-javadoc); old `docs/api/` paths retain incoming navigation |
 | Teach [backend](../../glossary.md#backend) integration or implementation | [Backend guide](backend-guide-style.md) | `docs/backend-guide/` |
-| [Coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) executable implementation work | [Planning](planning-style.md)<span data-glossary-navigation="true"> ([Planning glossary](../../glossary.md#term-planning))</span> | `docs/planning/` |
+| Coordinate executable implementation work | [Planning](planning-style.md) | `docs/planning/` |
 | Record a significant decision and its consequences | [Decision record](decision-record-style.md) | `docs/design/decisions/` |
+
+## Example: explain a parameter-copy API without inventing a contract
+
+An implementer changes a documented copy boundary. The reviewer first checks the
+owning source/contract, then uses [API/Javadoc style](api-and-javadoc-style.md) to
+state the caller's input and the returned value's lifetime. If a user also needs a
+procedure, [User guide style](user-guide-style.md) explains setup and result
+interpretation. Both pages link to the same contract instead of independently
+choosing ownership rules.
+
+Use [the mandatory review handoff](../documentation-rules.md#risk-based-documentation-workflow)
+to decide who performs that pass and which evidence accompanies it. A profile
+selects presentation; it does not waive that workflow.
 
 ## Mixed documents
 
@@ -41,8 +54,8 @@ Do not use a mixed purpose to omit required content. If one document becomes bot
 - [Developer guide](developer-guide-style.md) — concept teaching for contributors.
 - [User guide](user-guide-style.md) — task completion for users.
 - [Architecture](architecture-style.md) — principles, boundaries, rationale, scenarios, and diagrams.
-- [API and Javadoc](api-and-javadoc-style.md)<span data-glossary-navigation="true"> ([API glossary](../../glossary.md#term-application-programming-interface-api); [Javadoc glossary](../../glossary.md#term-javadoc))</span> — precise callable contracts.
+- [API and Javadoc](api-and-javadoc-style.md) — precise callable contracts.
 - [Backend guide](backend-guide-style.md) — [backend](../../glossary.md#backend) [lifecycle](../../glossary.md#lifecycle) and integration.
-- [Planning](planning-style.md)<span data-glossary-navigation="true"> ([Planning glossary](../../glossary.md#term-planning))</span> — executable plans and task specifications.
+- [Planning](planning-style.md) — executable plans and task specifications.
 - [Decision record](decision-record-style.md) — context, options, decision, and consequences.
 - [Example format](example-format.md) — reusable structure for complete, interpretable examples.

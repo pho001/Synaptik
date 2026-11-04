@@ -39,7 +39,9 @@ The three [axis](../../glossary.md#term-axis) sizes are `2`, `3`, and `4`. All a
 ```java
 import io.github.pho001.synaptik.model.shape.Shape;
 
+// A Shape describes logical positions; this does not allocate Tensor storage.
 Shape shape = Shape.of(2, 3, 4);
+// Every extent is static here, so the optional count is present.
 long elementCount = shape.knownElementCount().orElseThrow();
 ```
 
@@ -48,18 +50,19 @@ long elementCount = shape.knownElementCount().orElseThrow();
 - `Shape.of(2, 3, 4)` creates a [rank](../../glossary.md#term-rank)-3 [shape](../../glossary.md#shape). The [axes](../../glossary.md#term-axis) have sizes 2, 3, and 4 in that order.
 - `knownElementCount()` asks for the product of all static [dimensions](../../glossary.md#dimension). `orElseThrow()` is safe in this example because none of the dimensions is dynamic.
 
-The calculation is:
+Let $r$ be the nonnegative integer rank and $d_k$ the nonnegative integer extent
+of axis $k$, with $0\le k<r$. For fully static extents, the logical count is
 
-```text
-2 × 3 × 4 = 24
-```
+$$
+E=\prod_{k=0}^{r-1}d_k.
+$$
 
-An explicit intermediate walkthrough is:
-
-```text
-after axes 0 and 1: 2 × 3 = 6
-after axis 2:       6 × 4 = 24
-```
+Here $r=3$ and $(d_0,d_1,d_2)=(2,3,4)$, so $E=(2\cdot3)\cdot4=6\cdot4=24$
+logical elements. The first two axes account for six coordinate pairs; the final
+axis supplies four positions for each pair. This is exact integer geometry, not
+floating-point arithmetic or a byte-allocation calculation. The rank-zero empty
+product is one; any known zero extent makes the product zero. The API still uses
+checked representable counts rather than promising arbitrarily large Java arrays.
 
 ### Result and interpretation
 
@@ -94,6 +97,19 @@ The intermediate result is the resolved repository path `docs/planning/planning-
 ### Result and interpretation
 
 The check passes with no missing-[target](../../glossary.md#term-target) error. This proves that the link resolves in the checked repository state. It does not prove that the target content is accurate, so the documentation review must still inspect meaning and authority.
+
+## Relate inputs to the API and to the teaching claim
+
+In the shape example, the contributor calls Model's Shape API with extents and
+receives metadata. No Tensor values cross that boundary, so neither copying values
+nor resource cleanup is part of the result. In the link example, the contributor
+supplies a source path and a target; the checker reports resolution, not semantic
+accuracy.
+
+Use [shape reference](../../reference/tensor/shapes.md) for geometry details and
+[API/Javadoc style](api-and-javadoc-style.md#make-the-call-boundary-readable) when
+an example does borrow or copy live values. Place a why-comment at that boundary,
+not in literal stdout, strict JSON or archived proof bytes.
 
 ## Avoid
 

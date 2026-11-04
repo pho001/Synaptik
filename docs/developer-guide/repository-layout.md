@@ -11,7 +11,7 @@ The repository is organized around the module boundaries defined by [`ARCHITECTU
 - `modules/` contains [model](../glossary.md#term-model), [compiler](../glossary.md#term-compiler), [planning](../glossary.md#term-planning), [prepare](../glossary.md#prepare), [runtime](../glossary.md#term-runtime), [engine](../glossary.md#term-engine), generic training, configuration, [backend](../glossary.md#backend) contracts, tracing, and [concrete backend](../glossary.md#concrete-backend) projects;
 - `modules/backend/` groups the separate [CPU](../glossary.md#term-cpu), [Metal](../glossary.md#term-metal), [CUDA](../glossary.md#term-cuda) scaffold, and [OpenBLAS](../glossary.md#term-openblas) provider projects;
 - `extensions/` contains NN composition (including old NN checkpoint readers), ONNX integration,
-  Data host preparation, and frozen Text tokenization/adaptation;<span data-glossary-navigation="true"> ([checkpoint glossary](../glossary.md#term-checkpoint); [ONNX glossary](../glossary.md#term-onnx); [tokenization glossary](../glossary.md#frozen-whitespace-tokenizer))</span>
+  Data host preparation, and frozen Text tokenization/adaptation;
 - `tools/` contains tuning, benchmark, and command-line tooling;
 - `modules/backend/metal/macos-arm64/` contains Metal's platform-specific native integration;
 - `testing/` contains architecture, backend-[conformance](../glossary.md#term-conformance), and [integration test](../glossary.md#term-integration-test) modules; and
@@ -27,7 +27,7 @@ historical command can legitimately use different names.
 
 Data is registered at `extensions/data`, using the default Gradle path `:extensions:data`
 and namespace `io.github.pho001.synaptik.data`, exporting only Model through
-`api(project(":modules:model"))`. The [Data sequence batching API](../reference/data/sequences.md)<span data-glossary-navigation="true"> ([API glossary](../glossary.md#term-application-programming-interface-api))</span> provides
+`api(project(":modules:model"))`. The [Data sequence batching API](../reference/data/sequences.md) provides
 copied [host](../glossary.md#term-host) counts, explicit [padding](../glossary.md#padding) side/[axis](../glossary.md#term-axis) order, a [borrowed](../glossary.md#ownership-borrowing-and-lease) [Tensor](../glossary.md#tensor) [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) record and an
 [INT64](../glossary.md#data-type--datatype) host-array batcher. [Metadata](../glossary.md#term-metadata) construction does not allocate values; integral batching does.
 Neither executes models or binds runtime length inputs.
@@ -38,6 +38,19 @@ Text is registered at `extensions/text`, `:extensions:text`, namespace
 Model transitive. The [Text API](../reference/text/tokenization.md) connects frozen [token](../glossary.md#term-token) IDs to Data padding;
 the integration-test project separately composes [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Engine. Vision remains absent and separately gated.
 
+## Turn a source location into a tool invocation
+
+A contributor finding `modules/training/src` should not infer the Gradle path
+`:modules:training`: settings deliberately retain `:extensions:training`. Gradle
+uses that project identifier to select tasks, whereas Java uses package names to
+resolve imports. Run commands from the repository root so `./gradlew` is the
+checked-in wrapper, not an unrelated system installation.
+
+The retained `./gradlew :extensions:training:test` invocation below selects Training's test task; it does not test every cross-module rule. Use
+[architecture tests](architecture-tests.md) for enforced dependency boundaries and
+[the contribution workflow](index.md#find-the-responsibility-before-changing-code)
+when deciding whether a coordinated contract change is needed.
+
 ## [Backend](../glossary.md#backend) path migration and historical navigation
 
 Engine0020 changes physical placement only. The table translates original source paths to current
@@ -45,11 +58,11 @@ locations; the [Gradle](../glossary.md#term-gradle) project identifiers and Java
 
 | Original source path | Current location | Gradle [identity](../glossary.md#term-identity-meanings) |
 |---|---|---|
-| `backends/cpu` | [CPU](../../modules/backend/cpu)<span data-glossary-navigation="true"> ([CPU glossary](../glossary.md#term-cpu))</span> | `:backends:cpu` |
+| `backends/cpu` | [CPU](../../modules/backend/cpu) | `:backends:cpu` |
 | `backends/metal` | [Metal](../../modules/backend/metal) | `:backends:metal` |
-| `backends/cuda` | [CUDA scaffold](../../modules/backend/cuda/README.md)<span data-glossary-navigation="true"> ([CUDA glossary](../glossary.md#term-cuda))</span> | `:backends:cuda` |
-| `backends/openblas-provider` | [OpenBLAS provider](../../modules/backend/openblas-provider)<span data-glossary-navigation="true"> ([OpenBLAS glossary](../glossary.md#term-openblas))</span> | `:backends:openblas-provider` |
-| `native/metal-macos-arm64` | [Native build and ABI guide](../../modules/backend/metal/macos-arm64/README.md)<span data-glossary-navigation="true"> ([ABI glossary](../glossary.md#term-application-binary-interface-abi))</span> | Part of [Metal](../glossary.md#term-metal) |
+| `backends/cuda` | [CUDA scaffold](../../modules/backend/cuda/README.md) | `:backends:cuda` |
+| `backends/openblas-provider` | [OpenBLAS provider](../../modules/backend/openblas-provider) | `:backends:openblas-provider` |
+| `native/metal-macos-arm64` | [Native build and ABI guide](../../modules/backend/metal/macos-arm64/README.md) | Part of [Metal](../glossary.md#term-metal) |
 | `native/cuda/README.md` | [Merged native scaffold](../../modules/backend/cuda/README.md#native-support-scaffold) | No executable native project |
 
 For example, from the repository root, `./gradlew :backends:metal:test` still selects the Metal
@@ -78,7 +91,7 @@ The relocation accompanies generic live [parameter](../glossary.md#term-paramete
 and no [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) edge; NN exposes Model/Training and owns its [Module](../glossary.md#term-module) adapter. This is a role-specific
 Engine exception, not permission for other inward modules to depend on Engine.
 
-Training plans remain under [the existing planning directory](../planning/extensions/training/master-plan.md)<span data-glossary-navigation="true"> ([planning glossary](../glossary.md#term-planning))</span>.
+Training plans remain under [the existing planning directory](../planning/extensions/training/master-plan.md).
 Completed task evidence retains its original paths and commands; use `modules/training` for
 current source navigation, without rewriting historical completion records.
 
@@ -87,4 +100,4 @@ Generic [Checkpoint](../glossary.md#term-checkpoint) is physically `modules/chec
 packages; the nine old [NN model](../glossary.md#model-module-buffer-and-scan-distinctions) files now belong to `extensions/nn` under `nn.checkpoint`.
 For example, a generic artifact user keeps its [dependency](../glossary.md#term-dependency)/import, while a ModelCheckpoint user
 adds an explicit NN dependency and changes `checkpoint.model` imports to `nn.checkpoint`; no
-compatibility forwarding package is retained. See the [graph API](../reference/checkpoint/graph.md)<span data-glossary-navigation="true"> ([graph glossary](../glossary.md#graph))</span>.
+compatibility forwarding package is retained. See the [graph API](../reference/checkpoint/graph.md).

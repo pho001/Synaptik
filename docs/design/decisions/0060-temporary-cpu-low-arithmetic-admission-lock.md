@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0060: Temporary [CPU](../../glossary.md#term-cpu) low-arithmetic [admission](../../glossary.md#term-admission) lock
 
+
+## Editorial reading context
+
+CPU admission asks whether a numerical role consumes low-precision values, not merely whether the final output dtype is low. Explicit conversion into FLOAT32 work is a different operation from secretly emulating unsupported low arithmetic. This temporary-lock decision is historical policy; consult the current support table rather than treating its old exclusions as today's provider answers.
+
+Use the [current qualification and lock reconciliation](../../backend-guide/production-support.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted design under the user's first-production authorization, after independent [scope](../../glossary.md#term-scope) and

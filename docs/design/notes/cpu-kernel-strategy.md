@@ -1,5 +1,21 @@
 # [CPU](../../glossary.md#term-cpu) [kernel](../../glossary.md#kernel) strategy
 
+
+## Editorial reading context
+
+Read this strategy as a split between responsibility and evidence. Planning
+assigns work to CPU; CPU preparation chooses its implementation route; Runtime
+invokes the prepared recipe. Scalar, Vector API and OpenBLAS are alternatives
+inside that backend, not separately registered owners.
+
+The ordinary-default discussion and invalidated experiment below retain their
+original status. A faster local observation does not itself authorize a global
+preference. For actual contributor commands and the difference between a fresh
+JVM process and its correlated timing samples, use
+[benchmarking](../../developer-guide/benchmarking.md#interpret-samples-process-forks-and-ratios).
+For route-specific admission and native prerequisites, use the
+[current CPU guide](../../backend-guide/cpu-backend.md).
+
 ## Purpose and status
 
 This note explains how [CPU](../../glossary.md#term-cpu) execution routes fit behind one [backend](../../glossary.md#backend) [owner](../../glossary.md#term-owner) and records the current

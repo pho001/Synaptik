@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0043: Whitespace text and padded integral [batches](../../glossary.md#term-batch-machine-learning-and-hyperparameters)
 
+
+## Editorial reading context
+
+The application supplies text strings and a frozen vocabulary to Text; Text encodes integer token IDs and delegates padding to Data. Data creates numeric batch values and lengths, not embeddings or predictions. Padding side chooses where unused cells go; axis order chooses where time and batch dimensions occur. Neither setting infers recurrent lengths from token values.
+
+Use the [text-to-padded-batch example](../../api/text-api.md#complete-example) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — user approval and main authority approval, 2026-10-20. Data and Text are implemented;

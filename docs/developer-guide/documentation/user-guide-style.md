@@ -25,6 +25,19 @@ demonstrates without treating one successful example as proof of every supported
 
 If the public workflow is planned but not implemented, do not invent a runnable API. Mark the example as conceptual and direct the reader to implementation status.
 
+## Put the user's action before the framework vocabulary
+
+For a saved-model workflow, start with the application loading a model, binding
+input values and reading a prediction. Identify which method reads bytes, which
+constructs a description and which actually executes it. Explain why any Engine,
+session or Arena must stay alive, without implying that a detached host value needs
+closing merely because an internal execution result did.
+
+Compare [running models](../../user-guide/running-models.md) for the execution
+boundary and [model checkpoints](../../api/model-checkpoint-api.md) for load failure
+and format limits. Use those focused destinations rather than asking the user to
+infer setup from an index of unrelated APIs.
+
 ## Avoid
 
 - beginning with architecture history instead of the user's goal;

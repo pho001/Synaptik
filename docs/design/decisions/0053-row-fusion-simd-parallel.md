@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0053: Bounded row-[fusion](../../glossary.md#term-fusion) [SIMD](../../glossary.md#simd) and [synchronous](../../glossary.md#term-synchronous) workers
 
+
+## Editorial reading context
+
+CPU preparation chooses qualified vector/worker realization; the generated loop still owns time traversal. Workers receive disjoint ranges and private partials, then join before carry updates or resource reuse. A reservation accounts for participants without recursively acquiring a budget under an existing permit. SIMD means processing multiple lanes at once, not a guarantee of faster steady-state execution.
+
+Use the [synchronous workers and run-owned reservation](../../architecture/runtime-prepare-backend-boundary.md#cpu0074-implemented-synchronous-row-region-exception) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-30; implemented and MAIN accepted, CPU0074 Complete. Final [CPU](../../glossary.md#term-cpu)/[Javadoc](../../glossary.md#term-javadoc),

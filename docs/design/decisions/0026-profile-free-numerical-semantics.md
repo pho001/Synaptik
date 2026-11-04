@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0026: [Profile-free numerical semantics](../../glossary.md#profile-free-numerical-semantics)
 
+
+## Editorial reading context
+
+Model defines what each operation means; a backend provider separately states whether it implements a particular occurrence. Removing a graph-wide profile does not turn every occurrence into a supported one. DAZ reads a tiny arithmetic operand as signed zero; FTZ may zero a tiny result. Neither changes raw movement, stored comparisons or an exact branch choice.
+
+Use the [semantics and capability at preparation](../../architecture/runtime-prepare-backend-boundary.md#numerical-semantics-at-the-boundary) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-08, on completion of [Task 0032](../../planning/modules/model/tasks/0032-profile-free-numerical-semantics-reset.md)

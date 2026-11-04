@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0040 [Fluent Model builder](../../glossary.md#fluent-model-builder) independent of [checkpoint](../../glossary.md#term-checkpoint) [admission](../../glossary.md#term-admission)
 
+
+## Editorial reading context
+
+The application uses ModelBuilder to compose layers. Supplied parameter leaves are Tensors with no producing expression; acquisition copies them once by identity into private Model state before constructing derived expressions. “Owned” refers to that private working state, not permission to close the application's original Tensors. Execution support and save-format admission are separate questions.
+
+Use the [private Model composition boundary](../../architecture/module-boundaries.md#owned-tensor-model-composition) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted policy — 2026-10-19; implementation awaits independent Class C review and the main gate.

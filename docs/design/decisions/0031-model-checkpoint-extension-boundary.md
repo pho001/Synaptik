@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0031: Separate [model](../../glossary.md#term-model) [Checkpoint](../../glossary.md#term-checkpoint) from training continuation
 
+
+## Editorial reading context
+
+Checkpoint code carries durable bytes, NN interprets module state, and Engine materializes computed values on the host. Keeping those roles distinct prevents file handling from becoming model semantics or optimizer logic. The empty-project decision below records a foundation at that time, not the present module location or a ready-to-use persistence API.
+
+Use the [current Checkpoint placement and namespace migration](../../developer-guide/repository-layout.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-13, after independent Class C review and the repository [validation](../../glossary.md#term-validation) gate. The [architecture root](../../../ARCHITECTURE.md#dependency-rules)

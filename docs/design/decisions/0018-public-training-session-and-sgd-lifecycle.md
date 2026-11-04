@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0018: Public [Training Session](../../glossary.md#training-session--trainingsession) and [SGD](../../glossary.md#term-stochastic-gradient-descent-sgd) [Lifecycle](../../glossary.md#lifecycle)
 
+
+## Editorial reading context
+
+The application opens a Training session using an Engine and admitted parameter bindings. Training owns optimizer state and a prepared objective, while Compiler constructs gradients and Engine executes them. Parameters are updated in place so compiled identities stay valid. The reconciliations in Status distinguish the original NN-taking signatures from the later generic adapter boundary.
+
+Use the [current session setup and storage lifetime](../../user-guide/training.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-09-24. [Engine](../../glossary.md#term-engine) [owner](../../glossary.md#term-owner) references reconciled on 2026-10-16 with

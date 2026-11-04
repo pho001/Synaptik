@@ -16,10 +16,10 @@ audit repairs or permit uploads. No public project licence, [registry](../glossa
 [identity](../glossary.md#term-identity-meanings) or [notarization](../glossary.md#term-notarization) credential has been selected.
 
 Use the exercised [installation commands](../getting-started.md#install-a-versioned-local-candidate)
-and [support matrix](../backend-guide/production-support.md)<span data-glossary-navigation="true"> ([support matrix glossary](../glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([matrix glossary](../glossary.md#term-review-matrix))</span>, rather than inventing another
+and [support matrix](../backend-guide/production-support.md), rather than inventing another
 packager or [dependency](../glossary.md#term-dependency) list. Ordinary development defaults to `0.1.0-SNAPSHOT`; the earlier
 explicit candidate is `0.1.0`. The current audit qualifies `0.1.0-public-audit.20261104` separately,
-without overwriting those receipts. These [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix) do not establish a future compatibility
+without overwriting those receipts. These coordinates do not establish a future compatibility
 or semantic-versioning guarantee.
 
 The sequence is repaired source → independent review/joined checks → matched archives and
@@ -49,6 +49,29 @@ flowchart TD
     O[Owner licence and publisher decision: Blocked] --> P
 ```
 
+## Who supplies each input and reads each result?
+
+1. **The repair implementer and reviewer** establish the accepted source changes
+   and affected test evidence. A prior candidate's success cannot substitute for
+   changed code's evidence.
+2. **The native-package builder** builds and verifies the Metal package separately.
+   The Java release task consumes its absolute directory; it does not discover or
+   repair a library on the packager's behalf.
+3. **The release coordinator** supplies `releaseBaseRevision`, the product version
+   and `synaptikMetalNativePackage` to Gradle. The selected current file bytes,
+   including accepted uncommitted changes, determine the archived source.
+4. **Gradle's release task** produces archives, repository metadata and provenance.
+   These are packaging outputs, not publication permission.
+5. **External consumer projects** resolve the extracted repository and run supported
+   journeys without checkout classes. The coordinator binds their results to exact
+   artifact bytes in the acceptance receipt.
+
+For the concrete extraction and consumer commands, follow the
+[Metal package installation procedure](../../modules/backend/metal/macos-arm64/README.md#build-prerequisites-and-local-package)
+and the [current support/evidence table](../backend-guide/production-support.md).
+The former explains native setup; the latter states which bounded results were
+accepted. Neither authorizes a public registry upload.
+
 ## Candidate outputs
 
 The root `releaseDistribution` task uses ordinary [Gradle](../glossary.md#term-gradle) Java/[Maven](../glossary.md#term-maven) publications for eighteen
@@ -57,7 +80,7 @@ Maven repository. Grouping, test, benchmark, [CUDA](../glossary.md#term-cuda), [
 publications. Their retained source is not silently promoted into the [release](../glossary.md#term-release) [API](../glossary.md#term-application-programming-interface-api).
 
 **Gradle** is the build tool running these tasks. **Maven** names both another build tool and
-the repository layout used to resolve Java dependencies. A [publication](../glossary.md#term-publication)'s **[coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix)** identify
+the repository layout used to resolve Java dependencies. A [publication](../glossary.md#term-publication)'s **coordinates** identify
 its group, artifact name and version, often shortened to **[GAV](../glossary.md#term-gav)**. Its **[POM](../glossary.md#term-pom)** ([Project Object Model](../glossary.md#java-platform-and-build-tools))
 is the [metadata](../glossary.md#term-metadata) file describing that publication and its declared dependencies. Binary artifacts
 contain compiled classes; source artifacts contain source files; Javadoc artifacts contain
@@ -98,7 +121,7 @@ embedded Apache licence. Those notices grant no rights to Synaptik's own code.
 ## Final [qualification](../glossary.md#term-qualification)
 
 Freeze a new candidate only after the
-[Ready audit repairs](../planning/public-release-audit-2026-11-04.md#confirmed-finding-repair-frontiers)<span data-glossary-navigation="true"> ([Ready glossary](../glossary.md#term-ready))</span>
+[Ready audit repairs](../planning/public-release-audit-2026-11-04.md#confirmed-finding-repair-frontiers)
 are integrated and independently reviewed. Historical [Pool3d](../glossary.md#pool3d--ncdhw-pooling), typed-[Metal](../glossary.md#term-metal), [oneDNN](../glossary.md#term-onednn) and [CPU](../glossary.md#term-cpu) low-parity
 receipts remain limited to their recorded source and [artifacts](../glossary.md#term-artifact). The approved CPU low-parity
 cutover supersedes CPU0078's lock; oneDNN still excludes native [F64](../glossary.md#floating-point-precision-and-rounding) and Metal keeps its separate
@@ -112,15 +135,15 @@ the bytes exercised by the final checks and installed consumers. A stale archive
 requalification and regenerated matched artifacts. Then:
 
 1. Run the affected and final repository/architecture checks and public Javadocs with the declared
-   JDK/native inputs. Record every skip, observer limitation and unsupported domain honestly.<span data-glossary-navigation="true"> ([JDK glossary](../glossary.md#term-java-development-kit-jdk); [observer glossary](../glossary.md#term-observer))</span>
+   JDK/native inputs. Record every skip, observer limitation and unsupported domain honestly.
 2. Rebuild the versioned candidate from the qualified source and matched native package. Verify
    every archive/checksum/provenance entry and published dependency closure; bind the acceptance
-   receipt to these exact artifacts, not merely the reused <span data-glossary-navigation="true"> ([checksum glossary](../glossary.md#term-checksum); [dependency glossary](../glossary.md#term-dependency))</span>`0.1.0` [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) or base revision.
+   receipt to these exact artifacts, not merely the reused `0.1.0` coordinate or base revision.
 3. Extract source outside any checkout and compile with the build cache disabled and tasks rerun;
-   do not mistake checkout classes or cached outputs for a clean installation.<span data-glossary-navigation="true"> ([compile glossary](../glossary.md#compile); [cache glossary](../glossary.md#term-cache))</span>
+   do not mistake checkout classes or cached outputs for a clean installation.
 4. Resolve only the extracted repository from fresh external Maven and Gradle consumers. Compile
    the documented public examples and execute the required CPU/Metal compute, gradient, repeated
-   training, save/close/load and newly configured training journeys.<span data-glossary-navigation="true"> ([Maven glossary](../glossary.md#term-maven); [Gradle glossary](../glossary.md#term-gradle); [gradient glossary](../glossary.md#term-gradient))</span>
+   training, save/close/load and newly configured training journeys.
 5. Record relevant performance observations and independent code/evidence review before marking
    the candidate accepted. Numerical correctness does not imply universal speed or zero allocation.
 
@@ -137,6 +160,6 @@ They are not hidden prerequisites for building and technically qualifying the lo
 
 ## Related documentation
 
-- [Production target](../planning/production-release-goal.md)<span data-glossary-navigation="true"> ([target glossary](../glossary.md#term-target))</span>
-- [Public API status](../reference/index.md)<span data-glossary-navigation="true"> ([API glossary](../glossary.md#term-application-programming-interface-api))</span>
+- [Production target](../planning/production-release-goal.md)
+- [Public API status](../reference/index.md)
 - [Documentation rules](documentation-rules.md)

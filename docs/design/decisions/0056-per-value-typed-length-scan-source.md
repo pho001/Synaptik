@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0056: Per-value typed length-aware [Scan](../../glossary.md#term-cumulative-scan) source
 
+
+## Editorial reading context
+
+A body can describe FLOAT16 stored carry, explicit FLOAT32 working operations and an explicit cast back. Scan checks each value's own descriptor; it does not choose a global compute type. Source validity alone does not make Compiler AD, CPU execution or persistence accept that body. The source-only status and retained downstream rejection tests are essential limits.
+
+Use the [typed source example and consumer boundaries](../../architecture/general-differentiable-scan.md#per-value-typing-source-construction-only) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted; source Complete — 2026-11-01. The user approved the per-value [Scan](../../glossary.md#term-cumulative-scan) direction;

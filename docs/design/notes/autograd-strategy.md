@@ -1,5 +1,43 @@
 # [Autograd](../../glossary.md#autograd) strategy
 
+
+## Editorial reading context
+
+This note records the bounded first-order strategy and the implementation frontier
+named in its original text. Its “current” and “planned” statements are relative to
+that frontier, not a replacement for today's supported API. Use the
+[current training-graph explanation](../../architecture/training-graph.md) for the
+present public path and [ADR 0009](../decisions/0009-compiler-owned-pre-capture-tensor-expression-autograd.md)
+for the capture-ownership decision.
+
+### Who constructs the derivative?
+
+The application describes a forward objective using Tensor expressions. Compiler
+is then the caller of ordinary Tensor methods that build derivative expressions;
+Training does not supply a separate derivative language. A target can be a leaf,
+meaning it has no producing expression, or a produced intermediate. A storage-free
+seed is still a leaf: absence of a producer does not establish stored data,
+constant status or a close obligation.
+
+### Read the formulas as sensitivities, not update instructions
+
+For a dimensionless scalar differentiable real objective $L$ and a nonempty finite softmax slice
+$x_i$, with $1\le i\le n$, write $y_i$ for the saved forward probabilities and
+$g_i=\partial L/\partial y_i$ for incoming sensitivities. The reverse formula is
+
+$$
+\frac{\partial L}{\partial x_i}
+=y_i\left(g_i-\sum_{j=1}^{n}g_jy_j\right).
+$$
+
+For $y=(1/2,1/2)$ and $g=(1,0)$, the shared sum is $1/2$ and the input
+sensitivities are $(1/4,-1/4)$. These dimensionless illustrative values explain
+how both outputs affect each input. The implementation consumes exact saved
+forward Tensor outputs and evaluates ordinary rounded operations; real-number
+calculus does not authorize recomputation, special-value masking or a different
+floating reduction order. The original rule inventory and exceptional-value
+conventions below remain unchanged historical text.
+
 > [`ARCHITECTURE.md`](../../../ARCHITECTURE.md) is authoritative; this note explains its
 > compiler-owned pre-capture automatic-differentiation design.<span data-glossary-navigation="true"> ([compiler glossary](../../glossary.md#term-compiler); [capture glossary](../../glossary.md#term-capture-meanings))</span>
 

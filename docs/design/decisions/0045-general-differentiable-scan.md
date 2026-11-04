@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0045: Bounded [general differentiable scan](../../glossary.md#general-differentiable-scan)
 
+
+## Editorial reading context
+
+A general Scan body describes one transition with explicit carry, per-step inputs and invariant inputs. Compiler differentiates ordinary operations inside that description; the backend prepares a loop once. Saved residuals retain actual forward values needed by reverse computation, not instructions to replay the body. Valid source, gradient construction and backend execution remain separate admissions.
+
+Use the [scopes, carries and reverse computation](../../architecture/general-differentiable-scan.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 > [`ARCHITECTURE.md`](../../../ARCHITECTURE.md) is authoritative. This ADR records rationale for
 > the incorporated [scan semantic contract](../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-cumulative-scan))</span>,
 > not an independent contract or implemented capability.

@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0002: [Backend-owned lowering](../../glossary.md#backend-owned-lowering)
 
+
+## Editorial reading context
+
+Planning passes a partition (an assigned region of computation) to shared Prepare, which calls the selected concrete backend. The backend translates that region into its own executable steps: this is lowering. Its returned requirements describe needed memory; they are not yet allocated buffers. Runtime later invokes the finalized recipe without choosing a kernel again.
+
+Use the [analysis-to-finalization handoff](../../backend-guide/partition-preparer.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — reflected in the current [architecture contract](../../glossary.md#architecture-contract). The original decision date and

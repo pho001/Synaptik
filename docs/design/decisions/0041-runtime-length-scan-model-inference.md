@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0041 [Runtime](../../glossary.md#term-runtime) length [scan](../../glossary.md#term-cumulative-scan) [Model](../../glossary.md#term-model) [inference](../../glossary.md#term-inference)
 
+
+## Editorial reading context
+
+The application binds values and valid-length Tensors in declared positional order. A final hidden state is the state after each row's last valid transition, not necessarily the last dense time cell. The inference-only guard below belonged to the fixed-scan workflow; general trainable RNN composition is a separate, later decision.
+
+Use the [later general-scan RNN direction](0058-trainable-runtime-length-rnn-composition.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted decision — 2026-10-20. The user approved the exact [API](../../glossary.md#term-application-programming-interface-api) and [inference](../../glossary.md#term-inference)-only [Model](../../glossary.md#term-model) cutover.

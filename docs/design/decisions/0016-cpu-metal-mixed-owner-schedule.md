@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0016: [CPU](../../glossary.md#term-cpu)/[Metal](../../glossary.md#term-metal) Mixed-[Owner](../../glossary.md#term-owner) [Prepared Schedule](../../glossary.md#prepared-schedule--preparedschedule)
 
+
+## Editorial reading context
+
+Engine supplies shared Prepare with the exact adapters for each assigned backend. One logical value can need a CPU and a Metal representation, with explicit prepared copies connecting them. Runtime follows those recipes; it does not discover a destination or synchronize representations automatically. The narrow first-implementation domain below remains a historical boundary, not a current support table.
+
+Use the [mixed-owner representation and transfer explanation](../../architecture/runtime-prepare-backend-boundary.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-09-23

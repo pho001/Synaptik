@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0004: [Backend](../../glossary.md#backend)-neutral [partition](../../glossary.md#partition) scoring
 
+
+## Editorial reading context
+
+Planning compares eligible backends for a graph region and returns the identity of the component responsible for executing it. That ownership decision does not choose a CPU kernel or allocate memory. Estimated boundary costs represent possible work when values cross regions; they are not measured run times or permission to alter semantics.
+
+Use the [scoring inputs and ownership result](../../architecture/partition-scoring.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — required by the current [architecture contract](../../glossary.md#architecture-contract). The original decision date and weighting discussion are not recorded.

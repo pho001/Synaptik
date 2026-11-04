@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0047: Bounded general-[scan](../../glossary.md#term-cumulative-scan) [graph](../../glossary.md#graph) [persistence](../../glossary.md#term-persistence)
 
+
+## Editorial reading context
+
+The application saves ordinary graph source and named current values. Checkpoint encodes one scoped body; Compiler reconstructs it on load. Time steps and run-specific activation history are not serialized copies of that body. Old body-free sources keep their smallest compatible format; successful load still requires separate qualification before a backend can execute the body.
+
+Use the [bounded general-body persistence](../../api/graph-checkpoint-api.md#bounded-general-scan-persistence) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted decision — 2026-10-23. The user approved selective [graph](../../glossary.md#graph)-[model](../../glossary.md#term-model).v4 and the existing bounded

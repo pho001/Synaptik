@@ -1,5 +1,22 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0009: [Compiler](../../glossary.md#term-compiler)-owned [pre-capture Tensor-expression autograd](../../glossary.md#pre-capture-tensor-expression-autograd)
 
+
+## Editorial reading context
+
+The application describes a forward computation with Tensor operations. Compiler then calls ordinary Tensor methods to construct derivative expressions before capturing the combined graph. A leaf has no producing expression and may be storage-free, as with an explicitly registered derivative seed. Leaf status alone neither proves constant values nor transfers storage ownership.
+
+Use the [autograd seeds, capture and saved outputs](../../architecture/training-graph.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
+### Mathematical reading aid: one derivative contribution
+
+For differentiable real-valued functions $y=f(x)$ and scalar objective $L(y)$, let
+$g=\partial L/\partial y$ be the incoming sensitivity. The chain rule gives
+$\partial L/\partial x=g f'(x)$. For $f(x)=x^2$, $x=3$ and $g=2$, the
+contribution is $2\cdot 2\cdot3=12$. This explains a contribution, not an
+optimizer update. Compiler expresses it with Tensor operations; their actual rounded
+floating evaluation and special-value rules, not real-number calculus alone, govern execution.
+
 ## Status
 
 Accepted — 2026-07-26

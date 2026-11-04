@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0039: One [tensor](../../glossary.md#tensor)-[model](../../glossary.md#term-model) execution and [persistence](../../glossary.md#term-persistence) path
 
+
+## Editorial reading context
+
+The application constructs an owned Model; supplied parameter leaves have no producing expression, and their values are copied into private Model state during acquisition. The original application Tensors do not become Model-owned resources. Model delegates compilation/execution to Engine and updates to Training, reusing preparations rather than creating a second executor. Saving source/state is separate from serializing native prepared work.
+
+Use the [current Model and prepared execution workflow](../../user-guide/running-models.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 2026-10-17: **accepted product choices; Engine0021, Training0007, Compiler0008 and Checkpoint0008 Complete**.

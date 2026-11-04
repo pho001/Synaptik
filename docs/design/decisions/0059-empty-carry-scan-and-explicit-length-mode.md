@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0059: Empty [carry](../../glossary.md#term-carry) and explicit length mode for [general Scan](../../glossary.md#general-differentiable-scan)
 
+
+## Editorial reading context
+
+A carry is state passed from one step to the next. A body that only emits values may need none; a reverse body may need only shared accumulators and no row cotangent carry. Explicit length mode distinguishes those valid descriptions from all-valid traversal. This source-representation change does not silently widen old wire formats or downstream execution.
+
+Use the [source roles and independent consumer gates](../../architecture/general-differentiable-scan.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted and implemented for source only by Model0046. Independent final core and wire/evidence/

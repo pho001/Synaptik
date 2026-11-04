@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0050: Dynamic [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) geometry through numeric recipes
 
+
+## Editorial reading context
+
+The application changes an admitted batch extent while reusing one prepared computation. Compiler validates symbolic relationships; CPU recipes calculate numeric sizes; Runtime allocates this run's resources; Engine publishes actual descriptors. Reusing a recipe is not reusing previous input values or buffers. Zero batch remains operation-dependent rather than a blanket promise.
+
+Use the [runtime binding and reusable preparations](../../user-guide/running-models.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — authority enacted and MAIN-accepted 2026-10-24. User “ano” approves the reviewed contract and architecture

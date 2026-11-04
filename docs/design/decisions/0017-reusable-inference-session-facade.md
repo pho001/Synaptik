@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0017: Reusable [Inference](../../glossary.md#term-inference) Session [Facade](../../glossary.md#term-facade)
 
+
+## Editorial reading context
+
+This record explains the former convenience session, not an additional current execution path. The application retained a facade over one preparation; results still had their own lifetime. Status points to the later prepared-owner cutover. Read current usage before copying an old session method into application code.
+
+Use the [current reusable preparation workflow](../../user-guide/running-models.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-09-23. The thin session [facade](../../glossary.md#term-facade) is superseded on 2026-10-16 by

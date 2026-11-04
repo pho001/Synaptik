@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0061: [General Scan](../../glossary.md#general-differentiable-scan) composition through ordinary semantic and [CPU](../../glossary.md#term-cpu) [owners](../../glossary.md#term-owner)
 
+
+## Editorial reading context
+
+Model checks ordinary operation meaning and row dependencies; Compiler builds derivatives; Prepare transports qualified facts; CPU lowers body-local units into fixed generated calls inside the existing loop. Structural cotangent absence means no contribution arrived, unlike an explicitly supplied numeric zero. A final mask cannot repair invalid arithmetic that should never have executed. This record describes the accepted design, not blanket all-PURE support.
+
+Use the [source, activity, AD and execution boundaries](../../architecture/general-differentiable-scan.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted implementation design after both independent full-proof and physical authority/interface

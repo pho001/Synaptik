@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0051: [Symbolic Scan](../../glossary.md#symbolic-scan) and bounded geometry reuse
 
+
+## Editorial reading context
+
+Engine may retain immutable geometry facts for an exact prepared plan and batch extent. It must still validate each call's current inputs and create fresh run resources. The metadata memo is neither a result cache nor a previous RunState. Scan's symbolic source rules, execution qualification and the bounded memo permission are distinct decisions even when used by one application call.
+
+Use the [symbolic geometry handoff](../../architecture/runtime-prepare-backend-boundary.md#future-symbolic-scan-and-geometry-reuse) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-25. At decision time, these were accepted-but-unimplemented semantics. The coordinated authority

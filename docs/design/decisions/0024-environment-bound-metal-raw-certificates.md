@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0024: Environment-Bound [Metal](../../glossary.md#term-metal) Raw-Route Certificates
 
+
+## Editorial reading context
+
+A certificate in this withdrawn route mechanism bound evidence to an exact program and environment. The Java loader and native context supplied that identity; a friendly operation name was insufficient. This is history, not a setup procedure: the successor removed this certificate mechanism and alternate low-precision vendor route. Do not rebuild old probes to imply current qualification.
+
+Use the [certificate removal and custom-only route](0025-custom-only-metal-low-precision.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Superseded — 2026-09-29 by

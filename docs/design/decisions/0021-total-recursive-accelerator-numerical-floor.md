@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0021: Total Recursive [ACCELERATOR](../../glossary.md#term-accelerator) Numerical Floor
 
+
+## Editorial reading context
+
+This superseded record used recursive numerical rules: a composite formula inherited allowances at its named primitive arithmetic sites. ULP measures floating spacing; ordered-bit distance counts adjacent representations and is not the same unit. Those explanations motivate the old floor, not a current graph-profile option or permission to ignore NaN, infinity or discrete selection rules.
+
+Use the [current operation-local direction](0026-profile-free-numerical-semantics.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Superseded — 2026-10-08 by [ADR 0026](0026-profile-free-numerical-semantics.md)<span data-glossary-navigation="true"> ([ADR glossary](../../glossary.md#term-architecture-decision-record-adr))</span>.

@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0044: Opt-in [scan](../../glossary.md#term-cumulative-scan) length [Tensor](../../glossary.md#tensor) export
 
+
+## Editorial reading context
+
+The application calls toScanLengthsTensor on Data metadata, then binds the returned Tensor through ordinary model inputs. Each call copies counts into fresh heap storage; it does not copy the borrowed values Tensor or read its cells. This leaf has no producing expression and does not introduce an Arena or close protocol. RIGHT and TIME_MAJOR are independent required metadata choices.
+
+Use the [Data batching and explicit length export](../../architecture/module-boundaries.md#extensionsdata) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-21. The user approved the exact narrow [API](../../glossary.md#term-application-programming-interface-api) and implementation [scope](../../glossary.md#term-scope) with

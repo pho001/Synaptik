@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0030: Own each participant in [exact training continuation](../../glossary.md#exact-training-continuation)
 
+
+## Editorial reading context
+
+The application, NN and Training each retain different state. TrainingState captures its documented session data; it does not capture the next input, external randomness or every NN mode. Exact continuation therefore requires a coordinated recovery point, not merely a saved optimizer object. Binding replacement while a session is open can leave its compiled objective referring to old Tensors.
+
+Use the [recovery participants and exclusions](../../architecture/training-graph.md#continuing-at-the-next-training-input) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-13, after independent Class C approval of Training 0003A. This record

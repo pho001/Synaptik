@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0010: Stage [backend](../../glossary.md#backend) preparation around shared slot assignment
 
+
+## Editorial reading context
+
+Shared Prepare calls backend analysis with one assigned partition. The backend returns its private implementation plan plus exact memory requirements. Prepare assigns shared slots, then calls the same backend to finalize the executable against those slots. A slot identifies a planned storage position, not an allocated address; run-time allocation is a later boundary.
+
+Use the [staged preparation procedure](../../backend-guide/partition-preparer.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-07-30

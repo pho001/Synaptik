@@ -22,23 +22,38 @@ for a stated [source revision](../glossary.md#term-source-revision), environment
    scoped headings. Explanatory pages and old task narratives cannot override them.
 4. Apply [AGENTS.md](../../AGENTS.md) and the focused contribution workflow for the actual change.
 
+## Choose the evidence for the question
+
+- To preserve responsibilities while changing code, read [architecture tests](architecture-tests.md).
+  Their output checks implemented boundaries, not every possible rule.
+- To diagnose a selected implementation, pass an observer as shown in
+  [debugging traces](debugging-trace.md); events explain decisions without controlling execution.
+- To compare performance, use [benchmarking](benchmarking.md). A report describes
+  one workload and environment; it does not qualify a new default by itself.
+- To change explanations, follow [documentation review](documentation-rules.md).
+  A clean handoff names the diff and claims the reviewer must examine.
+
+In those workflows, the contributor invokes Gradle or a diagnostic API. The named
+framework component or harness then performs the work. “Owner” in a task assignment
+means the person/component responsible for a change, not necessarily a closeable object.
+
 ## Working guides
 
 - [Coding rules](coding-rules.md), [architecture tests](architecture-tests.md) and
   [documentation rules](documentation-rules.md).
 - [Documentation profiles](documentation/README.md): learner tasks, explanations and reference
-  have different purposes; do not turn the tutorial into an implementation log.<span data-glossary-navigation="true"> ([log glossary](../glossary.md#term-log))</span>
-- [Diagnose preparation/execution](debugging-trace.md) and [bounded benchmarking](benchmarking.md)<span data-glossary-navigation="true"> ([benchmarking glossary](../glossary.md#term-benchmarking))</span>.
-- [Backend authoring](../backend-guide/writing-a-backend.md)<span data-glossary-navigation="true"> ([Backend glossary](../glossary.md#backend))</span> and
-  [release mechanics](release-process.md)<span data-glossary-navigation="true"> ([release glossary](../glossary.md#term-release))</span>.
-- [Generated API documentation](../reference/javadoc.md)<span data-glossary-navigation="true"> ([API glossary](../glossary.md#term-application-programming-interface-api))</span>.
+  have different purposes; do not turn the tutorial into an implementation log.
+- [Diagnose preparation/execution](debugging-trace.md) and [bounded benchmarking](benchmarking.md).
+- [Backend authoring](../backend-guide/writing-a-backend.md) and
+  [release mechanics](release-process.md).
+- [Generated API documentation](../reference/javadoc.md).
 
 ## [Planning](../glossary.md#term-planning) and historical evidence
 
-[Planning](../planning/README.md) [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix) authorized work. [Design records](../design/README.md)
+[Planning](../planning/README.md) coordinates authorized work. [Design records](../design/README.md)
 record decisions; [current architecture navigation](../architecture/current-architecture-plan.md)
 connects explanations. The [audit report](../planning/public-release-audit-2026-11-04.md) and
-[production support matrix](../backend-guide/production-support.md)<span data-glossary-navigation="true"> ([support matrix glossary](../glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([matrix glossary](../glossary.md#term-review-matrix))</span> distinguish current
+[production support matrix](../backend-guide/production-support.md) distinguish current
 [qualification](../glossary.md#term-qualification) from older candidate evidence. Historical receipts bind their original source and
 [artifacts](../glossary.md#term-artifact); rewriting learning material does not requalify new executable behavior.
 The [historical documentation index](../history/index.md) separates superseded qualification

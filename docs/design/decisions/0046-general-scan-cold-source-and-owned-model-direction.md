@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0046: Bounded general-[scan](../../glossary.md#term-cumulative-scan) cold source and [owned Model](../../glossary.md#model-module-buffer-and-scan-distinctions) direction
 
+
+## Editorial reading context
+
+An owned Model must copy and rebind its source without losing the attached Scan body. Compiler reconstructs supported source descriptions; Checkpoint preserves scoped attachments; NN then acquires private state. Successful backend execution alone does not prove that this cold, non-executing reconstruction is supported. The decision sequences those owners rather than adding an NN-local clone or runner.
+
+Use the [cold reconstruction versus execution](../../architecture/general-differentiable-scan.md#bounded-cold-persistence) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted direction — 2026-10-23, explicit user approval of limited NN0030 and the first [Compiler](../../glossary.md#term-compiler)

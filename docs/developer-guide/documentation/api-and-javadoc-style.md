@@ -32,6 +32,27 @@ Every constructor and method parameter requires `@param`. Every non-`void` metho
 
 [API](../../glossary.md#term-application-programming-interface-api) reference pages should connect related types into a usable [mental model](../../glossary.md#term-mental-model) rather than reproduce generated [signatures](../../glossary.md#term-signature). Examples must state inputs, output, and interpretation. Use the [example format](example-format.md) for multi-step examples.
 
+## Make the call boundary readable
+
+Name the concrete caller and callee before writing “caller-owned.” For example,
+when an application passes an Arena to a parameter-copy utility, say that the
+utility copies parameter bytes into storage controlled by that Arena, while the
+application must keep the Arena alive for the consuming session. Do not generalize
+this into “every Tensor call copies” or “every Tensor must be closed.”
+
+When documenting equality, distinguish Java's [`hashCode`](../../glossary.md#term-hash-code)
+(collection bucketing consistent with equality) from a cryptographic content digest
+such as SHA-256. Equal hash codes do not prove equal objects, equal bytes or an
+authentic publisher. A resource owner can intentionally use reference identity
+even when two logical recipes describe equal computation.
+
+For an internal SPI, Runtime can be the caller and a backend implementation the
+callee. Explain which prepared descriptions cross first, which live storage is
+borrowed later and where cleanup remains. The
+[Runtime/Prepare/backend boundary](../../architecture/runtime-prepare-backend-boundary.md)
+provides a concrete multi-component example; [example format](example-format.md)
+turns its contracts into an interpretable procedure.
+
 ## Avoid
 
 - restating a method name without defining behavior;

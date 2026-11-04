@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0035: Validate and publish a private training restore candidate
 
+
+## Editorial reading context
+
+The recovery coordinator is the application. It builds a distinct unpublished model/session, loads and validates state there, then publishes the replacement under its own exclusion. Mutating that private candidate does not mutate the currently visible model. Failed candidates are discarded; this is not a promise to resurrect a session the application already closed.
+
+Use the [private-candidate recovery scenario](../../architecture/training-graph.md#continuing-at-the-next-training-input) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-14. This refines the future joint-restore sequence in

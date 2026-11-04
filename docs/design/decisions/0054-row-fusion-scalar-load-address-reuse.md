@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0054: Selective [scalar](../../glossary.md#term-scalar) row-[fusion](../../glossary.md#term-fusion) emission/[cache](../../glossary.md#term-cache) cutover
 
+
+## Editorial reading context
+
+The CPU generator can reuse a loaded cell only when source address, intervening writes and activity prove it unchanged. Fewer bytecode loads do not by themselves establish faster machine code. Compatibility identities invalidate affected generated artifacts while unrelated cases retain their old bytes; historical captured bytecode remains evidence, not a second production implementation.
+
+Use the [selective scalar-generation change](../../backend-guide/cpu-backend.md#accepted-scalar-loadaddress-reuse-cutover) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted and implemented — 2026-10-30, after explicit user approval, independent review and

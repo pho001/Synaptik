@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0062: Ordinary materializing RESHAPE closure
 
+
+## Editorial reading context
+
+A reshape changes logical geometry. If existing strides cannot represent it as a view, the qualified CPU path materializes a new canonical result instead of inventing contiguous metadata for the input. Compiler closes proven result descriptors; backend lowering realizes the copy. That is distinct from making every layout or reshape source persistable.
+
+Use the [logical result closure versus physical materialization](../../architecture/lifecycle.md#compile-lifecycle) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted source direction — independent [Compiler](../../glossary.md#term-compiler)/[Metal](../../glossary.md#term-metal) design reviews APPROVE0. This decision

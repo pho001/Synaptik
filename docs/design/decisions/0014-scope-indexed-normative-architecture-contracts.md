@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0014: [Scope](../../glossary.md#term-scope)-indexed [normative](../../glossary.md#term-normative) architecture contracts
 
+
+## Editorial reading context
+
+A contributor follows the root authority index to the contract owning the affected boundary. “Normative” means binding within that scope; an ADR explains a choice but does not independently change permission. Editorial responsibility for updating a contract is not ownership of an AutoCloseable resource. Preserve the recorded migration rather than using this ADR as a second rule source.
+
+Use the [authority-aware review workflow](../../developer-guide/documentation-rules.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-09-22

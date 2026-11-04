@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0012: Fixed recurrent [scan](../../glossary.md#term-cumulative-scan) without [graph](../../glossary.md#graph) regions
 
+
+## Editorial reading context
+
+The application supplies sequence values, valid-length counts and initial states as ordinary Tensor inputs. A fixed recurrent scan describes one named transition family; the backend executes its prepared loop. “Fixed” distinguishes that family from a user-described general body, not from changing valid-length values. The persistence amendment and initial backward rejection are separate decisions.
+
+Use the [fixed versus general scan boundaries](../../architecture/general-differentiable-scan.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-08-20

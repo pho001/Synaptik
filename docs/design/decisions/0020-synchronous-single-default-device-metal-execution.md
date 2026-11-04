@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0020: [Synchronous](../../glossary.md#term-synchronous) Single-Default-[Device](../../glossary.md#term-device) [Metal](../../glossary.md#term-metal) Execution
 
+
+## Editorial reading context
+
+The application calls run and receives a result only after synchronous work completes. That does not release the completed output buffers: the result keeps their lifetime until close. A Metal context identifies a concrete integration; the abstract availability token default is not a stable physical-device ID. Concurrent calls do not themselves promise overlapping GPU work.
+
+Use the [current Metal execution and resource boundaries](../../backend-guide/metal-backend.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-09-25

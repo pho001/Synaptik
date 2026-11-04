@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0033: Internal [model](../../glossary.md#term-model)-candidate [schema](../../glossary.md#term-schema) and bounded [Engine](../../glossary.md#term-engine) [handoff](../../glossary.md#term-handoff)
 
+
+## Editorial reading context
+
+NN exports paths referring to live Tensors, not durable values. Checkpoint snapshots that membership under application exclusion and calls Engine to obtain detached host values. Deduplicating compute by Tensor identity does not merge path payloads or their byte accounting. The schema describes those values; it neither installs state nor owns the live module.
+
+Use the [capture and inspected metadata](../../api/model-checkpoint-api.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-13, after independent Class C review. The

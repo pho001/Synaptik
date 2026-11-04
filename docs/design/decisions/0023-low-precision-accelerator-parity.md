@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0023: Low-[Precision](../../glossary.md#term-precision) [ACCELERATOR](../../glossary.md#term-accelerator) Parity and P0 Evidence
 
+
+## Editorial reading context
+
+A provider query asks whether a fully described operation occurrence is supported; a ledger records answers over a representative basis. A true FLOAT32 answer is not automatically an answer for FLOAT16 or BFLOAT16, nor proof of backward support. The manifest and identity reservations below belong to the stated historical cutover; they are not new allocation instructions.
+
+Use the [capability questions and qualification scope](../../backend-guide/capability-provider.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Superseded — 2026-10-08 by [ADR 0026](0026-profile-free-numerical-semantics.md) for the

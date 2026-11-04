@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0003: Typed [trace](../../glossary.md#trace) DTOs
 
+
+## Editorial reading context
+
+A producer here is Compiler, Prepare, Runtime or a backend emitting a diagnostic event. A consumer is the application or diagnostic collector reading it. A data transfer object (DTO) carries typed facts rather than live producer objects; Trace is a dependency leaf because it imports no other project layer. That is different from a Tensor leaf with no producing expression.
+
+Use the [observer setup and event interpretation](../../developer-guide/debugging-trace.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — required by the current [architecture contract](../../glossary.md#architecture-contract). The original decision date is not recorded.

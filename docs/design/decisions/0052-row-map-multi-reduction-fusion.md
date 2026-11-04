@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0052: Share row maps across multiple terminal [CPU](../../glossary.md#term-cpu) reductions
 
+
+## Editorial reading context
+
+CPU lowering can compute a row-local producer once and feed several terminal reductions. A terminal consumes row contributions and cannot feed that same row pass. This physical grouping must preserve required stores and each operation's arithmetic; it is not a new public Tensor operation. Compiler still constructs gradients, and Runtime still invokes the already-prepared work.
+
+Use the [row-region lowering boundary](../../backend-guide/cpu-backend.md#accepted-row-map-and-multiple-terminal-fusion-design) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-30 user approval; implemented by CPU0073, independently reviewed and

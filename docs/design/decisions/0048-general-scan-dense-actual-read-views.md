@@ -1,5 +1,21 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0048: Dense actual read [views](../../glossary.md#term-view-meanings) in [CPU](../../glossary.md#term-cpu) [general scan](../../glossary.md#general-differentiable-scan)
 
+
+## Editorial reading context
+
+The backend reads an actual Tensor bound to a Scan formal. A Tensor view describes addresses in existing storage, unlike a diagnostic report view. Here the admitted actual read can carry a view flag while retaining dense zero-offset addresses. That does not relax output writes, formal descriptors, arbitrary strides or storage lifetime checks.
+
+Use the [dense reads and their qualification limits](../../architecture/general-differentiable-scan.md#dense-actual-reads-implemented-final-gates-pending) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
+### Mathematical reading aid: unchanged dense addresses
+
+For the stated shape, let integer coordinates satisfy $0\le t<3$, $0\le b<2$
+and $0\le f<4$. The zero-offset element address is $a(t,b,f)=8t+4b+f$, in
+elements from the storage base. Thus $a(2,1,3)=23$, the last of 24 cells. Changing
+only a view flag leaves this mapping unchanged. Byte addresses additionally multiply
+by the element width; this example does not admit nonzero offsets or arbitrary strides.
+
 ## Status
 
 Accepted — 2026-10-24; implemented with focused [qualification](../../glossary.md#term-qualification) in

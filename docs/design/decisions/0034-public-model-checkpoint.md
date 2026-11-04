@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0034: Public [model](../../glossary.md#term-model) [checkpoint](../../glossary.md#term-checkpoint) with [target](../../glossary.md#term-target)-defined v1 [aliases](../../glossary.md#aliasing-and-arena)
 
+
+## Editorial reading context
+
+The application supplies a fully bound target module and expected fingerprints. Checkpoint validates file values and target alias groups, reconstructs heap-backed Tensors, then asks NN to install them. Equal bytes do not independently establish intended parameter sharing; the target topology defines v1 aliases. Inspection metadata is not a promise that a later reread sees identical file bytes.
+
+Use the [strict model load and aliases](../../api/model-checkpoint-api.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-14. Direct restored-[heap](../../glossary.md#term-heap) [Engine](../../glossary.md#term-engine) execution was subsequently validated after

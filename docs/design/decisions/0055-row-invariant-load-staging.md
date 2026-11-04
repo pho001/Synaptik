@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0055: Generic [scalar](../../glossary.md#term-scalar) row-[invariant](../../glossary.md#term-invariant) external-cell load staging
 
+
+## Editorial reading context
+
+A row-invariant external cell has the same value across the proved loop region, so CPU generation may stage its load outside that region. Hoisting must not read an inactive or invalid input earlier than permitted. The cold proof authorizes placement; run-owned storage and unchanged arithmetic still govern execution. The old Java experiment motivates the choice but is not generator speed evidence.
+
+Use the [invariant staging and activity boundary](../../architecture/runtime-prepare-backend-boundary.md#cpu0076-prospective-scalar-invariant-staging) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-31, explicit user approval; implementation and bounded generator result

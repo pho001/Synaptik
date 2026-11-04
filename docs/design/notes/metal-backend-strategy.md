@@ -1,5 +1,23 @@
 # [Metal](../../glossary.md#term-metal) [backend](../../glossary.md#backend) strategy
 
+
+## Editorial reading context
+
+This is explicitly a pre-implementation direction, not a current installation or
+pooling recipe. Its deferred tasks and proposed buffer-pool/alias behavior remain
+historical; do not infer present permission to reuse outputs or workspace.
+The [current Metal guide](../../backend-guide/metal-backend.md) gives supported
+setup and qualified routes.
+
+Planning assigns a region to Metal; Metal preparation constructs its reusable
+implementation; Runtime invokes it with run-specific representations. The
+application requesting detached host output receives independent copied values,
+not a view whose validity depends on a device-buffer lease. Conversely, synchronous
+completion does not release the output resources retained by an open run result.
+[ADR 0020](../decisions/0020-synchronous-single-default-device-metal-execution.md)
+explains this completion-versus-lifetime distinction without turning concurrency
+into a promise of GPU overlap.
+
 ## Purpose and authority
 
 This pre-implementation note explains the intended [Metal](../../glossary.md#term-metal) [residency](../../glossary.md#residency), preparation, and

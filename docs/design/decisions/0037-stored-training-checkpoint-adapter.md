@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0037: Stored [Model](../../glossary.md#term-model) + TrainingState in an optional downstream adapter
 
+
+## Editorial reading context
+
+This is a withdrawn proposal, not an available TrainingCheckpoint API. Its adapter would have combined model values with TrainingState through their public owners. Even those two snapshots would not contain the application cursor, effective forward contexts or external RNG. Read the replacement direction before interpreting the proposed facade or wire as an implemented product.
+
+Use the [replacement usable-model direction](0038-declarative-model-and-training-resume.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Withdrawn Proposed direction — 2026-10-14; superseded as the primary product by

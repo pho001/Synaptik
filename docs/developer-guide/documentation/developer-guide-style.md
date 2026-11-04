@@ -30,6 +30,20 @@ Every substantive developer guide must include:
 
 When the concept performs a calculation or transforms data, include a concrete numerical walkthrough. Show the input values, calculation or transformation, intermediate values, final value, and interpretation. Do not force arithmetic into topics where it adds no understanding, such as repository navigation or a decision-record workflow; use a concrete nonmathematical scenario instead.
 
+## Explain the tool chain through one contributor action
+
+For an architecture-check command, identify the contributor as the shell user,
+the Gradle wrapper as the task launcher, and the architecture-test project as the
+assertion owner. Explain which repository relationships it reads and what a failure
+means. A test result covers those assertions, not every rule in the contract.
+[Architecture tests](../architecture-tests.md) is a focused example of that procedure.
+
+For code examples, place short why-comments inside the fence at storage borrowing,
+copying or cleanup boundaries. Keep executable tokens unchanged when revising only
+an explanation. Use [example format](example-format.md) for result interpretation
+and [General style](general-style.md#write-mathematics-as-mathematics) for calculations
+with defined symbols, units and valid domains.
+
 ## Avoid
 
 - source-code tours that list files without explaining responsibility;

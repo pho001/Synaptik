@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0028: Explicit [native parameter copy](../../glossary.md#native-parameter-copy--trainingparameterstorage) before training
 
+
+## Editorial reading context
+
+The application calls the parameter-copy utility before opening Training and supplies the Arena that will own the new native bytes. The utility replaces storage associations without replacing Tensor identities; it is not another model constructor. The application keeps that Arena alive through the session and closes it afterward. The reconciled generic signature in Status supersedes the historical Module argument.
+
+Use the [explicit native copy and session lifetime](../../user-guide/training.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-11. This record explains the [authoritative Training contract](../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle); it does not replace it.

@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0011: Per-[run](../../glossary.md#term-run) [Runtime](../../glossary.md#term-runtime) resource [ownership](../../glossary.md#term-ownership) and cold [binding](../../glossary.md#term-binding)
 
+
+## Editorial reading context
+
+Runtime is the caller of backend representation and binding contracts. It borrows application input resources for one invocation and coordinates cleanup of resources acquired by that run. Backend implementations perform physical allocation and release. Publishing an output can transfer or lease its lifetime to a result; run cleanup must not release inputs it only borrowed.
+
+Use the [run/result resource transitions](../../architecture/runtime-prepare-backend-boundary.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-07-31

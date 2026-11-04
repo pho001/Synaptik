@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0006: No [runtime](../../glossary.md#term-runtime) [service locator](../../glossary.md#term-service-locator)
 
+
+## Editorial reading context
+
+The application explicitly supplies backend integrations to Engine before execution. Engine fixes that available set; Runtime receives executable recipes, not a question about which backend to find. A service locator would instead look up an implementation during use, hiding that composition boundary and potentially deferring a decision into repeated numerical work.
+
+Use the [prepared execution boundary](../../architecture/runtime-prepare-backend-boundary.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — required by the current [architecture contract](../../glossary.md#architecture-contract). The original decision date is not recorded.

@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0025: Custom-Only [Metal](../../glossary.md#term-metal) Low [Precision](../../glossary.md#term-precision)
 
+
+## Editorial reading context
+
+Metal preparation fixes the enclosing low-precision partition route before execution. FLOAT32-only internal work can have a different implementation without changing that enclosing route. Storage format and working precision are also different: sixteen-bit stored values do not imply sixteen-bit accumulation. The later numerical-profile reconciliation in Status limits which trace fields remain current.
+
+Use the [current low-precision execution and diagnostics](../../backend-guide/metal-backend.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-09-29

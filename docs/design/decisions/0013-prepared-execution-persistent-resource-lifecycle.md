@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0013: Prepared-execution persistent-resource [lifecycle](../../glossary.md#lifecycle)
 
+
+## Editorial reading context
+
+A backend finalizer can acquire a reusable native executable. Before successful return it must clean up its own failed acquisition; afterward shared Prepare owns rollback until the complete PreparedExecution takes ownership. Runtime borrows that prepared state under a run lease. Closing a completed result releases a different, run-owned lifetime, not the reusable recipe.
+
+Use the [prepared leases and result lifetime](../../architecture/lifecycle.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-09-20

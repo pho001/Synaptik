@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0036: [Model](../../glossary.md#term-model)-envelope composition through ModelCheckpoint
 
+
+## Editorial reading context
+
+A downstream adapter calls public ModelCheckpoint operations rather than parsing private model metadata. Canonical state bytes use a fixed byte order for comparison; native host storage can use a different order. Returned ByteBuffer objects have independent cursors over immutable bytes, so read-only bytes do not mean an immutable cursor. File-free composition still validates each complete envelope.
+
+Use the [envelope composition example](../../api/model-checkpoint-api.md#file-free-example) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-14. The approved [API](../../glossary.md#term-application-programming-interface-api) [scope](../../glossary.md#term-scope) is implemented in the [Checkpoint](../../glossary.md#term-checkpoint) 0005A change;

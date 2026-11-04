@@ -25,6 +25,18 @@ known evidence from unavailable original deliberation.
 
 Use scenarios or a compact comparison table when tradeoffs are otherwise hard to see.
 
+## Separate the reading aid from the historical record
+
+An author adding context to an old ADR should label that context separately and
+link the superseding decision or current explanation. Preserve original statuses,
+commands, outputs and evidence identifiers. If an old option discussion is
+unavailable, say so rather than reconstructing a plausible conversation.
+
+For example, [the former inference-session decision](../../design/decisions/0017-reusable-inference-session-facade.md)
+explains an earlier facade, while [current model execution](../../user-guide/running-models.md)
+teaches the replacement prepared-owner workflow. The old rationale remains useful
+without making its API the recommended entry point.
+
 ## Avoid
 
 - recording a decision with no alternatives or context;

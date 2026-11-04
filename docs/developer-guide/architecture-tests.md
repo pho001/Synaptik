@@ -16,7 +16,19 @@ Gradle is the build tool that selects and runs the test project.
 
 ## Prerequisites and authority
 
-Read [`ARCHITECTURE.md`](../../ARCHITECTURE.md) and [Dependency rules](../architecture/dependency-rules.md)<span data-glossary-navigation="true"> ([Dependency glossary](../glossary.md#term-dependency))</span>. Tests enforce those rules; they do not create new [module](../glossary.md#term-module) [ownership](../glossary.md#term-ownership-meanings).
+Read [`ARCHITECTURE.md`](../../ARCHITECTURE.md) and [Dependency rules](../architecture/dependency-rules.md). Tests enforce those rules; they do not create new [module](../glossary.md#term-module) [ownership](../glossary.md#term-ownership-meanings).
+
+## Who runs the checks, and what comes back?
+
+From the repository root, the contributor invokes the Gradle wrapper (`./gradlew`).
+Gradle selects the architecture-test project and runs its assertions against project
+relationships, source files and compiled identities. The output is a pass/fail result
+for those assertions, not a new architecture rule or an execution benchmark.
+
+When a check fails, identify the forbidden edge or reference, then compare it with
+the owning [dependency rule](../architecture/dependency-rules.md). Correct the code
+or coordinate an explicit contract change; weakening a test merely to make it pass
+would erase the evidence of a boundary violation.
 
 ## [Mental model](../glossary.md#term-mental-model)
 
@@ -39,6 +51,7 @@ of test proves all possible inputs or all architecture rules.
 ## [Run](../glossary.md#term-run) the current [module](../glossary.md#term-module)
 
 ```bash
+# Select the boundary-check project, rather than treating numerical tests as architecture evidence.
 ./gradlew :testing:architecture-tests:test
 ```
 
@@ -62,6 +75,6 @@ Training's explicit public Engine [lifecycle](../glossary.md#lifecycle) role, no
 
 ## Related documentation
 
-- [Module boundaries](../architecture/module-boundaries.md)<span data-glossary-navigation="true"> ([Module glossary](../glossary.md#term-module))</span>
-- [Dependency rules](../architecture/dependency-rules.md)<span data-glossary-navigation="true"> ([Dependency glossary](../glossary.md#term-dependency))</span>
-- [Planning guide](../planning/planning-guide.md)<span data-glossary-navigation="true"> ([Planning glossary](../glossary.md#term-planning))</span>
+- [Module boundaries](../architecture/module-boundaries.md)
+- [Dependency rules](../architecture/dependency-rules.md)
+- [Planning guide](../planning/planning-guide.md)

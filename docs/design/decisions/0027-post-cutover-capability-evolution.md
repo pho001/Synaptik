@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0027: Post-cutover capability evolution
 
+
+## Editorial reading context
+
+A contributor adding a backend route must establish that exact occurrence and update current evidence. The historical ledger remains a record of old provider answers, including false answers. It is not a permanent prohibition on qualified evolution, and a successful sample alone is not enough to change the provider contract.
+
+Use the [qualification before capability advertisement](../../backend-guide/capability-provider.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-09, for the capability-evolution rule only. This decision explains the

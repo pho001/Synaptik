@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0007: Neural-network [module](../../glossary.md#term-module) and training boundary
 
+
+## Editorial reading context
+
+A neural-network layer declares persistent parameter and buffer state; an optimizer computes updates to trainable parameters. Those are different jobs even when both participate in training. The dependency reconciliation in Status matters: the original arrows below are historical. Current Training receives a generic live parameter adapter rather than importing NN layer implementations.
+
+Use the [parameter admission and optimizer roles](../../architecture/training-graph.md) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-07-13.

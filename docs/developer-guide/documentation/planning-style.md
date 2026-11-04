@@ -2,7 +2,7 @@
 
 ## Purpose
 
-[Planning](../../glossary.md#term-planning) documentation [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) executable implementation work. It defines [scope](../../glossary.md#term-scope), order, constraints, acceptance, [validation](../../glossary.md#term-validation), and [handoff](../../glossary.md#term-handoff) evidence. It is not a tutorial and is not an [architecture contract](../../glossary.md#architecture-contract).
+[Planning](../../glossary.md#term-planning) documentation coordinates executable implementation work. It defines [scope](../../glossary.md#term-scope), order, constraints, acceptance, [validation](../../glossary.md#term-validation), and [handoff](../../glossary.md#term-handoff) evidence. It is not a tutorial and is not an [architecture contract](../../glossary.md#architecture-contract).
 
 The authoritative planning format and workflow are in the [Planning Guide](../../planning/planning-guide.md). Apply [General style](general-style.md) only where it improves clarity without turning a task brief into teaching material.
 
@@ -40,6 +40,20 @@ a standard short launcher is the execution packet. Do not embed a per-task imple
 or broaden scoped reading. Change-class risk still determines clean-context and independent-review
 isolation.
 
+## Distinguish work assignment from runtime ownership
+
+The coordinator authorizes a bounded task, the implementer changes its assigned
+files, and the integration owner joins the results and records the agreed checks.
+Those roles explain who may edit or accept work; they do not imply that an agent
+must close a Tensor or release a native resource. A handoff here carries the diff,
+contract links and evidence, not application data ownership.
+
+For example, two isolated edits may still conflict if both change the same format
+or lifecycle promise. Record that semantic conflict even when their files differ.
+Follow the [Planning Guide](../../planning/planning-guide.md) for authorization and
+[documentation rules](../documentation-rules.md#risk-based-documentation-workflow)
+for the targeted independent review boundary.
+
 ## Avoid
 
 - tutorial chapters, broad background essays, or speculative implementation detail;
@@ -51,31 +65,31 @@ isolation.
 - pre-implementation chronicles, context IDs, duplicated predecessor evidence, or verbose [logs](../../glossary.md#commit-release-distribution-log-and-seed-meanings);
 - embedded per-task implementation prompts;
 - repeated full-repository suites for a worker task when the integration owner will run the
-  recorded gate;<span data-glossary-navigation="true"> ([owner glossary](../../glossary.md#term-owner); [run glossary](../../glossary.md#term-run))</span>
+  recorded gate;
 - duplicate Java-test execution by implementation and review contexts without executable changes;
 - manual reflection, [bytecode](../../glossary.md#term-bytecode), or import checks that should be stable automated tests;
 - parallel work based only on disjoint files, without disjoint semantic ownership, a stable common
   contract/base, isolated worktrees for concurrent writes, and recorded integration ownership;
 - parallel edits to the same API, architecture or lifecycle contract, generated format, or shared
-  authoritative document contract; and<span data-glossary-navigation="true"> ([API glossary](../../glossary.md#term-application-programming-interface-api); [lifecycle glossary](../../glossary.md#lifecycle))</span>
+  authoritative document contract; and
 - marking work complete without evidence and synchronized status.
 
 ## [Validation](../../glossary.md#term-validation)
 
-- Validate the task against the current [Planning Guide](../../planning/planning-guide.md)<span data-glossary-navigation="true"> ([Planning glossary](../../glossary.md#term-planning))</span>.
+- Validate the task against the current [Planning Guide](../../planning/planning-guide.md).
 - Confirm every architecture constraint traces to the contract rather than the plan itself.
 - Check the explicit DAG, authorized frontiers, conflict/write scopes, semantic ownership, common
-  base, integration order, commands, and status synchronization.<span data-glossary-navigation="true"> ([DAG glossary](../../glossary.md#term-directed-acyclic-graph-dag); [ownership glossary](../../glossary.md#term-ownership-meanings); [synchronization glossary](../../glossary.md#term-synchronization))</span>
+  base, integration order, commands, and status synchronization.
 - For parallel groups, confirm contract-first sequencing, isolated write worktrees, one integration
   owner for shared documents, worker-focused/module validation, and one post-integration
-  cross-module or full validation.<span data-glossary-navigation="true"> ([owner glossary](../../glossary.md#term-owner); [module glossary](../../glossary.md#term-module))</span>
+  cross-module or full validation.
 - Verify that acceptance criteria can be observed or tested.
 - Confirm validation evidence records exact commands and outcomes, key counts or skips when
   meaningful, reused evidence, limitations, and documentation/review impact.
 
 ## Task-brief template
 
-Use the complete [canonical](../../glossary.md#term-canonical-form) template in the [Planning Guide](../../planning/planning-guide.md#task-brief-format)<span data-glossary-navigation="true"> ([Planning glossary](../../glossary.md#term-planning))</span>. Its outline is:
+Use the complete [canonical](../../glossary.md#term-canonical-form) template in the [Planning Guide](../../planning/planning-guide.md#task-brief-format). Its outline is:
 
 ```markdown
 # Task <ID>: <Title>

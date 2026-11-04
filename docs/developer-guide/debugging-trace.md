@@ -3,15 +3,24 @@
 ## Outcome
 
 Observe why [CPU](../glossary.md#term-cpu) preparation selected a route, why ordinary [Engine](../glossary.md#term-engine) [autotuning](../glossary.md#autotuning--model-autotuning) used its configured
-[heuristic](../glossary.md#term-heuristic) fallback or rejected a request, and where [Metal](../glossary.md#term-metal) [Scan](../glossary.md#term-cumulative-scan) [validation](../glossary.md#term-validation) failed. Observers are
-optional and caller-owned. The ordinary overloads create no diagnostic [producer](../glossary.md#term-producer), event IDs or
+[heuristic](../glossary.md#term-heuristic) fallback or rejected a request, and where [Metal](../glossary.md#term-metal) Scan [validation](../glossary.md#term-validation) failed. Observers are
+optional and supplied by the application or diagnostic tool opening the integration. The ordinary overloads create no diagnostic [producer](../glossary.md#term-producer), event IDs or
 clock readings. There is no generic [log](../glossary.md#term-log) file, serializer or [trace](../glossary.md#trace) viewer.
+
+Here Scan denotes a recurrent/body traversal, not the cumulative-sum operation.
 
 An **[observer](../glossary.md#term-observer)** is a [callback](../glossary.md#term-callback) supplied by the caller to receive diagnostic events. A **trace**
 records facts about work at selected observation points; it is not a second execution controller.
 Each event has an **envelope** containing common identification information and a **[payload](../glossary.md#artifact-envelope-and-atomic-publication)**
 containing the producer's specific facts. A **route** is the [backend](../glossary.md#backend)'s chosen implementation path,
 not merely the caller's preferred configuration.
+
+
+The application passes a callback such as `events::add` to the integration or
+`prepareTuned` overload. CPU preparation, Engine tuning resolution and Metal are
+then the callback's callers; the collector is the callee. The application keeps
+and synchronizes that collector. This responsibility is not a transfer of Tensor
+storage or a resource that Engine will close on the application's behalf.
 
 ## Where to observe
 
@@ -45,13 +54,16 @@ are comparable only when they share the documented clock source and [scope](../g
 Opt in when opening the integration. This fragment uses an existing supported [Tensor](../glossary.md#tensor) `input`:
 
 ```java
+// Keep detached events in a collector safe for callbacks from concurrent preparations.
 var events = new java.util.concurrent.CopyOnWriteArrayList<
         io.github.pho001.synaptik.trace.TraceEvent<
                 ? extends io.github.pho001.synaptik.trace.TracePayload>>();
+// Engine takes responsibility for closing the integration; the collector remains ours.
 try (var engine = io.github.pho001.synaptik.engine.Engine.builder()
         .takeOwnership(io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration
                 .open(events::add))
         .build()) {
+    // compute executes the expression; the diagnostic records describe preparation, not every element.
     var value = engine.compute(input.neg());
     for (var event : events) {
         if (event.payload() instanceof
@@ -72,7 +84,7 @@ A [`GRAPH`](../glossary.md#graph) preference does not prove that Graph or even o
 may still retain ordinary CPU units. Rejection facts distinguish unqualified geometry,
 unsupported realization, an actual native unsupported status, and unit/whole-plan cost decisions.
 `NOT_CONFIGURED` and `COMPARISON_SKIPPED` [mean](../glossary.md#term-mean) no corresponding native comparison was performed.
-Each of the unit and rejection lists retains at most 32 facts and has its own [truncation](../glossary.md#term-truncation-toward-zero) flag.
+Each of the unit and rejection lists retains at most 32 facts and has its own list-truncation flag.
 Failure status is present only when the [producer](../glossary.md#term-producer) actually received that primary native status.
 These CPU observations are cold [PREPARE](../glossary.md#prepare) facts, not per-[element](../glossary.md#term-element) or [RUN](../glossary.md#term-run) instrumentation.
 
@@ -84,7 +96,9 @@ Given an existing [`engine`](../glossary.md#term-engine), compiled [`graph`](../
 var events = new java.util.concurrent.CopyOnWriteArrayList<
         io.github.pho001.synaptik.trace.TraceEvent<
                 io.github.pho001.synaptik.engine.EngineTuningDiagnostic>>();
+// Observation reports the existing policy outcome; this overload does not enable fallback.
 var preparation = engine.prepareTuned(graph, request, events::add);
+// The returned preparation has a resource lifetime independent of the detached event list.
 try (var prepared = preparation.preparedExecution()) {
     // Run with the graph's ordinary inputs and consume results before closing them.
 }
@@ -102,7 +116,7 @@ business results or primary failures. Do not recursively close the Engine from i
 the existing admitted-[operation](../glossary.md#operation) [lifecycle](../glossary.md#lifecycle) rejects self-close. Session-only [Metal](../glossary.md#term-metal) tuning does
 not inspect or publish either supplied persistent-[cache](../glossary.md#term-cache) path.
 
-## [Metal](../glossary.md#term-metal): inspect the actual route and failing [Scan](../glossary.md#term-cumulative-scan) [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix)
+## [Metal](../glossary.md#term-metal): inspect the actual route and failing Scan coordinate
 
 Open through `MetalBackendIntegration.open(configuration, observer)`. Ordinary preparation and
 invocation outcomes correlate by prepared-unit ID and report the actual route. There is no
@@ -130,6 +144,6 @@ from typed IDs, not list adjacency across concurrent preparations. Tracing is ob
 it neither changes capability answers nor selects a numerical policy or [runtime](../glossary.md#term-runtime) fallback.
 
 See [tracing architecture](../architecture/tracing.md),
-[CPU native configuration](../backend-guide/cpu-backend.md#explicit-onednn-composition)<span data-glossary-navigation="true"> ([CPU glossary](../glossary.md#term-cpu))</span>,
-[Metal guide](../backend-guide/metal-backend.md)<span data-glossary-navigation="true"> ([Metal glossary](../glossary.md#term-metal))</span> and
-[public API status](../reference/index.md)<span data-glossary-navigation="true"> ([API glossary](../glossary.md#term-application-programming-interface-api))</span>.
+[CPU native configuration](../backend-guide/cpu-backend.md#explicit-onednn-composition),
+[Metal guide](../backend-guide/metal-backend.md) and
+[public API status](../reference/index.md).

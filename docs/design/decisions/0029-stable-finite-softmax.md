@@ -1,5 +1,30 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0029: Stable [finite](../../glossary.md#term-finite) [softmax](../../glossary.md#softmax--log-softmax) without unshifted [EXP](../../glossary.md#term-expx) [overflow](../../glossary.md#term-overflow)
 
+
+## Editorial reading context
+
+Softmax converts a nonempty slice of finite scores into normalized weights; log-softmax publishes their logarithms without first rounding probabilities. Subtracting the maximum prevents unshifted exponential overflow, but is not a rewrite permission for non-finite inputs. Model defines the formula; the CPU backend must separately qualify its actual working precision and guards.
+
+Use the [CPU finite-domain realization](../../backend-guide/cpu-backend.md#current-stable-softmax-family) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
+### Mathematical reading aid: the finite-slice calculation
+
+For a nonempty slice of $n$ finite real scores $x_i$, with $1\le i\le n$, define
+$m=\max_{1\le j\le n}x_j$ and $s=\sum_{j=1}^{n}\exp(x_j-m)$. The stable
+real-number formulas are
+
+$$
+p_i=\frac{\exp(x_i-m)}{s},\qquad \ell_i=(x_i-m)-\log s.
+$$
+
+Here $p_i$ is a dimensionless probability and $\ell_i$ its log-probability. For
+$(x_1,x_2)=(1000,1000)$, both shifts are zero, $s=2$, and $p_1=p_2=1/2$;
+$\ell_1=\ell_2=-\log2$. Actual subtraction, exponentiation, accumulation and
+publication use the dtype/rounding sites stated in the decision, not exact reals.
+In particular, finite extreme FLOAT32 scores can overflow a shift to negative infinity.
+This aid does not extend the finite rule to NaN, infinities or an empty slice.
+
 ## Status
 
 Accepted — 2026-10-13, following the [owner](../../glossary.md#term-owner) decision recorded in

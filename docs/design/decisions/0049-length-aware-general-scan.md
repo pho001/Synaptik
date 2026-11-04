@@ -1,5 +1,13 @@
 # [ADR](../../glossary.md#term-architecture-decision-record-adr) 0049: Length-aware whole-[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) [general Scan](../../glossary.md#general-differentiable-scan)
 
+
+## Editorial reading context
+
+The application supplies an explicit valid-length vector. Scan must skip inactive input loads and arithmetic before they happen; writing a zero afterward cannot undo a NaN already consumed. ROW means a value retains a specific batch coordinate, while SHARED means it is not indexed by that row. Whole-batch operations need proved contributor rules before inactive rows can be omitted.
+
+Use the [row activity and shared accumulation](../../architecture/general-differentiable-scan.md#accepted-length-aware-design-implementation-pending) for focused guidance. The original status, decision
+and evidence below remain historical records; this reading aid does not amend them.
+
 ## Status
 
 Accepted — 2026-10-24. User-selected design and coordinated authority under
