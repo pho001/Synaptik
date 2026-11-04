@@ -821,27 +821,56 @@ class CpuPreparedExecutableTest {
         }
     }
 
-    @Test void rmsNormalizationNeedsNoWorkspaceAndKeepsLargeFiniteRootsFinite() {
-        var base = CpuTrailingNormalizationLoweringTest.context(false, false, DataType.FLOAT64,
-                Shape.of(1, 2), Shape.of(2), List.of(0));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
-        var availabilityContext527 = context;
-        
-        var analysis = new CpuPartitionPreparer().analyze(availabilityContext527);
-        assertTrue(analysis.plan().workspaceDeclaration().isEmpty());
-        var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
-        double scale = Double.MAX_VALUE / 2.0;
-        double[] input = {scale, scale / 2.0}, output = {-9, -9};
-        var run = state(executable, List.of(borrow(input, 0, 2), borrow(output, 0, 2)));
-        try {
-            executable.bind(run).execute();
-            double root = StrictMath.hypot(scale * StrictMath.sqrt(1.25 / 2.0),
-                    StrictMath.sqrt(1e-5));
-            assertAll(() -> assertTrue(Double.isFinite(root)),
-                    () -> assertEquals(input[0] / root, output[0], 0.0),
-                    () -> assertEquals(input[1] / root, output[1], 0.0));
-        } finally { run.close(); }
+    @Test void trailingNormalizationRetainsWorkingOverflowAndExactSpecialRules() {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
+            for (boolean layer : List.of(false, true)) {
+            var base = CpuTrailingNormalizationLoweringTest.context(layer, false, type,
+                    Shape.of(6, 2), Shape.of(2), List.of(0));
+            var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                    base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                    base.constants(), new CpuPartitionAnalysisInputs(false,
+                            List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT)));
+            var analysis = new CpuPartitionPreparer().analyze(context);
+            var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+            double large = type == DataType.FLOAT64 ? Double.MAX_VALUE / 2.0
+                    : Float.intBitsToFloat(0x7f000000);
+            double aggregateOverflow = type == DataType.FLOAT64 ? 1e154
+                    : Float.intBitsToFloat(0x5f600000);
+            // First row overflows individual squares; fifth overflows only their aggregate.
+            // Last row additionally proves LayerNorm's finite-constant +0 guard precedes squares.
+            double[] values = {large, -large / 2, Double.POSITIVE_INFINITY, -1,
+                    Double.NaN, 1, +0.0, -0.0, aggregateOverflow, -aggregateOverflow, large, large};
+            int bytes = type == DataType.FLOAT64 ? 8 : type == DataType.FLOAT32 ? 4 : 2;
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment input = arena.allocate(values.length * (long) bytes, bytes);
+                MemorySegment output = arena.allocate(values.length * (long) bytes, bytes);
+                for (int i = 0; i < values.length; i++) {
+                    if (type == DataType.FLOAT64) input.set(DOUBLE, i * 8L, values[i]);
+                    else if (type == DataType.FLOAT32) input.set(FLOAT, i * 4L, (float) values[i]);
+                    else input.set(ValueLayout.JAVA_SHORT, i * 2L,
+                            BFloat16Bits.fromFloat((float) values[i]));
+                }
+                var workspaces = analysis.plan().workspaceDeclaration().stream().map(declaration ->
+                        CpuContiguousWorkspace.allocate(declaration.byteSize(),
+                                declaration.byteAlignment())).toList();
+                var run = state(executable, List.of(borrowed(type, values.length, input),
+                        borrowed(type, values.length, output)), workspaces);
+                try {
+                    executable.bind(run).execute();
+                    for (int i = 0; i < values.length; i++) {
+                        double actual = type == DataType.FLOAT64 ? output.get(DOUBLE, i * 8L)
+                                : type == DataType.FLOAT32 ? output.get(FLOAT, i * 4L)
+                                : BFloat16Bits.toFloat(output.get(ValueLayout.JAVA_SHORT, i * 2L));
+                        String label = type + "/" + (layer ? "layer/" : "rms/") + i;
+                        if (i == 2 || layer && i == 3 || i == 4 || i == 5)
+                            assertTrue(Double.isNaN(actual), label);
+                        else assertEquals(Double.doubleToRawLongBits(i == 1 || i == 9
+                                        || !layer && (i == 3 || i == 7) ? -0.0 : +0.0),
+                                Double.doubleToRawLongBits(actual), label);
+                    }
+                } finally { run.close(); }
+            }
+        }
     }
 
     @Test void softmaxParallelizesCompleteSlicesAndRejectsOutputOverlapBeforeWrites() {

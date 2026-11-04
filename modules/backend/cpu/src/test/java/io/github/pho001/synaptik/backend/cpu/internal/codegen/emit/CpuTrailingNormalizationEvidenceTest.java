@@ -47,7 +47,11 @@ import java.util.Optional;
 import java.util.Random;
 import org.junit.jupiter.api.Test;
 
-/** Frozen CPU 0007F generated/direct evidence probe and isolated-fork driver. */
+/**
+ * Generated/direct evidence probe with independent Model-formula loops. Binary32 and low inputs
+ * round each named arithmetic site to binary32; binary64 retains binary64. Square overflow is
+ * observable, and only the final low output store narrows to low storage.
+ */
 public final class CpuTrailingNormalizationEvidenceTest {
     private static final int ROWS = 128;
     private static final int WIDTH = 2048;
@@ -109,6 +113,23 @@ public final class CpuTrailingNormalizationEvidenceTest {
             addMixedLayer(cases, unsupported, arena);
             addMixedRms(cases, unsupported, arena);
             assertTrue(unsupported.isEmpty(), "mixed floating normalization must prepare");
+            for (Case value : cases) {
+                value.generated.run();
+                value.direct.run();
+                value.verify.run();
+            }
+        }
+    }
+
+    @Test void denseSpecializationsMatchIndependentNamedSiteLoops() throws Throwable {
+        try (Arena arena = Arena.ofConfined()) {
+            List<Case> cases = new ArrayList<>();
+            List<String> unsupported = new ArrayList<>();
+            for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
+                for (boolean layer : List.of(false, true))
+                    for (boolean affine : List.of(false, true))
+                        addDense(cases, unsupported, arena, type, layer, affine);
+            assertTrue(unsupported.isEmpty(), "dense floating normalization must prepare");
             for (Case value : cases) {
                 value.generated.run();
                 value.direct.run();
@@ -291,7 +312,7 @@ public final class CpuTrailingNormalizationEvidenceTest {
                     layer && affine ? (double[]) bias : null, (double[]) output, layer, exact);
             else if (type == DataType.FLOAT32) direct32((float[]) input,
                     affine ? (float[]) scale : null, layer && affine ? (float[]) bias : null,
-                    (float[]) output, layer, exact, false);
+                    (float[]) output, layer, exact);
             else directBfloat((short[]) input, affine ? (short[]) scale : null,
                     layer && affine ? (short[]) bias : null, (short[]) output, layer, exact);
             return checksum(type, output);
@@ -317,55 +338,64 @@ public final class CpuTrailingNormalizationEvidenceTest {
     private static void direct64(double[] input, double[] scale, double[] bias, double[] output,
             boolean layer, MemorySegment exact) {
         for (int row = 0; row < ROWS; row++) {
-            int base = row * WIDTH; double root; double mean = 0;
+            int base = row * WIDTH; double root; double mean = 0; boolean constant = false;
             if (layer) {
-                boolean nan = false, infinity = false, constant = true; double first = 0;
+                boolean nan = false, infinity = false; constant = true; double first = 0;
                 exactReset(exact, ExactType.F64); for (int i = 0; i < WIDTH; i++) {
                     double v = input[base + i]; if (Double.isNaN(v)) nan = true;
                     else if (v == Double.POSITIVE_INFINITY || v == Double.NEGATIVE_INFINITY) infinity = true;
                     if (i == 0) first = v; else if (v != first) constant = false; exactAdd64(exact, v); }
                 mean = Double.longBitsToDouble(exactMean(exact, ExactType.F64, WIDTH));
-                double deviations = 0, dc = 0, squares = 0, sc = 0;
-                for (int i = 0; i < WIDTH; i++) { double d = input[base + i] - mean;
-                    double y = d - dc, n = deviations + y; dc = (n - deviations) - y; deviations = n;
-                    double square = d * d, q = square - sc, z = squares + q;
-                    sc = (z - squares) - q; squares = z; }
-                double numerator = squares - deviations * deviations / WIDTH;
-                if (numerator < 0) numerator = 0; root = Math.sqrt(numerator / WIDTH + EPSILON64);
-                if (nan || infinity) root = Double.NaN; else if (constant) root = Double.POSITIVE_INFINITY;
+                double squares = 0, compensation = 0;
+                for (int i = 0; i < WIDTH; i++) {
+                    double deviation = input[base + i] - mean;
+                    double square = deviation * deviation;
+                    if (square == Double.POSITIVE_INFINITY) squares = square;
+                    else if (squares != Double.POSITIVE_INFINITY) {
+                        double adjusted = square - compensation, next = squares + adjusted;
+                        compensation = (next - squares) - adjusted; squares = next;
+                    }
+                }
+                root = Math.sqrt(squares / WIDTH + EPSILON64);
+                if (nan || infinity) { root = Double.NaN; constant = false; }
             } else {
                 root = rms64(input, base);
             }
             for (int i = 0; i < WIDTH; i++) { double value = layer
-                    ? (input[base + i] - mean) / root : input[base + i] / root;
+                    ? constant ? 0.0 : (input[base + i] - mean) / root : input[base + i] / root;
                 if (scale != null) value = value * scale[i]; if (bias != null) value = value + bias[i];
                 output[base + i] = value; }
         }
     }
 
     private static void direct32(float[] input, float[] scale, float[] bias, float[] output,
-            boolean layer, MemorySegment exact, boolean ignored) {
+            boolean layer, MemorySegment exact) {
         for (int row = 0; row < ROWS; row++) {
-            int base = row * WIDTH; double root; float mean = 0;
+            int base = row * WIDTH; float root, mean = 0; boolean constant = false;
             if (layer) {
-                boolean nan = false, infinity = false, constant = true; float first = 0;
+                boolean nan = false, infinity = false; constant = true; float first = 0;
                 exactReset(exact, ExactType.F32); for (int i = 0; i < WIDTH; i++) {
                     float v = input[base + i]; if (Double.isNaN(v)) nan = true;
                     else if (v == Float.POSITIVE_INFINITY || v == Float.NEGATIVE_INFINITY) infinity = true;
                     if (i == 0) first = v; else if (v != first) constant = false; exactAdd32(exact, v); }
                 mean = Float.intBitsToFloat((int) exactMean(exact, ExactType.F32, WIDTH));
-                double deviations = 0, dc = 0, squares = 0, sc = 0;
-                for (int i = 0; i < WIDTH; i++) { double d = (double) input[base + i] - mean;
-                    double y = d - dc, n = deviations + y; dc = (n - deviations) - y; deviations = n;
-                    double square = d * d, q = square - sc, z = squares + q;
-                    sc = (z - squares) - q; squares = z; }
-                double numerator = squares - deviations * deviations / WIDTH;
-                if (numerator < 0) numerator = 0; root = Math.sqrt(numerator / WIDTH + EPSILON32);
-                if (nan || infinity) root = Double.NaN; else if (constant) root = Double.POSITIVE_INFINITY;
+                float squares = 0, compensation = 0;
+                for (int i = 0; i < WIDTH; i++) {
+                    float deviation = input[base + i] - mean;
+                    float square = deviation * deviation;
+                    if (square == Float.POSITIVE_INFINITY) squares = square;
+                    else if (squares != Float.POSITIVE_INFINITY) {
+                        float adjusted = square - compensation, next = squares + adjusted;
+                        compensation = (next - squares) - adjusted; squares = next;
+                    }
+                }
+                float variance = squares / WIDTH;
+                root = (float) Math.sqrt(variance + EPSILON32);
+                if (nan || infinity) { root = Float.NaN; constant = false; }
             } else root = rms32(input, base);
             for (int i = 0; i < WIDTH; i++) { float value = layer
-                    ? (float) (((float) (input[base + i] - mean)) / (float) root)
-                    : (float) (input[base + i] / (float) root);
+                    ? constant ? 0.0f : (input[base + i] - mean) / root
+                    : input[base + i] / root;
                 if (scale != null) value = value * scale[i]; if (bias != null) value = value + bias[i];
                 output[base + i] = value; }
         }
@@ -375,62 +405,77 @@ public final class CpuTrailingNormalizationEvidenceTest {
             boolean layer, MemorySegment exact) {
         for (int row = 0; row < ROWS; row++) {
             int base = row * WIDTH;
-            double root; float mean = 0;
+            float root, mean = 0; boolean constant = false;
             if (layer) {
-                boolean nan = false, infinity = false, constant = true; float first = 0;
+                boolean nan = false, infinity = false; constant = true; float first = 0;
                 exactReset(exact, ExactType.F32); for (int i = 0; i < WIDTH; i++) {
                     float v = decode(input[base + i]); if (Double.isNaN(v)) nan = true;
                     else if (v == Float.POSITIVE_INFINITY || v == Float.NEGATIVE_INFINITY) infinity = true;
                     if (i == 0) first = v; else if (v != first) constant = false; exactAdd32(exact, v); }
                 mean = Float.intBitsToFloat((int) exactMean(exact, ExactType.F32, WIDTH));
-                double deviations = 0, dc = 0, squares = 0, sc = 0;
-                for (int i = 0; i < WIDTH; i++) { double d = (double) decode(input[base + i]) - mean;
-                    double y = d - dc, n = deviations + y; dc = (n - deviations) - y; deviations = n;
-                    double square = d * d, q = square - sc, z = squares + q;
-                    sc = (z - squares) - q; squares = z; }
-                double numerator = squares - deviations * deviations / WIDTH;
-                if (numerator < 0) numerator = 0; root = Math.sqrt(numerator / WIDTH + bfloatEpsilon());
-                if (nan || infinity) root = Double.NaN; else if (constant) root = Double.POSITIVE_INFINITY;
+                float squares = 0, compensation = 0;
+                for (int i = 0; i < WIDTH; i++) {
+                    float deviation = decode(input[base + i]) - mean;
+                    float square = deviation * deviation;
+                    if (square == Float.POSITIVE_INFINITY) squares = square;
+                    else if (squares != Float.POSITIVE_INFINITY) {
+                        float adjusted = square - compensation, next = squares + adjusted;
+                        compensation = (next - squares) - adjusted; squares = next;
+                    }
+                }
+                float variance = squares / WIDTH;
+                root = (float) Math.sqrt(variance + bfloatEpsilon());
+                if (nan || infinity) { root = Float.NaN; constant = false; }
             } else root = rmsBfloat(input, base);
             for (int i = 0; i < WIDTH; i++) { float decoded = decode(input[base + i]);
-                float value = layer ? (float) (((float) (decoded - mean)) / (float) root)
-                    : (float) (decoded / (float) root);
+                float value = layer ? constant ? 0.0f : (decoded - mean) / root
+                    : decoded / root;
                 if (scale != null) value = value * decode(scale[i]);
                 if (bias != null) value = value + decode(bias[i]); output[base + i] = bfloat(value); }
         }
     }
 
     private static double rms64(double[] input, int base) {
-        double scale = 0, squares = 0; boolean nan = false, infinity = false;
-        for (int i = 0; i < WIDTH; i++) { double value = input[base + i];
-            if (Double.isNaN(value)) nan = true;
-            else if (value == Double.POSITIVE_INFINITY || value == Double.NEGATIVE_INFINITY) infinity = true;
-            double a = Math.abs(value);
-            if (a != 0 && scale < a) { double r = scale / a; squares = 1 + squares * r * r; scale = a; }
-            else if (a != 0) { double r = a / scale; squares += r * r; } }
-        double root = Math.hypot(scale * Math.sqrt(squares / WIDTH), Math.sqrt(EPSILON64));
-        return nan ? Double.NaN : infinity ? Double.POSITIVE_INFINITY : root;
+        double squares = 0, compensation = 0;
+        for (int i = 0; i < WIDTH; i++) {
+            double value = input[base + i], square = value * value;
+            if (Double.isNaN(square)) return Double.NaN;
+            if (square == Double.POSITIVE_INFINITY) squares = square;
+            else if (squares != Double.POSITIVE_INFINITY) {
+                double adjusted = square - compensation, next = squares + adjusted;
+                compensation = (next - squares) - adjusted; squares = next;
+            }
+        }
+        return Math.sqrt(squares / WIDTH + EPSILON64);
     }
-    private static double rms32(float[] input, int base) { double scale = 0, squares = 0;
-        boolean nan = false, infinity = false;
-        for (int i = 0; i < WIDTH; i++) { double value = input[base + i];
-            if (Double.isNaN(value)) nan = true;
-            else if (value == Double.POSITIVE_INFINITY || value == Double.NEGATIVE_INFINITY) infinity = true;
-            double a = Math.abs(value);
-            if (a != 0 && scale < a) { double r = scale / a; squares = 1 + squares * r * r; scale = a; }
-            else if (a != 0) { double r = a / scale; squares += r * r; } }
-        double root = (float) Math.hypot(scale * Math.sqrt(squares / WIDTH), Math.sqrt(EPSILON32));
-        return nan ? Double.NaN : infinity ? Double.POSITIVE_INFINITY : root; }
-    private static double rmsBfloat(short[] input, int base) { double scale = 0, squares = 0;
-        boolean nan = false, infinity = false;
-        for (int i = 0; i < WIDTH; i++) { double value = decode(input[base + i]);
-            if (Double.isNaN(value)) nan = true;
-            else if (value == Double.POSITIVE_INFINITY || value == Double.NEGATIVE_INFINITY) infinity = true;
-            double a = Math.abs(value);
-            if (a != 0 && scale < a) { double r = scale / a; squares = 1 + squares * r * r; scale = a; }
-            else if (a != 0) { double r = a / scale; squares += r * r; } }
-        double root = (float) Math.hypot(scale * Math.sqrt(squares / WIDTH), Math.sqrt(bfloatEpsilon()));
-        return nan ? Double.NaN : infinity ? Double.POSITIVE_INFINITY : root; }
+
+    private static float rms32(float[] input, int base) {
+        float squares = 0, compensation = 0;
+        for (int i = 0; i < WIDTH; i++) {
+            float value = input[base + i], square = value * value;
+            if (Float.isNaN(square)) return Float.NaN;
+            if (square == Float.POSITIVE_INFINITY) squares = square;
+            else if (squares != Float.POSITIVE_INFINITY) {
+                float adjusted = square - compensation, next = squares + adjusted;
+                compensation = (next - squares) - adjusted; squares = next;
+            }
+        }
+        return (float) Math.sqrt(squares / WIDTH + EPSILON32);
+    }
+
+    private static float rmsBfloat(short[] input, int base) {
+        float squares = 0, compensation = 0;
+        for (int i = 0; i < WIDTH; i++) {
+            float value = decode(input[base + i]), square = value * value;
+            if (Float.isNaN(square)) return Float.NaN;
+            if (square == Float.POSITIVE_INFINITY) squares = square;
+            else if (squares != Float.POSITIVE_INFINITY) {
+                float adjusted = square - compensation, next = squares + adjusted;
+                compensation = (next - squares) - adjusted; squares = next;
+            }
+        }
+        return (float) Math.sqrt(squares / WIDTH + bfloatEpsilon());
+    }
 
     private static void addMixedLayer(List<Case> cases, List<String> unsupported, Arena arena) throws Throwable {
         Shape inputShape = Shape.of(ROWS, WIDTH), normalized = Shape.of(WIDTH);
@@ -473,15 +518,19 @@ public final class CpuTrailingNormalizationEvidenceTest {
                     else if (v == Double.POSITIVE_INFINITY || v == Double.NEGATIVE_INFINITY) infinity = true;
                     if (i == 0) first = v; else if (v != first) constant = false; exactAdd64(directScratch, v); }
                 double mean = Double.longBitsToDouble(exactMean(directScratch, ExactType.F64, WIDTH));
-                double deviations = 0, dc = 0, squares = 0, sc = 0;
-                for (int i = 0; i < WIDTH; i++) { double d = decode(input.get(SHORT,
-                        (inputBase + i) * Short.BYTES)) - mean; double y = d - dc, n = deviations + y;
-                    dc = (n - deviations) - y; deviations = n; double square = d * d;
-                    double q = square - sc, z = squares + q; sc = (z - squares) - q; squares = z; }
-                double numerator = squares - deviations * deviations / WIDTH;
-                if (numerator < 0) numerator = 0; double root = Math.sqrt(numerator / WIDTH + EPSILON64);
-                if (nan || infinity) root = Double.NaN; else if (constant) root = Double.POSITIVE_INFINITY;
+                double squares = 0, compensation = 0;
+                for (int i = 0; i < WIDTH; i++) {
+                    double deviation = decode(input.get(SHORT, (inputBase + i) * Short.BYTES)) - mean;
+                    double square = deviation * deviation;
+                    if (square == Double.POSITIVE_INFINITY) squares = square;
+                    else if (squares != Double.POSITIVE_INFINITY) {
+                        double adjusted = square - compensation, next = squares + adjusted;
+                        compensation = (next - squares) - adjusted; squares = next;
+                    }
+                }
+                double root = Math.sqrt(squares / WIDTH + EPSILON64);
                 for (int i = 0; i < WIDTH; i++) { double standardized =
+                        nan || infinity ? Double.NaN : constant ? 0.0 :
                         (decode(input.get(SHORT, (inputBase + i) * Short.BYTES)) - mean) / root;
                     direct[outputBase + i] = standardized * (double) scale[i]
                             + bias.get(DOUBLE, (i + 2L) * Double.BYTES); } }
@@ -517,19 +566,21 @@ public final class CpuTrailingNormalizationEvidenceTest {
             return checksumMixed32(generated, outputStride, 3); };
         Action directAction = () -> { validateMixedRms(input, scale, direct);
             for (int row = 0; row < ROWS; row++) { long inputBase = 1L + row * inputStride;
-                long outputBase = 3L + row * outputStride; double stateScale = 0, squares = 0;
-                boolean nan = false, infinity = false; for (int i = 0; i < WIDTH; i++) {
-                    double v = decode(input.get(SHORT, (inputBase + i) * Short.BYTES));
-                    if (Double.isNaN(v)) nan = true; else if (v == Double.POSITIVE_INFINITY
-                            || v == Double.NEGATIVE_INFINITY) infinity = true; double a = Math.abs(v);
-                    if (a != 0 && stateScale < a) { double r = stateScale / a;
-                        squares = 1 + squares * r * r; stateScale = a; }
-                    else if (a != 0) { double r = a / stateScale; squares += r * r; } }
-                double root = (float) Math.hypot(stateScale * Math.sqrt(squares / WIDTH),
-                        Math.sqrt(EPSILON32)); if (nan) root = Double.NaN;
-                else if (infinity) root = Double.POSITIVE_INFINITY;
-                for (int i = 0; i < WIDTH; i++) { float v = (float) (decode(input.get(SHORT,
-                        (inputBase + i) * Short.BYTES)) / (float) root);
+                long outputBase = 3L + row * outputStride; float squares = 0, compensation = 0;
+                boolean nan = false;
+                for (int i = 0; i < WIDTH; i++) {
+                    float value = decode(input.get(SHORT, (inputBase + i) * Short.BYTES));
+                    float square = value * value; nan |= Float.isNaN(square);
+                    if (square == Float.POSITIVE_INFINITY) squares = square;
+                    else if (squares != Float.POSITIVE_INFINITY) {
+                        float adjusted = square - compensation, next = squares + adjusted;
+                        compensation = (next - squares) - adjusted; squares = next;
+                    }
+                }
+                float meanSquare = squares / WIDTH;
+                float root = nan ? Float.NaN : (float) Math.sqrt(meanSquare + EPSILON32);
+                for (int i = 0; i < WIDTH; i++) { float v = decode(input.get(SHORT,
+                        (inputBase + i) * Short.BYTES)) / root;
                     direct.set(FLOAT, (outputBase + i) * Float.BYTES, v * scale[i]); } }
             return checksumMixed32(direct, outputStride, 3); };
         cases.add(new Case("MIXED_RMS_SCALED_GENERAL", generatedAction, directAction,
@@ -603,11 +654,16 @@ public final class CpuTrailingNormalizationEvidenceTest {
             int baseIndex = row * WIDTH; exactReset(directScratch, ExactType.F32);
             for (int i = 0; i < WIDTH; i++) exactAdd32(directScratch, input[baseIndex + i]);
             float mean = Float.intBitsToFloat((int) exactMean(directScratch, ExactType.F32, WIDTH));
-            double ds = 0, dc = 0, ss = 0, sc = 0; for (int i = 0; i < WIDTH; i++) {
-                double d = (double) input[baseIndex + i] - mean, y = d - dc, n = ds + y;
-                dc = (n - ds) - y; ds = n; double square = d * d, q = square - sc, z = ss + q;
-                sc = (z - ss) - q; ss = z; } double numerator = ss - ds * ds / WIDTH;
-            if (numerator < 0) numerator = 0; direct[row] = (float) (numerator / (WIDTH - 1)); }
+            float squares = 0, compensation = 0;
+            for (int i = 0; i < WIDTH; i++) {
+                float deviation = input[baseIndex + i] - mean, square = deviation * deviation;
+                if (square == Float.POSITIVE_INFINITY) squares = square;
+                else if (squares != Float.POSITIVE_INFINITY) {
+                    float adjusted = square - compensation, next = squares + adjusted;
+                    compensation = (next - squares) - adjusted; squares = next;
+                }
+            }
+            direct[row] = squares / (WIDTH - 1); }
             return checksum(DataType.FLOAT32, direct); };
         cases.add(new Case("CONTROL_F32_VARIANCE", generatedAction, directAction,
                 () -> equal(DataType.FLOAT32, generated, direct), new long[9], new long[9]));
@@ -630,13 +686,19 @@ public final class CpuTrailingNormalizationEvidenceTest {
                 generated, plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, (long) ROWS);
             return checksum(DataType.FLOAT32, generated); };
         Action directAction = () -> { validateControl(input, direct); for (int row = 0; row < ROWS; row++) {
-            int baseIndex = row * WIDTH; double maximum = Double.NEGATIVE_INFINITY;
+            int baseIndex = row * WIDTH; float maximum = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < WIDTH; i++) maximum = Math.max(maximum, input[baseIndex + i]);
-            double sum = 0, compensation = 0; for (int i = 0; i < WIDTH; i++) {
-                double y = Math.exp((double) input[baseIndex + i] - maximum) - compensation;
-                double next = sum + y; compensation = (next - sum) - y; sum = next; }
-            for (int i = 0; i < WIDTH; i++) direct[baseIndex + i] = (float)
-                    (Math.exp((double) input[baseIndex + i] - maximum) / sum); }
+            float sum = 0, compensation = 0;
+            for (int i = 0; i < WIDTH; i++) {
+                float shifted = input[baseIndex + i] - maximum;
+                float exponential = (float) Math.exp(shifted);
+                float adjusted = exponential - compensation, next = sum + adjusted;
+                compensation = (next - sum) - adjusted; sum = next;
+            }
+            for (int i = 0; i < WIDTH; i++) {
+                float shifted = input[baseIndex + i] - maximum;
+                direct[baseIndex + i] = (float) Math.exp(shifted) / sum;
+            } }
             return checksum(DataType.FLOAT32, direct); };
         cases.add(new Case("CONTROL_F32_SOFTMAX", generatedAction, directAction,
                 () -> equal(DataType.FLOAT32, generated, direct), new long[9], new long[9]));
