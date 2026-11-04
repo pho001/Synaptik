@@ -1,0 +1,38 @@
+== first ==
+supplied-weight.copy-and-close=ok
+first.prediction=[0.0, 0.0]
+first.after-model-close=[0.0, 0.0]
+== tensors ==
+tensors.input=FLOAT32 [2,1], values=[1.0, 3.0]
+tensors.array-copy=ok
+tensors.expression-has-storage=false
+tensors.prediction=[0.0, 0.0]
+tensors.forward-composition-has-storage=false
+== gradients ==
+gradients.objective=[40.0]
+gradients.weight=[-40.0]
+gradients.weight-without-optimizer=0.0
+gradients.after-engine-close=[-40.0]
+== train ==
+train.objective-before-step=[40.0]
+train.private-weight=2.0
+train.optimizer-step=1
+train.prediction-after-step=[2.0, 6.0]
+train.caller-weight=0.0
+train.objective-after-model-close=[40.0]
+train.prediction-after-model-close=[2.0, 6.0]
+== save-load ==
+save-load.fresh-prediction=[4.0, 8.0]
+save-load.unconfigured-train=rejected
+save-load.fresh-training-objective=[0.0]
+save-load.fresh-optimizer-step=1
+save-load.after-model-close=[4.0, 8.0]
+== reuse ==
+reuse.model-first=[2.0, 6.0]
+reuse.model-fresh=[4.0, 8.0]
+reuse.prepared=[2.0, 6.0]
+reuse.prepared=[4.0, 8.0]
+reuse.after-all-owners-close=[4.0, 8.0]
+== invalid-shape ==
+invalid-shape.compute=IllegalArgumentException
+invalid-shape.valid-after-rejection=[0.0, 0.0]
