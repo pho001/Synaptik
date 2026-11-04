@@ -18,7 +18,10 @@ import java.lang.constant.MethodTypeDesc;
  * selected-axis loop then advances one affine input address, compares represented primitive
  * values, retains or replaces the logical coordinate according to the fixed tie policy, and
  * performs exactly one INT64 result store. No selected domain is split and no helper owned by
- * Synaptik is called from generated code.</p>
+ * Synaptik is called from generated code. Low formats decode exactly to FLOAT32 comparison
+ * locals; all FP8 encodings, including E4M3's finite top exponent bin, signed zeros and NaNs,
+ * retain the same first/last index and represented-order rules. Byte segment loads use the
+ * aligned-neutral JAVA_BYTE layout rather than a nonexistent unaligned-byte variant.</p>
  *
  * <p>Controlled output cells use their proved original-row ordinal before any input load or
  * comparison; inactive cells publish INT64 zero and preserve the ordinary output traversal.</p>
@@ -378,6 +381,12 @@ public final class CpuArgExtremaEmitter {
     }
 
     private static void normalizeLoaded(CodeBuilder code, DataType type) {
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            int raw = code.allocateLocal(TypeKind.INT);
+            code.istore(raw);
+            CpuCastEmitter.emitLowToFloat(code, type, raw);
+            return;
+        }
         if (type == DataType.BFLOAT16) {
             code.loadConstant(0xffff).iand().loadConstant(16).ishl()
                     .invokestatic(FLOAT, "intBitsToFloat",
@@ -426,6 +435,7 @@ public final class CpuArgExtremaEmitter {
             case FLOAT64 -> ConstantDescs.CD_double;
             case FLOAT32 -> ConstantDescs.CD_float;
             case BFLOAT16, FLOAT16 -> ConstantDescs.CD_short;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> ConstantDescs.CD_byte;
             case INT32 -> ConstantDescs.CD_int;
             case INT64 -> ConstantDescs.CD_long;
             case BOOL -> throw new AssertionError();
@@ -437,6 +447,7 @@ public final class CpuArgExtremaEmitter {
             case FLOAT64 -> "Double";
             case FLOAT32 -> "Float";
             case BFLOAT16, FLOAT16 -> "Short";
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> "Byte";
             case INT32 -> "Int";
             case INT64 -> "Long";
             case BOOL -> throw new AssertionError();
@@ -444,20 +455,21 @@ public final class CpuArgExtremaEmitter {
     }
 
     private static String layoutField(DataType type) {
-        return "JAVA_" + switch (type) {
-            case FLOAT64 -> "DOUBLE";
-            case FLOAT32 -> "FLOAT";
-            case BFLOAT16, FLOAT16 -> "SHORT";
-            case INT32 -> "INT";
-            case INT64 -> "LONG";
+        return switch (type) {
+            case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
+            case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
+            case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> "JAVA_BYTE";
+            case INT32 -> "JAVA_INT_UNALIGNED";
+            case INT64 -> "JAVA_LONG_UNALIGNED";
             case BOOL -> throw new AssertionError();
-        } + "_UNALIGNED";
+        };
     }
 
     private static TypeKind localKind(DataType type) {
         return switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
-            case FLOAT32, BFLOAT16, FLOAT16 -> TypeKind.FLOAT;
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> TypeKind.FLOAT;
             case INT32 -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
             case BOOL -> throw new AssertionError();
@@ -467,7 +479,7 @@ public final class CpuArgExtremaEmitter {
     private static void store(CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dstore(local);
-            case FLOAT32, BFLOAT16, FLOAT16 -> code.fstore(local);
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> code.fstore(local);
             case INT32 -> code.istore(local);
             case INT64 -> code.lstore(local);
             case BOOL -> throw new AssertionError();
@@ -477,7 +489,7 @@ public final class CpuArgExtremaEmitter {
     private static void load(CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dload(local);
-            case FLOAT32, BFLOAT16, FLOAT16 -> code.fload(local);
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> code.fload(local);
             case INT32 -> code.iload(local);
             case INT64 -> code.lload(local);
             case BOOL -> throw new AssertionError();

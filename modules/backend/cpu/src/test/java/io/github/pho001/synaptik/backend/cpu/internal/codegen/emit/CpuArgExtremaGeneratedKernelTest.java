@@ -27,6 +27,66 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class CpuArgExtremaGeneratedKernelTest {
+    @Test void everyFp8EncodingPairUsesExactNumericNanZeroAndTieIndicesAcrossCarriers()
+            throws Throwable {
+        int rows = 256 * 256;
+        Shape inputShape = Shape.of(rows, 2), outputShape = Shape.of(rows);
+        for (DataType type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            byte[] input = new byte[5 * rows + 1];
+            java.util.Arrays.fill(input, (byte) 0x42);
+            for (int pair = 0; pair < rows; pair++) {
+                input[1 + 5 * pair] = (byte) (pair >>> 8);
+                input[3 + 5 * pair] = (byte) pair;
+            }
+            byte[] original = input.clone();
+            for (AggregateReductionKind kind : List.of(AggregateReductionKind.ARG_MIN,
+                    AggregateReductionKind.ARG_MAX)) for (ArgExtremaTiePolicy tie : ArgExtremaTiePolicy.values()) {
+                for (int pattern = 0; pattern < 4; pattern++) {
+                    var selected = plan(kind,
+                            descriptor(type, inputShape, new long[] {5, 2}, 1),
+                            descriptor(DataType.INT64, outputShape, new long[] {2}, 1), 1, false, tie,
+                            List.of((pattern & 1) == 0 ? CarrierAccess.BYTE_ARRAY : CarrierAccess.MEMORY_SEGMENT,
+                                    (pattern & 2) == 0 ? CarrierAccess.LONG_ARRAY : CarrierAccess.MEMORY_SEGMENT));
+                    var route = selected.units().getFirst().portablePlan();
+                    var generator = new CpuClassFileKernelGenerator();
+                    var handle = generator.defineClassBytes(route.specialization(), route.kernelIr(),
+                            generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+                    long[] output = new long[2 * rows + 3];
+                    java.util.Arrays.fill(output, -9L);
+                    Object source = (pattern & 1) == 0 ? input : MemorySegment.ofArray(input);
+                    Object sink = (pattern & 2) == 0 ? output : MemorySegment.ofArray(output);
+                    long[] geometry = selected.argExtremaGeometry().orElseThrow().pack(new long[2]);
+                    handle.invokeWithArguments(source, sink, geometry, 0L, rows / 3L);
+                    handle.invokeWithArguments(source, sink, geometry, rows / 3L, rows / 3L);
+                    handle.invokeWithArguments(source, sink, geometry, rows / 3L, (long) rows);
+                    for (int pair = 0; pair < rows; pair++) {
+                        float left = fp8Value(type, (byte) (pair >>> 8));
+                        float right = fp8Value(type, (byte) pair);
+                        boolean last = tie == ArgExtremaTiePolicy.LAST_INDEX;
+                        boolean rightWins = Float.isNaN(right) ? !Float.isNaN(left) || last
+                                : !Float.isNaN(left) && (kind == AggregateReductionKind.ARG_MIN
+                                    ? Float.compare(right, left) < 0 || last && Float.compare(right, left) == 0
+                                    : Float.compare(right, left) > 0 || last && Float.compare(right, left) == 0);
+                        assertEquals(rightWins ? 1L : 0L, output[1 + 2 * pair],
+                                type + "/" + kind + "/" + tie + "/pattern=" + pattern + "/bits=" + pair);
+                        assertEquals(-9L, output[2 * pair]);
+                    }
+                    assertEquals(-9L, output[2 * rows]);
+                    assertEquals(-9L, output[2 * rows + 1]);
+                    assertEquals(-9L, output[2 * rows + 2]);
+                }
+            }
+            assertArrayEquals(original, input);
+        }
+    }
+
+    private static float fp8Value(DataType type, byte bits) {
+        return type == DataType.FLOAT8_E4M3
+                ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(bits)
+                : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(bits);
+    }
+
+
     @Test void controlledArgExtremaUsesNonleadingOriginalRowsBeforeInputLoads() throws Throwable {
         var selected = plan(AggregateReductionKind.ARG_MAX,
                 descriptor(DataType.FLOAT32, Shape.of(2, 3, 2), new long[]{6, 2, 1}, 0),
@@ -209,11 +269,11 @@ class CpuArgExtremaGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CarrierAccess.SHORT_ARRAY;
+            case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
             case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY;
             case BOOL -> throw new AssertionError();
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU arg extrema unsupported");
         };
     }
 
