@@ -29,7 +29,8 @@ import org.junit.jupiter.api.Test;
 /** Provider-to-finalization qualification, independent equations and exact padding/publication checks. */
 final class CpuRecurrentScanConformanceTest {
     @Test void scalarDtypesQualifyAllSignaturesDirectionsAndResolvedReadLayoutsIndependently() {
-        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16))
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             for (var kind : RecurrentScanKind.values()) for (boolean biased : List.of(false, true))
                 for (var direction : RecurrentDirection.values()) for (int layoutMode = 0; layoutMode < 3; layoutMode++) {
                     var base = context(kind, biased, direction, 3, 3, 1, 1, false);
@@ -49,7 +50,6 @@ final class CpuRecurrentScanConformanceTest {
                     var node = context.nodes().getFirst();
                     var query = new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(node.operation(),
                             ds.subList(0, inputCount), ds.subList(inputCount, ds.size()));
-                    if (CpuProfileFreeConformanceTest.assertLockedNumerical(context)) continue;
                     assertTrue(new CpuCapabilityProvider().supports(query), type + " independent provider query");
                     var analysis = new CpuPartitionPreparer().analyze(context);
                     var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
@@ -114,8 +114,8 @@ final class CpuRecurrentScanConformanceTest {
     }
     private static double work(DataType type, double value) { return type == DataType.FLOAT64 ? value : (float) value; }
     private static double published(DataType type, double value) {
-        return type == DataType.BFLOAT16 ? BFloat16Bits.toFloat(BFloat16Bits.fromFloat((float) value))
-                : type == DataType.FLOAT16 ? Float16Bits.toFloat(Float16Bits.fromFloat((float) value)) : work(type, value);
+        return LowPrecisionValues.TYPES.contains(type) ? LowPrecisionValues.decode(type,
+                LowPrecisionValues.encode(type, (float) value)) : work(type, value);
     }
     private static double sigmoid(DataType type, double value) {
         double e = work(type, StrictMath.exp(value >= 0 ? -value : value));
@@ -127,6 +127,8 @@ final class CpuRecurrentScanConformanceTest {
             case FLOAT32 -> segment.getAtIndex(ValueLayout.JAVA_FLOAT, index);
             case BFLOAT16 -> BFloat16Bits.toFloat(segment.getAtIndex(ValueLayout.JAVA_SHORT, index));
             case FLOAT16 -> Float16Bits.toFloat(segment.getAtIndex(ValueLayout.JAVA_SHORT, index));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> LowPrecisionValues.decode(type,
+                    segment.getAtIndex(ValueLayout.JAVA_BYTE, index) & 255);
             default -> throw new AssertionError(type);
         };
     }
@@ -136,11 +138,13 @@ final class CpuRecurrentScanConformanceTest {
             case FLOAT32 -> segment.setAtIndex(ValueLayout.JAVA_FLOAT, index, (float) value);
             case BFLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index, BFloat16Bits.fromFloat((float) value));
             case FLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index, Float16Bits.fromFloat((float) value));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> segment.setAtIndex(ValueLayout.JAVA_BYTE, index,
+                    (byte) LowPrecisionValues.encode(type, (float) value));
             default -> throw new AssertionError(type);
         }
     }
 
-    @Test void eachFixedSignatureQualifiesDirectFloat32AndQueriesEachLowType() {
+    @Test void eachFixedSignatureQualifiesDirectFloat32WithPaddingAndPublicationChecks() {
         for (var kind : RecurrentScanKind.values()) for (boolean bias : List.of(false, true))
             for (var direction : RecurrentDirection.values()) {
                 var context = context(kind, bias, direction, 3, 3, 1, 1, false);
@@ -149,12 +153,6 @@ final class CpuRecurrentScanConformanceTest {
                         node.inputs().stream().map(id -> context.values().get((int) id.value()).descriptor()).toList(),
                         node.outputs().stream().map(id -> context.values().get((int) id.value()).descriptor()).toList());
                 var provider = new CpuCapabilityProvider(); assertTrue(provider.supports(query));
-                for (var low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-                    var lowInputs = query.inputs().stream().map(d -> d.dataType() == DataType.INT64 ? d
-                            : new TensorDescriptor(low, d.shape(), d.layout(), d.requiresGrad())).toList();
-                    var lowOutputs = query.outputs().stream().map(d -> new TensorDescriptor(low, d.shape(), d.layout(), d.requiresGrad())).toList();
-                    assertFalse(provider.supports(new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(node.operation(), lowInputs, lowOutputs)));
-                }
                 var analysis = new CpuPartitionPreparer().analyze(context);
                 var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
                 try (var f = new Fixture(analysis, 2, true, true, Map.of())) {
@@ -299,6 +297,7 @@ final class CpuRecurrentScanConformanceTest {
                                 : type == DataType.FLOAT64 ? MemorySegment.ofArray(new double[Math.toIntExact(capacity / 8)])
                                 : type == DataType.BFLOAT16 || type == DataType.FLOAT16
                                     ? MemorySegment.ofArray(new short[Math.toIntExact(capacity / 2)])
+                                    : type.byteWidth() == 1 ? MemorySegment.ofArray(new byte[Math.toIntExact(capacity)])
                                     : MemorySegment.ofArray(new float[Math.toIntExact(capacity / 4)])
                             : arena.allocate(capacity, buffer.byteAlignment());
                     if (sliced) segment = segment.asSlice(8, buffer.byteSize());
@@ -326,6 +325,7 @@ final class CpuRecurrentScanConformanceTest {
         public float[] floats(int id) { return segment(id).toArray(ValueLayout.JAVA_FLOAT); }
         public void fill(int id, float value) { var s = segment(id); for (long p = 0; p < s.byteSize() / 4; p++) s.setAtIndex(ValueLayout.JAVA_FLOAT, p, value); }
         public void lengths(int id, long... values) { segment(id).copyFrom(MemorySegment.ofArray(values)); }
-        @Override public void close() { try { state.close(); } finally { try { workers.close(); } finally { arena.close(); } } }
+        @Override public void close() { try { state.close(); } finally { try { borrowed.forEach(CpuBorrowedBuffer::close); }
+            finally { try { workers.close(); } finally { arena.close(); } } } }
     }
 }

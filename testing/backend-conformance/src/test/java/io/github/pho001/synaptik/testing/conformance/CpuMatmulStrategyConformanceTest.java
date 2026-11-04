@@ -1,7 +1,6 @@
 package io.github.pho001.synaptik.testing.conformance;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization;
@@ -90,26 +89,33 @@ final class CpuMatmulStrategyConformanceTest {
         }
     }
 
-    @Test void privateTransposesPreserveScalarVectorAndParallelSelectionWithoutCopyResources() {
-        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.INT32,
-                DataType.INT64, DataType.BFLOAT16, DataType.FLOAT16)) {
+    @Test void privateTransposesExecuteTheSameProductAcrossTypesPreferencesAndWorkerCounts() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.INT32, DataType.INT64,
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
             for (var preference : ComputePreference.values()) for (int threads : new int[] {1, 4}) {
                 for (boolean right : List.of(false, true)) {
                     var context = transposedContext(type, preference, threads, right);
-                    if (CpuProfileFreeConformanceTest.assertLockedNumerical(context)) continue;
-                    var analysis = new CpuPartitionPreparer().analyze(context);
-                    var plan = analysis.plan();
-                    assertEquals(1, plan.units().size());
-                    assertEquals(3, analysis.requirements().size());
-                    assertFalse(plan.boundaryValues().contains(new ValueId(right ? 1 : 0)));
-                    boolean vector = !right && preference == ComputePreference.VECTOR_IF_ELIGIBLE
-                            && type != DataType.BFLOAT16 && type != DataType.FLOAT16;
-                    assertEquals(threads == 1
-                                    ? vector ? ExecutionStrategy.VECTOR : ExecutionStrategy.SCALAR
-                                    : vector ? ExecutionStrategy.PARALLEL_VECTOR : ExecutionStrategy.PARALLEL_SCALAR,
-                            plan.units().getFirst().executionStrategy(), type + " right=" + right);
-                    assertEquals(List.of(1L, right ? 63L : 2L), plan.units().getFirst()
-                            .accessBindings().get(right ? 1 : 0).effectiveStrides());
+                    var data = new java.util.HashMap<ValueId, java.lang.foreign.MemorySegment>();
+                    for (var value : context.values()) {
+                        if (value.id().equals(new ValueId(2)) || value.id().equals(new ValueId(right ? 1 : 0))) continue;
+                        int count = Math.toIntExact(value.descriptor().shape().knownElementCount().orElseThrow());
+                        var segment = java.lang.foreign.MemorySegment.ofArray(new byte[count * type.byteWidth()]);
+                        for (int i = 0; i < count; i++) write(type, segment, i, i % 5 - 2);
+                        data.put(value.id(), segment);
+                    }
+                    byte[] result = CpuLowPrecisionConformanceTest.execute(context, data).get(new ValueId(2));
+                    var output = java.lang.foreign.MemorySegment.ofArray(result);
+                    var left = data.get(new ValueId(right ? 0 : 3));
+                    var rhs = data.get(new ValueId(right ? 3 : 1));
+                    for (int row = 0; row < 2; row++) for (int column = 0; column < 128; column++) {
+                        float sum = 0;
+                        for (int k = 0; k < 63; k++) sum += (float) read(type, left, right ? row * 63 + k : k * 2 + row)
+                                * (float) read(type, rhs, right ? column * 63 + k : k * 128 + column);
+                        double expected = LowPrecisionValues.TYPES.contains(type)
+                                ? LowPrecisionValues.decode(type, LowPrecisionValues.encode(type, sum)) : sum;
+                        assertEquals(expected, read(type, output, row * 128 + column),
+                                type + " right=" + right + " preference=" + preference + " threads=" + threads);
+                    }
                 }
             }
         }
@@ -178,6 +184,32 @@ final class CpuMatmulStrategyConformanceTest {
             case INT32 -> jdk.incubator.vector.IntVector.SPECIES_PREFERRED.vectorBitSize();
             case INT64 -> jdk.incubator.vector.LongVector.SPECIES_PREFERRED.vectorBitSize();
             default -> throw new AssertionError(type);
+        };
+    }
+
+    private static void write(DataType type, java.lang.foreign.MemorySegment segment, int index, int value) {
+        switch (type) {
+            case FLOAT32 -> segment.set(java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED,index*4L,(float)value);
+            case FLOAT64 -> segment.set(java.lang.foreign.ValueLayout.JAVA_DOUBLE_UNALIGNED,index*8L,(double)value);
+            case INT32 -> segment.set(java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED,index*4L,value);
+            case INT64 -> segment.set(java.lang.foreign.ValueLayout.JAVA_LONG_UNALIGNED,index*8L,(long)value);
+            default -> {
+                int raw=LowPrecisionValues.encode(type,value);
+                if(type.byteWidth()==1)segment.set(java.lang.foreign.ValueLayout.JAVA_BYTE,index,(byte)raw);
+                else segment.set(java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED,index*2L,(short)raw);
+            }
+        }
+    }
+
+    private static double read(DataType type, java.lang.foreign.MemorySegment segment, int index) {
+        return switch (type) {
+            case FLOAT32 -> segment.get(java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED,index*4L);
+            case FLOAT64 -> segment.get(java.lang.foreign.ValueLayout.JAVA_DOUBLE_UNALIGNED,index*8L);
+            case INT32 -> segment.get(java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED,index*4L);
+            case INT64 -> segment.get(java.lang.foreign.ValueLayout.JAVA_LONG_UNALIGNED,index*8L);
+            default -> LowPrecisionValues.decode(type,type.byteWidth()==1
+                    ?segment.get(java.lang.foreign.ValueLayout.JAVA_BYTE,index)&255
+                    :segment.get(java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED,index*2L)&65535);
         };
     }
 

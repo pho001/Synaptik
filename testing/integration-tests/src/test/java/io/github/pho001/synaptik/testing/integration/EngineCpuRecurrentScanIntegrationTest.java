@@ -8,6 +8,8 @@ import io.github.pho001.synaptik.engine.RunResult;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.recurrent.*;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -51,7 +53,6 @@ final class EngineCpuRecurrentScanIntegrationTest {
                 var p = parts(kind, biased, direction, true, type, mode);
                 var roots = new ArrayList<>(p.outputs()); Collections.reverse(roots);
                 assertTrue(roots.stream().allMatch(t -> t.descriptor().requiresGrad()));
-                if (assertLocked(engine, type, roots)) continue;
                 var compiled = engine.compile(roots); // ordinary FORWARD_ONLY despite eligibility flags
                 try (var prepared = engine.prepare(compiled)) {
                     var reverseInputs = new ArrayList<>(ordered(compiled, p.inputs())); Collections.reverse(reverseInputs);
@@ -98,7 +99,6 @@ final class EngineCpuRecurrentScanIntegrationTest {
     @Test void finalCellOnlyStillExecutesSiblingOutputsAndConcurrentRunsHaveIsolatedScratch() throws Exception {
         for (var type : floatingTypes()) try (Engine engine = Engine.standard()) {
             var p = parts(RecurrentScanKind.LSTM, true, RecurrentDirection.REVERSE, false, type, 1);
-            if (assertLocked(engine, type, List.of(p.outputs().get(2)))) continue;
             var compiled = engine.compile(List.of(p.outputs().get(2)));
             try (var prepared = engine.prepare(compiled); var executor = Executors.newFixedThreadPool(2)) {
                 var valuesA = freshValues(ordered(compiled, p.inputs()), p.lengths(), new long[] {0, 1});
@@ -119,7 +119,6 @@ final class EngineCpuRecurrentScanIntegrationTest {
         for (var type : floatingTypes()) try (Engine engine = Engine.standard()) {
             var p = parts(RecurrentScanKind.RNN_TANH, false, RecurrentDirection.FORWARD, false, type, 1);
             var h = p.outputs().get(1); var alias = h.neg().neg();
-            if (assertLocked(engine, type, List.of(alias, p.outputs().get(0), h, h.add(h)))) continue;
             var compiled = engine.compile(List.of(alias, p.outputs().get(0), h, h.add(h)));
             try (var prepared = engine.prepare(compiled); var result = engine.run(prepared, ordered(compiled, p.inputs()))) {
                 assertEquals(4, result.resultCount()); assertNotSame(result.publications().get(0), result.publications().get(2));
@@ -165,7 +164,6 @@ final class EngineCpuRecurrentScanIntegrationTest {
             var w = floating(type, Shape.of(1, 1), false, 1, 1); var u = floating(type, Shape.of(1, 1), false, 1, 0);
             var scan = RecurrentScan.rnn(x, source.cast(DataType.INT64), h, w, u, RecurrentDirection.FORWARD);
             var pool = List.of(x, source, h, w, u);
-            if (assertLocked(engine, type, List.of(scan.finalHidden(), scan.outputs()))) continue;
             var compiled = engine.compile(List.of(scan.finalHidden(), scan.outputs()));
             try (var prepared = engine.prepare(compiled); var result = engine.run(prepared, ordered(compiled, pool))) {
                 assertEquals(0d, numbers(result, 1, type)[2]);
@@ -177,12 +175,6 @@ final class EngineCpuRecurrentScanIntegrationTest {
         }
     }
 
-    /** Low storage remains valid Model state, but fixed numerical recurrence has no CPU owner. */
-    private static boolean assertLocked(Engine engine, DataType type, List<Tensor> roots) {
-        if (type != DataType.BFLOAT16 && type != DataType.FLOAT16) return false;
-        assertThrows(IllegalStateException.class, () -> engine.compile(roots));
-        return true;
-    }
 
     private static List<Tensor> ordered(io.github.pho001.synaptik.engine.CompiledGraph compiled, List<Tensor> pool) {
         return compiled.inputs().stream().map(input -> pool.stream().filter(t -> t.id().equals(input.tensorId())).findFirst().orElseThrow()).toList();
@@ -233,6 +225,7 @@ final class EngineCpuRecurrentScanIntegrationTest {
                 case FLOAT64 -> MemorySegment.ofArray(old.toArray(ValueLayout.JAVA_DOUBLE));
                 case FLOAT32 -> MemorySegment.ofArray(old.toArray(ValueLayout.JAVA_FLOAT));
                 case BFLOAT16, FLOAT16 -> MemorySegment.ofArray(old.toArray(ValueLayout.JAVA_SHORT));
+                case FLOAT8_E4M3, FLOAT8_E5M2 -> MemorySegment.ofArray(old.toArray(ValueLayout.JAVA_BYTE));
                 case INT64 -> MemorySegment.ofArray(old.toArray(ValueLayout.JAVA_LONG));
                 default -> throw new AssertionError(d.dataType());
             };
@@ -242,7 +235,8 @@ final class EngineCpuRecurrentScanIntegrationTest {
         }).toList();
     }
 
-    private static List<DataType> floatingTypes() { return List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16); }
+    private static List<DataType> floatingTypes() { return List.of(DataType.FLOAT32, DataType.FLOAT64,
+            DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2); }
     private static LayoutDescriptor readLayout(Shape shape, int mode) {
         if (mode == 0) return LayoutDescriptor.contiguous(shape);
         var strides = LayoutDescriptor.contiguous(shape).strides();
@@ -255,6 +249,7 @@ final class EngineCpuRecurrentScanIntegrationTest {
             case FLOAT64 -> MemorySegment.ofArray(new double[count]);
             case FLOAT32 -> MemorySegment.ofArray(new float[count]);
             case BFLOAT16, FLOAT16 -> MemorySegment.ofArray(new short[count]);
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> MemorySegment.ofArray(new byte[count]);
             default -> throw new AssertionError(type);
         };
         storage.fill((byte) 0x7f);
@@ -267,6 +262,8 @@ final class EngineCpuRecurrentScanIntegrationTest {
                 case FLOAT32 -> storage.setAtIndex(ValueLayout.JAVA_FLOAT, address, (float) values[p]);
                 case BFLOAT16 -> storage.setAtIndex(ValueLayout.JAVA_SHORT, address, BFloat16Bits.fromFloat((float) values[p]));
                 case FLOAT16 -> storage.setAtIndex(ValueLayout.JAVA_SHORT, address, Float16Bits.fromFloat((float) values[p]));
+                case FLOAT8_E4M3 -> storage.setAtIndex(ValueLayout.JAVA_BYTE, address, Float8E4M3Bits.fromDouble(values[p]));
+                case FLOAT8_E5M2 -> storage.setAtIndex(ValueLayout.JAVA_BYTE, address, Float8E5M2Bits.fromDouble(values[p]));
                 default -> throw new AssertionError(type);
             }
         }
@@ -276,14 +273,17 @@ final class EngineCpuRecurrentScanIntegrationTest {
     private static double published(DataType type, double value) {
         return type == DataType.FLOAT64 ? value : type == DataType.FLOAT32 ? (float) value
                 : type == DataType.BFLOAT16 ? BFloat16Bits.toFloat(BFloat16Bits.fromFloat((float) value))
-                : Float16Bits.toFloat(Float16Bits.fromFloat((float) value));
+                : type == DataType.FLOAT16 ? Float16Bits.toFloat(Float16Bits.fromFloat((float) value))
+                : type == DataType.FLOAT8_E4M3 ? Float8E4M3Bits.toFloat(Float8E4M3Bits.fromFloat((float) value))
+                : Float8E5M2Bits.toFloat(Float8E5M2Bits.fromFloat((float) value));
     }
     private static double[] numbers(RunResult result, int port, DataType type) {
         var data = result.materialize(result.publications().get(port), 100000).bytes();
         var values = new double[data.remaining() / type.byteWidth()];
         for (int p = 0; p < values.length; p++) values[p] = type == DataType.FLOAT64 ? data.getDouble()
                 : type == DataType.FLOAT32 ? data.getFloat() : type == DataType.BFLOAT16 ? BFloat16Bits.toFloat(data.getShort())
-                : Float16Bits.toFloat(data.getShort());
+                : type == DataType.FLOAT16 ? Float16Bits.toFloat(data.getShort())
+                : type == DataType.FLOAT8_E4M3 ? Float8E4M3Bits.toFloat(data.get()) : Float8E5M2Bits.toFloat(data.get());
         return values;
     }
     private static Tensor floats(Shape shape, boolean grad, float... values) { return tensor(DataType.FLOAT32, shape, grad, MemorySegment.ofArray(values)); }

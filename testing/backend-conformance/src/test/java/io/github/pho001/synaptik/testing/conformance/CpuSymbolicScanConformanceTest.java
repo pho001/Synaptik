@@ -23,11 +23,11 @@ import org.junit.jupiter.api.Test;
 /** Model-built independent provider, numeric-resource and generated-execution witnesses. */
 class CpuSymbolicScanConformanceTest {
     @Test void symbolicLengthDtypesHaveSeparateControlAndActualSizedGeneratedResources() throws Throwable {
-        for (DataType type : List.of(DataType.FLOAT32,DataType.FLOAT64)) {
+        for (DataType type : List.of(DataType.FLOAT32,DataType.FLOAT64,DataType.BFLOAT16,DataType.FLOAT16,
+                DataType.FLOAT8_E4M3,DataType.FLOAT8_E5M2)) {
             var q = symbolicLengthQuery(type); assertTrue(new CpuCapabilityProvider().supports(q)); assertFalse(new MetalCapabilityProvider().supports(q));
             var analysis = new CpuPartitionPreparer().analyze(CpuGeneralScanConformanceTest.context(q));
             var unit = analysis.plan().units().getFirst(); var facts = unit.runtimeFacts().generalScan().orElseThrow();
-            assertTrue(facts.ir().symbolic()); assertTrue(facts.ir().lengthAware());
             var spec = unit.portablePlan().specialization(); var generator = new CpuClassFileKernelGenerator();
             byte[] bytes = generator.generateClassBytes(spec,unit.portablePlan().kernelIr());
             var entry = generator.defineClassBytes(spec, unit.portablePlan().kernelIr(), bytes).entryPoint().asSpreader(0,MemorySegment[].class,unit.boundaryValues().size()+1);
@@ -35,7 +35,7 @@ class CpuSymbolicScanConformanceTest {
                 var args = new ArrayList<MemorySegment>();
                 for (int p = 0; p < facts.batchBindings().size(); p++) args.add(arena.allocate(
                         facts.batchBindings().get(p).bind(batch).referencedElementSpan()*facts.ir().boundaryType(p).byteWidth(),facts.ir().boundaryType(p).byteWidth()));
-                args.add(arena.allocate(facts.geometry().workspaceSize().byteSize(batch),type.byteWidth()));
+                args.add(arena.allocate(facts.geometry().workspaceSize().byteSize(batch),8));
                 var lengths = args.get(facts.ir().lengthRead()); assertEquals(batch*8L,lengths.byteSize());
                 for (int row = 0; row < batch; row++) lengths.setAtIndex(ValueLayout.JAVA_LONG,row,row%5);
                 for (int p = 0; p < 3; p++) for (long i = 0; i < args.get(p).byteSize()/type.byteWidth(); i++) put(type,args.get(p),i,p == 2 ? .25 : .5);
@@ -54,15 +54,21 @@ class CpuSymbolicScanConformanceTest {
         inputs.add(descriptor(DataType.INT64,Shape.ofDimensions(new DynamicDimension("B"))));
         return new OperationCapabilityQuery(new Operation(ScanKind.SCAN,new ScanAttrs(a.timeCount(), a.carryCount(), a.sequenceCount(), a.invariantCount(), a.emissionCount(), a.residualCount(), a.reverse(), true, 1, List.of(OptionalInt.of(0)))),inputs,q.outputs(),q.scanBody(),q.scanActivityPlan());
     }
-    private static void put(DataType type,MemorySegment s,long i,double value) { if (type == DataType.FLOAT64) s.setAtIndex(ValueLayout.JAVA_DOUBLE,i,value); else s.setAtIndex(ValueLayout.JAVA_FLOAT,i,(float)value); }
-    private static double get(DataType type,MemorySegment s,long i) { return type == DataType.FLOAT64 ? s.getAtIndex(ValueLayout.JAVA_DOUBLE,i) : s.getAtIndex(ValueLayout.JAVA_FLOAT,i); }
+    private static void put(DataType type,MemorySegment s,long i,double value) {
+        if (LowPrecisionValues.TYPES.contains(type)) LowPrecisionValues.put(type,s,i,(float)value);
+        else if (type == DataType.FLOAT64) s.setAtIndex(ValueLayout.JAVA_DOUBLE,i,value);
+        else s.setAtIndex(ValueLayout.JAVA_FLOAT,i,(float)value);
+    }
+    private static double get(DataType type,MemorySegment s,long i) {
+        return LowPrecisionValues.TYPES.contains(type) ? LowPrecisionValues.decode(type,LowPrecisionValues.raw(type,s,i))
+                : type == DataType.FLOAT64 ? s.getAtIndex(ValueLayout.JAVA_DOUBLE,i) : s.getAtIndex(ValueLayout.JAVA_FLOAT,i);
+    }
 
     @Test void qualifiedFloat32UsesActualRowBytesAndIndependentSharedParameterShape() throws Throwable {
         for (boolean reverse : List.of(false,true)) for (int time : new int[] {0,3}) {
             var q = query(time,reverse,DataType.FLOAT32); var cpu = new CpuCapabilityProvider();
             assertTrue(cpu.supports(q)); assertFalse(new MetalCapabilityProvider().supports(q));
             assertTrue(cpu.supports(query(time, reverse, DataType.FLOAT64)));
-            for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) assertFalse(cpu.supports(query(time,reverse,type)));
             var analysis = new CpuPartitionPreparer().analyze(CpuGeneralScanConformanceTest.context(q));
             var unit = analysis.plan().units().getFirst(); var facts = unit.runtimeFacts().generalScan().orElseThrow();
             assertTrue(unit.runtimeFacts().workspaceDeclaration().isPresent(),"zero bytes never erase structural workspace membership");

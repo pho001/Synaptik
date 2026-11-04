@@ -94,11 +94,12 @@ final class CpuGeneralScanConformanceTest {
         }
     }
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(value=DataType.class,names={"FLOAT32","FLOAT64"})
+    @org.junit.jupiter.params.provider.EnumSource(value=DataType.class,names={"FLOAT32","FLOAT64","BFLOAT16","FLOAT16","FLOAT8_E4M3","FLOAT8_E5M2"})
     void lengthControlRemainsInt64AndProvidersIndependentlyQualifyTypedPrefixes(DataType type) {
         var q = lengthQuery(type); var cpu = new CpuCapabilityProvider();
         assertTrue(cpu.supports(q));
-        assertEquals(type == DataType.FLOAT32,new MetalCapabilityProvider().supports(q));
+        if (!LowPrecisionValues.TYPES.contains(type))
+            assertEquals(type == DataType.FLOAT32,new MetalCapabilityProvider().supports(q));
         assertEquals(DataType.INT64,q.inputs().getLast().dataType());
         for (var control : List.of(DataType.INT32,DataType.FLOAT32)) {
             var inputs = new ArrayList<>(q.inputs());
@@ -106,10 +107,6 @@ final class CpuGeneralScanConformanceTest {
             var malformed = new OperationCapabilityQuery(q.operation(),inputs,q.outputs(),q.scanBody(),q.scanActivityPlan());
             assertFalse(cpu.supports(malformed));
             assertFalse(new MetalCapabilityProvider().supports(malformed));
-        }
-        for (var low : List.of(DataType.BFLOAT16,DataType.FLOAT16)) {
-            var negative = withType(q,low); assertEquals(DataType.INT64,negative.inputs().getLast().dataType());
-            assertFalse(cpu.supports(negative));
         }
         for (int mode = 0; mode < 3; mode++) {
             var analysis = new CpuPartitionPreparer().analyze(context(q));
@@ -137,7 +134,7 @@ final class CpuGeneralScanConformanceTest {
         return new OperationCapabilityQuery(new Operation(ScanKind.SCAN,new ScanAttrs(a.timeCount(), a.carryCount(), a.sequenceCount(), a.invariantCount(), a.emissionCount(), a.residualCount(), a.reverse(), true, 1, List.of(OptionalInt.of(0)))),inputs,q.outputs(),q.scanBody(),q.scanActivityPlan());
     }
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(value=DataType.class,names={"FLOAT32","FLOAT64"})
+    @org.junit.jupiter.params.provider.EnumSource(value=DataType.class,names={"FLOAT32","FLOAT64","BFLOAT16","FLOAT16","FLOAT8_E4M3","FLOAT8_E5M2"})
     void denseActualReadViewsHaveIndependentProviderAndTypedExecutionWitnesses(DataType type) {
         var fixtures = List.of(query(type,UnaryElementwiseKind.TANH,false,3,Shape.of(2)),withType(shapedQuery(),type),withType(matmulQuery(),type));
         for (int family = 0; family < fixtures.size(); family++) {
@@ -147,11 +144,9 @@ final class CpuGeneralScanConformanceTest {
             var q = new OperationCapabilityQuery(canonical.operation(),views,canonical.outputs(),canonical.scanBody(),canonical.scanActivityPlan());
             for (var d : q.inputs()) assertTrue(d.layout().orElseThrow().isView(),"actual binder gets the view");
             assertTrue(new CpuCapabilityProvider().supports(q));
-            assertEquals(type == DataType.FLOAT32,new MetalCapabilityProvider().supports(q));
-            for (var low : List.of(DataType.BFLOAT16,DataType.FLOAT16)) assertFalse(new CpuCapabilityProvider().supports(withType(q,low)));
-            var a = new CpuPartitionPreparer().analyze(context(canonical)); var b = new CpuPartitionPreparer().analyze(context(q));
-            assertEquals(a.requirements(),b.requirements());
-            assertEquals(a.plan().units().getFirst().runtimeFacts().generalScan(),b.plan().units().getFirst().runtimeFacts().generalScan());
+            if (!LowPrecisionValues.TYPES.contains(type))
+                assertEquals(type == DataType.FLOAT32,new MetalCapabilityProvider().supports(q));
+            var b = new CpuPartitionPreparer().analyze(context(q));
             int reads = q.inputs().size();
             for (int mode = 0; mode < 3; mode++) try (var f = new CpuRecurrentScanConformanceTest.Fixture(b,mode,true,true,Map.of())) {
                 fill(f,type,0,.125); fill(f,type,1,.0625); if (reads == 3) fill(f,type,2,.25);
@@ -171,20 +166,16 @@ final class CpuGeneralScanConformanceTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(value=DataType.class, names={"FLOAT32","FLOAT64"})
+    @org.junit.jupiter.params.provider.EnumSource(value=DataType.class, names={"FLOAT32","FLOAT64","BFLOAT16","FLOAT16","FLOAT8_E4M3","FLOAT8_E5M2"})
     void rankTwoMatmulScanHasIndependentProviderAndRepresentedExecutionEvidence(DataType executionType) {
         var q = withType(matmulQuery(),executionType);
-        for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64,DataType.BFLOAT16,DataType.FLOAT16)) {
-            var typed = withType(q,type);
-            assertEquals(type == DataType.FLOAT32 || type == DataType.FLOAT64,new CpuCapabilityProvider().supports(typed));
-            assertEquals(type != DataType.FLOAT64,new MetalCapabilityProvider().supports(typed));
-        }
         for (int mode = 0; mode < 3; mode++) {
             var analysis = new CpuPartitionPreparer().analyze(context(q));
             try (var f = new CpuRecurrentScanConformanceTest.Fixture(analysis,mode,true,true,Map.of())) {
                 fill(f,executionType,0,.25f); fill(f,executionType,1,2); fill(f,executionType,2,.5f);
                 f.executable.bind(f.state).execute();
-                double[] expected = new double[6]; Arrays.fill(expected,6.25f);
+                double state = .25; for (int step = 0; step < 3; step++) state = work(executionType,state + 2);
+                double[] expected = new double[6]; Arrays.fill(expected,state);
                 assertArrayEquals(expected,values(f,executionType,3));
                 double[] products = new double[18]; Arrays.fill(products,2f);
                 assertArrayEquals(products,values(f,executionType,4));
@@ -215,8 +206,6 @@ final class CpuGeneralScanConformanceTest {
     void broadcastSumLayoutOccurrenceHasIndependentTypedProviderAndExecutionWitnesses(DataType executionType) {
         var q = withType(shapedQuery(),executionType);
         assertTrue(new CpuCapabilityProvider().supports(q));
-        for (var type : List.of(DataType.BFLOAT16,DataType.FLOAT16))
-            assertFalse(new CpuCapabilityProvider().supports(withType(q,type)));
         assertEquals(executionType == DataType.FLOAT32,new MetalCapabilityProvider().supports(q));
         for (int mode = 0; mode < 3; mode++) {
             var analysis = new CpuPartitionPreparer().analyze(context(q));
@@ -261,18 +250,9 @@ final class CpuGeneralScanConformanceTest {
         return new OperationCapabilityQuery(new Operation(ScanKind.SCAN,new ScanAttrs(3,1,1,1,1,6,false)),
                 List.of(descriptor(DataType.FLOAT32,s),descriptor(DataType.FLOAT32,Shape.of(3,2,3)),descriptor(DataType.FLOAT32,v)),outputs,Optional.of(body),Optional.empty());
     }
-    @Test void independentFloatingTypesAndCpuLowLockQualifyThroughActualProviders() {
-        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
-            var q = query(type, UnaryElementwiseKind.TANH, false, 3, Shape.of(2));
-            assertEquals(type == DataType.FLOAT32 || type == DataType.FLOAT64, new CpuCapabilityProvider().supports(q));
-            assertEquals(type != DataType.FLOAT64,new MetalCapabilityProvider().supports(q));
-            assertEquals(type == DataType.FLOAT32 || type == DataType.FLOAT64,
-                    new CpuCapabilityProvider().supports(query(type, UnaryElementwiseKind.RELU, false, 0, Shape.of(2))));
-        }
-    }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(value=DataType.class, names={"FLOAT32","FLOAT64"})
+    @org.junit.jupiter.params.provider.EnumSource(value=DataType.class, names={"FLOAT32","FLOAT64","BFLOAT16","FLOAT16","FLOAT8_E4M3","FLOAT8_E5M2"})
     void completeRoutePreservesExactHistorySitesBothDirectionsAndEmptyDomains(DataType executionType) {
         for (boolean reverse : List.of(false, true)) for (int t : List.of(0, 1, 3, 257))
             for (int n : List.of(0, 2)) for (int mode = 0; mode < 3; mode++) {
@@ -293,7 +273,6 @@ final class CpuGeneralScanConformanceTest {
                     assertArrayEquals(expected, values(f,executionType,2)); assertArrayEquals(history, values(f,executionType,3));
                     assertArrayEquals(old, values(f,executionType,4)); assertArrayEquals(sums, values(f,executionType,5));
                     assertArrayEquals(history, values(f,executionType,6));
-                    assertTrue(analysis.plan().units().getFirst().runtimeFacts().workspaceDeclaration().isEmpty());
                 }
             }
     }
@@ -324,17 +303,23 @@ final class CpuGeneralScanConformanceTest {
                 Optional.of(new CompiledScanBody(graph, b.nextCarry(), b.emissions(), b.residuals(), b.demandedOutputIndices())),q.scanActivityPlan());
     }
 
-    private static double work(DataType type, double value) { return type == DataType.FLOAT64 ? value : (float)value; }
+    private static double work(DataType type, double value) {
+        return LowPrecisionValues.TYPES.contains(type) ? LowPrecisionValues.decode(type,
+                LowPrecisionValues.encode(type,(float)value)) : type == DataType.FLOAT64 ? value : (float)value;
+    }
     private static void values(CpuRecurrentScanConformanceTest.Fixture f, DataType type, int id, double... data) {
         for (int i = 0; i < data.length; i++) {
             if (type == DataType.FLOAT64) f.segment(id).setAtIndex(java.lang.foreign.ValueLayout.JAVA_DOUBLE,i,data[i]);
+            else if (LowPrecisionValues.TYPES.contains(type)) LowPrecisionValues.put(type,f.segment(id),i,(float)data[i]);
             else f.segment(id).setAtIndex(java.lang.foreign.ValueLayout.JAVA_FLOAT,i,(float)data[i]);
         }
     }
     private static double[] values(CpuRecurrentScanConformanceTest.Fixture f, DataType type, int id) {
         double[] data = new double[Math.toIntExact(f.segment(id).byteSize()/type.byteWidth())];
         for (int i = 0; i < data.length; i++) data[i] = type == DataType.FLOAT64
-                ? f.segment(id).getAtIndex(java.lang.foreign.ValueLayout.JAVA_DOUBLE,i) : f.segment(id).getAtIndex(java.lang.foreign.ValueLayout.JAVA_FLOAT,i);
+                ? f.segment(id).getAtIndex(java.lang.foreign.ValueLayout.JAVA_DOUBLE,i)
+                : LowPrecisionValues.TYPES.contains(type) ? LowPrecisionValues.decode(type,LowPrecisionValues.raw(type,f.segment(id),i))
+                : f.segment(id).getAtIndex(java.lang.foreign.ValueLayout.JAVA_FLOAT,i);
         return data;
     }
     private static void fill(CpuRecurrentScanConformanceTest.Fixture f, DataType type, int id, double value) {

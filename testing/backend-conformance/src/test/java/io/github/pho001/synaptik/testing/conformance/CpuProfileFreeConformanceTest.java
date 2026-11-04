@@ -54,33 +54,6 @@ final class CpuProfileFreeConformanceTest {
     private static final Shape SHAPE = Shape.of(3);
     private static final TensorDescriptor FLOAT = descriptor(DataType.FLOAT32);
 
-    /**
-     * Proves the unsupported outcome of a numerical-family low fixture without removing its
-     * dtype/carrier/layout row. Exact/storage-only families must not call this helper.
-     * @param context exact independently constructed numerical-family fixture
-     * @return whether both actual source and independent preparation rejected a low row
-     */
-    static boolean assertLockedNumerical(PrepareContext<CpuPartitionAnalysisInputs> context) {
-        if (context.values().stream().noneMatch(value -> value.descriptor().dataType() == DataType.BFLOAT16
-                || value.descriptor().dataType() == DataType.FLOAT16)) return false;
-        var descriptors = new java.util.HashMap<ValueId, TensorDescriptor>();
-        context.values().forEach(value -> descriptors.put(value.id(), value.descriptor()));
-        boolean rejected = false;
-        for (var node : context.nodes()) {
-            var query = new OperationCapabilityQuery(node.operation(), node.inputs().stream().map(descriptors::get).toList(),
-                    node.outputs().stream().map(descriptors::get).toList(), node.scanBody(),
-                    Optional.ofNullable(context.scanActivityPlans().get(node.id())));
-            rejected |= !new CpuCapabilityProvider().supports(query);
-        }
-        assertTrue(rejected, "a low numerical source occurrence must have no CPU owner");
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-                () -> new CpuPartitionPreparer().analyze(context));
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-                () -> new CpuPartitionPreparer().completePlanCandidates(context));
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-                () -> new io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering().lower(context));
-        return true;
-    }
 
     /** Exact fusion keeps producing-site rounding, fresh run state and all-input alias checks. */
     @Test void ordinaryProducerExactSumTailPreservesRoundingResourcesAndFailBeforeWrites() {

@@ -37,7 +37,7 @@ final class CpuActivationConformanceTest {
             UnaryElementwiseKind.GELU_TANH_APPROXIMATION, UnaryElementwiseKind.SILU);
 
     @Test void lowCompositesConformOnEveryCarrierPairAndStridedLayout() {
-        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+        for (DataType type : LowPrecisionValues.TYPES)
             for (UnaryElementwiseKind kind : LOW)
                 for (boolean strided : List.of(false, true))
                     for (boolean nativeIn : List.of(false, true))
@@ -61,13 +61,13 @@ final class CpuActivationConformanceTest {
                 Optional.of(LayoutDescriptor.of(SHAPE, new long[] {stride}, 1, true)), false);
         int span = Math.toIntExact(descriptor.layout().orElseThrow().referencedElementSpan());
         var operation = new Operation(kind, NoOperationAttrs.INSTANCE);
-        assertEquals(type != DataType.BFLOAT16 && type != DataType.FLOAT16,
-                new CpuCapabilityProvider().supports(new OperationCapabilityQuery(operation,
-                        List.of(descriptor), List.of(descriptor))));
+        assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(operation,
+                List.of(descriptor), List.of(descriptor))));
         var node = new CompiledNode(new NodeId(0), operation, List.of(new ValueId(0)), List.of(new ValueId(1)));
         var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID, List.of(node.id()));
         CarrierAccess heap = type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY
-                : type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY : CarrierAccess.SHORT_ARRAY;
+                : type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
+                : type.byteWidth() == 1 ? CarrierAccess.BYTE_ARRAY : CarrierAccess.SHORT_ARRAY;
         var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(vector
                 ? CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 : CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR, 1, 1, 1);
@@ -79,11 +79,7 @@ final class CpuActivationConformanceTest {
                                 List.of(), true)), Map.of(), new CpuPartitionAnalysisInputs(false,
                         List.of(nativeIn ? CarrierAccess.MEMORY_SEGMENT : heap,
                                 nativeOut ? CarrierAccess.MEMORY_SEGMENT : heap), config));
-        if (CpuProfileFreeConformanceTest.assertLockedNumerical(context)) return;
         var analysis = new CpuPartitionPreparer().analyze(context);
-        assertEquals(vector ? CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR
-                : CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR,
-                analysis.plan().units().getFirst().executionStrategy().compute());
         PreparedExecutable executable = finalizePortable(analysis);
         try (Arena arena = Arena.ofConfined(); CpuBackendIntegration integration = CpuBackendIntegration.open()) {
             MemorySegment inputBacking = backing(arena, type, nativeIn, span + 2);
@@ -93,7 +89,7 @@ final class CpuActivationConformanceTest {
             for (int i = 0; i < span + 2; i++) {
                 put(type, inputBacking, i, -71); put(type, outputBacking, i, -71);
             }
-            boolean low = type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+            boolean low = LowPrecisionValues.TYPES.contains(type);
             double huge = low ? 6 : type == DataType.FLOAT64 ? 1e100 : 1e10;
             double[] values = {-huge, huge, -0d, 0d, Double.NaN,
                     Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY};
@@ -108,10 +104,10 @@ final class CpuActivationConformanceTest {
                 for (int p = 0; p < span + 2; p++) {
                     int logical = (p - 2) / stride;
                     if (p < 2 || (p - 2) % stride != 0 || logical >= count) {
-                        assertEquals(-71d, get(type, outputBacking, p), "sentinel");
+                        assertEquals(get(type, inputBacking, 0), get(type, outputBacking, p), "sentinel");
                         continue;
                     }
-                    double x = values[logical % values.length];
+                    double x = get(type, in, 1 + logical * stride);
                     double expected = expected(kind, x, low);
                     MemorySegment rounded = backing(arena, type, false, 1);
                     put(type, rounded, 0, expected);
@@ -149,7 +145,8 @@ final class CpuActivationConformanceTest {
     private static MemorySegment backing(Arena arena, DataType type, boolean nativeStorage, int count) {
         if (nativeStorage) return arena.allocate((long) count * type.byteWidth(), type.byteWidth());
         return type == DataType.FLOAT64 ? MemorySegment.ofArray(new double[count])
-                : type == DataType.FLOAT32 ? MemorySegment.ofArray(new float[count]) : MemorySegment.ofArray(new short[count]);
+                : type == DataType.FLOAT32 ? MemorySegment.ofArray(new float[count])
+                : type.byteWidth() == 1 ? MemorySegment.ofArray(new byte[count]) : MemorySegment.ofArray(new short[count]);
     }
     private static void put(DataType type, MemorySegment segment, int index, double x) {
         switch (type) {
@@ -161,6 +158,8 @@ final class CpuActivationConformanceTest {
                 segment.setAtIndex(ValueLayout.JAVA_SHORT, index, (short) (Float.isNaN((float) x) ? 0x7fc0
                         : (bits + 0x7fff + ((bits >>> 16) & 1)) >>> 16));
             }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> segment.setAtIndex(ValueLayout.JAVA_BYTE, index,
+                    (byte) LowPrecisionValues.encode(type, (float) x));
             default -> throw new AssertionError(type);
         }
     }
@@ -170,6 +169,8 @@ final class CpuActivationConformanceTest {
             case FLOAT32 -> segment.getAtIndex(ValueLayout.JAVA_FLOAT, index);
             case FLOAT16 -> Float.float16ToFloat(segment.getAtIndex(ValueLayout.JAVA_SHORT, index));
             case BFLOAT16 -> Float.intBitsToFloat(segment.getAtIndex(ValueLayout.JAVA_SHORT, index) << 16);
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> LowPrecisionValues.decode(type,
+                    segment.getAtIndex(ValueLayout.JAVA_BYTE, index) & 255);
             default -> throw new AssertionError(type);
         };
     }

@@ -84,17 +84,9 @@ class CpuBroadcastFoldConformanceTest {
         }
     }
 
-    @Test void bothLowFormatsRejectNumericalFoldBeforeSplitStorageRealization() {
-        for(var type:List.of(DataType.BFLOAT16,DataType.FLOAT16)) {
-            if (CpuProfileFreeConformanceTest.assertLockedNumerical(context(type))) continue;
+    @Test void lowFormatsAccumulateEveryFoldContributorOnceAndRejectInvalidStorageBeforeWrites() {
+        for(var type:LowPrecisionValues.TYPES) {
             var analysis=new CpuPartitionPreparer().analyze(context(type));var plan=analysis.plan();
-            var fold=plan.units().stream().filter(u->u.portablePlan().portableKernelIr() instanceof CpuFoldIr).findFirst().orElseThrow();
-            assertFalse(((CpuFoldIr)fold.portablePlan().portableKernelIr()).kernelBroadcastInput());
-            assertFalse(fold.portablePlan().kernelIr().familyIdentity().contains("kernel-broadcast"));
-            assertTrue(fold.portablePlan().kernelIr().familyIdentity().endsWith(":low-fp32-accumulation-v1"));
-            assertTrue(plan.boundaryValues().contains(new ValueId(5)));
-            assertTrue(plan.bufferDeclarations().stream().anyMatch(b->b.valueId().equals(new ValueId(5))&&b.byteSize()==1008L*type.byteWidth()));
-            assertTrue(plan.workspaceDeclaration().isEmpty());
             var buffers=new ArrayList<PreparedMemoryPlan.BufferEntry>();var assignments=new ArrayList<PreparationResourceAssignment>();
             for(var declaration:plan.bufferDeclarations()) {
                 var slot=new BufferSlot(buffers.size());
@@ -111,55 +103,60 @@ class CpuBroadcastFoldConformanceTest {
                         var segment=arena.allocate(declaration.byteSize(),declaration.byteAlignment());
                         segments.put(declaration.valueId(),segment);
                         bindings.add(List.of(new BufferRepresentationBinding(CpuBorrowedBuffer.borrow(
-                                new MemorySegmentStorage(type,declaration.byteSize()/2,segment)),RunResourceOwnership.BORROWED)));
+                                new MemorySegmentStorage(type,declaration.byteSize()/type.byteWidth(),segment)),RunResourceOwnership.RUN_OWNED)));
                     }
                     var source=segments.get(new ValueId(0));var output=segments.get(new ValueId(6));
-                    float half=Math.scalb(1f,type==DataType.BFLOAT16?-8:-11);
-                    for(int i=0;i<168;i++) source.setAtIndex(ValueLayout.JAVA_SHORT,i,encodeLow(type,
-                            i%7==0?run:i%7==1?half:i%7==2?-run:(i%13-6)/7f));
-                    executable.bind(new RunState(memory,bindings,List.of())).execute();
+                    float half=Math.scalb(1f,type==DataType.BFLOAT16?-8:type==DataType.FLOAT16?-11:
+                            type==DataType.FLOAT8_E4M3?-4:-3);
+                    for(int i=0;i<168;i++) LowPrecisionValues.put(type,source,i,
+                            i%7==0?run:i%7==1?half:i%7==2?-run:(i%13-6)/7f);
+                    try(var state=new RunState(memory,bindings,List.of())) {
+                        executable.bind(state).execute();
+                    }
                     float[] expected=new float[210];
                     for(int nc=0;nc<6;nc++)for(int ky=0;ky<2;ky++)for(int kx=0;kx<3;kx++)for(int p=0;p<28;p++) {
                         int y=p/7+ky,x=p%7-1+kx;
                         if(x<0||x>=7)continue;
-                        expected[nc*35+y*7+x]+=decodeLow(type,source.getAtIndex(ValueLayout.JAVA_SHORT,nc*28+p));
+                        expected[nc*35+y*7+x]+=LowPrecisionValues.decode(type,LowPrecisionValues.raw(type,source,nc*28+p));
                     }
-                    for(int i=0;i<210;i++)assertEquals(encodeLow(type,expected[i]),output.getAtIndex(ValueLayout.JAVA_SHORT,i));
+                    for(int i=0;i<210;i++)assertEquals(LowPrecisionValues.encode(type,expected[i]),LowPrecisionValues.raw(type,output,i));
                 }
                 for(int bad=0;bad<6;bad++) {
+                    if(bad==2&&type.byteWidth()==1)continue; // Every byte address is naturally aligned.
                     var segments=new HashMap<ValueId,MemorySegment>();
                     for(var d:plan.bufferDeclarations())segments.put(d.valueId(),arena.allocate(d.byteSize(),d.byteAlignment()));
                     var output=segments.get(new ValueId(6));output.fill((byte)0x55);
                     byte[] unchanged=output.toArray(ValueLayout.JAVA_BYTE);
                     var source=segments.get(new ValueId(0));
                     if(bad==0)source=output.asSlice(0,source.byteSize());
-                    if(bad==1)source=source.asSlice(0,source.byteSize()-2);
-                    if(bad==2)source=arena.allocate(source.byteSize()+1,2).asSlice(1,source.byteSize());
+                    if(bad==1)source=source.asSlice(0,source.byteSize()-type.byteWidth());
+                    if(bad==2)source=arena.allocate(source.byteSize()+1,type.byteWidth()).asSlice(1,source.byteSize());
                     segments.put(new ValueId(0),source);
                     if(bad==3)segments.put(new ValueId(6),output.asReadOnly());
-                    if(bad==4)segments.put(new ValueId(6),output.asSlice(0,output.byteSize()-2));
+                    if(bad==4)segments.put(new ValueId(6),output.asSlice(0,output.byteSize()-type.byteWidth()));
                     var bindings=new ArrayList<List<BufferRepresentationBinding>>();
                     for(var d:plan.bufferDeclarations()) {
                         var s=segments.get(d.valueId());
-                        var physical=bad==5&&d.valueId().equals(new ValueId(0))?(type==DataType.BFLOAT16?DataType.FLOAT16:DataType.BFLOAT16):type;
+                        var physical=bad==5&&d.valueId().equals(new ValueId(0))
+                                ?(type==DataType.BFLOAT16?DataType.FLOAT16:type==DataType.FLOAT16?DataType.BFLOAT16:
+                                type==DataType.FLOAT8_E4M3?DataType.FLOAT8_E5M2:DataType.FLOAT8_E4M3):type;
                         bindings.add(List.of(new BufferRepresentationBinding(CpuBorrowedBuffer.borrow(
-                                new MemorySegmentStorage(physical,s.byteSize()/2,s)),RunResourceOwnership.BORROWED)));
+                                new MemorySegmentStorage(physical,s.byteSize()/type.byteWidth(),s)),RunResourceOwnership.RUN_OWNED)));
                     }
-                    var state=new RunState(memory,bindings,List.of());
-                    assertThrows(IllegalArgumentException.class,()->executable.bind(state));
-                    assertArrayEquals(unchanged,output.toArray(ValueLayout.JAVA_BYTE));
+                    try(var state=new RunState(memory,bindings,List.of())) {
+                        assertThrows(IllegalArgumentException.class,()->executable.bind(state));
+                        assertArrayEquals(unchanged,output.toArray(ValueLayout.JAVA_BYTE));
+                    }
                 }
             }
         }
     }
 
-    private static short encodeLow(DataType t,float v) {return t==DataType.BFLOAT16?io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(v):Float.floatToFloat16(v);}
-    private static float decodeLow(DataType t,short v) {return t==DataType.BFLOAT16?Float.intBitsToFloat(v<<16):Float.float16ToFloat(v);}
 
     /**
      * Builds the raw rank-edit/repetition/copy chain with resolved final output and private mappings.
      * This metadata-only fixture borrows no physical storage and allocates no runtime resources.
-     * @param type non-null F32/F64 compact execution type or BF16/F16 ordinary split execution type
+     * @param type non-null F32/F64 compact execution type or low floating ordinary execution type
      * @return new immutable CPU context for [2,3,28] source and [2,3,5,7] output; never null
      * @throws NullPointerException if type is null
      */

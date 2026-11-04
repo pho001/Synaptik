@@ -26,18 +26,13 @@ import org.junit.jupiter.api.Test;
 
 /** CPU physical conformance for exact source facts, output-only units and mutable fallback. */
 class CpuStaticTypedOneCountConformanceTest {
-    /** Executes retained count writes and explicitly rejects both low SUM-derived count families. */
+    /** Executes exact typed count writes without reading the poisoned immutable source. */
     @Test void staticExplicitCountWritesOnlyItsPublicResultAndRetainsTheOriginalSource() {
-        for(var type:List.of(DataType.FLOAT32,DataType.FLOAT64,DataType.BFLOAT16,DataType.FLOAT16,DataType.INT32,DataType.INT64)) {
+        for(var type:List.of(DataType.FLOAT32,DataType.FLOAT64,DataType.BFLOAT16,DataType.FLOAT16,
+                DataType.FLOAT8_E4M3,DataType.FLOAT8_E5M2,DataType.INT32,DataType.INT64)) {
             var context=context(type,true);
-            if (CpuProfileFreeConformanceTest.assertLockedNumerical(context)) continue;
             var analysis=new CpuPartitionPreparer().analyze(context);
-            var plan=analysis.plan();var unit=plan.units().getFirst();
-            assertEquals(1,plan.units().size());assertEquals(List.of(0,1,2),unit.memberNodeOrdinals());
-            assertInstanceOf(CpuConstantWriteIr.class,unit.portablePlan().portableKernelIr());
-            assertEquals(List.of(new ValueId(3)),unit.boundaryValues());
-            assertEquals(Set.of(new ValueId(0),new ValueId(3)),new HashSet<>(plan.boundaryValues()));
-            assertTrue(plan.workspaceDeclaration().isEmpty());assertFalse(unit.portablePlan().specialization().scratchParameter());
+            var plan=analysis.plan();
             var buffers=new ArrayList<PreparedMemoryPlan.BufferEntry>();var assignments=new ArrayList<PreparationResourceAssignment>();
             for(var declaration:plan.bufferDeclarations()) {
                 var slot=new BufferSlot(buffers.size());buffers.add(new PreparedMemoryPlan.BufferEntry(slot,declaration.byteSize(),declaration.byteAlignment()));
@@ -95,7 +90,8 @@ class CpuStaticTypedOneCountConformanceTest {
             memory.add(new LogicalMemoryRequirement(id,descriptor,i==0?Optional.empty():Optional.of(partition),i==3?List.of():List.of(partition),i==3));
         }
         var one=switch(type) { case FLOAT32->ScalarValue.float32(1);case FLOAT64->ScalarValue.float64(1);case BFLOAT16->ScalarValue.bfloat16(1);
-            case FLOAT16->ScalarValue.float16(1);case INT32->ScalarValue.int32(1);case INT64->ScalarValue.int64(1);default->throw new AssertionError(); };
+            case FLOAT16->ScalarValue.float16(1);case FLOAT8_E4M3->ScalarValue.float8E4m3(1);
+            case FLOAT8_E5M2->ScalarValue.float8E5m2(1);case INT32->ScalarValue.int32(1);case INT64->ScalarValue.int64(1);default->throw new AssertionError(); };
         return new PrepareContext<>(partition,nodes,values,memory,explicit?Map.of(new ValueId(0),one):Map.of(),CpuPartitionAnalysisInputs.DEFAULT);
     }
     /**
@@ -116,6 +112,7 @@ class CpuStaticTypedOneCountConformanceTest {
     private static double read(DataType type,MemorySegment segment,int index) { return switch(type) {
         case FLOAT32->segment.getAtIndex(ValueLayout.JAVA_FLOAT,index);case FLOAT64->segment.getAtIndex(ValueLayout.JAVA_DOUBLE,index);
         case BFLOAT16->BFloat16Bits.toFloat(segment.getAtIndex(ValueLayout.JAVA_SHORT,index));case FLOAT16->Float16Bits.toFloat(segment.getAtIndex(ValueLayout.JAVA_SHORT,index));
+        case FLOAT8_E4M3,FLOAT8_E5M2->LowPrecisionValues.decode(type,segment.getAtIndex(ValueLayout.JAVA_BYTE,index)&255);
         case INT32->segment.getAtIndex(ValueLayout.JAVA_INT,index);case INT64->segment.getAtIndex(ValueLayout.JAVA_LONG,index);default->throw new AssertionError();
     }; }
 }

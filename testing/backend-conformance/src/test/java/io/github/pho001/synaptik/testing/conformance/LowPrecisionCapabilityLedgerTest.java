@@ -1,10 +1,8 @@
 package io.github.pho001.synaptik.testing.conformance;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
@@ -41,7 +39,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Queries original-typed Metal admission bounds and the independent CPU low-arithmetic lock. */
+/** Queries original-typed Metal admission bounds independently from CPU numerical capability. */
 final class LowPrecisionCapabilityLedgerTest {
     @Test
     void metalLowSupportNeverExceedsCurrentFloat32Support() {
@@ -58,71 +56,25 @@ final class LowPrecisionCapabilityLedgerTest {
             }
         }
     }
-    @Test
-    void cpuQueriesBothLowTypesAgainstTheIndependentRetainedAndUnsupportedMatrix() {
-        assertCurrentLowMatrix();
-    }
 
-    @Test void cpuLowRecurrentAndMalformedVariantsAreExplicitlyUnsupported() {
-        var provider = new CpuCapabilityProvider();
-        for (var seed : seeds()) if (seed.query().operation().kind() instanceof RecurrentScanKind) {
-            for (var q : List.of(toBfloat16(seed.query()), toFloat16(seed.query()))) {
-                assertFalse(provider.supports(q));
-                var in = new ArrayList<>(q.inputs()); var x = in.getFirst();
-                in.set(0, new TensorDescriptor(x.dataType(), x.shape(), Optional.empty(), x.requiresGrad()));
-                assertFalse(provider.supports(new OperationCapabilityQuery(q.operation(), in, q.outputs())));
-                in.set(0, new TensorDescriptor(x.dataType() == DataType.FLOAT16 ? DataType.BFLOAT16 : DataType.FLOAT16,
-                        x.shape(), x.layout(), x.requiresGrad()));
-                assertFalse(provider.supports(new OperationCapabilityQuery(q.operation(), in, q.outputs())));
-                var out = new ArrayList<>(q.outputs()); var y = out.getFirst();
-                out.set(0, new TensorDescriptor(y.dataType(), y.shape(), Optional.of(LayoutDescriptor.of(
-                        y.shape(), y.layout().orElseThrow().strides(), 1, true)), y.requiresGrad()));
-                assertFalse(provider.supports(new OperationCapabilityQuery(q.operation(), q.inputs(), out)));
-            }
+    @Test void metalRejectsFp8ArithmeticRawSelectionAndBothCastDirectionsIndependently() {
+        var provider = new MetalCapabilityProvider();
+        var shape = Shape.of(3);
+        var f32 = new TensorDescriptor(DataType.FLOAT32, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        var mask = new TensorDescriptor(DataType.BOOL, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        for (var type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            var fp8 = new TensorDescriptor(type, shape, f32.layout(), false);
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE), List.of(fp8), List.of(fp8))));
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE), List.of(fp8, fp8), List.of(fp8))));
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE), List.of(mask, fp8, fp8), List.of(fp8))));
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    new Operation(CastKind.CAST, new CastAttrs(type)), List.of(f32), List.of(fp8))));
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    new Operation(CastKind.CAST, new CastAttrs(DataType.FLOAT32)), List.of(fp8), List.of(f32))));
         }
-    }
-
-    private static void assertCurrentLowMatrix() {
-        var provider = new CpuCapabilityProvider();
-        var retained = java.util.EnumSet.noneOf(DataType.class);
-        var unsupported = java.util.EnumSet.noneOf(DataType.class);
-        for (Seed seed : seeds()) {
-            OperationCapabilityQuery query = seed.query();
-            if (!hasFloat32Role(query) || !provider.supports(query)) continue;
-            for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-                var low = type == DataType.BFLOAT16 ? toBfloat16(query) : toFloat16(query);
-                // The existing typed Scan and symbolic ordinary grants are not low-storage grants.
-                boolean expected = !lowNumericalUse(low) && low.scanBody().isEmpty()
-                        && java.util.stream.Stream.concat(low.inputs().stream(), low.outputs().stream())
-                                .allMatch(d -> d.shape().knownElementCount().isPresent());
-                assertEquals(expected, provider.supports(low), seed.id() + "/" + type);
-                (expected ? retained : unsupported).add(type);
-            }
-        }
-        assertEquals(java.util.Set.of(DataType.BFLOAT16, DataType.FLOAT16), retained,
-                "both types keep exact, explicit-cast, raw-storage and control witnesses");
-        assertEquals(java.util.Set.of(DataType.BFLOAT16, DataType.FLOAT16), unsupported,
-                "both types exercise explicit numerical or pre-existing typed-boundary rejection");
-    }
-
-    /** Independent expected numerical families, not a query of production's admission helper. */
-    private static boolean lowNumericalUse(OperationCapabilityQuery query) {
-        var attrs = query.operation().attrs();
-        if (attrs instanceof ScatterElementsAttrs scatter)
-            return scatter.reduction() == ScatterReduction.ADD || scatter.reduction() == ScatterReduction.MUL;
-        if (attrs instanceof ScatterNdAttrs scatter)
-            return scatter.reduction() == ScatterReduction.ADD || scatter.reduction() == ScatterReduction.MUL;
-        return java.util.Set.of("ADD", "SUB", "MUL", "DIV", "POW", "RECIPROCAL", "LOG",
-                "LOG1P", "EXP", "EXPM1", "ERF", "SQRT", "RSQRT", "SIGMOID", "TANH",
-                "GELU", "GELU_TANH_APPROXIMATION", "SILU", "SUM", "MEAN", "PROD",
-                "LOG_SUM_EXP", "VARIANCE", "STANDARD_DEVIATION", "L1_NORM", "L2_NORM",
-                "CUM_SUM", "CUM_PROD", "CUMSUM", "CUMPROD", "MATMUL", "CONV2D", "CONV3D",
-                "AVERAGE_POOL2D", "AVERAGE_POOL3D", "SOFTMAX", "LOG_SOFTMAX",
-                "LAYER_NORM", "AFFINE_LAYER_NORM", "RMS_NORM", "AFFINE_RMS_NORM",
-                "BATCH_NORM_INFERENCE", "BATCH_NORM_TRAINING", "MEAN_SQUARED_ERROR",
-                "DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS", "INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS",
-                "SCALED_DOT_PRODUCT_ATTENTION", "DROPOUT", "SCATTER_ADD", "FOLD_AXIS",
-                "FOLD2D", "FOLD3D", "RNN_TANH", "GRU_RESET_AFTER", "LSTM").contains(query.operation().kind().name());
     }
 
 
