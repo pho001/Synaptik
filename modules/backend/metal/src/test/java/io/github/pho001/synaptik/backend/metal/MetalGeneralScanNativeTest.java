@@ -177,6 +177,7 @@ class MetalGeneralScanNativeTest {
     @Test void mixedComparisonBodiesBindOriginalCarrierWidthsAndPublishBoolRows() {
         var types = List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
         for (var left : types) for (var right : types)
+            if (left == right || left == DataType.FLOAT32 || right == DataType.FLOAT32)
             for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true))
                 try (var run = new RawScan(MetalScanPlanTest.mixedComparisonQuery(left, right, lengths, reverse), null)) {
                     run.bytes(0, numeric(left, 3, lengths ? Float.NaN : 4, 1, lengths ? Float.NaN : 0));

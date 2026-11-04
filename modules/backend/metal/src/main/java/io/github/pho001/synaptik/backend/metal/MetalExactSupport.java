@@ -21,7 +21,8 @@ import java.util.List;
  * Cold admission/lowering and independent encoded validation for non-hardware exact operations.
  *
  * <p>Original FLOAT64 and integral arithmetic/extrema retain their exact routes.
- * Comparisons accept all floating carriers and preserve represented values across promotion.
+ * Comparisons preserve represented values across supported floating carriers, excluding direct
+ * BFLOAT16/FLOAT16 pairs in either order; explicit FLOAT32 casts provide that boundary.
  * Integral arithmetic and extrema never use a floating proxy. Outputs are canonical; reads may be
  * positive affine or explicit zero-stride views. Comparisons publish exact nondifferentiable BOOL
  * results even when floating inputs require gradients. No FP64 numerical arithmetic is introduced.</p>
@@ -216,7 +217,10 @@ final class MetalExactSupport {
 
     private static boolean exactCarrier(DataType type) { return type == DataType.FLOAT64 || type.isIntegral(); }
     private static boolean allowedBinary(MetalMpsGraphProgram.NodeKind kind, DataType left, DataType right, DataType promoted) {
-        if (comparison(kind)) return promoted.isIntegral() || promoted.isFloating();
+        if (comparison(kind)) return (promoted.isIntegral() || promoted.isFloating())
+                && !(left != right
+                        && (left == DataType.BFLOAT16 || left == DataType.FLOAT16)
+                        && (right == DataType.BFLOAT16 || right == DataType.FLOAT16));
         if (kind == MetalMpsGraphProgram.NodeKind.TENSOR_MIN || kind == MetalMpsGraphProgram.NodeKind.TENSOR_MAX)
             return promoted.isIntegral() || promoted == DataType.FLOAT64;
         return left.isIntegral() && right.isIntegral() && promoted.isIntegral();

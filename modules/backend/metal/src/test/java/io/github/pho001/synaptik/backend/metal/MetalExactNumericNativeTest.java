@@ -288,9 +288,10 @@ class MetalExactNumericNativeTest {
     }
 
     @Test
-    void everyFloatingComparisonPairRetainsOriginalRepresentedValuesAndIgnoresSourceGradients() {
+    void qualifiedFloatingComparisonPairsRetainOriginalRepresentedValuesAndIgnoreSourceGradients() {
         for (DataType left : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
             for (DataType right : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                if (left != right && left != DataType.FLOAT32 && right != DataType.FLOAT32) continue;
                 long[] a = comparisonWords(left), b = comparisonWords(right);
                 checkComparisons(left, right, a, b, representedValues(left, a), representedValues(right, b));
             }

@@ -268,20 +268,29 @@ class MetalBoolNativeTest {
     }
 
     @Test
-    void mixedLowWhereWidensSelectedRawWordsToTheModelFloat32Result() {
+    void explicitFloat32CastsSelectExactRepresentedLowWordsInBothOrders() {
         Path library = configuredLibrary();
         for (DataType falseType : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
             DataType trueType = falseType == DataType.BFLOAT16 ? DataType.FLOAT16 : DataType.BFLOAT16;
             int negativeThree = falseType == DataType.BFLOAT16 ? 0xc040 : 0xc200;
             int nan = falseType == DataType.BFLOAT16 ? 0x7fc1 : 0x7e01;
             int widenedSubnormal = falseType == DataType.BFLOAT16 ? 0x00010000 : 0x33800000;
+            var castTrue = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.CAST,
+                    new int[] {1}, new int[] {3}, MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                    new long[] {MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)});
+            var castFalse = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.CAST,
+                    new int[] {2}, new int[] {4}, MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                    new long[] {MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)});
+            var program = new MetalMpsGraphProgram(List.of(castTrue, castFalse,
+                    node(MetalMpsGraphProgram.NodeKind.WHERE, new int[] {0, 3, 4}, 5)));
             assertArrayEquals(ints(new int[] {
                     0x80000000, 0xc0400000, widenedSubnormal,
                     0x40000000, 0xc0400000, widenedSubnormal
-            }), executeDirect(
-                    library, node(MetalMpsGraphProgram.NodeKind.WHERE, new int[] {0, 1, 2}, 3),
+            }), executeProgram(
+                    library, program,
                     List.of(value(DataType.BOOL, 3), value(trueType, 2, 1),
-                            value(falseType, 1, 3), value(DataType.FLOAT32, 2, 3)),
+                            value(falseType, 1, 3), value(DataType.FLOAT32, 2, 1),
+                            value(DataType.FLOAT32, 1, 3), value(DataType.FLOAT32, 2, 3)),
                     List.of(new byte[] {1, 0, 0}, shorts(0x8000, 0x4000),
                             shorts(nan, negativeThree, 1))));
         }
@@ -292,13 +301,20 @@ class MetalBoolNativeTest {
             MetalMpsGraphProgram.Node node,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             List<byte[]> feedBytes) {
+        return executeProgram(library, new MetalMpsGraphProgram(List.of(node)), values, feedBytes);
+    }
+
+    private static byte[] executeProgram(
+            Path library,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            List<byte[]> feedBytes) {
         MetalNativeApi api = MetalNativeApi.open(library);
         MetalNativeApi.Handle context = null;
         MetalNativeApi.Handle executable = null;
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            var program = new MetalMpsGraphProgram(List.of(node));
             int[] feeds = java.util.stream.IntStream.range(0, feedBytes.size()).toArray();
             int target = values.size() - 1;
             executable = api.createProgramExecutable(context, values, program, feeds, new int[] {target},

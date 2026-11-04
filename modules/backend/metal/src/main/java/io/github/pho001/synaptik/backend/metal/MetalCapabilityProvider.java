@@ -102,7 +102,8 @@ import java.util.Objects;
  * They never obtain a low-type answer from a FLOAT32 descriptor proxy. Shared numerical kernels
  * use FLOAT32 working values and publish each result in its declared original carrier.
  * Model scalar-metadata and promotion rules remain authoritative; this is not permission for
- * arbitrary mixed-type arithmetic.</p>
+ * arbitrary mixed-type arithmetic. Direct BFLOAT16/FLOAT16 branch and comparison pairs are
+ * unsupported in either order; explicit casts through FLOAT32 retain their original gradient roles.</p>
  *
  * <p>The provider is immutable and performs no native loading, device discovery or execution.
  * A capability answer is not a native certificate: executable ingress independently validates
@@ -1436,10 +1437,15 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         TensorDescriptor condition = inputs.get(0);
         TensorDescriptor whenTrue = inputs.get(1);
         TensorDescriptor whenFalse = inputs.get(2);
-    DataType resultType =
-        DataTypePromotion.promoteFloating(whenTrue.dataType(), whenFalse.dataType());
+        if (whenTrue.dataType() != whenFalse.dataType()
+                && (whenTrue.dataType() == DataType.BFLOAT16 || whenTrue.dataType() == DataType.FLOAT16)
+                && (whenFalse.dataType() == DataType.BFLOAT16 || whenFalse.dataType() == DataType.FLOAT16)) {
+            return false;
+        }
+        DataType resultType =
+                DataTypePromotion.promoteFloating(whenTrue.dataType(), whenFalse.dataType());
         if (!selectedAffineRead(condition, true)
-        || condition.dataType() != DataType.BOOL
+                || condition.dataType() != DataType.BOOL
         || !selectedAffineRead(whenTrue, true)
                 || !selectedAffineRead(whenFalse, true)
                 || !canonicalAny(output, true)
@@ -1493,7 +1499,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor left = inputs.get(0);
         TensorDescriptor right = inputs.get(1);
-        return selectedAffineRead(left, true)
+        return !(left.dataType() != right.dataType()
+                        && (left.dataType() == DataType.BFLOAT16 || left.dataType() == DataType.FLOAT16)
+                        && (right.dataType() == DataType.BFLOAT16 || right.dataType() == DataType.FLOAT16))
+                && selectedAffineRead(left, true)
                 && selectedAffineRead(right, true)
                 && canonicalTyped(output, DataType.BOOL)
                 && !output.requiresGrad()

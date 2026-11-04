@@ -268,6 +268,12 @@ static BOOL task0066_is_floating(uint8_t type) {
             || type == SYNAPTIK_METAL_TYPE_FLOAT16;
 }
 
+/* Direct unlike-low selection/comparison is outside the qualified occurrence domain. */
+static BOOL synaptik_is_mixed_low_pair(uint8_t left, uint8_t right) {
+    return (left == SYNAPTIK_METAL_TYPE_BFLOAT16 && right == SYNAPTIK_METAL_TYPE_FLOAT16)
+            || (left == SYNAPTIK_METAL_TYPE_FLOAT16 && right == SYNAPTIK_METAL_TYPE_BFLOAT16);
+}
+
 static uint8_t task0066_promote_floating(uint8_t left, uint8_t right) {
     if (!task0066_is_floating(left) || !task0066_is_floating(right))
         return SYNAPTIK_METAL_TYPE_UNAVAILABLE;
@@ -6506,6 +6512,7 @@ static int32_t synaptik_metal_create_decoded(
                     type_valid = require_value_type(
                                     value_types, node.first_input,
                                     SYNAPTIK_METAL_TYPE_BOOL)
+                            && !synaptik_is_mixed_low_pair(true_type, false_type)
                             && declared_types[node.output]
                                     == task0066_promote_floating(
                                             true_type, false_type);

@@ -830,6 +830,39 @@ class MetalMpsGraphRawAbiNativeTest {
             }
         }
     }
+
+    @Test
+    void independentNativeIngressRejectsDirectMixedLowWhereAndComparisonsInBothOrders() throws Throwable {
+        Path library = configuredLibrary();
+        try (RawAbi abi = new RawAbi(library)) {
+            for (var left : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                var right = left == DataType.BFLOAT16 ? DataType.FLOAT16 : DataType.BFLOAT16;
+                for (var kind : List.of(MetalMpsGraphProgram.NodeKind.WHERE,
+                        MetalMpsGraphProgram.NodeKind.GT, MetalMpsGraphProgram.NodeKind.GE,
+                        MetalMpsGraphProgram.NodeKind.LT, MetalMpsGraphProgram.NodeKind.LE,
+                        MetalMpsGraphProgram.NodeKind.EQ, MetalMpsGraphProgram.NodeKind.NE)) {
+                    boolean where = kind == MetalMpsGraphProgram.NodeKind.WHERE;
+                    var node = MetalMpsGraphProgram.Node.generic(kind,
+                            where ? new int[] {0, 1, 2} : new int[] {0, 1},
+                            new int[] {where ? 3 : 2}, MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
+                    var program = new MetalMpsGraphProgram(List.of(node));
+                    var values = where
+                            ? List.of(descriptor(DataType.BOOL, 2), descriptor(left, 2),
+                                    descriptor(right, 2), descriptor(DataType.FLOAT32, 2))
+                            : List.of(descriptor(left, 2), descriptor(right, 2), descriptor(DataType.BOOL, 2));
+                    int[] feeds = where ? new int[] {0, 1, 2} : new int[] {0, 1};
+                    int[] targets = {where ? 3 : 2};
+                    assertThrows(IllegalArgumentException.class,
+                            () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                                    values, program, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM));
+                    // Serialize directly, bypassing provider and Java preflight. Native must rederive the domain.
+                    byte[] forged = program.encodedProgramImage(
+                            values, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
+                    assertEquals(1, abi.create(forged, forged.length), left + "/" + right + "/" + kind);
+                }
+            }
+        }
+    }
     @Test
     void JavaAndNativeRejectMalformedExactRawUnaryPrograms() throws Throwable {
         Path library = configuredLibrary();

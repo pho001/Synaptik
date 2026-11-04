@@ -6,8 +6,9 @@
  * custom_physical_layout, custom_grid, value_type_width and shape_element_count.
  * Reference indices/types/states must already belong to the authenticated value
  * table. Metadata independently rederives operation grammar, physical mapping,
- * shape and promotion. The raw parser additionally validates gradient flags and
- * scalar dtype words BEFORE decoding: DecodedNode does not retain either fact.
+ * shape and promotion, rejecting direct unlike BFLOAT16/FLOAT16 comparison pairs.
+ * The raw parser additionally validates gradient flags and scalar dtype words BEFORE decoding:
+ * DecodedNode does not retain either fact.
  * No public ABI or new metadata layout. Outputs must be canonical.
  */
 static BOOL synaptik_exact_integral(uint8_t type) {
@@ -143,6 +144,7 @@ static BOOL synaptik_exact_metadata(
         if (!node_has_no_attributes(node) || (!integral && !(floating
                     && (comparison || (extreme && (left_type == SYNAPTIK_METAL_TYPE_FLOAT64
                             || right_type == SYNAPTIK_METAL_TYPE_FLOAT64)))))
+                || (comparison && synaptik_is_mixed_low_pair(left_type, right_type))
                 || target != (comparison ? SYNAPTIK_METAL_TYPE_BOOL : promoted)
                 || output.count != MAX(left.count, right.count)) return NO;
         meta->auxiliaryRank = (uint32_t)right.count; meta->reserved = right_type;

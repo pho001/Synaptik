@@ -6,10 +6,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -158,6 +163,93 @@ class MetalExactSupportTest {
         assertThrows(IllegalArgumentException.class, () -> MetalExactSupport.validate(node, List.of(
                 encoded(DataType.FLOAT64, true, 2, 1), encoded(DataType.FLOAT16, true, 3),
                 encoded(DataType.FLOAT64, false, 2, 3))));
+    }
+
+    @Test
+    void whereRetainsQualifiedPromotionAndOriginalBranchGradientRolesOnly() {
+        var where = new Operation(
+                WhereSelectionKind.WHERE,
+                NoOperationAttrs.INSTANCE);
+        var node = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.WHERE,
+                new int[] {0, 1, 2}, new int[] {3}, MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
+        var types = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
+        for (var left : types) for (var right : types)
+            for (boolean leftGrad : List.of(false, true)) for (boolean rightGrad : List.of(false, true)) {
+                boolean mixedLow = left != right && left != DataType.FLOAT32 && right != DataType.FLOAT32
+                        && left != DataType.FLOAT64 && right != DataType.FLOAT64;
+                var result = DataTypePromotion.promoteFloating(left, right);
+                var inputs = List.of(descriptor(DataType.BOOL, false, 3),
+                        descriptor(left, leftGrad, 2, 1), descriptor(right, rightGrad, 3));
+                var output = descriptor(result, leftGrad || rightGrad, 2, 3);
+                var values = List.of(MetalMpsGraphProgram.ValueDescriptor.from(inputs.get(0)),
+                        MetalMpsGraphProgram.ValueDescriptor.from(inputs.get(1)),
+                        MetalMpsGraphProgram.ValueDescriptor.from(inputs.get(2)),
+                        MetalMpsGraphProgram.ValueDescriptor.from(output));
+                var program = new MetalMpsGraphProgram(List.of(node));
+                if (mixedLow) {
+                    assertFalse(MetalCapabilityProvider.supportsOccurrence(where, inputs, List.of(output)));
+                    assertThrows(IllegalArgumentException.class, () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                            values, program, new int[] {0, 1, 2}, new int[] {3}, MetalPreparedRoute.CUSTOM_PROGRAM));
+                } else {
+                    assertTrue(MetalCapabilityProvider.supportsOccurrence(where, inputs, List.of(output)),
+                            left + "/" + right + "/" + leftGrad + "/" + rightGrad);
+                    assertDoesNotThrow(() -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                            values, program, new int[] {0, 1, 2}, new int[] {3}, MetalPreparedRoute.CUSTOM_PROGRAM));
+                }
+            }
+    }
+
+    @Test
+    void directMixedLowComparisonsRejectInBothOrdersBeforeExecution() {
+        for (var left : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            var right = left == DataType.BFLOAT16 ? DataType.FLOAT16 : DataType.BFLOAT16;
+            for (var kind : BinaryComparisonKind.values()) {
+                var operation = new Operation(kind, NoOperationAttrs.INSTANCE);
+                var inputs = List.of(descriptor(left, true, 2, 1), descriptor(right, true, 3));
+                var output = descriptor(DataType.BOOL, false, 2, 3);
+                assertFalse(MetalCapabilityProvider.supportsOccurrence(operation, inputs, List.of(output)));
+            }
+            for (var kind : List.of(MetalMpsGraphProgram.NodeKind.GT, MetalMpsGraphProgram.NodeKind.GE,
+                    MetalMpsGraphProgram.NodeKind.LT, MetalMpsGraphProgram.NodeKind.LE,
+                    MetalMpsGraphProgram.NodeKind.EQ, MetalMpsGraphProgram.NodeKind.NE)) {
+                var node = MetalMpsGraphProgram.Node.binary(kind, 0, 1, 2);
+                var values = List.of(encoded(left, true, 2, 1), encoded(right, true, 3),
+                        encoded(DataType.BOOL, false, 2, 3));
+                assertThrows(IllegalArgumentException.class, () -> MetalExactSupport.validate(node, values));
+                assertThrows(IllegalArgumentException.class, () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                        values, new MetalMpsGraphProgram(List.of(node)),
+                        new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.CUSTOM_PROGRAM));
+            }
+        }
+    }
+
+    @Test
+    void explicitFloat32CastsKeepMixedLowSelectionAndComparisonLegal() {
+        for (var left : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            var right = left == DataType.BFLOAT16 ? DataType.FLOAT16 : DataType.BFLOAT16;
+            var cast = new Operation(CastKind.CAST, new CastAttrs(DataType.FLOAT32));
+            for (var type : List.of(left, right)) {
+                assertTrue(MetalCapabilityProvider.supportsOccurrence(cast,
+                        List.of(descriptor(type, true, 2)), List.of(descriptor(DataType.FLOAT32, true, 2))));
+            }
+            var nodes = List.of(
+                    MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.CAST,
+                            new int[] {1}, new int[] {3}, MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                            new long[] {MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)}),
+                    MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.CAST,
+                            new int[] {2}, new int[] {4}, MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                            new long[] {MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)}),
+                    MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.WHERE,
+                            new int[] {0, 3, 4}, new int[] {5}, MetalMpsGraphProgram.AttributeKind.NONE, new long[0]),
+                    MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.EQ, 3, 4, 6));
+            var values = List.of(encoded(DataType.BOOL, false, 2), encoded(left, true, 2),
+                    encoded(right, true, 2), encoded(DataType.FLOAT32, true, 2),
+                    encoded(DataType.FLOAT32, true, 2), encoded(DataType.FLOAT32, true, 2),
+                    encoded(DataType.BOOL, false, 2));
+            assertDoesNotThrow(() -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                    values, new MetalMpsGraphProgram(nodes), new int[] {0, 1, 2}, new int[] {5, 6},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+        }
     }
 
     private static TensorDescriptor descriptor(DataType type, boolean grad, long... dims) {

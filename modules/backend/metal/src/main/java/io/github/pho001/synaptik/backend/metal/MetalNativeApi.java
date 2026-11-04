@@ -36,8 +36,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * replacement safety and fixed custom routing before native entry. FLOAT32 image folds may
  * accumulate overlap, including Compiler-generated Pool2d/Pool3d cotangents; FLOAT64/low pooling
  * cotangents, image folds and FOLD_AXIS require non-overlapping windows.
- * Every BFLOAT16/FLOAT16 value is custom-program-only. Native status failures are unchecked and
- * retain both the operation name and raw status value.
+ * Every BFLOAT16/FLOAT16 value is custom-program-only. Direct mixed BFLOAT16/FLOAT16 WHERE and
+ * comparison pairs reject independently of provider admission; explicit FLOAT32 casts remain legal.
+ * Native status failures are unchecked and retain both the operation name and raw status value.
  */
 abstract class MetalNativeApi implements AutoCloseable {
     static final int ABI_VERSION = 7;
@@ -1399,7 +1400,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case WHERE -> {
                         requireType(types, left, ValueType.BOOL);
                         ValueType promoted = task0066Promote(types[right], types[auxiliary]);
-                        if (promoted == null || types[output] != promoted) {
+                        if (promoted == null || types[output] != promoted
+                                || types[right] != types[auxiliary]
+                                        && (types[right] == ValueType.BFLOAT16 || types[right] == ValueType.FLOAT16)
+                                        && (types[auxiliary] == ValueType.BFLOAT16 || types[auxiliary] == ValueType.FLOAT16)) {
                             throw new IllegalArgumentException(
                                     "WHERE branches and output must use exact floating promotion");
                         }
@@ -1414,7 +1418,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                             validateMatmulTypesAndGradients(
                                     left, right, output, types, values);
                     case GT, GE, LT, LE, EQ, NE -> {
-                        if (!numericFloating(types[left]) || !numericFloating(types[right])) {
+                        if (!numericFloating(types[left]) || !numericFloating(types[right])
+                                || types[left] != types[right]
+                                        && (types[left] == ValueType.BFLOAT16 || types[left] == ValueType.FLOAT16)
+                                        && (types[right] == ValueType.BFLOAT16 || types[right] == ValueType.FLOAT16)) {
                             throw new IllegalArgumentException(
                                     "comparison input carriers disagree");
                         }
