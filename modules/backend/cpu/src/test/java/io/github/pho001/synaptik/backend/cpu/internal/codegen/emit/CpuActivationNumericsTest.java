@@ -249,7 +249,9 @@ final class CpuActivationNumericsTest {
                 List.of(nativeIn ? CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT : heap,
                         nativeOut ? CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT : heap),
                 strategy == ExecutionStrategy.VECTOR ? lanes(type) * type.byteWidth() * 8 : 0,
-                -1, List.of(), false, type == DataType.FLOAT16 ? 68 : type == DataType.BFLOAT16 ? 59 : 52);
+                -1, List.of(), false, CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
+                        ? CpuKernelSpecialization.FLOAT32_RSQRT_SITES_SCHEMA
+                        : type == DataType.FLOAT16 ? 68 : type == DataType.BFLOAT16 ? 59 : 52);
         var generator = new CpuClassFileKernelGenerator();
         return new Fixture(ir, generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir)));
     }

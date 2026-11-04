@@ -547,6 +547,9 @@ public final class CpuClassFileKernelGenerator {
             return new CpuGeneralScanBodyEmitter().emitMethods(classBuilder, owner, prefix,
                     specialization, specialization.generalScanIr().orElseThrow());
         MethodTypeDesc ordinaryType = MethodTypeDesc.ofDescriptor(specialization.entryType().descriptorString());
+        // Every controlled composition boundary is already normalized into its owning arena.
+        if (controlled && specialization.movementOperandTable())
+            ordinaryType = ordinaryType.changeParameterType(0, SEGMENT);
         MethodTypeDesc type = controlled
                 ? ordinaryType.insertParameterTypes(ordinaryType.parameterCount(), SEGMENT) : ordinaryType;
         int entryFlags = AccessFlag.STATIC.mask()
@@ -610,6 +613,10 @@ public final class CpuClassFileKernelGenerator {
         }
         String entryName = prefix + CpuGeneratorSchema.ENTRY_NAME;
         declareMethod(classBuilder, entryName, type, entryFlags, controlled, code -> {
+                        if (specialization.movementOperandTable()) {
+                            new CpuDataMovementEmitter().emit(code, specialization, kernelIr);
+                            code.return_(); return;
+                        }
                         if (specialization.softmaxBackwardIr().isPresent()) {
                             CpuCarrierEmitter.prepareSegmentLayouts(code,specialization.boundaryDataTypes(),
                                     specialization.carrierPattern(),true,false);
@@ -2253,6 +2260,8 @@ public final class CpuClassFileKernelGenerator {
             throw new IllegalArgumentException("ordinary batch artifact meaning disagrees");
         }
         if (typedBatch) validateTypedOrdinaryBatch(kernelIr);
+        if (specialization.movementOperandTable() != CpuDataMovementEmitter.usesOperandTable(kernelIr))
+            throw new IllegalArgumentException("movement operand-table projection disagrees");
         boolean pointwise = kernelIr.familyIdentity().equals("pointwise")
                 || specialization.ordinaryBatch() && (kernelIr.familyIdentity().equals("pointwise:ordinary-batch-v1")
                     || typedBatch && kernelIr.familyIdentity().startsWith("pointwise:mapping="));
@@ -2276,19 +2285,17 @@ public final class CpuClassFileKernelGenerator {
                 instruction.opcode() == CpuPointwiseOpcode.CAST
                         && kernelIr.values().get(instruction.inputs().getFirst()).dataType()
                                 != kernelIr.values().get(instruction.output()).dataType());
+        int expectedPointwiseSchema = !pointwise ? 0
+                : CpuKernelSpecialization.hasFloat32RsqrtSites(kernelIr)
+                    ? CpuKernelSpecialization.FLOAT32_RSQRT_SITES_SCHEMA
+                : float16Pointwise ? 68 : crossTypeCast ? 60 : bfloatPointwise ? 59
+                : pointwiseSchema(specialization, kernelIr);
         int expectedStores = kernelIr.familyIdentity()
                 .startsWith("batch-normalization-training:") ? 5
                 : kernelIr.familyIdentity().contains(":outputs=2:") ? 2 : 1;
         if (!boundaryTypes.equals(specialization.boundaryDataTypes())
                 || kernelIr.instructions().size() > 8
-                || pointwise && float16Pointwise && specialization.classIdentitySchema() != 68
-                || pointwise && !float16Pointwise && crossTypeCast
-                    && specialization.classIdentitySchema() != 60
-                || pointwise && !float16Pointwise && !crossTypeCast && bfloatPointwise
-                    && specialization.classIdentitySchema() != 59
-                || pointwise && !float16Pointwise && !crossTypeCast && !bfloatPointwise
-                    && specialization.classIdentitySchema()
-                        != pointwiseSchema(specialization, kernelIr)
+                || pointwise && specialization.classIdentitySchema() != expectedPointwiseSchema
                 || (pointwise ? kernelIr.stores().isEmpty()
                     : kernelIr.stores().size() != expectedStores)) {
             throw new IllegalArgumentException("unsupported canonical pointwise IR");
@@ -2333,7 +2340,8 @@ public final class CpuClassFileKernelGenerator {
             boolean affine = kernelIr.familyIdentity().startsWith("affine:");
             if ((!movement && !affine && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul && !pool2d && !pool3d && !attention && !loss)
                     || affine && kernelIr.values().size() != 2
-                    || movement && (kernelIr.values().size() < 2 || kernelIr.values().size() + 6 > 254)
+                    || movement && (kernelIr.values().size() < 2
+                        || !specialization.movementOperandTable() && kernelIr.values().size() + 6 > 254)
                     || !ordering && !random && !scan && !aggregate && !argExtrema && !maskedReduction && !advancedReduction && !softmax && !trailingNormalization && !batchNormalization && !batchTraining && !conv2d && !conv3d && !matmul && !pool2d && !pool3d && !attention && kernelIr.values().subList(0, kernelIr.values().size() - 1).stream()
                         .anyMatch(value -> value.kind() != CpuKernelIr.Value.Kind.INPUT)
                     || kernelIr.values().getLast().kind() != CpuKernelIr.Value.Kind.OUTPUT

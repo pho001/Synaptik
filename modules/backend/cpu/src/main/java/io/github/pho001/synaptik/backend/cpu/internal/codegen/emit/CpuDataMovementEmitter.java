@@ -29,8 +29,8 @@ import java.util.Arrays;
  * so layout construction is not repeated in their hot loops. Emitted hot loops contain no Model
  * interpretation, reflection, map lookup, or per-element allocation.</p>
  *
- * <p>Budget-qualified composition above sixteen occurrences emits only the direct general-long
- * body, bounding classfile growth without adding recursive composition or intermediate copies.
+ * <p>Composition above sixteen occurrences uses a prepared operand/address table and one
+ * cardinality-independent direct body, without recursive composition or intermediate copies.
  * Existing smaller composition identities and emitted bodies are unchanged.</p>
  *
  * <p>Controlled bodies reuse the general traversal and test the proved output's original row before
@@ -40,6 +40,13 @@ import java.util.Arrays;
 final class CpuDataMovementEmitter {
     /** Creates one stateless family emitter. */
     CpuDataMovementEmitter() {
+    }
+
+    /** Checks the exact encoded family and occurrence count before selecting the table ABI. */
+    static boolean usesOperandTable(CpuKernelIr ir) {
+        if (!ir.familyIdentity().startsWith("movement:CONCAT:")
+                && !ir.familyIdentity().startsWith("movement:STACK:")) return false;
+        return Parsed.parse(ir.familyIdentity()).mapping.length > 16;
     }
 
     /**
@@ -55,10 +62,7 @@ final class CpuDataMovementEmitter {
         Parsed parsed = Parsed.parse(ir.familyIdentity());
         if ((parsed.family.equals("CONCAT") || parsed.family.equals("STACK"))
                 && parsed.mapping.length > 16) {
-            if (!io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr
-                    .withinCompositionBudget(parsed.mapping.length, parsed.rank))
-                throw new IllegalArgumentException("movement entry/code budget exceeded");
-            emitGeneralLong(code, specialization, ir, parsed);
+            emitOperandTable(code, ir, parsed);
             return;
         }
         if (parsed.family.equals("UNFOLD3D")) {
@@ -84,6 +88,111 @@ final class CpuDataMovementEmitter {
             return;
         }
         emitGeneralLong(code, specialization, ir, parsed);
+    }
+
+    /** Emits the wide composition ABI without a generated arm or JVM argument per occurrence. */
+    private static void emitOperandTable(CodeBuilder code, CpuKernelIr ir, Parsed parsed) {
+        int rank = parsed.rank, inputs = ir.values().size() - 1;
+        int inputRank = parsed.family.equals("STACK") ? rank - 1 : rank;
+        int bases = Math.addExact(Math.multiplyExact(3, rank), 1);
+        int strides = Math.addExact(bases, inputs);
+        int variant = Math.addExact(strides, Math.multiplyExact(inputs, inputRank));
+        boolean concat = parsed.family.equals("CONCAT");
+        int map = Math.addExact(variant, concat ? Math.addExact(parsed.mapping.length, 2) : 1);
+        DataType type = ir.values().getFirst().dataType();
+        boolean controlled = CpuCarrierEmitter.controlFacts().isPresent();
+        int[] coordinates = new int[rank];
+        for (int axis = 0; axis < rank; axis++) {
+            coordinates[axis] = code.allocateLocal(TypeKind.LONG);
+            geometry(code, 1, rank + axis).lstore(coordinates[axis]);
+        }
+        int outputAddress = code.allocateLocal(TypeKind.LONG);
+        geometry(code, 1, 2 * rank).lstore(outputAddress);
+        int logical = code.allocateLocal(TypeKind.LONG);
+        code.lload(2).lstore(logical);
+        int axisLocal = code.allocateLocal(TypeKind.INT);
+        geometry(code, 1, variant).l2i().istore(axisLocal);
+        int axisCoordinate = code.allocateLocal(TypeKind.LONG);
+        int occurrence = code.allocateLocal(TypeKind.INT);
+        int boundary = code.allocateLocal(TypeKind.INT);
+        int sourceAddress = code.allocateLocal(TypeKind.LONG);
+        int source = code.allocateLocal(TypeKind.REFERENCE);
+        int output = code.allocateLocal(TypeKind.REFERENCE);
+        if (controlled) code.aload(0);
+        else code.aload(0).loadConstant(inputs).aaload();
+        code.astore(output);
+        int value = code.allocateLocal(switch (type) {
+            case FLOAT64 -> TypeKind.DOUBLE;
+            case FLOAT32 -> TypeKind.FLOAT;
+            case INT64 -> TypeKind.LONG;
+            default -> TypeKind.INT;
+        });
+        int low = code.allocateLocal(TypeKind.INT), high = code.allocateLocal(TypeKind.INT);
+        int middle = code.allocateLocal(TypeKind.INT);
+        var loop = code.newLabel(); var done = code.newLabel();
+        boolean guarded = CpuCarrierEmitter.controlFacts()
+                .map(facts -> facts.boundaryRows().get(inputs).rowIndexed()).orElse(false);
+        var inactive = guarded ? code.newLabel() : null;
+        var ready = guarded ? code.newLabel() : null;
+        var carriers = new CpuCarrierEmitter(code);
+        code.labelBinding(loop).lload(logical).lload(4).lcmp().branch(Opcode.IFGE, done);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, inputs, logical, TypeKind.LONG, inactive);
+        code.loadConstant(0L).lstore(axisCoordinate);
+        for (int axis = 0; axis < rank; axis++) {
+            var next = code.newLabel();
+            code.iload(axisLocal).loadConstant(axis).branch(Opcode.IF_ICMPNE, next);
+            code.lload(coordinates[axis]).lstore(axisCoordinate);
+            code.labelBinding(next);
+        }
+        if (concat) {
+            // Upper-bound search skips all zero-length occurrences, retaining encounter order.
+            code.loadConstant(0).istore(low).loadConstant(parsed.mapping.length).istore(high);
+            var search = code.newLabel(); var found = code.newLabel(); var upper = code.newLabel();
+            code.labelBinding(search).iload(low).iload(high).branch(Opcode.IF_ICMPGE, found);
+            code.iload(low).iload(high).iadd().loadConstant(1).iushr().istore(middle);
+            code.aload(1).loadConstant(variant + 2).iload(middle).iadd().laload()
+                    .lload(axisCoordinate).lcmp().branch(Opcode.IFGT, upper);
+            code.iload(middle).loadConstant(1).iadd().istore(low).branch(Opcode.GOTO, search);
+            code.labelBinding(upper).iload(middle).istore(high).branch(Opcode.GOTO, search);
+            code.labelBinding(found).iload(low).istore(occurrence);
+        } else code.lload(axisCoordinate).l2i().istore(occurrence);
+        code.aload(1).loadConstant(map).iload(occurrence).iadd().laload().l2i().istore(boundary);
+        code.aload(1).loadConstant(bases).iload(boundary).iadd().laload().lstore(sourceAddress);
+        for (int axis = 0; axis < rank; axis++) {
+            var next = code.newLabel();
+            if (!concat) code.iload(axisLocal).loadConstant(axis).branch(Opcode.IF_ICMPEQ, next);
+            code.lload(sourceAddress).lload(coordinates[axis]);
+            if (concat) {
+                var unchanged = code.newLabel();
+                code.iload(axisLocal).loadConstant(axis).branch(Opcode.IF_ICMPNE, unchanged);
+                code.aload(1).loadConstant(variant + 1).iload(occurrence).iadd().laload().lsub();
+                code.labelBinding(unchanged);
+            }
+            code.aload(1).loadConstant(strides).iload(boundary).loadConstant(inputRank).imul().iadd();
+            code.loadConstant(axis);
+            if (!concat) {
+                var before = code.newLabel();
+                code.iload(axisLocal).loadConstant(axis).branch(Opcode.IF_ICMPGT, before);
+                code.loadConstant(1).isub();
+                code.labelBinding(before);
+            }
+            code.iadd().laload().lmul().ladd().lstore(sourceAddress);
+            code.labelBinding(next);
+        }
+        if (controlled) code.aload(0);
+        else code.aload(0).iload(boundary).aaload();
+        code.astore(source);
+        carriers.loadFrozen(type, CarrierAccess.MEMORY_SEGMENT, source, sourceAddress, false);
+        storeValue(code, type, value);
+        if (guarded) {
+            code.branch(Opcode.GOTO, ready).labelBinding(inactive);
+            loadImmediate(code, type, 0L); storeValue(code, type, value);
+            code.labelBinding(ready);
+        }
+        carriers.storeFrozen(type, CarrierAccess.MEMORY_SEGMENT, output, outputAddress, value, false);
+        emitAdvance(code, 1, coordinates, outputAddress, 0, 2 * rank + 1);
+        code.lload(logical).loadConstant(1L).ladd().lstore(logical).branch(Opcode.GOTO, loop);
+        code.labelBinding(done);
     }
 
     private static void emitStackDirectOrGeneralLong(CodeBuilder code,

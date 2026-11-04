@@ -711,7 +711,7 @@ class CpuPreparedExecutableTest {
         } finally { run.close(); }
     }
 
-    @Test void softmaxValidatesBeforeWritesAndParallelizesOnlyCompleteSlices() {
+    @Test void softmaxParallelizesCompleteSlicesAndRejectsOutputOverlapBeforeWrites() {
         var base = CpuSoftmaxLoweringTest.context(SoftmaxKind.SOFTMAX, DataType.FLOAT64,
                 Shape.of(8, 4), 1);
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
@@ -735,16 +735,6 @@ class CpuPreparedExecutableTest {
                 assertEquals(-77, output[0]); assertEquals(-77, output[33]);
                 double[] first = output.clone(); bound.execute(); assertArrayEquals(first, output);
             } finally { run.close(); }
-
-            double[] invalidInput = input.clone(); invalidInput[31] = Double.NaN;
-            double[] untouched = new double[34]; java.util.Arrays.fill(untouched, -31);
-            var invalid = state(executable, List.of(borrow(invalidInput, 0, 32),
-                    borrow(untouched, 1, 32)));
-            try {
-                assertThrows(IllegalArgumentException.class, () -> executable.bind(invalid).execute());
-                double[] expected = new double[34]; java.util.Arrays.fill(expected, -31);
-                assertArrayEquals(expected, untouched);
-            } finally { invalid.close(); }
 
             double[] shared = new double[40]; java.util.Arrays.fill(shared, 19);
             double[] unchanged = shared.clone();

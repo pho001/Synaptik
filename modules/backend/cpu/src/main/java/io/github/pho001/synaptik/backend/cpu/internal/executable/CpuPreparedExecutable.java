@@ -1866,8 +1866,6 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             int mask = g.roleBoundaryPositions().get(3);
             valueScans.add(CpuAttentionMaskValidator.bind(arguments.get(mask), bindings.get(mask)));
         });
-        softmaxGeometry.ifPresent(g ->
-                valueScans.add(CpuSoftmaxInputValidator.bind(arguments.getFirst(), g)));
         if (lossGeometry.filter(geometry -> geometry.axis() >= 0
                 && geometry.targetRank() == geometry.extents().length - 1).isPresent()) {
             // Index loss has two distinct read boundaries: logits then integral targets.
@@ -2774,12 +2772,33 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     private static KernelCall callFor(MethodHandle h, List<CpuBufferArgument> a,
             MemorySegment scratch, long[] g, long start, long end) {
-        Object[] carriers = a.stream().map(CpuPreparedExecutable::carrier).toArray();
-        MethodHandle bound = MethodHandles.insertArguments(h, 0, carriers);
+        MethodHandle bound;
+        if (h.type().parameterType(0) == MemorySegment[].class) {
+            // Cold, run-owned non-owning views retain the same bases and lifecycle as the
+            // classified arguments; invocation never rebuilds or copies this operand table.
+            MemorySegment[] operands = new MemorySegment[a.size()];
+            for (int i = 0; i < operands.length; i++) operands[i] = fullCarrierSegment(a.get(i));
+            bound = MethodHandles.insertArguments(h, 0, (Object) operands);
+        } else {
+            Object[] carriers = a.stream().map(CpuPreparedExecutable::carrier).toArray();
+            bound = MethodHandles.insertArguments(h, 0, carriers);
+        }
         if (scratch != null) bound = MethodHandles.insertArguments(bound, 0, scratch);
         bound = MethodHandles.insertArguments(bound, 0, (Object) g);
         MethodHandle target = bound;
         return () -> invokeVoid(target, start, end);
+    }
+
+    private static MemorySegment fullCarrierSegment(CpuBufferArgument argument) {
+        return switch (argument) {
+            case CpuBufferArgument.Doubles value -> MemorySegment.ofArray(value.carrier());
+            case CpuBufferArgument.Floats value -> MemorySegment.ofArray(value.carrier());
+            case CpuBufferArgument.Shorts value -> MemorySegment.ofArray(value.carrier());
+            case CpuBufferArgument.Ints value -> MemorySegment.ofArray(value.carrier());
+            case CpuBufferArgument.Longs value -> MemorySegment.ofArray(value.carrier());
+            case CpuBufferArgument.Bytes value -> MemorySegment.ofArray(value.carrier());
+            case CpuBufferArgument.Segment value -> value.segment();
+        };
     }
 
     private static MemorySegment scratch(WorkspaceRepresentation[] workspaces) {

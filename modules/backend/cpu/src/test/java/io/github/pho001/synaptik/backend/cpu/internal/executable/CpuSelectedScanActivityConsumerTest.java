@@ -100,33 +100,7 @@ public class CpuSelectedScanActivityConsumerTest {
             }
     }
 
-    @Test void anAbsentPrimalOnlyCrossEntropyVjpDoesNotRunItsSoftmaxValidatorButAPresentZeroDoes() {
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) for (boolean reverse : List.of(false, true)) {
-            Tensor h = leaf(type, true, 2, 2), target = leaf(DataType.INT64, false, 2);
-            Tensor next = h.categoricalCrossEntropyWithLogits(target, 1, LossReduction.NONE)
-                    .expandDims(1).expand(Shape.of(2, 2));
-            Tensor initial = leaf(type, true, 2, 2), targets = leaf(DataType.INT64, false, 2, 2);
-            Tensor lengths = leaf(DataType.INT64, false, 2), fs = leaf(type, false, 2, 2), es = leaf(type, false, 2, 2, 2);
-            var scan = bind(initial, List.of(targets), List.of(), lengths,
-                    new ScanBody(List.of(h), List.of(target), List.of(), List.of(next), List.of(h)), reverse, true);
-            var roots = List.of(scan.finalCarry().getFirst(), scan.outputs().getFirst());
-            double max = type == DataType.FLOAT64 ? Double.MAX_VALUE : Float.MAX_VALUE;
-            var input = feeds(initial, new double[]{-max, max, -max, max}, targets, new double[4], lengths,
-                    new double[]{2, 1}, fs, new double[4], es, new double[]{1, 1, 1, 1, 1, 1, Double.NaN, Double.NaN});
-            var absent = execute(compile(roots, List.of(roots.get(1)), List.of(es), List.of(initial), false), input);
-            assertArrayEquals(new double[]{-1, 3, 1, 1}, absent.get(2));
-            var present = compile(roots, roots, List.of(fs, es), List.of(initial), false);
-            try (var run = new Run(present, input)) {
-                assertThrows(IllegalArgumentException.class, run.bound::execute);
-                // The same bound invocation retries after replacing logits; its validator cursors reset.
-                run.put(initial, new double[]{-.5, .5, -.5, .5});
-                run.bound.execute();
-                for (double value : run.publications().get(2)) assertTrue(Double.isFinite(value));
-            }
-        }
-    }
-
-    private enum Guard { SOFTMAX, LOSS_TARGET, BOOL, GATHER, GATHER_ND, SCATTER_BOUNDS, SCATTER_DUPLICATE }
+    private enum Guard { LOSS_TARGET, BOOL, GATHER, GATHER_ND, SCATTER_BOUNDS, SCATTER_DUPLICATE }
 
     @Test void aBadLastActiveRowRejectsBeforeEarlierRowsPublishAndTheSameInvocationRetries() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) for (Guard guard : Guard.values()) {
@@ -139,8 +113,8 @@ public class CpuSelectedScanActivityConsumerTest {
             Tensor initial = leaf(type, true, 3, 3), sequence = leaf(type, true, 2, 3, 3);
             Tensor auxiliary = leaf(auxiliaryType, false, guard == Guard.LOSS_TARGET ? new long[]{2, 3}
                     : guard == Guard.GATHER_ND ? new long[]{2, 3, 3, 1} : new long[]{2, 3, 3});
-            List<Tensor> formals = guard == Guard.SOFTMAX ? List.of(x) : List.of(x, aux);
-            List<Tensor> actuals = guard == Guard.SOFTMAX ? List.of(sequence) : List.of(sequence, auxiliary);
+            List<Tensor> formals = List.of(x, aux);
+            List<Tensor> actuals = List.of(sequence, auxiliary);
             var body = new ScanBody(List.of(h), formals, List.of(), List.of(next), List.of(guarded));
             Tensor lengths = leaf(DataType.INT64, false, 3);
             var scan = bind(initial, actuals, List.of(), lengths, body, false, true);
@@ -153,11 +127,9 @@ public class CpuSelectedScanActivityConsumerTest {
             for (int i = 0; i < auxiliaryData.length; i++) auxiliaryData[i] = guard == Guard.BOOL ? i % 2
                     : guard == Guard.LOSS_TARGET ? i % 3 : i % 3;
             // Bad inactive rows/steps are deliberately retained during every success and retry.
-            if (guard != Guard.SOFTMAX) {
-                poisonAuxiliary(guard, auxiliaryData, 2, 99);
-                poisonAuxiliary(guard, auxiliaryData, 4, 99);
-                poisonAuxiliary(guard, auxiliaryData, 5, 99);
-            }
+            poisonAuxiliary(guard, auxiliaryData, 2, 99);
+            poisonAuxiliary(guard, auxiliaryData, 4, 99);
+            poisonAuxiliary(guard, auxiliaryData, 5, 99);
             double[] finalSeeds = new double[9], emissionSeeds = new double[18];
             for (int i = 0; i < finalSeeds.length; i++) finalSeeds[i] = .25 + i * .03125;
             Arrays.fill(emissionSeeds, Double.NaN);
@@ -166,11 +138,9 @@ public class CpuSelectedScanActivityConsumerTest {
                     lengths, new double[]{2, 1, 0}, fs, finalSeeds, es, emissionSeeds);
             try (var run = new Run(artifact, input)) {
                 // Row 1 is the last eligible row at t=0. Row 0 must not publish first.
-                double[] invalidData = validData.clone(), invalidAuxiliary = auxiliaryData.clone();
-                if (guard == Guard.SOFTMAX) invalidData[5] = Double.POSITIVE_INFINITY;
-                else poisonAuxiliary(guard, invalidAuxiliary, 1, guard == Guard.SCATTER_DUPLICATE ? 0 : 99);
-                run.put(sequence, invalidData);
-                if (guard != Guard.SOFTMAX) run.put(auxiliary, invalidAuxiliary);
+                double[] invalidAuxiliary = auxiliaryData.clone();
+                poisonAuxiliary(guard, invalidAuxiliary, 1, guard == Guard.SCATTER_DUPLICATE ? 0 : 99);
+                run.put(auxiliary, invalidAuxiliary);
                 ValueId emission = artifact.publication().forwardBindings().get(1).valueId();
                 MemorySegment output = run.fixture.storage.get(emission);
                 output.fill((byte)0x5a);
@@ -183,7 +153,7 @@ public class CpuSelectedScanActivityConsumerTest {
                 assertArrayEquals(before, output.asSlice(0, 6L * type.byteWidth()).toArray(ValueLayout.JAVA_BYTE),
                         "the complete active domain validates before even row 0 writes: " + guard);
                 run.put(sequence, validData);
-                if (guard != Guard.SOFTMAX) run.put(auxiliary, auxiliaryData);
+                run.put(auxiliary, auxiliaryData);
                 run.bound.execute();
                 var first = run.publications();
                 run.bound.execute();
@@ -372,7 +342,6 @@ public class CpuSelectedScanActivityConsumerTest {
 
     private static Tensor guarded(Guard guard, Tensor x, Tensor aux) {
         return switch (guard) {
-            case SOFTMAX -> x.softmax(1);
             case LOSS_TARGET -> x.categoricalCrossEntropyWithLogits(aux, 1, LossReduction.NONE)
                     .expandDims(1).expand(x.descriptor().shape());
             case BOOL -> Tensor.where(aux, x, x.neg());

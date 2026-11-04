@@ -134,11 +134,17 @@ class CpuRandomOneHotSemanticClosureTest {
                 Store output = stores.get(node.outputs().get(0)), mask = stores.get(node.outputs().get(1));
                 Store next = stores.get(node.outputs().get(2));
                 double probability = ((DropoutAttrs) node.operation().attrs()).probability();
+                boolean doubleWork = value.descriptor.dataType() == DataType.FLOAT64;
+                double scale = doubleWork ? 1.0d / (1.0d - probability)
+                        : (double) (1.0f / (float) (1.0d - probability));
                 long key = state.get(0), counter = state.get(1);
                 for (long ordinal = start; ordinal < end; ordinal++) {
                     boolean keep = uniform(word(key, counter, ordinal)) >= probability;
                     mask.set(ordinal, keep ? 1 : 0);
-                    output.setFloating(ordinal, keep ? value.floating(ordinal) / (1.0 - probability) : 0.0);
+                    output.setFloating(ordinal, keep
+                            ? doubleWork ? value.floating(ordinal) * scale
+                                    : (float) value.floating(ordinal) * (float) scale
+                            : 0.0d);
                 }
                 next.set(0, key); next.set(1, counter + end - start);
             }

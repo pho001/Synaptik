@@ -25,8 +25,6 @@ import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.loss.*;
-import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
-import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -190,36 +188,6 @@ class CpuComposedValueValidationTest {
             assertArrayEquals(new float[] {71, 71, 71, 71}, f.floats(6));
             assertArrayEquals(new float[] {71, 71}, f.floats(7));
             f.floats(0, 0, 1); bound.execute(); assertEquals(0f, f.floats(7)[0]);
-        }
-    }
-
-    @Test void producedSoftmaxInfinityRejectsBeforeAnyConsumerWriteOnEveryInvocation() {
-        var descriptor = descriptor(DataType.FLOAT32, Shape.of(2, 2));
-        for (SoftmaxKind kind : SoftmaxKind.values()) {
-            var analysis = analyze(List.of(descriptor, descriptor, descriptor), List.of(
-                    node(0, plain(UnaryElementwiseKind.EXP), 1, 0),
-                    node(1, new Operation(kind, new SoftmaxAttrs(1)), 2, 1)));
-            assertEquals(2, analysis.plan().units().getLast().selectedRangeCount());
-            try (var fixture = new Fixture(analysis)) {
-                fixture.floats(0, 0, 0, 0, 0);
-                fixture.floats(1, Float.NaN, Float.NaN, Float.NaN, Float.NaN);
-                BoundInvocation bound = assertDoesNotThrow(() -> fixture.executable.bind(fixture.state));
-                bound.execute();
-                assertArrayEquals(kind == SoftmaxKind.SOFTMAX
-                        ? new float[] {.5f, .5f, .5f, .5f}
-                        : new float[] {-(float) Math.log(2), -(float) Math.log(2),
-                                -(float) Math.log(2), -(float) Math.log(2)},
-                        fixture.floats(2), 1e-7f);
-                for (int repetition = 0; repetition < 2; repetition++) {
-                    fixture.floats(0, 0, 0, 0, 1000);
-                    fixture.floats(2, 71, 71, 71, 71);
-                    assertThrows(IllegalArgumentException.class, bound::execute);
-                    assertTrue(Float.isInfinite(fixture.floats(1)[3]));
-                    assertArrayEquals(new float[] {71, 71, 71, 71}, fixture.floats(2));
-                    fixture.floats(0, 0, 0, 0, 0);
-                    bound.execute();
-                }
-            }
         }
     }
 

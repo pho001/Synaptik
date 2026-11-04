@@ -29,10 +29,6 @@ public class CpuSoftmaxLoweringTest {
                 () -> assertTrue(dense.aggregateGeometry().isEmpty()));
     }
 
-    @Test void rejectsSelectedZeroExtent() {
-        assertThrows(IllegalArgumentException.class, () -> lower(SoftmaxKind.SOFTMAX,
-                DataType.FLOAT32, Shape.of(2, 0), 1));
-    }
 
     public static LoweredPartition lower(SoftmaxKind kind, DataType type, Shape shape, int axis) {
         return new CpuPartitionLowering().lower(context(kind, type, shape, axis));

@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.cache;
 
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize;
@@ -88,6 +89,10 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
     public static final int DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA = 73;
     /** Literal attention working sites and nonempty contractions; obsolete shifted classes reject. */
     public static final int ATTENTION_LITERAL_EXP_SCHEMA = 74;
+    /** Wide ordered composition uses a bounded operand table instead of JVM boundary arguments. */
+    public static final int MOVEMENT_OPERAND_TABLE_SCHEMA = 75;
+    /** FLOAT32 RSQRT rounds its square root before the reciprocal. */
+    public static final int FLOAT32_RSQRT_SITES_SCHEMA = 76;
 
     /**
      * Retains the standalone specialization constructor and its unchanged identity stream.
@@ -604,6 +609,16 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         aggregateFusionIr = Objects.requireNonNull(aggregateFusionIr,"aggregateFusionIr");
         softmaxBackwardIr = Objects.requireNonNull(softmaxBackwardIr,"softmaxBackwardIr");
         compositionUnits = List.copyOf(compositionUnits);
+        DataType movementType = boundaryDataTypes.isEmpty() ? null : boundaryDataTypes.getFirst();
+        if (classIdentitySchema == MOVEMENT_OPERAND_TABLE_SCHEMA
+                && (scratchParameter || materializedSourcePosition != -1 || vectorSpeciesBitSize != 0
+                    || executionStrategy.compute() != CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR
+                    || !scalarPowerRealizations.isEmpty() || matmulIr.isPresent() || generalScanIr.isPresent()
+                    || rowMapReductionIr.isPresent() || rowFusionEmission.isPresent()
+                    || aggregateFusionIr.isPresent() || softmaxBackwardIr.isPresent()
+                    || boundaryDataTypes.size() < 2
+                    || boundaryDataTypes.stream().anyMatch(t -> t != movementType)))
+            throw new IllegalArgumentException("wide movement table specialization disagrees");
         if (!compositionUnits.isEmpty()
                 && (generalScanIr.isEmpty() || generalScanIr.orElseThrow().composition().isEmpty())) {
             throw new IllegalArgumentException("ordinary helper inventory requires composite Scan facts");
@@ -669,7 +684,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 && classIdentitySchema != 60 && classIdentitySchema != 61
                 && classIdentitySchema != 62 && classIdentitySchema != 63
                 && classIdentitySchema != 68 && classIdentitySchema != 71 && classIdentitySchema != 72
-                && classIdentitySchema != DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA) {
+                && classIdentitySchema != DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
+                && classIdentitySchema != MOVEMENT_OPERAND_TABLE_SCHEMA
+                && classIdentitySchema != FLOAT32_RSQRT_SITES_SCHEMA) {
             throw new IllegalArgumentException("unsupported CPU generated class identity projection");
         }
         if ((classIdentitySchema == 71) != generalScanIr.isPresent())
@@ -751,6 +768,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 throw new IllegalArgumentException("transpose source coverage/lifetime disagrees");
         }
     }
+
+    /** Returns whether ordinary movement binds one prepared operand table. */
+    public boolean movementOperandTable() { return classIdentitySchema == MOVEMENT_OPERAND_TABLE_SCHEMA; }
     /**
      * Returns the exact generated entry ABI for the authenticated specialization. Boundary
      * carriers precede optional segment scratch and the run-owned geometry array, followed by
@@ -759,6 +779,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * @return nonnull immutable method type returning void with the selected ordered parameters
      */
     public MethodType entryType() {
+        if (movementOperandTable()) return MethodType.methodType(void.class,
+                MemorySegment[].class, long[].class, long.class, long.class);
         if (generalScanIr.isPresent() && generalScanIr.orElseThrow().composition().isPresent()) {
             return MethodType.methodType(void.class, MemorySegment[].class, long[][].class,
                     MemorySegment.class, MemorySegment.class, long.class, long.class);
@@ -843,7 +865,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + rowMapReductionIr.map(r -> "|ordinary-row-map-multi-reduction-v1="+r.bakedSpecializationIdentity()).orElse("")
                 + aggregateFusionIr.map(f -> "|ordinary-aggregate-fusion-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + softmaxBackwardIr.map(f -> "|ordinary-softmax-backward-v1="+f.bakedSpecializationIdentity()).orElse("")
-                + compositionIdentity() + matmulSingletonIdentity()
+                + compositionIdentity() + matmulSingletonIdentity() + movementOperandTableIdentity()
+                + float32RsqrtIdentity()
                 + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity()
                 + (classIdentitySchema == DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
                     ? "|affine-dense-array-empty-range-v1" : "")
@@ -899,13 +922,47 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + rowMapReductionIr.map(r -> "|ordinary-row-map-multi-reduction-v1="+r.bakedSpecializationIdentity()).orElse("")
                 + aggregateFusionIr.map(f -> "|ordinary-aggregate-fusion-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + softmaxBackwardIr.map(f -> "|ordinary-softmax-backward-v1="+f.bakedSpecializationIdentity()).orElse("")
-                + compositionIdentity() + matmulSingletonIdentity()
+                + compositionIdentity() + matmulSingletonIdentity() + movementOperandTableIdentity()
+                + float32RsqrtIdentity()
                 + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity()
                 + (classIdentitySchema == DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
                     ? "|affine-dense-array-empty-range-v1" : "")
                 + (classIdentitySchema == ATTENTION_LITERAL_EXP_SCHEMA
                     ? "|attention-literal-working-sites-v1" : ""))
                 .getBytes(StandardCharsets.US_ASCII);
+    }
+
+    private String movementOperandTableIdentity() {
+        return movementOperandTable() ? "|movement-operand-table-v1" : "";
+    }
+
+    /**
+     * Identifies changed scalar sites without changing canonical CPU IR or unrelated families.
+     * @param ir immutable typed arithmetic to inspect
+     * @return whether any represented FLOAT32 RSQRT uses the corrected working-site sequence
+     */
+    public static boolean hasFloat32RsqrtSites(CpuKernelIr ir) {
+        for (var instruction : ir.instructions()) {
+            if (instruction.opcode() == CpuPointwiseOpcode.RSQRT
+                    && ir.values().get(instruction.output()).dataType() == DataType.FLOAT32)
+                return true;
+        }
+        return false;
+    }
+
+    private String float32RsqrtIdentity() {
+        boolean affected = classIdentitySchema == FLOAT32_RSQRT_SITES_SCHEMA
+                || rowMapReductionIr.map(r -> hasFloat32RsqrtSites(r.arithmetic())).orElse(false)
+                || aggregateFusionIr.map(f ->
+                        f.producer().filter(CpuKernelSpecialization::hasFloat32RsqrtSites).isPresent()
+                        || f.epilogue().filter(CpuKernelSpecialization::hasFloat32RsqrtSites).isPresent())
+                    .orElse(false)
+                || generalScanIr.map(scan -> hasFloat32RsqrtSites(scan.arithmetic())
+                        || scan.stages().flatMap(
+                                io.github.pho001.synaptik.backend.cpu.internal.ir.CpuGeneralScanIr.Stages::rowMapReductionIr)
+                            .map(r -> hasFloat32RsqrtSites(r.arithmetic())).orElse(false))
+                    .orElse(false);
+        return affected ? "|f32-rsqrt-typed-sites-v1" : "";
     }
 
     /**

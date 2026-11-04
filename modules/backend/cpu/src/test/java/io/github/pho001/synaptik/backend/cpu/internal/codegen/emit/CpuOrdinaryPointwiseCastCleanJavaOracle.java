@@ -203,8 +203,8 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
                     .append(store("BOOL", outputSegment, "out", "converted"));
         } else {
             boolean directFloat = !source.equals("FLOAT64") && switch (row.operation()) {
-                case "ABS", "NEG", "RECIPROCAL", "SIGN", "RELU" -> true;
-                case "RSQRT", "SIGMOID", "SILU", "GELU_EXACT", "GELU_TANH_APPROXIMATION" ->
+                case "ABS", "NEG", "RECIPROCAL", "SIGN", "RELU", "RSQRT" -> true;
+                case "SIGMOID", "SILU", "GELU_EXACT", "GELU_TANH_APPROXIMATION" ->
                         source.equals("BFLOAT16") || source.equals("FLOAT16");
                 default -> false;
             };

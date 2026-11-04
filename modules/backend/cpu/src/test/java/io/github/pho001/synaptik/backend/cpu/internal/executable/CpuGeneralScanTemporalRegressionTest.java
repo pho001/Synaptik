@@ -98,37 +98,6 @@ class CpuGeneralScanTemporalRegressionTest {
             }
     }
 
-    @Test void aBadLastSoftmaxRowLeavesTheProducingEmissionUntouchedUntilCompleteValidationAndRetry() {
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
-            for (boolean reverse : List.of(false, true)) {
-                Tensor x = value(type, false, Shape.of(2, 3));
-                Tensor sequence = value(type, false, Shape.of(1, 2, 3));
-                Tensor lengths = value(DataType.INT64, false, Shape.of(2));
-                var body = new ScanBody(List.of(), List.of(x), List.of(), List.of(), List.of(x.softmax(1)));
-                var scan = Scan.apply(List.of(), List.of(sequence), List.of(), lengths, 0,
-                        List.of(OptionalInt.of(0)), body, reverse);
-                var artifact = compile(scan.outputs(), Optional.empty());
-                try (var run = new Consumer(artifact, OptionalLong.empty())) {
-                    run.numbers(sequence, 0, 0, 0, 0, 0, Double.POSITIVE_INFINITY);
-                    run.numbers(lengths, 1, 1);
-                    run.bind();
-                    run.outputStorage(0).fill((byte) 0x5a);
-                    byte[] before = run.outputStorage(0).toArray(ValueLayout.JAVA_BYTE);
-                    assertThrows(IllegalArgumentException.class, run.bound::execute);
-                    assertArrayEquals(before, run.outputStorage(0).toArray(ValueLayout.JAVA_BYTE));
-                    run.numbers(sequence, 0, 0, 0, 0, 0, 0);
-                    run.bound.execute();
-                    double third = type == DataType.FLOAT32 ? (float) (1d / 3d) : 1d / 3d;
-                    assertArrayEquals(new double[] {third, third, third, third, third, third}, run.forward(0));
-                    run.numbers(lengths, 1, 0);
-                    run.numbers(sequence, 0, 0, 0, Double.NaN, Double.NaN, Double.NaN);
-                    run.bound.execute();
-                    assertArrayEquals(new double[] {third, third, third, 0, 0, 0}, run.forward(0));
-                    for (int i = 3; i < 6; i++) assertEquals(0L, Double.doubleToRawLongBits(run.forward(0)[i]));
-                }
-            }
-    }
-
     @Test void logicalLengthsUseOffsetOneStrideTwoAndIgnorePoisonedBackingHoles() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
             for (boolean reverse : List.of(false, true)) {

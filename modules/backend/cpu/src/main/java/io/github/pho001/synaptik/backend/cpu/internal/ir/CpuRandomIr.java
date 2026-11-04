@@ -43,7 +43,7 @@ public record CpuRandomIr(Family family, DataType valueType, long keyBits, long 
     public static final String THRESHOLD_ID =
             "KEEP_UNIFORM_GREATER_THAN_OR_EQUAL_BINARY64_PROBABILITY_V1";
     /** Exact dropout arithmetic and canonical-mask policy. */
-    public static final String NUMERIC_ID = "DROPOUT_BINARY64_DIVIDE_NARROW_ONCE_V1";
+    public static final String NUMERIC_ID = "DROPOUT_TYPED_COMPLEMENT_RECIPROCAL_MULTIPLY_V2";
     /** Exact represented keep-mask policy. */
     public static final String MASK_POLICY_ID = "CANONICAL_BOOL_BYTES_0_1_V1";
     /** Exact prologue and modulo state-advancement policy. */

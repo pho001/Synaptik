@@ -413,10 +413,7 @@ class CpuPointwiseGeneratedKernelTest {
             List<DataType> types = ir.values().stream().map(CpuKernelIr.Value::dataType).toList();
             List<CpuKernelSpecialization.CarrierAccess> carriers = types.stream()
                     .map(CpuPointwiseGeneratedKernelTest::heapCarrier).toList();
-            var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
-            FloatVector.SPECIES_PREFERRED.vectorBitSize(), -1);
-            var generator = new CpuClassFileKernelGenerator();
-            var artifact = generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir));
+            var artifact = vectorArtifact(ir, types, carriers, DataType.FLOAT32);
             int count = FloatVector.SPECIES_PREFERRED.length() + 1;
             var generated = new ArrayList<Object>();
             for (Object input : inputs(one)) generated.add(Arrays.copyOf((float[]) input, count));
@@ -684,25 +681,28 @@ class CpuPointwiseGeneratedKernelTest {
                 input[index] / denominator, scalarOutput[index]);
     }
 
-    @Test void float32RsqrtNarrowsOnlyAfterDoublePrecisionSqrtAndReciprocal() throws Throwable {
-        float input = Float.intBitsToFloat(0x0000_26f6);
-        float intermediateRoot = (float) StrictMath.sqrt((double) input);
-        float oldIntermediateNarrowing = 1.0f / intermediateRoot;
-        float expected = (float) (1.0d / StrictMath.sqrt((double) input));
-        assertAll(
-                () -> assertEquals(0x6168_01ad, Float.floatToRawIntBits(oldIntermediateNarrowing)),
-                () -> assertEquals(0x6168_01ae, Float.floatToRawIntBits(expected)),
-                () -> assertNotEquals(Float.floatToRawIntBits(oldIntermediateNarrowing),
-                        Float.floatToRawIntBits(expected)));
-
+    @Test
+    void float32RsqrtUsesTypedSitesInScalarVectorAndRemainderLanes() throws Throwable {
         CpuKernelIr ir = ir(new Case(CpuPointwiseOpcode.RSQRT, DataType.FLOAT32));
-        var generated = artifact(ir, List.of(DataType.FLOAT32, DataType.FLOAT32),
-                List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
-                        CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY));
-        float[] output = new float[1];
-        generated.entryPoint().invokeWithArguments(new float[] {input}, output,
-                geometry(2, 1), 0L, 1L);
-        assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(output[0]));
+        float[] samples = {7.0f, 13.0f, 31.0f, Float.MAX_VALUE, +0.0f, -0.0f,
+                Float.POSITIVE_INFINITY, -1.0f, Float.NaN};
+        float[] input = new float[2 * FloatVector.SPECIES_PREFERRED.length() + 3];
+        for (int i = 0; i < input.length; i++) input[i] = samples[i % samples.length];
+        input[input.length - 1] = 7.0f;
+        var types = List.of(DataType.FLOAT32, DataType.FLOAT32);
+        var carriers = Collections.nCopies(2, heapCarrier(DataType.FLOAT32));
+        for (var kernel : List.of(artifact(ir, types, carriers),
+                vectorArtifact(ir, types, carriers, DataType.FLOAT32))) {
+            float[] output = new float[input.length];
+            kernel.entryPoint().invokeWithArguments(input, output,
+                    geometry(2, input.length), 0L, (long) input.length);
+            for (int i = 0; i < input.length; i++) {
+                float expected = 1.0f / (float) StrictMath.sqrt(input[i]);
+                if (Float.isNaN(expected)) assertTrue(Float.isNaN(output[i]), "lane " + i);
+                else assertEquals(Float.floatToRawIntBits(expected),
+                        Float.floatToRawIntBits(output[i]), "lane " + i);
+            }
+        }
     }
 
     @Test void extremaClampTensorPowerAndLogicalRowsPreserveExactEdgeSemantics() throws Throwable {
@@ -934,7 +934,9 @@ class CpuPointwiseGeneratedKernelTest {
         ir.instructions().stream()
                 .filter(instruction -> instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW)
                 .map(CpuKernelIr.Instruction::powerRealization).toList(), false,
-        types.contains(DataType.FLOAT16) ? 68 : types.contains(DataType.BFLOAT16) ? 59 : 52);
+        CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
+                ? CpuKernelSpecialization.FLOAT32_RSQRT_SITES_SCHEMA
+                : types.contains(DataType.FLOAT16) ? 68 : types.contains(DataType.BFLOAT16) ? 59 : 52);
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir));
     }
@@ -1008,7 +1010,9 @@ class CpuPointwiseGeneratedKernelTest {
     private static CpuGeneratedKernel vectorArtifact(CpuKernelIr ir, List<DataType> types,
             List<CpuKernelSpecialization.CarrierAccess> carriers, DataType laneType) {
         var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
-        vectorSpeciesBits(laneType), -1);
+        vectorSpeciesBits(laneType), -1, List.of(), false,
+        CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
+                ? CpuKernelSpecialization.FLOAT32_RSQRT_SITES_SCHEMA : 52);
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir));
     }
@@ -1048,10 +1052,7 @@ class CpuPointwiseGeneratedKernelTest {
         List<DataType> types = ir.values().stream()
                 .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL)
                 .map(CpuKernelIr.Value::dataType).toList();
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
-        vectorSpeciesBits(laneType), -1);
-        var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir));
+        var artifact = vectorArtifact(ir, types, carriers, laneType);
         var call = new ArrayList<Object>(arguments);
         call.add(geometry(arguments.size(), count)); call.add(0L); call.add((long) count);
         artifact.entryPoint().invokeWithArguments(call);
@@ -1421,7 +1422,9 @@ class CpuPointwiseGeneratedKernelTest {
         ir.instructions().stream().filter(instruction -> instruction.opcode()
                 == CpuPointwiseOpcode.SCALAR_POW)
                 .map(CpuKernelIr.Instruction::powerRealization).toList(), false,
-        types.contains(DataType.FLOAT16) ? 68 : types.contains(DataType.BFLOAT16) ? 59 : 52);
+        CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
+                ? CpuKernelSpecialization.FLOAT32_RSQRT_SITES_SCHEMA
+                : types.contains(DataType.FLOAT16) ? 68 : types.contains(DataType.BFLOAT16) ? 59 : 52);
         var artifact = new CpuClassFileKernelGenerator().defineClassBytes(specialization, ir, new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir));
         List<Object> inputArrays = inputs(one);
         Object generatedOutput = array(one.outputType(), 4, false);

@@ -7,16 +7,12 @@ import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import org.junit.jupiter.api.Test;
 
 class CpuSoftmaxReferenceTest {
-    @Test void preservesAxesAndRejectsNonfiniteInput() {
+    @Test void preservesLogicalNormalizationAxes() {
         double[] result = CpuSoftmaxReferenceKernel.evaluate(SoftmaxKind.SOFTMAX,
                 DataType.FLOAT64, new double[] {1, 2, 3, 4}, new long[] {2, 2}, 0,
                 new long[] {2, 1}, 1);
         assertAll(() -> assertEquals(1.0, result[0] + result[1], 2e-15),
-                () -> assertEquals(1.0, result[2] + result[3], 2e-15),
-                () -> assertThrows(IllegalArgumentException.class, () ->
-                        CpuSoftmaxReferenceKernel.evaluate(SoftmaxKind.LOG_SOFTMAX,
-                                DataType.FLOAT64, new double[] {Double.POSITIVE_INFINITY},
-                                new long[] {1}, 0, new long[] {1}, 0)));
+                () -> assertEquals(1.0, result[2] + result[3], 2e-15));
     }
 
     @Test void bothWorkingTypesAdmitTiedFiniteExtremesOnStridedNonLastAxes() {
@@ -42,11 +38,15 @@ class CpuSoftmaxReferenceTest {
             }
     }
 
-    @Test void bfloatStillRejectsOverflowingWorkingShifts() {
+    @Test void bfloatWorkingShiftOverflowKeepsModelResultClasses() {
         double maximum = Float.intBitsToFloat(0x7f7f0000);
-        for (SoftmaxKind kind : SoftmaxKind.values())
-            assertThrows(IllegalArgumentException.class, () -> CpuSoftmaxReferenceKernel.evaluate(
+        for (SoftmaxKind kind : SoftmaxKind.values()) {
+            double[] actual = CpuSoftmaxReferenceKernel.evaluate(
                     kind, DataType.BFLOAT16, new double[] {-maximum, maximum},
-                    new long[] {2}, 0, new long[] {1}, 0));
+                    new long[] {2}, 0, new long[] {1}, 0);
+            assertArrayEquals(kind == SoftmaxKind.SOFTMAX
+                    ? new double[]{0.0d, 1.0d} : new double[]{Double.NEGATIVE_INFINITY, 0.0d},
+                    actual);
+        }
     }
 }

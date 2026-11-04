@@ -53,9 +53,9 @@ import java.util.Optional;
  * mapping has the semantic effect of copying the base and replacing selected positions while
  * leaving both inputs unchanged.</p>
  *
- * <p>Variadic composition uses the shared checked entry/code budget rather than a fixed
- * sixteen-input semantic guard. Each source occurrence selects directly into the one output
- * traversal; repeated identities share a read boundary without recursive graphs or staging copies.</p>
+ * <p>Variadic composition keeps checked semantic cardinality in prepared occurrence/address
+ * tables rather than JVM argument or generated-arm counts. Each source occurrence selects
+ * directly into one output traversal; repeated identities share a read boundary without staging.</p>
  *
  * <p>Canonical single-named-B occurrences use {@link #lowerBatch(PrepareContext)}. Their
  * original shape relationships are proved structurally and their numeric geometry is resolved
@@ -105,9 +105,7 @@ public final class CpuNonAffineMovementLowering {
             occurrences.add(input);
             occurrenceMap.add(unique.computeIfAbsent(inputId, ignored -> unique.size()));
         }
-        if (!CpuDataMovementIr.withinCompositionBudget(occurrences.size(), outputExtents.length)) {
-            throw new IllegalArgumentException("movement entry/code budget exceeded");
-        }
+        if (occurrences.isEmpty()) throw new IllegalArgumentException("movement requires inputs");
 
         Object kind = node.operation().kind();
         Object attrs = node.operation().attrs();
@@ -208,7 +206,7 @@ public final class CpuNonAffineMovementLowering {
                 throw new IllegalArgumentException("CONCAT axis or rank is inconsistent");
             }
             long[] first = occurrences.getFirst().descriptor().shape().toLongArray();
-            long[] prefixes = new long[occurrences.size() + 1];
+            long[] prefixes = new long[Math.addExact(occurrences.size(), 1)];
             for (int index = 0; index < occurrences.size(); index++) {
                 long[] shape = occurrences.get(index).descriptor().shape().toLongArray();
                 if (shape.length != rank) throw new IllegalArgumentException("CONCAT ranks must match");
@@ -226,7 +224,7 @@ public final class CpuNonAffineMovementLowering {
                 }
             }
             movementPlan = new CpuDataMovementIr.ConcatPlan(rank, occurrenceMap);
-            variant = new Geometry.Concat(axis, prefixes);
+            variant = new Geometry.Concat(axis, prefixes, occurrenceMap);
         } else if (kind == TensorCompositionKind.STACK
                 && attrs instanceof CompositionAxisAttrs composition) {
             long[] input = occurrences.getFirst().descriptor().shape().toLongArray();
@@ -246,7 +244,7 @@ public final class CpuNonAffineMovementLowering {
                 }
             }
             movementPlan = new CpuDataMovementIr.StackPlan(outputExtents.length, occurrenceMap);
-            variant = new Geometry.Stack(axis);
+            variant = new Geometry.Stack(axis, occurrenceMap);
         } else if (kind == WindowTransformKind.UNFOLD_AXIS
                 && attrs instanceof UnfoldAxisAttrs unfold) {
             requireUnary(occurrences, "UNFOLD_AXIS");
@@ -406,9 +404,6 @@ public final class CpuNonAffineMovementLowering {
         if (node.outputs().size() != 1 || node.inputs().isEmpty()) throw invalidBatch();
         Map<ValueId, GraphValue> values = new LinkedHashMap<>();
         context.values().forEach(v -> values.put(v.id(), v));
-        if (!CpuDataMovementIr.withinCompositionBudget(node.inputs().size(),
-                require(values, node.outputs().getFirst()).descriptor().shape().rank()))
-            throw invalidBatch();
         var unique = new LinkedHashMap<ValueId, Integer>();
         var map = new ArrayList<Integer>();
         for (var id : node.inputs()) map.add(unique.computeIfAbsent(id, ignored -> unique.size()));
@@ -785,13 +780,14 @@ public final class CpuNonAffineMovementLowering {
                     case CpuDataMovementIr.TilePlan ignored -> new Tile(inputs.getFirst().extents, facts);
                     case CpuDataMovementIr.ConcatPlan concat -> {
                         int axis = Math.toIntExact(facts[0]);
-                        long[] prefixes = new long[concat.occurrenceToBoundary().size() + 1];
+                        long[] prefixes = new long[Math.addExact(concat.occurrenceToBoundary().size(), 1)];
                         for (int n = 0; n + 1 < prefixes.length; n++)
                             prefixes[n + 1] = Math.addExact(prefixes[n],
                                     inputs.get(concat.occurrenceToBoundary().get(n)).extents[axis]);
-                        yield new Concat(axis, prefixes);
+                        yield new Concat(axis, prefixes, concat.occurrenceToBoundary());
                     }
-                    case CpuDataMovementIr.StackPlan ignored -> new Stack(Math.toIntExact(facts[0]));
+                    case CpuDataMovementIr.StackPlan stack -> new Stack(Math.toIntExact(facts[0]),
+                            stack.occurrenceToBoundary());
                     case CpuDataMovementIr.UnfoldAxisPlan ignored -> {
                         int axis = Math.toIntExact(facts[0]);
                         if (facts[1] > inputs.getFirst().extents[axis]) throw invalidBatch();
@@ -978,10 +974,16 @@ public final class CpuNonAffineMovementLowering {
          * @param axis normalized existing output axis
          * @param prefixes ordered cumulative segment starts, including the final total extent;
          *     copied defensively
+         * @param occurrenceToBoundary ordered occurrence bindings, copied defensively
          */
-        public record Concat(int axis, long[] prefixes) implements Variant {
-            /** Snapshots the exact segment prefix array. */
-            public Concat { prefixes = prefixes.clone(); }
+        public record Concat(int axis, long[] prefixes, List<Integer> occurrenceToBoundary) implements Variant {
+            /** Snapshots the exact segment prefix array and occurrence bindings. */
+            public Concat {
+                prefixes = prefixes.clone();
+                occurrenceToBoundary = List.copyOf(occurrenceToBoundary);
+                if (prefixes.length != Math.addExact(occurrenceToBoundary.size(), 1))
+                    throw new IllegalArgumentException("concat prefixes and occurrences disagree");
+            }
             /**
              * Returns isolated prefixes.
              * @return a defensive copy
@@ -992,8 +994,12 @@ public final class CpuNonAffineMovementLowering {
          * Stack insertion axis.
          *
          * @param axis normalized inserted output axis
+         * @param occurrenceToBoundary ordered occurrence bindings, copied defensively
          */
-        public record Stack(int axis) implements Variant { }
+        public record Stack(int axis, List<Integer> occurrenceToBoundary) implements Variant {
+            /** Snapshots the ordered occurrence bindings. */
+            public Stack { occurrenceToBoundary = List.copyOf(occurrenceToBoundary); }
+        }
         /**
          * General-axis window facts used with an output odometer.
          * @param axis normalized input axis
@@ -1080,9 +1086,17 @@ public final class CpuNonAffineMovementLowering {
             inputs = List.copyOf(inputs);
             Objects.requireNonNull(variant, "variant");
             if (outputOffset < 0 || outputExtents.length != outputStrides.length
-                    || !CpuDataMovementIr.withinCompositionBudget(inputs.size(), outputExtents.length)) {
+                    || inputs.isEmpty()) {
                 throw new IllegalArgumentException("movement geometry is inconsistent");
             }
+            List<Integer> occurrences = switch (variant) {
+                case Concat concat -> concat.occurrenceToBoundary;
+                case Stack stack -> stack.occurrenceToBoundary;
+                default -> List.of(0);
+            };
+            int inputCount = inputs.size();
+            if (occurrences.isEmpty() || occurrences.stream().anyMatch(b -> b < 0 || b >= inputCount))
+                throw new IllegalArgumentException("movement occurrence boundary is out of range");
         }
         /**
          * Returns isolated output extents.
@@ -1109,11 +1123,12 @@ public final class CpuNonAffineMovementLowering {
         public long[] pack(long[] carrierBases, long start, long end) {
             Objects.requireNonNull(carrierBases, "carrierBases");
             int rank = outputExtents.length;
-            int inputStrideCount = inputs.stream().mapToInt(input -> input.extents.length).sum();
+            int inputStrideCount = 0;
+            for (Input input : inputs) inputStrideCount = Math.addExact(inputStrideCount, input.extents.length);
             int variantSize = switch (variant) {
                 case Pad ignored -> 2 * rank;
                 case Tile ignored -> 2 * rank;
-                case Concat concat -> 1 + concat.prefixes.length;
+                case Concat concat -> Math.addExact(1, concat.prefixes.length);
                 case Stack ignored -> 1;
                 case UnfoldAxis ignored -> 3;
                 case Unfold2d ignored -> 18;
@@ -1127,8 +1142,16 @@ public final class CpuNonAffineMovementLowering {
                 throw new IllegalArgumentException("movement range geometry is inconsistent");
             }
             long[] coordinates = coordinates(start, outputExtents);
-            long[] packed = new long[3 * rank + 1 + inputs.size()
-                    + inputStrideCount + variantSize];
+            List<Integer> tableMap = switch (variant) {
+                case Concat concat -> concat.occurrenceToBoundary;
+                case Stack stack -> stack.occurrenceToBoundary;
+                default -> List.of();
+            };
+            int tableSize = tableMap.size() > 16 ? tableMap.size() : 0;
+            int packedSize = Math.addExact(Math.addExact(Math.addExact(
+                    Math.addExact(Math.multiplyExact(3, rank), 1), inputs.size()),
+                    inputStrideCount), Math.addExact(variantSize, tableSize));
+            long[] packed = new long[packedSize];
             int cursor = 0;
             for (long value : outputExtents) packed[cursor++] = value;
             for (long value : coordinates) packed[cursor++] = value;
@@ -1227,6 +1250,7 @@ public final class CpuNonAffineMovementLowering {
                     for (long value : currentOrdinals) packed[cursor++] = value;
                 }
             }
+            if (tableSize != 0) for (int boundary : tableMap) packed[cursor++] = boundary;
             return packed;
         }
 

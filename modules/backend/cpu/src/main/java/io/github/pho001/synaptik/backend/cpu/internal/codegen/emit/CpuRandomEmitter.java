@@ -17,14 +17,12 @@ import java.util.List;
  * Emits direct typed explicit-state initializer and dropout bodies into generated CPU classes.
  * Family, represented type, carrier form, access regime, probability, initializer words, and
  * counter policies are resolved while the class is generated. Invocation state is primitive and
- * local. Dropout expands BFLOAT16 input exactly, divides in binary64, and uses the same direct
- * Model round-to-nearest-even narrowing as generated CAST, including canonical NaN and signed-zero
- * behavior. Dense arrays use integer loops. One guarded rank-one {@code 1 << 20} FLOAT32 mixed-
- * carrier dropout form uses primitive integer cursors after complete cold proof. It preserves the
- * exact SplitMix64 V1 key, counter, mixing, uniform, threshold, mask, and widen/divide/narrow
- * value order, including the dedicated {@code [0,0)} state prologue and arbitrary legal
- * subranges. Its algorithm and hot-loop dataflow match the optimal clean Java V1 form. Other
- * general layouts retain typed long addressing. Segment access uses predefined native-order
+ * local. Kept values use a typed probability complement and reciprocal followed by input
+ * multiplication. Homogeneous low values expand exactly to FLOAT32 and narrow only the final
+ * product through the shared CAST owner. Dense arrays use integer loops; a completely proved
+ * rank-one mixed-carrier form uses bounded integer cursors. All forms preserve the exact key,
+ * counter, mixing, threshold, mask, state prologue and logical draw order. Other general layouts
+ * retain typed long addressing. Segment access uses predefined native-order
  * unaligned layouts.
  */
 public final class CpuRandomEmitter {
@@ -110,7 +108,6 @@ public final class CpuRandomEmitter {
         int keyOffset = code.allocateLocal(TypeKind.LONG);
         int word = code.allocateLocal(TypeKind.LONG);
         int uniform = code.allocateLocal(TypeKind.DOUBLE);
-        int denominator = code.allocateLocal(TypeKind.DOUBLE);
         int keep = code.allocateLocal(TypeKind.INT);
         int result = code.allocateLocal(p.valueType == DataType.FLOAT64
                 ? TypeKind.DOUBLE : p.valueType == DataType.FLOAT32 ? TypeKind.FLOAT : TypeKind.INT);
@@ -120,7 +117,6 @@ public final class CpuRandomEmitter {
         code.lstore(counter);
         code.lload(key).loadConstant(CpuRandomIr.KEY_BIAS).ladd().lstore(keyOffset);
         emitMix64(code, keyOffset);
-        code.loadConstant(1.0d - Double.longBitsToDouble(p.probabilityBits)).dstore(denominator);
         var loop = code.newLabel();
         var done = code.newLabel();
         code.labelBinding(loop).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
@@ -132,7 +128,7 @@ public final class CpuRandomEmitter {
         storeCarrier(code, DataType.BOOL, s.carrierPattern().get(3), 3,
                 maskAddress, keep, true);
         emitValue(code, s, p.valueType, inputAddress, outputAddress,
-                denominator, keep, result, true);
+                Double.longBitsToDouble(p.probabilityBits), keep, result, true);
         code.iinc(logical, 1).iinc(inputAddress, 1).iinc(outputAddress, 1)
                 .iinc(maskAddress, 1).branch(Opcode.GOTO, loop).labelBinding(done);
     }
@@ -230,7 +226,6 @@ public final class CpuRandomEmitter {
         int keyOffset = code.allocateLocal(TypeKind.LONG);
         int word = code.allocateLocal(TypeKind.LONG);
         int uniform = code.allocateLocal(TypeKind.DOUBLE);
-        int denominator = code.allocateLocal(TypeKind.DOUBLE);
         int keep = code.allocateLocal(TypeKind.INT);
         int result = code.allocateLocal(TypeKind.FLOAT);
         loadCarrier(code, DataType.INT64, s.carrierPattern().get(1), 1, stateBase, true);
@@ -239,8 +234,6 @@ public final class CpuRandomEmitter {
         code.lstore(counter);
         code.lload(key).loadConstant(CpuRandomIr.KEY_BIAS).ladd().lstore(keyOffset);
         emitMix64(code, keyOffset);
-        code.loadConstant(1.0d - Double.longBitsToDouble(p.probabilityBits))
-                .dstore(denominator);
         var loop = code.newLabel();
         var done = code.newLabel();
         code.labelBinding(loop).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
@@ -252,7 +245,7 @@ public final class CpuRandomEmitter {
         storeCarrier(code, DataType.BOOL, s.carrierPattern().get(3), 3,
                 maskAddress, keep, true);
         emitValue(code, s, p.valueType, inputAddress, outputAddress,
-                denominator, keep, result, true);
+                Double.longBitsToDouble(p.probabilityBits), keep, result, true);
         code.iinc(logical, 1).iinc(inputAddress, 2).iinc(outputAddress, 2)
                 .iinc(maskAddress, 2).branch(Opcode.GOTO, loop).labelBinding(done);
     }
@@ -269,7 +262,6 @@ public final class CpuRandomEmitter {
         int keyOffset = code.allocateLocal(TypeKind.LONG);
         int word = code.allocateLocal(TypeKind.LONG);
         int uniform = code.allocateLocal(TypeKind.DOUBLE);
-        int denominator = code.allocateLocal(TypeKind.DOUBLE);
         int keep = code.allocateLocal(TypeKind.INT);
         int result = code.allocateLocal(p.valueType == DataType.FLOAT64
                 ? TypeKind.DOUBLE : p.valueType == DataType.FLOAT32 ? TypeKind.FLOAT : TypeKind.INT);
@@ -284,7 +276,6 @@ public final class CpuRandomEmitter {
         code.lstore(counter);
         code.lload(key).loadConstant(CpuRandomIr.KEY_BIAS).ladd().lstore(keyOffset);
         emitMix64(code, keyOffset);
-        code.loadConstant(1.0d - Double.longBitsToDouble(p.probabilityBits)).dstore(denominator);
         var loop = code.newLabel();
         var done = code.newLabel();
         code.labelBinding(loop).lload(logical).lload(end).lcmp().branch(Opcode.IFGE, done);
@@ -299,7 +290,7 @@ public final class CpuRandomEmitter {
         storeCarrier(code, DataType.BOOL, s.carrierPattern().get(3), 3,
                 maskAddress, keep, false);
         emitValue(code, s, p.valueType, inputAddress, outputAddress,
-                denominator, keep, result, false);
+                Double.longBitsToDouble(p.probabilityBits), keep, result, false);
         code.lload(logical).lconst_1().ladd().lstore(logical)
                 .branch(Opcode.GOTO, loop).labelBinding(done);
     }
@@ -356,16 +347,16 @@ public final class CpuRandomEmitter {
     }
 
     private static void emitValue(CodeBuilder code, CpuKernelSpecialization s, DataType type,
-            int inputAddress, int outputAddress, int denominator, int keep, int result,
+            int inputAddress, int outputAddress, double probability, int keep, int result,
             boolean ints) {
         var dropped = code.newLabel();
         var store = code.newLabel();
         code.iload(keep).branch(Opcode.IFEQ, dropped);
         loadCarrier(code, type, s.carrierPattern().get(0), 0, inputAddress, ints);
         if (type == DataType.FLOAT64) {
-            code.dload(denominator).ddiv().dstore(result);
+            code.loadConstant(1.0d / (1.0d - probability)).dmul().dstore(result);
         } else if (type == DataType.FLOAT32) {
-            code.f2d().dload(denominator).ddiv().d2f().fstore(result);
+            code.loadConstant(1.0f / (float) (1.0d - probability)).fmul().fstore(result);
         } else {
             code.istore(result);
             if (type == DataType.FLOAT16) {
@@ -376,10 +367,10 @@ public final class CpuRandomEmitter {
                         .invokestatic(FLOAT, "intBitsToFloat",
                                 MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
             }
-            code.f2d().dload(denominator).ddiv();
-            int quotient = code.allocateLocal(TypeKind.DOUBLE);
-            code.dstore(quotient);
-            new CpuCastEmitter(code).emit(DataType.FLOAT64, type, quotient);
+            code.loadConstant(1.0f / (float) (1.0d - probability)).fmul();
+            int product = code.allocateLocal(TypeKind.FLOAT);
+            code.fstore(product);
+            new CpuCastEmitter(code).emit(DataType.FLOAT32, type, product);
             code.istore(result);
         }
         code.branch(Opcode.GOTO, store).labelBinding(dropped);

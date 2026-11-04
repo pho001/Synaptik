@@ -238,18 +238,6 @@ final class CpuScalarEmitter {
             code.fstore(root).loadConstant(1.0f).fload(root).fdiv();
             return;
         }
-        if (opcode == CpuPointwiseOpcode.RSQRT && type == DataType.FLOAT32) {
-            code.f2d();
-            code.invokestatic(STRICT_MATH, "sqrt", MethodTypeDesc.of(ConstantDescs.CD_double,
-                    ConstantDescs.CD_double));
-            int root = code.allocateLocal(TypeKind.DOUBLE);
-            code.dstore(root);
-            code.loadConstant(1.0d);
-            code.dload(root);
-            code.ddiv();
-            code.d2f();
-            return;
-        }
         if (opcode == CpuPointwiseOpcode.RECIPROCAL || opcode == CpuPointwiseOpcode.RSQRT) {
             int value = code.allocateLocal(type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT);
             store(type, value);

@@ -182,43 +182,8 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
         return compile(rows);
     }
 
-    /** Compiles real random-body mutations; these are deliberately separate from scatter and movement controls. */
-    static Compilation compileRandomMutants(Row basis) {
-        return compile(List.of(
-                randomMutant(basis, "missing-prologue"), randomMutant(basis, "reverse-range"),
-                randomMutant(basis, "wrong-word"), randomMutant(basis, "wrong-threshold"),
-                randomMutant(basis, "wrong-scale"), randomMutant(basis, "wrong-mask"),
-                randomMutant(basis, "wrong-output-store"), randomMutant(basis, "wrong-counter"),
-                randomMutant(basis, "wrong-role-source"), randomMutant(basis, "wrong-role-mask"),
-                randomMutant(basis, "wrong-role-next-state"),
-                randomMutant(basis, "new"), randomMutant(basis, "boxing"),
-                randomMutant(basis, "reflection"), randomMutant(basis, "string-dispatch"),
-                randomMutant(basis, "map-dispatch"), randomMutant(basis, "athrow"),
-                randomMutant(basis, "invokedynamic")));
-    }
-
-    /**
-     * Compiles the same independently authored negative controls for the state initializer.
-     * Unlike dropout, this body has one state carrier and its observable contract is the
-     * zero-range guard plus the ordered key/counter writes.
-     */
-    static Compilation compileInitialStateMutants(Row basis) {
-        return compile(List.of(
-                randomMutant(basis, "missing-prologue"), randomMutant(basis, "reverse-range"),
-                randomMutant(basis, "wrong-key-store"), randomMutant(basis, "wrong-counter"),
-                randomMutant(basis, "wrong-output-store"), randomMutant(basis, "new"),
-                randomMutant(basis, "boxing"), randomMutant(basis, "reflection"),
-                randomMutant(basis, "string-dispatch"), randomMutant(basis, "map-dispatch"),
-                randomMutant(basis, "athrow"), randomMutant(basis, "invokedynamic")));
-    }
-
     private static Row scatterMutant(Row basis, String kind) {
         return new Row(kind, "mutant-scatter-" + kind, basis.descriptor(), basis.dataType(),
-                basis.denseInt(), basis.rank(), basis.bits(), basis.occurrenceToBoundary());
-    }
-
-    private static Row randomMutant(Row basis, String kind) {
-        return new Row(kind, "mutant-random-" + kind, basis.descriptor(), basis.dataType(),
                 basis.denseInt(), basis.rank(), basis.bits(), basis.occurrenceToBoundary());
     }
 
@@ -327,14 +292,11 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
                         : family.equals("unfold2d") ? unfold2dBody(parameters, start, rows.get(row))
                         : family.equals("concat") ? concatBody(parameters, start, rows.get(row))
                         : family.equals("stack") ? stackBody(parameters, start, rows.get(row))
-                        : family.equals("random") ? randomBody(parameters, start, randomBasis(rows.get(row)))
                         : family.equals("indexing") && !kind.equals("abi")
                                 ? indexingBody(parameters, start, rows.get(row))
                                 : family.equals("indexing") ? "{}"
                         : scatterBody(parameters, start, rows.get(row));
-                source.append(')').append(family.equals("random")
-                        ? randomMutantBody(kind, correct, parameters, start)
-                        : family.equals("indexing") ? indexingMutantBody(kind, correct, parameters, start)
+                source.append(')').append(family.equals("indexing") ? indexingMutantBody(kind, correct, parameters, start)
                         : family.equals("affine") ? affineMutantBody(kind, correct, parameters, start)
                         : movementFamily(family) ? movementMutantBody(kind, correct, parameters, start, rows.get(row))
                         : mutantBody(kind, correct, parameters, start, rows.get(row))).append('\n');
@@ -381,19 +343,14 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
 
     private static String mutantFamily(String mutant) {
         return List.of("slice-update", "unfold-axis", "unfold2d", "scatter-elements", "scatter-nd",
-                        "initial-state", "affine", "indexing", "random", "concat", "stack", "pad", "tile")
+                        "affine", "indexing", "concat", "stack", "pad", "tile")
                 .stream().filter(family -> mutant.startsWith(family + '-')).findFirst()
                 .orElseGet(() -> mutant.substring(0, mutant.indexOf('-')));
     }
 
-    private static Row randomBasis(Row row) {
-        return new Row(row.owner(), row.dataType().startsWith("INITIAL_STATE:") ? "initial-state" : "dropout",
-                row.descriptor(), row.dataType(), row.denseInt(), row.rank(), row.bits(), row.occurrenceToBoundary());
-    }
-
-    /* Random is intentionally separate from the general writer bodies.  The source spells the
-       state prologue, SplitMix word order, threshold, narrow-once scaling, mask byte, and the
-       three output roles directly.  The only cold data it reads is the already-packed layout. */
+    /* Random is intentionally separate from the general writer bodies. The source spells the
+       state prologue, SplitMix word order, threshold, typed complement/reciprocal/product,
+       mask byte, and three output roles directly, using only the packed cold layout. */
     private static String randomBody(List<String> p, int start, Row row) {
         int geometry = start - 1;
         if (row.family().equals("initial-state")) {
@@ -419,22 +376,23 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
                 .append("if(start==0L&&end==0L){")
                 .append(storeAt(p.get(4), 4, "(nb)", "key", "INT64"))
                 .append(storeAt(p.get(4), 4, "(nb+ns)", "counter+g[2]", "INT64"))
-                .append("return;}long keyOffset=key+0x9e3779b97f4a7c15L;keyOffset=(keyOffset^(keyOffset>>>30))*0xbf58476d1ce4e5b9L;keyOffset=(keyOffset^(keyOffset>>>27))*0x94d049bb133111ebL;keyOffset=keyOffset^(keyOffset>>>31);double denominator=1.0D-")
-                .append(probability).append(";");
+                .append("return;}long keyOffset=key+0x9e3779b97f4a7c15L;keyOffset=(keyOffset^(keyOffset>>>30))*0xbf58476d1ce4e5b9L;keyOffset=(keyOffset^(keyOffset>>>27))*0x94d049bb133111ebL;keyOffset=keyOffset^(keyOffset>>>31);")
+                .append(type.equals("FLOAT64") ? "double scale=1.0D/(1.0D-" : "float scale=1.0F/(float)(1.0D-")
+                .append(probability).append(");");
         b.append("for(long ordinal=start;ordinal<end;ordinal++){long q=ordinal,c1=q%g[7];q/=g[7];long c0=q%g[6];long input=g[5]+c0*g[8]+c1*g[9];long output=g[15]+c0*g[18]+c1*g[19];long mask=g[21]+c0*g[24]+c1*g[25];long word=counter+ordinal+keyOffset;word=(word^(word>>>30))*0xbf58476d1ce4e5b9L;word=(word^(word>>>27))*0x94d049bb133111ebL;word=word^(word>>>31);boolean keep=((word>>>11)*0x1.0p-53)>=")
                 .append(probability).append(';')
                 .append(storeAt(p.get(3), 3, "mask", "(byte)(keep?1:0)", "BOOL"));
         if (type.equals("FLOAT64")) {
             b.append("double value;").append(loadAt(p.get(0), 0, "input", type))
-                    .append("double result=keep?value/denominator:0.0D;")
+                    .append("double result=keep?value*scale:0.0D;")
                     .append(storeAt(p.get(2), 2, "output", "result", type));
         } else if (type.equals("FLOAT32")) {
             b.append("float value;").append(loadAt(p.get(0), 0, "input", type))
-                    .append("float result=keep?(float)(value/denominator):0.0F;")
+                    .append("float result=keep?value*scale:0.0F;")
                     .append(storeAt(p.get(2), 2, "output", "result", type));
         } else if (type.equals("FLOAT16")) {
             b.append("int raw;").append(loadAt(p.get(0), 0, "input", type).replace("value=", "raw="))
-                    .append("double computed=keep?((double)Float.float16ToFloat((short)raw))/denominator:0.0D;")
+                    .append("double computed=keep?Float.float16ToFloat((short)raw)*scale:0.0D;")
                     .append("long hb=Double.doubleToRawLongBits(computed);int hs=(int)(hb>>>48)&0x8000;int he=(int)(hb>>>52)&0x7ff;long hm=hb&0xfffffffffffffL;int result;")
                     .append("if(he==0x7ff){result=hm==0?(hs|0x7c00):0x7e00;}else if(he>1038){result=hs|0x7c00;}else if(he<998){result=hs;}else{int hsh=he<1009?1051-he:42;long hsig=(1L<<52)|hm;long hq=(hsig+(1L<<(hsh-1))-1+((hsig>>>hsh)&1))>>>hsh;if(he>=1009&&hq==0x800L){hq=0x400L;he++;}result=he>1038?(hs|0x7c00):(he>=1009?(hs|((he-1008)<<10)|((int)hq&0x3ff)):(hs|(int)hq));}")
                     .append(storeAt(p.get(2), 2, "output", "(short)result", type));
@@ -759,55 +717,6 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
             case "map-dispatch" -> inject(correct, "java.util.Map.of();");
             case "hidden-helper" -> inject(correct, "helper(p" + start + ");");
             default -> throw new AssertionError(kind);
-        };
-    }
-
-    /* These source variants alter the actual random body before javac sees it.  They are not
-       synthetic fact records: the structural verifier must reject their emitted instructions. */
-    private static String randomMutantBody(String kind, String correct, List<String> parameters, int start) {
-        if (parameters.size() == 4) return initialStateMutantBody(kind, correct, start);
-        return switch (kind) {
-            case "missing-prologue" -> correct.replace("if(start==0L&&end==0L)", "if(false)");
-            case "reverse-range" -> correct.replace("ordinal<end", "ordinal>end");
-            case "wrong-word" -> correct.replace("counter+ordinal+keyOffset", "counter+keyOffset");
-            case "wrong-threshold" -> correct.replace(")*0x1.0p-53)>=", ")*0x1.0p-53)<");
-            case "wrong-scale" -> correct.replace("/denominator", "*denominator");
-            case "wrong-mask" -> correct.replace("(byte)(keep?1:0)", "(byte)(keep?0:1)");
-            case "wrong-output-store" -> correct.replace("(int)output", "(int)(output+1L)")
-                    .replace("output,result", "output+1L,result");
-            case "wrong-counter" -> correct.replace("counter+g[2]", "counter+g[2]+1L");
-            // These preserve typed access and executable shape, but attach a sink to the wrong
-            // descriptor carrier.  The structural oracle must reject them by parameter origin.
-            case "wrong-role-source" -> correct.replaceFirst("p0", "p2");
-            case "wrong-role-mask" -> correct.replace("p3", "p2");
-            case "wrong-role-next-state" -> correct.replace("p4", "p1");
-            case "new" -> inject(correct, "Object unused=new Object();");
-            case "boxing" -> inject(correct, "Long unused=Long.valueOf(p" + start + ");");
-            case "reflection" -> inject(correct, "try{Class.forName(\"java.lang.String\");}catch(Exception ignored){}");
-            case "string-dispatch" -> inject(correct, "String unused=\"random\".toString();");
-            case "map-dispatch" -> inject(correct, "java.util.Map<String,Integer> unused=java.util.Map.of();");
-            case "athrow" -> inject(correct, "if(p" + start + "==Long.MIN_VALUE)throw new IllegalStateException();");
-            case "invokedynamic" -> inject(correct, "Runnable unused=()->{};");
-            default -> throw new AssertionError("unknown random mutant: " + kind);
-        };
-    }
-
-    private static String initialStateMutantBody(String kind, String correct, int start) {
-        return switch (kind) {
-            case "missing-prologue" -> correct.replace("if(p" + start + "==0L&&p" + (start + 1) + "==0L)", "if(false)");
-            case "reverse-range" -> correct.replace("p" + start + "==0L&&p" + (start + 1) + "==0L",
-                    "p" + start + "==1L&&p" + (start + 1) + "==1L");
-            case "wrong-key-store" -> correct.replaceFirst("\\(base\\)", "(base+1L)");
-            case "wrong-counter" -> correct.replace("base+p", "base+1L+p");
-            case "wrong-output-store" -> correct.replace("base+p", "base+p").replaceFirst("\\(base\\)", "(base+1L)");
-            case "new" -> inject(correct, "Object unused=new Object();");
-            case "boxing" -> inject(correct, "Long unused=Long.valueOf(p" + start + ");");
-            case "reflection" -> inject(correct, "try{Class.forName(\"java.lang.String\");}catch(Exception ignored){}");
-            case "string-dispatch" -> inject(correct, "String unused=\"random\".toString();");
-            case "map-dispatch" -> inject(correct, "java.util.Map<String,Integer> unused=java.util.Map.of();");
-            case "athrow" -> inject(correct, "if(p" + start + "==Long.MIN_VALUE)throw new IllegalStateException();");
-            case "invokedynamic" -> inject(correct, "Runnable unused=()->{};");
-            default -> throw new AssertionError("unknown initial-state mutant: " + kind);
         };
     }
 

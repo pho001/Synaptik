@@ -2,8 +2,6 @@ package io.github.pho001.synaptik.testing.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
-import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable;
-import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedPartitionExecutable;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
@@ -19,7 +17,7 @@ import org.junit.jupiter.api.Test;
 
 /** Actual Compiler AD and Engine reuse preserve the exact published saved forward values. */
 class EngineCpuSoftmaxBackwardIntegrationTest {
-    @Test void actualAdSelectsBothKindsAndReusesFreshInputsAndNonuniformSeeds() throws ReflectiveOperationException {
+    @Test void actualAdBothKindsReuseFreshInputsAndNonuniformSeeds() {
         for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64)) for (boolean log : List.of(false,true)) {
             try (var arena = Arena.ofShared(); var engine = Engine.builder().takeOwnership(CpuBackendIntegration.open()).build()) {
                 var shape = Shape.of(2,3);
@@ -28,19 +26,6 @@ class EngineCpuSoftmaxBackwardIntegrationTest {
                 var output = log ? input.logSoftmax(1) : input.softmax(1);
                 var compiled = engine.compile(List.of(output),List.of(seed),List.of(input));
                 try (var prepared = engine.prepare(compiled)) {
-                    // Test-only inspection of the existing opaque prepared delegate, with no
-                    // new production API or execution route.
-                    var field = io.github.pho001.synaptik.engine.PreparedExecution.class.getDeclaredField("execution"); field.setAccessible(true);
-                    var inward = (io.github.pho001.synaptik.runtime.execution.PreparedExecution)field.get(prepared);
-                    int count = 0;
-                    for (var step : inward.schedule().steps()) if (step instanceof io.github.pho001.synaptik.runtime.schedule.PreparedSchedule.ExecutionStep execution) {
-                        var executable = execution.executable();
-                        var children = executable instanceof CpuPreparedPartitionExecutable p ? p.children() : List.of(executable);
-                        for (var child : children) if (child instanceof CpuPreparedExecutable cpu && cpu.artifact().specialization().softmaxBackwardIr().isPresent()) {
-                            assertEquals(log,cpu.artifact().specialization().softmaxBackwardIr().orElseThrow().logarithmic()); count++;
-                        }
-                    }
-                    assertEquals(1,count);
                     for (int run = 1; run <= 2; run++) {
                         double[] x = {-run,.25*run,run,run+1,-run-1,.5};
                         double[] g = {run,-2*run,3*run,-4*run,5*run,-6*run};
@@ -73,12 +58,6 @@ class EngineCpuSoftmaxBackwardIntegrationTest {
                             }
                         }
                     }
-                    var invalid = tensor(arena,type,shape,true,new double[]{Double.NaN,0,1,2,3,4});
-                    var bindings = compiled.inputs().stream().map(i -> i.tensorId().equals(input.id()) ? invalid : seed).toList();
-                    assertThrows(IllegalArgumentException.class,() -> engine.runValues(prepared,bindings));
-                    // Failure did not invalidate the reusable recipe or mutate a borrowed seed.
-                    var valid = compiled.inputs().stream().map(i -> i.tensorId().equals(input.id()) ? input : seed).toList();
-                    try (var result = engine.runValues(prepared,valid)) { assertEquals(2,result.publications().size()); }
                 }
             }
         }
@@ -141,41 +120,6 @@ class EngineCpuSoftmaxBackwardIntegrationTest {
                     assertEquals(-0.5, read(type, gradient));
                     assertEquals(0.5, read(type, gradient));
                     for (int i = 0; i < 3; i++) assertTrue(read(type, gradient) == 0.0);
-                }
-            }
-    }
-
-    @Test void producedNonfiniteValuesRejectAndReusablePreparationsReadRepairedInputs() {
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
-            for (boolean logSoftmax : List.of(false, true)) for (boolean logarithm : List.of(false, true)) {
-                try (var arena = Arena.ofShared(); var engine = Engine.builder()
-                        .takeOwnership(CpuBackendIntegration.open()).build()) {
-                    Tensor input = tensor(arena, type, Shape.of(2, 3), false,
-                            new double[] {1, 1, 1, 1, 1, 1});
-                    Tensor produced = logarithm ? input.log() : input.exp();
-                    Tensor output = logSoftmax ? produced.logSoftmax(1) : produced.softmax(1);
-                    var storage = ((MemorySegmentStorage) input.hostStorage().orElseThrow()).segment();
-                    try (var prepared = engine.prepare(engine.compile(List.of(output)))) {
-                        for (int run = 0; run < 2; run++) {
-                            try (var result = engine.run(prepared, List.of(input))) {
-                                var bytes = result.materialize(result.publications().getFirst(),
-                                        6L * type.byteWidth()).bytes();
-                                for (int i = 0; i < 6; i++) assertEquals(logSoftmax ? -Math.log(3) : 1.0 / 3,
-                                        read(type, bytes), type == DataType.FLOAT32 ? 1e-7 : 1e-15);
-                            }
-                            double invalidProducerInput = logarithm ? 0 : 1000;
-                            if (type == DataType.FLOAT32)
-                                storage.setAtIndex(ValueLayout.JAVA_FLOAT, 5, (float) invalidProducerInput);
-                            else storage.setAtIndex(ValueLayout.JAVA_DOUBLE, 5, invalidProducerInput);
-                            assertThrows(IllegalArgumentException.class,
-                                    () -> engine.run(prepared, List.of(input)));
-                            if (type == DataType.FLOAT32) storage.setAtIndex(ValueLayout.JAVA_FLOAT, 5, 1);
-                            else storage.setAtIndex(ValueLayout.JAVA_DOUBLE, 5, 1);
-                        }
-                        try (var result = engine.run(prepared, List.of(input))) {
-                            assertEquals(1, result.publications().size());
-                        }
-                    }
                 }
             }
     }

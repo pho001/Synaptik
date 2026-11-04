@@ -131,7 +131,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpatialWindowG
  * its source ordinal addressing remains unchanged. The provider also admits one fully static,
  * resolved-layout {@code PAD}, {@code TILE}, {@code CONCAT}, or {@code STACK} occurrence for all
  * seven represented data types. Movement inputs preserve their exact semantic occurrence order,
- * the output layout must be injective, and composition obeys checked entry and generated-code budgets.
+ * the output layout must be injective, and physical byte/span/resource arithmetic remains checked.
  * The same movement route admits one
  * {@code UNFOLD_AXIS} occurrence for all seven represented types or one floating
  * {@code UNFOLD2D} or {@code UNFOLD3D} occurrence with direct positive-zero or exact typed padding. Both window
@@ -191,10 +191,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpatialWindowG
  * exceed the non-negative correction.</p>
  *
  * <p>A separate one-node stable-normalization matrix admits first-class SOFTMAX and LOG_SOFTMAX
- * for every floating type. It requires one positive selected-axis extent, identical
- * Shape/type/gradient eligibility, resolved non-negative layouts, and an injective output. The
- * CPU execution boundary separately rejects non-finite represented inputs and shifts before any
- * output mutation; that admitted subset is not a Model semantic promise.</p>
+ * under the current low-arithmetic lock. It requires identical Shape/type/gradient eligibility,
+ * resolved non-negative layouts, and an injective output. Empty selected axes publish nothing;
+ * represented NaN and infinity inputs retain Model result classes rather than failing a
+ * separate finite-input precondition.</p>
 
  * <p>A separate one-node loss matrix admits mean-squared error plus dense-target and index-target
  * categorical cross-entropy directly from logits for every floating prediction type. MSE and
@@ -286,7 +286,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * require one input, one output, the same data type, fully static Shapes, resolved layouts,
      * and their exact current attributes and descriptor relationship. Admitted movement
      * operations additionally require exact static PAD/TILE/composition/window/slice-update shape
-     * relationships, an injective result layout, and checked composition entry/code budgets.
+     * relationships, an injective result layout, and checked physical byte/span/resource arithmetic.
      * General-axis unfold admits every represented type; NCHW two-dimensional unfold admits every
      * floating type with exact matching padding type. Indexing rows additionally require
      * INT32/INT64 indices and their exact current Shape
@@ -310,7 +310,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * ordered normalized axes, matching gradient eligibility, Model-derived output Shape, and a
      * valid static corrected denominator for statistics.
      * Softmax additionally requires its exact attributes, a rank-positive shape-preserving
-     * floating descriptor pair, and a positive selected extent.
+     * floating descriptor pair, including a zero selected extent.
      * Losses additionally require one exact current loss attribute form, two ordered inputs,
      * one injective resolved output, static normalized class geometry where applicable, the
      * Model result type/Shape/gradient relationship, floating operands, and INT32/INT64 index
@@ -622,7 +622,6 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 || output.dataType() != type
                 || output.requiresGrad() != input.requiresGrad() || rank <= 0
                 || attrs.axis() < 0 || attrs.axis() >= rank
-                || input.shape().toLongArray()[attrs.axis()] <= 0
                 || !input.shape().equals(output.shape())) return false;
         LayoutDescriptor in = input.layout().orElseThrow(), out = output.layout().orElseThrow();
         return in.storageOffset() >= 0 && out.storageOffset() >= 0
@@ -1023,7 +1022,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             long a=axis<batch-qb?1:qs[axis-(batch-qb)];
             long b=axis<batch-kb?1:ks[axis-(batch-kb)];
             long c=axis<batch-vb?1:vs[axis-(batch-vb)];
-            long selected=Math.max(a,Math.max(b,c));
+            long selected=a!=1?a:b!=1?b:c;
             if((a!=1&&a!=selected)||(b!=1&&b!=selected)||(c!=1&&c!=selected))return false;
             prefix[axis]=selected;
         }
@@ -1337,10 +1336,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     private static boolean supportsMovement(OperationCapabilityQuery query,
             TensorDescriptor output) {
-        if (!io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr
-                    .withinCompositionBudget(query.inputs().size(), output.shape().rank())
-                || !injective(output.shape().toLongArray(),
-                    output.layout().orElseThrow().strides())) return false;
+        if (query.inputs().isEmpty() || !injective(output.shape().toLongArray(),
+                output.layout().orElseThrow().strides())) return false;
         if (query.inputs().stream().anyMatch(input -> input.dataType() != output.dataType())) {
             return false;
         }

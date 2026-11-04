@@ -77,7 +77,7 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
      * Structural ordered concatenation plan.
      *
      * @param outputRank positive output iteration rank
-     * @param occurrenceToBoundary budget-bounded ordered semantic occurrences mapped to
+     * @param occurrenceToBoundary ordered semantic occurrences mapped to
      *     unique input-boundary positions; copied defensively
      */
     public record ConcatPlan(int outputRank, List<Integer> occurrenceToBoundary)
@@ -85,7 +85,7 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
         /**
          * Validates the positive output rank and snapshots the occurrence map.
          * @throws NullPointerException if {@code occurrenceToBoundary} is {@code null}
-         * @throws IllegalArgumentException if the rank or occurrence count is outside its bound
+         * @throws IllegalArgumentException if the rank is not positive or the occurrence map is empty
          */
         public ConcatPlan {
             if (outputRank <= 0) throw new IllegalArgumentException("concat rank must be positive");
@@ -98,7 +98,7 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
      * Structural ordered stacking plan.
      *
      * @param outputRank positive output iteration rank
-     * @param occurrenceToBoundary budget-bounded ordered semantic occurrences mapped to
+     * @param occurrenceToBoundary ordered semantic occurrences mapped to
      *     unique input-boundary positions; copied defensively
      */
     public record StackPlan(int outputRank, List<Integer> occurrenceToBoundary)
@@ -106,7 +106,7 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
         /**
          * Validates the positive output rank and snapshots the occurrence map.
          * @throws NullPointerException if {@code occurrenceToBoundary} is {@code null}
-         * @throws IllegalArgumentException if the rank or occurrence count is outside its bound
+         * @throws IllegalArgumentException if the rank is not positive or the occurrence map is empty
          */
         public StackPlan {
             if (outputRank <= 0) throw new IllegalArgumentException("stack result rank must be positive");
@@ -212,8 +212,7 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
         Objects.requireNonNull(plan, "plan");
         inputAccesses = List.copyOf(inputAccesses);
         Objects.requireNonNull(outputAccess, "outputAccess");
-        if (!withinCompositionBudget(plan.occurrenceToBoundary().size(), plan.outputRank())
-                || inputAccesses.isEmpty() || inputAccesses.size() + 7 > 254
+        if (inputAccesses.isEmpty()
                 || outputAccess.accessKind() != CpuAccessPlan.AccessKind.WRITE
                 || outputAccess.iterationRank() != plan.outputRank()) {
             throw new IllegalArgumentException("movement boundary structure is inconsistent");
@@ -265,23 +264,6 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
     }
 
     @Override public String structuralKey() { return encodedKernelIr().structuralKey(); }
-
-    /**
-     * Checks the shared conservative composition generation budget before resource declaration.
-     * Existing one-through-sixteen forms retain their admission. Larger forms use only the
-     * general one-pass body: each occurrence contributes one typed selection arm and at most one
-     * rank-sized coordinate/address expansion. The 512-unit bound reserves ample method space
-     * for wide branches and foreign-memory loads, and the independent entry bound reserves output,
-     * geometry, two long range parameters and a possible controlled-body trailer below 254 slots.
-     *
-     * @param occurrences positive number of semantic inputs, counting repeated identities
-     * @param outputRank non-negative output rank
-     * @return whether the complete conservative entry/code budget is satisfied
-     */
-    public static boolean withinCompositionBudget(int occurrences, int outputRank) {
-        return occurrences > 0 && outputRank >= 0 && occurrences + 7L <= 254
-                && (occurrences <= 16 || (occurrences + 1L) * (outputRank + 4L) <= 512);
-    }
 
     private static List<Integer> checkedMap(List<Integer> source) {
         source = List.copyOf(source);

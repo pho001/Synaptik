@@ -271,13 +271,13 @@ class CpuCapabilityProviderTest {
                         descriptor(DataType.FLOAT32, input)))));
     }
 
-    @Test void reportsOnlyExactPositiveWidthShapePreservingSoftmaxRows() {
+    @Test void reportsShapePreservingSoftmaxIncludingEmptySlices() {
         var provider = new CpuCapabilityProvider();
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
                 DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new SoftmaxAttrs(1),
                         List.of(descriptor(type, Shape.of(2, 3))),
                         descriptor(type, Shape.of(2, 3))));
-        assertAll(() -> assertFalse(provider.supports(query(SoftmaxKind.SOFTMAX,
+        assertAll(() -> assertTrue(provider.supports(query(SoftmaxKind.SOFTMAX,
                         new SoftmaxAttrs(1), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 0))),
                         descriptor(DataType.FLOAT32, Shape.of(2, 0))))),
                 () -> assertFalse(provider.supports(query(SoftmaxKind.LOG_SOFTMAX,

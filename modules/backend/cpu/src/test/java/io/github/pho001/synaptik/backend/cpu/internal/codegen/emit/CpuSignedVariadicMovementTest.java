@@ -6,7 +6,6 @@ import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.CpuGeneralScanCapabilityTest;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuTypedEmptyScanConsumerTest.Consumer;
-import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuNonAffineMovementLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
@@ -88,14 +87,14 @@ class CpuSignedVariadicMovementTest {
         for (var type : DataType.values()) for (var kind : TensorCompositionKind.values())
             for (int axis = 0; axis < (kind == TensorCompositionKind.STACK ? 3 : 2); axis++)
                 for (boolean repeated : List.of(false, true)) try (var arena = Arena.ofConfined()) {
-                    int count = 17;
+                    int count = 257;
                     var descriptors = new ArrayList<TensorDescriptor>();
                     var carriers = new ArrayList<Object>();
                     int unique = repeated ? 2 : count;
                     Shape shape = Shape.of(2, 1);
                     for (int i = 0; i < unique; i++) {
                         descriptors.add(CpuNonAffineMovementLoweringTest.descriptor(type, shape,
-                                LayoutDescriptor.of(shape, new long[]{3, 1}, 1, true)));
+                                LayoutDescriptor.of(shape, new long[]{repeated && i == 1 ? 0 : 3, 1}, 1, true)));
                         var storage = arena.allocate(5L * type.byteWidth(), type.byteWidth());
                         put(type, storage, 1, pattern(type, i));
                         put(type, storage, 4, pattern(type, i+37));
@@ -115,15 +114,15 @@ class CpuSignedVariadicMovementTest {
                     invoke(context, carriers, 11, 2L*count);
                     for (int occurrence = 0; occurrence < count; occurrence++) for (int row = 0; row < 2; row++) {
                         int logical = axis == 0 ? occurrence*2+row : row*count+occurrence;
-                        assertEquals(get(type, (MemorySegment) carriers.get(map.get(occurrence)), 1+row*3),
+                        long stride = descriptors.get(map.get(occurrence)).layout().orElseThrow().strides()[0];
+                        assertEquals(get(type, (MemorySegment) carriers.get(map.get(occurrence)), 1+row*stride),
                                 get(type, out, logical), type + " " + kind + " axis=" + axis);
                     }
                 }
     }
 
     @Test void variadicEmptySourcesAndLargerCheckedEntryExecuteWithoutRecursiveCopies() throws Throwable {
-        for (var kind : TensorCompositionKind.values()) {
-            int count = kind == TensorCompositionKind.CONCAT ? 101 : 84;
+        for (var kind : TensorCompositionKind.values()) for (int count : new int[]{102, 257, 1025}) {
             var inputs = Collections.nCopies(count,
                     CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(1)));
             var context = CpuNonAffineMovementLoweringTest.context(new Operation(kind, new CompositionAxisAttrs(0)),
@@ -135,11 +134,6 @@ class CpuSignedVariadicMovementTest {
             int[] output = new int[count]; carriers.add(MemorySegment.ofArray(output));
             invoke(context, carriers, 0, count);
             assertArrayEquals(IntStream.range(0, count).map(i -> i*7).toArray(), output);
-            var overBudget = CpuNonAffineMovementLoweringTest.context(new Operation(kind,
-                    new CompositionAxisAttrs(0)), Collections.nCopies(count + 1, 0), List.of(inputs.getFirst()),
-                    CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32,
-                            kind == TensorCompositionKind.STACK ? Shape.of(count + 1, 1) : Shape.of(count + 1)));
-            assertThrows(IllegalArgumentException.class, () -> new CpuPartitionPreparer().analyze(overBudget));
         }
         var empty = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2, 0));
         var context = CpuNonAffineMovementLoweringTest.context(new Operation(TensorCompositionKind.CONCAT,
@@ -153,16 +147,50 @@ class CpuSignedVariadicMovementTest {
         invoke(mixed, List.of(MemorySegment.ofArray(new int[0]), MemorySegment.ofArray(new int[]{3, 7}),
                 MemorySegment.ofArray(mixedOutput)), 0, 16);
         assertArrayEquals(new int[]{3,3,3,3,3,3,3,3,7,7,7,7,7,7,7,7}, mixedOutput);
-        var tooMany = CpuNonAffineMovementLoweringTest.context(new Operation(TensorCompositionKind.CONCAT,
-                new CompositionAxisAttrs(0)), Collections.nCopies(249, 0),
-                List.of(CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(1))),
-                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(249)));
-        assertThrows(IllegalArgumentException.class, () -> new CpuPartitionPreparer().analyze(tooMany));
-        assertFalse(CpuDataMovementIr.withinCompositionBudget(17, 100));
     }
+    @Test void publicWideCompositionPreservesEveryStoredTypeAndLateOperand() {
+        for (var type : DataType.values()) for (var kind : TensorCompositionKind.values())
+            for (int count : new int[]{102, 257, 1025}) {
+                Tensor[] inputs = IntStream.range(0, count).mapToObj(i -> tensor(type, false, 1))
+                        .toArray(Tensor[]::new);
+                Tensor output = kind == TensorCompositionKind.CONCAT
+                        ? Tensor.concat(0, inputs) : Tensor.stack(0, inputs);
+                var artifact = CpuGeneralScanCapabilityTest.compile(List.of(output), Optional.empty(),
+                        false, new CpuCapabilityProvider());
+                try (var consumer = new Consumer(artifact, OptionalLong.empty())) {
+                    long[] expected = new long[count];
+                    for (int i = 0; i < count; i++) {
+                        expected[i] = pattern(type, i);
+                        consumer.raw(inputs[i], new long[]{expected[i]});
+                    }
+                    consumer.bind(); consumer.execute();
+                    assertArrayEquals(expected, consumer.forwardRaw(0), type + " " + kind + " " + count);
+                    consumer.execute();
+                    assertArrayEquals(expected, consumer.forwardRaw(0));
+                }
+            }
+    }
+
+    @Test void wideCompositionStillRejectsFiniteExtentAndByteOverflow() {
+        assertThrows(RuntimeException.class, () -> {
+            Tensor huge = tensor(DataType.INT64, false, Long.MAX_VALUE / 257 + 1);
+            Tensor.concat(0, Collections.nCopies(257, huge).toArray(Tensor[]::new));
+        });
+        assertThrows(RuntimeException.class, () -> {
+            long extent = Long.MAX_VALUE / 257 / Long.BYTES + 1;
+            var input = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT64, Shape.of(extent));
+            var output = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT64, Shape.of(257, extent));
+            var context = CpuNonAffineMovementLoweringTest.context(
+                    new Operation(TensorCompositionKind.STACK, new CompositionAxisAttrs(0)),
+                    Collections.nCopies(257, 0), List.of(input), output);
+            // Model element geometry fits; checked physical byte capacity belongs to preparation.
+            new CpuPartitionPreparer().analyze(context);
+        });
+    }
+
     @Test void variadicMovementFeedsOrdinaryConsumersBeyondCandidateResourceCeilings() {
         for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64))
-            for (var kind : TensorCompositionKind.values()) for (int count : new int[]{17, 65}) {
+            for (var kind : TensorCompositionKind.values()) for (int count : new int[]{17, 102, 257}) {
                 Tensor[] inputs = IntStream.range(0, count).mapToObj(i -> tensor(type, false, 2, 1))
                         .toArray(Tensor[]::new);
                 Tensor composed = kind == TensorCompositionKind.CONCAT
@@ -248,7 +276,8 @@ class CpuSignedVariadicMovementTest {
         for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64))
             for (var kind : TensorCompositionKind.values()) {
                 Tensor a = tensor(type, true, 2, 1), b = tensor(type, true, 2, 1);
-                Tensor[] occurrences = IntStream.range(0, 17).mapToObj(i -> i % 2 == 0 ? a : b)
+                int count = 257;
+                Tensor[] occurrences = IntStream.range(0, count).mapToObj(i -> i % 2 == 0 ? a : b)
                         .toArray(Tensor[]::new);
                 Tensor output = kind == TensorCompositionKind.CONCAT
                         ? Tensor.concat(1, occurrences) : Tensor.stack(1, occurrences);
@@ -256,16 +285,67 @@ class CpuSignedVariadicMovementTest {
                 var artifact = compile(output, seed, List.of(a, b));
                 try (var consumer = new Consumer(artifact, OptionalLong.empty())) {
                     consumer.numbers(a, new double[]{3, 7}); consumer.numbers(b, new double[]{5, 11});
-                    double[] s = IntStream.range(0, 34).mapToDouble(i -> i+1).toArray();
+                    double[] s = IntStream.range(0, 2 * count).mapToDouble(i -> i+1).toArray();
                     consumer.numbers(seed, s); consumer.bind(); consumer.execute();
-                    double[] expected = new double[34], da = new double[2], db = new double[2];
-                    for (int row = 0; row < 2; row++) for (int i = 0; i < 17; i++) {
-                        expected[row*17+i] = i % 2 == 0 ? row == 0 ? 3 : 7 : row == 0 ? 5 : 11;
-                        if (i % 2 == 0) da[row] += s[row*17+i]; else db[row] += s[row*17+i];
+                    double[] expected = new double[2 * count], da = new double[2], db = new double[2];
+                    for (int row = 0; row < 2; row++) for (int i = 0; i < count; i++) {
+                        expected[row*count+i] = i % 2 == 0 ? row == 0 ? 3 : 7 : row == 0 ? 5 : 11;
+                        if (i % 2 == 0) da[row] += s[row*count+i]; else db[row] += s[row*count+i];
                     }
                     assertArrayEquals(expected, consumer.forward(0), 0);
                     assertArrayEquals(da, consumer.gradient(0), 0);
                     assertArrayEquals(db, consumer.gradient(1), 0);
+                }
+            }
+    }
+
+    @Test void publicWideCompositionAdjointReachesTheLastDistinctInput() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (var kind : TensorCompositionKind.values()) {
+                int count = 257;
+                Tensor[] inputs = IntStream.range(0, count).mapToObj(i -> tensor(type, true, 1))
+                        .toArray(Tensor[]::new);
+                Tensor output = kind == TensorCompositionKind.CONCAT
+                        ? Tensor.concat(0, inputs) : Tensor.stack(0, inputs);
+                Tensor seed = tensor(type, false, output.descriptor().shape().toLongArray());
+                var artifact = compile(output, seed, List.of(inputs[count - 1]));
+                try (var consumer = new Consumer(artifact, OptionalLong.empty())) {
+                    for (int i = 0; i < count; i++) consumer.numbers(inputs[i], new double[]{i + 1});
+                    double[] seeds = IntStream.range(0, count).mapToDouble(i -> i + 7).toArray();
+                    consumer.numbers(seed, seeds); consumer.bind(); consumer.execute();
+                    assertArrayEquals(new double[]{seeds[count - 1]}, consumer.gradient(0), 0);
+                }
+            }
+    }
+
+    @Test void wideCompositionInsideControlledScanUsesOriginalRowsAndEncounterOrder() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (var kind : TensorCompositionKind.values()) for (boolean reverse : List.of(false, true)) {
+                int count = 257;
+                Tensor x = tensor(type, false, 2, 1), y = tensor(type, false, 2, 1);
+                Tensor[] occurrences = IntStream.range(0, count).mapToObj(i -> i % 2 == 0 ? x : y)
+                        .toArray(Tensor[]::new);
+                Tensor output = kind == TensorCompositionKind.CONCAT
+                        ? Tensor.concat(1, occurrences) : Tensor.stack(1, occurrences);
+                var body = new ScanBody(List.of(), List.of(x, y), List.of(), List.of(), List.of(output));
+                Tensor xs = tensor(type, false, 2, 2, 1), ys = tensor(type, false, 2, 2, 1);
+                Tensor lengths = tensor(DataType.INT64, false, 2);
+                var scan = Scan.apply(List.of(), List.of(xs, ys), List.of(), lengths, 0,
+                        List.of(OptionalInt.of(0), OptionalInt.of(0)), body, reverse);
+                var artifact = CpuGeneralScanCapabilityTest.compile(scan.outputs(), Optional.empty(),
+                        false, new CpuCapabilityProvider());
+                try (var consumer = new Consumer(artifact, OptionalLong.empty())) {
+                    consumer.numbers(xs, new double[]{3, 5, 7, Double.NaN});
+                    consumer.numbers(ys, new double[]{11, 13, 17, Double.NaN});
+                    consumer.raw(lengths, new long[]{2, 1});
+                    consumer.bind(); consumer.execute();
+                    double[] expected = new double[4 * count];
+                    for (int i = 0; i < count; i++) {
+                        expected[i] = i % 2 == 0 ? 3 : 11;
+                        expected[count + i] = i % 2 == 0 ? 5 : 13;
+                        expected[2 * count + i] = i % 2 == 0 ? 7 : 17;
+                    }
+                    assertArrayEquals(expected, consumer.forward(0), 0);
                 }
             }
     }
@@ -354,6 +434,17 @@ class CpuSignedVariadicMovementTest {
         };
         assertArrayEquals(((MemorySegment) carriers.getLast()).toArray(ValueLayout.JAVA_BYTE),
                 heapOutput.toArray(ValueLayout.JAVA_BYTE));
+        var mixedCarriers = new ArrayList<Object>(carriers);
+        var mixedPattern = new ArrayList<CarrierAccess>(Collections.nCopies(carriers.size(),
+                CarrierAccess.MEMORY_SEGMENT));
+        for (int i = 1; i + 1 < carriers.size(); i += 2) {
+            mixedCarriers.set(i, heapCarriers.get(i)); mixedPattern.set(i, pattern.get(i));
+        }
+        var mixedContext = new PrepareContext<>(context.partition(), context.nodes(), context.values(),
+                context.memoryRequirements(), context.constants(), new CpuPartitionAnalysisInputs(false, mixedPattern));
+        invokeGenerated(mixedContext, mixedCarriers, start, end);
+        assertArrayEquals(heapOutput.toArray(ValueLayout.JAVA_BYTE),
+                ((MemorySegment) carriers.getLast()).toArray(ValueLayout.JAVA_BYTE));
     }
 
     private static void invokeGenerated(PrepareContext<CpuPartitionAnalysisInputs> context,
@@ -363,7 +454,20 @@ class CpuSignedVariadicMovementTest {
         var generator = new CpuClassFileKernelGenerator();
         var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(),
                 generator.generateClassBytes(route.specialization(), route.kernelIr()));
-        var arguments = new ArrayList<>(carriers);
+        var arguments = new ArrayList<Object>();
+        if (route.specialization().movementOperandTable()) {
+            MemorySegment[] table = carriers.stream().map(carrier -> switch (carrier) {
+                case MemorySegment value -> value;
+                case double[] value -> MemorySegment.ofArray(value);
+                case float[] value -> MemorySegment.ofArray(value);
+                case short[] value -> MemorySegment.ofArray(value);
+                case int[] value -> MemorySegment.ofArray(value);
+                case long[] value -> MemorySegment.ofArray(value);
+                case byte[] value -> MemorySegment.ofArray(value);
+                default -> throw new AssertionError("unexpected carrier");
+            }).toArray(MemorySegment[]::new);
+            arguments.add(table);
+        } else arguments.addAll(carriers);
         arguments.add(plan.movementGeometry().isPresent()
                 ? plan.movementGeometry().orElseThrow().pack(new long[carriers.size()], start, end)
                 : plan.affineAddressPairs());

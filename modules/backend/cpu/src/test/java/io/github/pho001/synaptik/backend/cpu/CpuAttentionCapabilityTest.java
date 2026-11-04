@@ -47,6 +47,23 @@ class CpuAttentionCapabilityTest {
   }
 
   @Test
+  void zeroBatchBroadcastsWithSingletonsInEachInputRole() {
+    for (int zeroRole = 0; zeroRole < 3; zeroRole++) {
+      var inputs = List.of(
+          desc(DataType.FLOAT32, Shape.of(zeroRole == 0 ? 0 : 1, 2, 3), false),
+          desc(DataType.FLOAT32, Shape.of(zeroRole == 1 ? 0 : 1, 4, 3), false),
+          desc(DataType.FLOAT32, Shape.of(zeroRole == 2 ? 0 : 1, 4, 5), false));
+      assertTrue(provider.supports(query(inputs,
+          List.of(desc(DataType.FLOAT32, Shape.of(0, 2, 5), false)))));
+    }
+    assertFalse(provider.supports(query(List.of(
+        desc(DataType.FLOAT32, Shape.of(0, 2, 3), false),
+        desc(DataType.FLOAT32, Shape.of(2, 4, 3), false),
+        desc(DataType.FLOAT32, Shape.of(1, 4, 5), false)),
+        List.of(desc(DataType.FLOAT32, Shape.of(0, 2, 5), false)))));
+  }
+
+  @Test
   void rejectsMaskBroadcastGradientAndOutputLayoutMismatches() {
     var base =
         List.of(

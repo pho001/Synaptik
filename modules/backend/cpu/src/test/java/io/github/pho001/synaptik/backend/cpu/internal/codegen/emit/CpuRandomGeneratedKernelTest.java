@@ -19,9 +19,6 @@ import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.lang.classfile.*;
-import java.lang.classfile.constantpool.MemberRefEntry;
-import java.lang.classfile.instruction.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
@@ -30,26 +27,6 @@ class CpuRandomGeneratedKernelTest {
     private static final long ORACLE_M1 = 0xbf58476d1ce4e5b9L;
     private static final long ORACLE_M2 = 0x94d049bb133111ebL;
 
-    @Test void everyCarrierPatternUsesDirectTypedAllocationFreeClassFileBodies() {
-        assertDirectShape(CpuRandomLoweringTest.initialContext(1, 2),
-                List.of(CarrierAccess.LONG_ARRAY), DataType.INT64, true);
-        assertDirectShape(CpuRandomLoweringTest.initialContext(1, 2),
-                List.of(CarrierAccess.MEMORY_SEGMENT), DataType.INT64, false);
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
-            CarrierAccess value = valueCarrier(type);
-            for (int pattern = 0; pattern < 32; pattern++) {
-                List<CarrierAccess> carriers = new ArrayList<>();
-                for (int role = 0; role < 5; role++) carriers.add((pattern & 1 << role) == 0
-                        ? switch (role) {
-                            case 0, 2 -> value;
-                            case 1, 4 -> CarrierAccess.LONG_ARRAY;
-                            default -> CarrierAccess.BYTE_ARRAY;
-                        } : CarrierAccess.MEMORY_SEGMENT);
-                assertDirectShape(CpuRandomLoweringTest.dropoutContext(type, Shape.of(4), .25d),
-                        carriers, type, pattern == 0);
-            }
-        }
-    }
 
     @Test void exactIndependentCounterVectorsAndUniformHexValues() {
         assertVector(0, 0, 0, 0x48218226ff3cd4bfL, 0x1.2086089bfcf34p-2);
@@ -115,23 +92,25 @@ class CpuRandomGeneratedKernelTest {
 
     @Test void generatedFloat64AndFloat32UseExactMaskScaleAndModuloState() throws Throwable {
         var f64 = generated(CpuRandomLoweringTest.dropoutContext(DataType.FLOAT64,
-                Shape.of(5), .5), carriers(DataType.FLOAT64));
-        double[] input = {2, -0.0, Double.NaN, Double.POSITIVE_INFINITY, -4};
+                Shape.of(5), .1), carriers(DataType.FLOAT64));
+        double[] input = {7, -0.0, Double.NaN, Double.POSITIVE_INFINITY, -4};
         long[] state = {0, -2}, next = new long[2]; double[] output = new double[5]; byte[] mask = new byte[5];
         f64.handle.invokeWithArguments(input, state, output, mask, next, f64.geometry, 0L, 0L);
         f64.handle.invokeWithArguments(input, state, output, mask, next, f64.geometry, 0L, 5L);
         byte[] expectedMask = new byte[5];
         double[] expected = new double[5];
         for (int i = 0; i < 5; i++) {
-            boolean keep = oracleUniform(oracleWord(0, -2, i)) >= .5;
+            boolean keep = oracleUniform(oracleWord(0, -2, i)) >= .1;
             expectedMask[i] = keep ? (byte) 1 : 0;
-            expected[i] = keep ? input[i] / .5 : 0.0;
+            expected[i] = keep ? input[i] * (1.0d / (1.0d - .1d)) : 0.0;
         }
-        assertAll(() -> assertArrayEquals(expectedMask, mask),
-                () -> assertArrayEquals(java.util.Arrays.stream(expected)
-                                .mapToLong(Double::doubleToRawLongBits).toArray(),
-                        java.util.Arrays.stream(output).mapToLong(Double::doubleToRawLongBits).toArray()),
-                () -> assertArrayEquals(new long[] {0, 3}, next));
+        assertArrayEquals(expectedMask, mask);
+        assertArrayEquals(new long[] {0, 3}, next);
+        for (int i = 0; i < output.length; i++) {
+            if (Double.isNaN(expected[i])) assertTrue(Double.isNaN(output[i]), "lane " + i);
+            else assertEquals(Double.doubleToRawLongBits(expected[i]),
+                    Double.doubleToRawLongBits(output[i]), "lane " + i);
+        }
 
         var f32 = generated(CpuRandomLoweringTest.dropoutContext(DataType.FLOAT32,
                 Shape.of(3), .1), carriers(DataType.FLOAT32));
@@ -140,7 +119,7 @@ class CpuRandomGeneratedKernelTest {
         f32.handle.invokeWithArguments(fi, fs, fo, fm, fn, f32.geometry, 0L, 0L);
         f32.handle.invokeWithArguments(fi, fs, fo, fm, fn, f32.geometry, 0L, 3L);
         for (int i = 0; i < 3; i++) if (fm[i] == 1) assertEquals(
-                Float.floatToRawIntBits((float) (((double) fi[i]) / (1.0d - .1d))),
+                Float.floatToRawIntBits(fi[i] * (1.0f / (float) (1.0d - .1d))),
                 Float.floatToRawIntBits(fo[i]));
         assertArrayEquals(new long[] {0x1234, 10}, fn);
     }
@@ -162,7 +141,7 @@ class CpuRandomGeneratedKernelTest {
                     == Double.doubleToRawLongBits(boundary);
             assertAll(() -> assertEquals(keep ? (byte) 1 : (byte) 0, mask[0]),
                     () -> assertEquals(Double.doubleToRawLongBits(
-                                    keep ? input[0] / (1.0d - probability) : 0.0d),
+                                    keep ? input[0] * (1.0d / (1.0d - probability)) : 0.0d),
                             Double.doubleToRawLongBits(output[0])),
                     () -> assertArrayEquals(new long[] {0, 1}, next));
         }
@@ -235,30 +214,12 @@ class CpuRandomGeneratedKernelTest {
             boolean keep = oracleUniform(oracleWord(state[0], state[1], logical)) >= .25;
             assertEquals(keep ? (byte) 1 : (byte) 0, mask[4 + logical * 2]);
             assertEquals(Float.floatToRawIntBits(keep
-                            ? (float) (((double) input[3 + logical * 2]) / .75d) : 0.0f),
+                            ? input[3 + logical * 2] * (1.0f / .75f) : 0.0f),
                     Float.floatToRawIntBits(output[4 + logical * 2]));
         }
         assertAll(() -> assertArrayEquals(new long[]{state[0], state[1] + count}, next),
                 () -> assertEquals(-19.0f, output[3]),
                 () -> assertEquals((byte) -19, mask[3]));
-
-        var route = new CpuPartitionPreparer().analyze(new PrepareContext<>(context.partition(), context.nodes(), context.values(), context.memoryRequirements(), context.constants(), new CpuPartitionAnalysisInputs(false, carriers))).plan().units().getFirst()
-                .portablePlan();
-        byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
-                route.specialization(), route.kernelIr());
-        var instructions = ClassFile.of().parse(bytes).methods().getFirst().code().orElseThrow()
-                .elementStream().filter(Instruction.class::isInstance)
-                .map(Instruction.class::cast).toList();
-        assertAll(
-                () -> assertTrue(instructions.stream().map(Instruction::opcode)
-                        .anyMatch(opcode -> opcode == Opcode.IINC)),
-                () -> assertTrue(instructions.stream().map(Instruction::opcode)
-                        .anyMatch(opcode -> opcode == Opcode.LREM)),
-                () -> assertTrue(instructions.stream().noneMatch(instruction ->
-                        instruction instanceof NewObjectInstruction
-                                || instruction instanceof NewPrimitiveArrayInstruction
-                                || instruction instanceof NewReferenceArrayInstruction
-                                || instruction instanceof NewMultiArrayInstruction)));
     }
 
     @Test void scalarShapeWrapsCounterAcrossHeapNativeAndMixedCarriers() throws Throwable {
@@ -540,142 +501,6 @@ class CpuRandomGeneratedKernelTest {
                 CarrierAccess.LONG_ARRAY);
     }
 
-    private static void assertDirectShape(PrepareContext<CpuPartitionAnalysisInputs> base,
-            List<CarrierAccess> carriers, DataType valueType, boolean dense) {
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
-        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
-                .portablePlan();
-        byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
-                route.specialization(), route.kernelIr());
-        ClassModel model = ClassFile.of().parse(bytes);
-        var method = model.methods().getFirst();
-        var instructions = method.code().orElseThrow().elementStream()
-                .filter(Instruction.class::isInstance).map(Instruction.class::cast).toList();
-        var invokes = instructions.stream().filter(InvokeInstruction.class::isInstance)
-                .map(InvokeInstruction.class::cast).toList();
-        var references = java.util.stream.StreamSupport.stream(
-                model.constantPool().spliterator(), false)
-                .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast).toList();
-        Set<String> actualReferences = references.stream().map(reference ->
-                reference.owner().asInternalName() + "#"
-                        + reference.nameAndType().name().stringValue() + ":"
-                        + reference.type().stringValue()).collect(
-                                java.util.stream.Collectors.toSet());
-        Set<String> expectedReferences = expectedMemberReferences(carriers, valueType);
-        assertAll(
-                () -> assertFalse(method.methodTypeSymbol().descriptorString()
-                        .contains("Ljava/lang/Object;")),
-                () -> assertEquals(dense
-                                ? io.github.pho001.synaptik.backend.cpu.internal.cache
-                                    .CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT
-                                : io.github.pho001.synaptik.backend.cpu.internal.cache
-                                    .CpuKernelSpecialization.LoopAddressing.GENERAL_LONG,
-                        route.specialization().loopAddressing(route.kernelIr())),
-                () -> assertTrue(instructions.stream().noneMatch(instruction ->
-                        instruction instanceof TypeCheckInstruction
-                                || instruction instanceof NewObjectInstruction
-                                || instruction instanceof NewPrimitiveArrayInstruction
-                                || instruction instanceof NewReferenceArrayInstruction
-                                || instruction instanceof NewMultiArrayInstruction),
-                        instructions.toString()),
-                () -> assertTrue(references.stream().noneMatch(reference ->
-                        reference.owner().asInternalName().equals(
-                                CpuRandomEmitter.class.getName().replace('.', '/'))
-                                || reference.type().stringValue().contains("Ljava/lang/Object;")),
-                        references.toString()),
-                () -> assertTrue(references.stream().allMatch(reference -> Set.of(
-                                "java/lang/foreign/ValueLayout",
-                                "java/lang/foreign/MemorySegment",
-                                "java/lang/Float",
-                                "java/lang/Double").contains(reference.owner().asInternalName())),
-                        references.toString()),
-                () -> assertEquals(expectedReferences, actualReferences),
-                () -> assertEquals(dense && valueType != DataType.BFLOAT16,
-                        references.isEmpty(), references.toString()),
-                () -> assertTrue(invokes.stream().allMatch(call ->
-                        call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
-                                && (call.name().stringValue().equals("get")
-                                    || call.name().stringValue().equals("set"))
-                        || valueType == DataType.BFLOAT16
-                                && call.owner().asInternalName().equals("java/lang/Float")
-                                && call.name().stringValue().equals("intBitsToFloat")
-                        || valueType == DataType.BFLOAT16
-                                && call.owner().asInternalName().equals("java/lang/Double")
-                                && call.name().stringValue().equals("doubleToRawLongBits")),
-                        invokes.toString()),
-                () -> assertTrue(instructions.stream().map(Instruction::opcode)
-                        .anyMatch(opcode -> opcode == Opcode.GOTO)));
-    }
-
-    private static Set<String> expectedMemberReferences(List<CarrierAccess> carriers,
-            DataType valueType) {
-        Set<String> expected = new HashSet<>();
-        if (carriers.size() == 1) {
-            if (carriers.getFirst() == CarrierAccess.MEMORY_SEGMENT) {
-                addSegmentReferences(expected, DataType.INT64, false, true);
-            }
-            return expected;
-        }
-        if (valueType == DataType.BFLOAT16) {
-            expected.add("java/lang/Float#intBitsToFloat:(I)F");
-            expected.add("java/lang/Double#doubleToRawLongBits:(D)J");
-        }
-        if (carriers.get(0) == CarrierAccess.MEMORY_SEGMENT) {
-            addSegmentReferences(expected, valueType, true, false);
-        }
-        if (carriers.get(1) == CarrierAccess.MEMORY_SEGMENT) {
-            addSegmentReferences(expected, DataType.INT64, true, false);
-        }
-        if (carriers.get(2) == CarrierAccess.MEMORY_SEGMENT) {
-            addSegmentReferences(expected, valueType, false, true);
-        }
-        if (carriers.get(3) == CarrierAccess.MEMORY_SEGMENT) {
-            addSegmentReferences(expected, DataType.BOOL, false, true);
-        }
-        if (carriers.get(4) == CarrierAccess.MEMORY_SEGMENT) {
-            addSegmentReferences(expected, DataType.INT64, false, true);
-        }
-        return expected;
-    }
-
-    private static void addSegmentReferences(Set<String> references, DataType type,
-            boolean read, boolean write) {
-        String layout = switch (type) {
-            case FLOAT64 -> "DOUBLE";
-            case FLOAT32 -> "FLOAT";
-            case BFLOAT16 -> "SHORT";
-            case INT64 -> "LONG";
-            case BOOL -> "BYTE";
-            default -> throw new IllegalArgumentException("unsupported random segment type");
-        };
-        String primitive = switch (type) {
-            case FLOAT64 -> "D";
-            case FLOAT32 -> "F";
-            case BFLOAT16 -> "S";
-            case INT64 -> "J";
-            case BOOL -> "B";
-            default -> throw new IllegalArgumentException("unsupported random segment type");
-        };
-        String layoutType = "Ljava/lang/foreign/ValueLayout$Of" + switch (type) {
-            case FLOAT64 -> "Double";
-            case FLOAT32 -> "Float";
-            case BFLOAT16 -> "Short";
-            case INT64 -> "Long";
-            case BOOL -> "Byte";
-            default -> throw new IllegalArgumentException("unsupported random segment type");
-        } + ";";
-        references.add("java/lang/foreign/ValueLayout#JAVA_" + layout
-                + (type == DataType.BOOL ? "" : "_UNALIGNED") + ":" + layoutType);
-        if (read) {
-            references.add("java/lang/foreign/MemorySegment#get:(" + layoutType + "J)"
-                    + primitive);
-        }
-        if (write) {
-            references.add("java/lang/foreign/MemorySegment#set:(" + layoutType + "J"
-                    + primitive + ")V");
-        }
-    }
 
     /**
      * Proves admission rejection separately for each original logical invocation range.

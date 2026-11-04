@@ -269,7 +269,7 @@ public final class CpuAttentionLowering {
       long a = aligned(qe, batchRank, axis),
           b = aligned(ke, batchRank, axis),
           c = aligned(ve, batchRank, axis);
-      batch[axis] = Math.max(a, Math.max(b, c));
+      batch[axis] = a != 1 ? a : b != 1 ? b : c;
     }
     long l = qe[qe.length - 2],
         s = ke[ke.length - 2],

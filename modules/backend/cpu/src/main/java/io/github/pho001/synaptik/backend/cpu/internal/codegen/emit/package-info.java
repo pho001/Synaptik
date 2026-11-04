@@ -19,10 +19,10 @@
  * instruction bytecode emission is separate from pure typed vector mathematics. General Tensor
  * power and direct scalar power are also scalar-compute only. The four proved FLOAT32/FLOAT64
  * scalar-power realizations instead use self-contained typed Vector API operations when their
- * existing vector gates pass; they invoke no Synaptik helper from the generated entry. FLOAT32 reciprocal square root
- * widens before both {@code StrictMath.sqrt} and the reciprocal and narrows their combined result
- * once. Homogeneous BFLOAT16/FLOAT16 RSQRT and activation composites instead round every named
- * working site to FLOAT32, then narrow once to low storage. ERF bounds its polynomial inputs
+ * existing vector gates pass; they invoke no Synaptik helper from the generated entry. FLOAT32
+ * reciprocal square root rounds the square-root result to FLOAT32 before FLOAT32 division.
+ * Homogeneous BFLOAT16/FLOAT16 RSQRT and activation composites round every named working site
+ * to FLOAT32, then narrow once to low storage. ERF bounds its polynomial inputs
  * before evaluation at saturated magnitudes, including in vector lanes. Direct FLOAT32 power
  * widens the represented base and exponent exactly, invokes
  * {@code StrictMath.pow}, and narrows once. Scalar segment access normally initializes each

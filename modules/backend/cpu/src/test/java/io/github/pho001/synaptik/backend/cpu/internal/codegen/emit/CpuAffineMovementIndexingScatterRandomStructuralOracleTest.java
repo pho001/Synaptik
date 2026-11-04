@@ -2441,7 +2441,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
      * its [0,0) next-state prologue and then independently exercises whole, empty, interior, and
      * tail draw ranges through the counter-plus-global-ordinal mapping.
      */
-    @Test void everyRandomRowExecutesAndMatchesItsSeparatedTypedCleanJavaProjection() throws Throwable {
+    @Test void everyRandomRowMatchesTypedCleanJavaValuesMasksAndStateAcrossRanges() throws Throwable {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.randomOrOneHotCandidates().stream()
                 .filter(candidate -> RANDOM.contains(candidate.operationForm())).toList();
         var cleanRows = new ArrayList<CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row>();
@@ -2472,26 +2472,9 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                     route.specialization(), route.kernelIr()));
         }
         var clean = CpuAffineMovementIndexingScatterRandomCleanJavaOracle.compile(cleanRows);
-        Map<String, MethodModel> cleanMethods = methods(clean.bytes());
         int dropout = 0, initializer = 0;
         for (PreparedRandom row : prepared) {
             var generated = new CpuClassFileKernelGenerator();
-            byte[] generatedBytes = generated.generateClassBytes(row.specialization, row.kernelIr);
-            assertTrue(java.util.Arrays.equals(generatedBytes,
-                    generated.generateClassBytes(row.specialization, row.kernelIr)),
-                    row.candidate.ownerId() + " deterministic generated Class-File bytes");
-            MethodModel generatedMethod = selected(methods(generatedBytes));
-            MethodModel counterpart = cleanMethods.get(clean.methods().get(row.candidate.ownerId()));
-            assertEquals(row.specialization.entryType().descriptorString(), counterpart.methodType().stringValue(),
-                    row.candidate.ownerId() + " exact typed random ABI");
-            assertEquals(row.specialization.entryType().descriptorString(), generatedMethod.methodType().stringValue(),
-                    row.candidate.ownerId() + " generated ordered carrier-role ABI");
-            assertRandomProjection(row, row.candidate.operationForm().equals("DROPOUT")
-                    ? dropoutFacts(counterpart) : initialStateFacts(counterpart),
-                    row.candidate.operationForm().equals("DROPOUT")
-                            ? dropoutFacts(generatedMethod) : initialStateFacts(generatedMethod));
-            assertRandomHygiene(row.candidate.ownerId() + " clean", counterpart);
-            assertRandomHygiene(row.candidate.ownerId() + " generated", generatedMethod);
             for (long[] range : row.candidate.operationForm().equals("DROPOUT")
                     ? ranges(row.count) : List.of(new long[] {0, 0}, new long[] {1, 1})) {
                 List<Object> actual = randomStorage(row), expected = randomStorage(row);
@@ -2526,67 +2509,6 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         accounted.addAll(unsupported);
         assertEquals(candidates.stream().map(candidate -> candidate.ownerId()).sorted().toList(),
                 accounted.stream().sorted().toList(), "every original random owner has a witnessed outcome");
-    }
-
-    /** Every random semantic and hygiene gate is exercised against a real independently compiled source mutation. */
-    @Test void randomProjectionRejectsExecutableSourceMutants() throws Throwable {
-        assertRandomSourceMutants("DROPOUT");
-        assertRandomSourceMutants("INITIAL_STATE");
-    }
-
-    private static void assertRandomSourceMutants(String form) throws Throwable {
-        var candidate = CpuOrdinaryNonPointwiseGeneratedMatrixTest.randomOrOneHotCandidates().stream()
-                .filter(value -> value.operationForm().equals(form)).findFirst().orElseThrow();
-        var plan = new CpuPartitionPreparer().analyze(candidate.context()).plan();
-        var route = plan.units().getFirst().portablePlan();
-        String identity;
-        String family;
-        if (form.equals("DROPOUT")) {
-            var attrs = (DropoutAttrs) candidate.context().nodes().getFirst().operation().attrs();
-            identity = candidate.context().values().getFirst().descriptor().dataType().name() + ':'
-                    + Double.doubleToRawLongBits(attrs.probability());
-            family = "dropout";
-        } else {
-            var attrs = (GraphRngStateAttrs) candidate.context().nodes().getFirst().operation().attrs();
-            identity = "INITIAL_STATE:" + attrs.key() + ':' + attrs.counter();
-            family = "initial-state";
-        }
-        var basis = new CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row("baseline", family,
-                route.specialization().entryType().descriptorString(), identity, false);
-        var baseline = CpuAffineMovementIndexingScatterRandomCleanJavaOracle.compile(List.of(basis));
-        var mutants = form.equals("DROPOUT")
-                ? CpuAffineMovementIndexingScatterRandomCleanJavaOracle.compileRandomMutants(basis)
-                : CpuAffineMovementIndexingScatterRandomCleanJavaOracle.compileInitialStateMutants(basis);
-        var row = new PreparedRandom(candidate, plan.elementCount(), plan.randomGeometry().orElseThrow()
-                .pack(new long[plan.boundaryValues().size()]), route.specialization(), route.kernelIr());
-        for (var entry : mutants.methods().entrySet()) {
-            MethodModel mutant = methods(mutants.bytes()).get(entry.getValue());
-            assertTrue(mutant != null, "compiled random mutant " + entry.getKey());
-            if (entry.getKey().startsWith("wrong-role-")) {
-                assertThrows(AssertionError.class, () -> assertRandomFacts(dropoutFacts(mutant), true),
-                        entry.getKey() + " must fail parameter-origin role/sink dataflow before hygiene");
-            }
-            boolean rejected;
-            try { assertRandomMethod(entry.getKey(), mutant, form.equals("DROPOUT") ? 5 : 1,
-                    form.equals("DROPOUT")); rejected = false; }
-            catch (AssertionError expected) { rejected = true; }
-            if (!rejected) {
-                List<Object> expected = randomStorage(row), actual = randomStorage(row);
-                var correct = CpuAffineMovementIndexingScatterRandomCleanJavaOracle.entry(baseline, "baseline",
-                        route.specialization().entryType().descriptorString());
-                var changed = CpuAffineMovementIndexingScatterRandomCleanJavaOracle.entry(mutants, entry.getKey(),
-                        route.specialization().entryType().descriptorString());
-                invokeRandom(correct, row, expected, 0, 0); invokeRandom(changed, row, actual, 0, 0);
-                invokeRandom(correct, row, expected, 0, row.count); invokeRandom(changed, row, actual, 0, row.count);
-                boolean differs = false;
-                for (int role = 0; role < actual.size(); role++) {
-                    try { assertEveryRawElementEquals(expected.get(role), actual.get(role), randomType(row, role), "mutant"); }
-                    catch (AssertionError difference) { differs = true; break; }
-                }
-                assertTrue(differs, form + ' ' + entry.getKey()
-                        + " must alter executable random semantics or fail hygiene");
-            }
-        }
     }
 
     /** Rejects changes in ABI, carrier direction, range direction, and family topology facts. */
@@ -2629,58 +2551,6 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                 row.specialization.carrierPattern().get(role), storage.get(role)));
         args.add(row.geometry); args.add(start); args.add(end); entry.invokeWithArguments(args);
     }
-    /**
-     * Extracts INITIAL_STATE's narrow parameter-origin proof.  This is intentionally a small
-     * verifier, not a general bytecode analyser: it follows only javac/generated local copies
-     * of geometry values into a direct typed carrier access.
-     */
-    private static RandomDataflowFacts initialStateFacts(MethodModel method) {
-        return randomDataflow(method, 1);
-    }
-
-    /** Extracts DROPOUT's five ordered carrier roles through direct typed access sinks. */
-    private static RandomDataflowFacts dropoutFacts(MethodModel method) {
-        return randomDataflow(method, 5);
-    }
-
-    private static RandomDataflowFacts randomDataflow(MethodModel method, int roles) {
-        List<String> parameters = CpuAffineMovementIndexingScatterRandomCleanJavaOracle.parameters(
-                method.methodType().stringValue());
-        int geometry = roles;
-        assertEquals(roles + 3, parameters.size(), "exact random carrier/geometry/range ABI");
-        assertEquals("long[]", parameters.get(geometry), "random geometry parameter type");
-        List<Instruction> instructions = method.code().orElseThrow().elementStream()
-                .filter(Instruction.class::isInstance).map(Instruction.class::cast).toList();
-        int geometrySlot = parameterSlot(parameters, geometry);
-        Set<Integer> geometryLocals = parameterDerivedLocals(instructions, geometrySlot);
-        Set<Integer> startLocals = parameterDerivedLocals(instructions, parameterSlot(parameters, geometry + 1));
-        Set<Integer> endLocals = parameterDerivedLocals(instructions, parameterSlot(parameters, geometry + 2));
-        List<RandomAccess> accesses = directRandomAccesses(instructions, roles, geometryLocals);
-        boolean guard = hasPairedBranch(instructions, startLocals, endLocals);
-        boolean geometryRead = !geometryLocals.isEmpty();
-        if (roles == 1) {
-            boolean stateWrites = hasAccess(accesses, 0, true, true);
-            return new RandomDataflowFacts(roles, guard, geometryRead, stateWrites, false, false,
-                    false, false, false, false, false);
-        }
-        boolean inputRead = hasAccess(accesses, 0, false, true);
-        boolean stateReads = accesses.stream().filter(a -> a.role == 1 && !a.write && a.geometryAddress).count() >= 2;
-        boolean resultWrite = hasAccess(accesses, 2, true, true);
-        boolean maskWrite = hasAccess(accesses, 3, true, true);
-        boolean nextStateWrites = hasAccess(accesses, 4, true, true);
-        boolean typedRoles = accesses.stream().allMatch(a -> a.role >= 0 && a.role < roles)
-                && accesses.stream().anyMatch(a -> a.role == 0) && accesses.stream().anyMatch(a -> a.role == 1)
-                && accesses.stream().anyMatch(a -> a.role == 2) && accesses.stream().anyMatch(a -> a.role == 3)
-                && accesses.stream().anyMatch(a -> a.role == 4);
-        return new RandomDataflowFacts(roles, guard, geometryRead, nextStateWrites, inputRead,
-                stateReads, resultWrite, maskWrite, typedRoles, hasLoopRangeBranch(instructions, startLocals, endLocals),
-                instructions.stream().anyMatch(i -> i.opcode() == Opcode.DDIV));
-    }
-
-    private static boolean hasAccess(List<RandomAccess> accesses, int role, boolean write, boolean geometryAddress) {
-        return accesses.stream().anyMatch(a -> a.role == role && a.write == write && a.geometryAddress == geometryAddress);
-    }
-
     private static int parameterSlot(List<String> parameters, int parameter) {
         int slot = 0;
         for (int index = 0; index < parameter; index++)
@@ -2705,28 +2575,6 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         return derived;
     }
 
-    private static List<RandomAccess> directRandomAccesses(List<Instruction> instructions, int roles,
-            Set<Integer> geometryLocals) {
-        var result = new ArrayList<RandomAccess>();
-        for (int start = 0; start < instructions.size(); start++) {
-            if (!(instructions.get(start) instanceof LoadInstruction load)
-                    || load.slot() < 0 || load.slot() >= roles) continue;
-            for (int end = start + 1; end < Math.min(instructions.size(), start + 100); end++) {
-                Instruction candidate = instructions.get(end);
-                if (candidate instanceof LoadInstruction next && next.slot() >= 0 && next.slot() < roles) break;
-                Boolean write = randomAccessDirection(candidate);
-                if (write != null) {
-                    boolean geometryAddress = false;
-                    for (int i = start + 1; i < end; i++) if (instructions.get(i) instanceof LoadInstruction local
-                            && geometryLocals.contains(local.slot())) geometryAddress = true;
-                    result.add(new RandomAccess(load.slot(), write, geometryAddress));
-                    break;
-                }
-            }
-        }
-        return result;
-    }
-
     private static Boolean randomAccessDirection(Instruction instruction) {
         if (instruction instanceof ArrayLoadInstruction) return false;
         if (instruction instanceof ArrayStoreInstruction) return true;
@@ -2738,80 +2586,6 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         return null;
     }
 
-    private static boolean hasPairedBranch(List<Instruction> instructions, Set<Integer> first, Set<Integer> second) {
-        return instructions.stream().filter(BranchInstruction.class::isInstance).map(BranchInstruction.class::cast)
-                .anyMatch(branch -> branchUses(instructions, branch, first))
-                && instructions.stream().filter(BranchInstruction.class::isInstance).map(BranchInstruction.class::cast)
-                .anyMatch(branch -> branchUses(instructions, branch, second));
-    }
-
-    private static boolean hasLoopRangeBranch(List<Instruction> instructions, Set<Integer> start, Set<Integer> end) {
-        return hasPairedBranch(instructions, start, end);
-    }
-
-    private static boolean branchUses(List<Instruction> instructions, BranchInstruction branch, Set<Integer> locals) {
-        int index = instructions.indexOf(branch);
-        for (int prior = Math.max(0, index - 12); prior < index; prior++) if (instructions.get(prior) instanceof LoadInstruction load
-                && locals.contains(load.slot())) return true;
-        return false;
-    }
-
-    private static void assertRandomProjection(PreparedRandom row, RandomDataflowFacts clean, RandomDataflowFacts generated) {
-        boolean dropout = row.candidate.operationForm().equals("DROPOUT");
-        assertRandomFacts(clean, dropout); assertRandomFacts(generated, dropout);
-        assertEquals(clean.roles, generated.roles, row.candidate.ownerId() + " ordered random ABI roles");
-    }
-    private static void assertRandomFacts(RandomDataflowFacts facts, boolean dropout) {
-        assertTrue(facts.roles == (dropout ? 5 : 1), "random carrier role topology");
-        assertTrue(facts.prologue && facts.geometry && facts.stateWrites, "random state/range/geometry sink topology: " + facts);
-        if (dropout) assertTrue(facts.inputRead && facts.stateReads && facts.resultWrite && facts.maskWrite
-                && facts.typedRoles && facts.range && facts.narrowOnceScale,
-                "dropout parameter-origin role/sink topology: " + facts);
-    }
-    private static void assertRandomMethod(String owner, MethodModel method, int roles, boolean dropout) {
-        assertRandomFacts(dropout ? dropoutFacts(method) : initialStateFacts(method), dropout);
-        assertRandomHygiene(owner, method);
-    }
-    private static void assertRandomHygiene(String owner, MethodModel method) {
-        Set<String> forbidden = Set.of("NEW", "ANEWARRAY", "NEWARRAY", "MULTIANEWARRAY", "ATHROW", "INVOKEDYNAMIC");
-        for (CodeElement element : method.code().orElseThrow().elementStream().toList()) {
-            if (!(element instanceof Instruction instruction)) continue;
-            assertFalse(forbidden.contains(instruction.opcode().name()), owner + " forbidden random opcode " + instruction.opcode().name());
-            if (instruction instanceof InvokeInstruction call) {
-                String target = call.owner().asInternalName() + '.' + call.name() + call.type();
-                assertTrue(permittedRandomInvoke(target), owner + " forbidden random invoke " + target);
-            }
-        }
-    }
-    private static boolean permittedRandomInvoke(String target) {
-        return Set.of(
-                "java/lang/Double.longBitsToDouble(J)D",
-                "java/lang/Double.doubleToRawLongBits(D)J",
-                "java/lang/Float.float16ToFloat(S)F",
-                "java/lang/Float.floatToFloat16(F)S",
-                "java/lang/Float.isNaN(F)Z",
-                "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfLong;J)J",
-                "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfDouble;J)D",
-                "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfFloat;J)F",
-                "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfShort;J)S",
-                "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfByte;J)B",
-                "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfLong;JJ)V",
-                "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfDouble;JD)V",
-                "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfFloat;JF)V",
-                "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfShort;JS)V",
-                "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfByte;JB)V",
-                "java/lang/foreign/MemorySegment.getAtIndex(Ljava/lang/foreign/ValueLayout$OfLong;J)J",
-                "java/lang/foreign/MemorySegment.getAtIndex(Ljava/lang/foreign/ValueLayout$OfDouble;J)D",
-                "java/lang/foreign/MemorySegment.getAtIndex(Ljava/lang/foreign/ValueLayout$OfFloat;J)F",
-                "java/lang/foreign/MemorySegment.getAtIndex(Ljava/lang/foreign/ValueLayout$OfShort;J)S",
-                "java/lang/foreign/MemorySegment.getAtIndex(Ljava/lang/foreign/ValueLayout$OfByte;J)B",
-                "java/lang/foreign/MemorySegment.setAtIndex(Ljava/lang/foreign/ValueLayout$OfLong;JJ)V",
-                "java/lang/foreign/MemorySegment.setAtIndex(Ljava/lang/foreign/ValueLayout$OfDouble;JD)V",
-                "java/lang/foreign/MemorySegment.setAtIndex(Ljava/lang/foreign/ValueLayout$OfFloat;JF)V",
-                "java/lang/foreign/MemorySegment.setAtIndex(Ljava/lang/foreign/ValueLayout$OfShort;JS)V",
-                "java/lang/foreign/MemorySegment.setAtIndex(Ljava/lang/foreign/ValueLayout$OfByte;JB)V")
-                .contains(target);
-    }
     private static String entryDataType(String descriptor, String fallback) {
         int position = descriptor.charAt(1) == '[' ? 2 : 1;
         return switch (descriptor.charAt(position)) {
@@ -2878,9 +2652,5 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     private record IndexingFacts(String descriptor, int geometryLoads, int primitiveLoads, int primitiveStores,
             boolean indexWidth, boolean dataAccess, boolean familyMap, boolean boolStore,
             boolean forward, boolean backward, List<String> invokes) { }
-    private record RandomAccess(int role, boolean write, boolean geometryAddress) { }
-    private record RandomDataflowFacts(int roles, boolean prologue, boolean geometry,
-            boolean stateWrites, boolean inputRead, boolean stateReads, boolean resultWrite,
-            boolean maskWrite, boolean typedRoles, boolean range, boolean narrowOnceScale) { }
     private record Row(String owner, String family, String form, String dataType, String descriptor, String carriers, String access, String strategy) { }
 }

@@ -1441,6 +1441,11 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         value.accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR
                         || value.accessPlan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO);
         int schema = row.isPresent() ? 72 : convVector ? 63
+                : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr movement
+                    && (movement.plan() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr.ConcatPlan
+                        || movement.plan() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr.StackPlan)
+                    && movement.plan().occurrenceToBoundary().size() > 16
+                    ? CpuKernelSpecialization.MOVEMENT_OPERAND_TABLE_SCHEMA
                 : denseArrayAffine ? CpuKernelSpecialization.DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
                 : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr
                     ? CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
@@ -1448,6 +1453,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool2dIr ? 55
                 : matrix.isPresent() ? 54
                 : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr ? vector ? 62 : 58
+                : CpuKernelSpecialization.hasFloat32RsqrtSites(kernel)
+                    ? CpuKernelSpecialization.FLOAT32_RSQRT_SITES_SCHEMA
                 : pointwise && kernel.values().stream().anyMatch(value -> value.dataType() == DataType.FLOAT16) ? 68
                 : pointwise && crossTypeCast ? 60
                 : vector && hasDenseFloatingMaskBoundary(kernel, vectorType) ? 61

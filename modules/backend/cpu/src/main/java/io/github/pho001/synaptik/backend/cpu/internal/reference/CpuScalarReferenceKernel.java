@@ -648,7 +648,9 @@ public final class CpuScalarReferenceKernel {
         long counter = (long) load(arguments.get(1), DataType.INT64,
                 randomAddress(geometry.boundaries().get(1), 1));
         double probability = Double.longBitsToDouble(ir.probabilityBits());
-        double denominator = 1.0d - probability;
+        double complement = 1.0d - probability;
+        double scale = ir.valueType() == DataType.FLOAT64
+                ? 1.0d / complement : (double) (1.0f / (float) complement);
         long keyOffset = randomMix(key + RANDOM_KEY_BIAS);
         for (long logical = 0; logical < geometry.elementCount(); logical++) {
             long mapped = randomMix(counter + logical + keyOffset);
@@ -657,13 +659,13 @@ public final class CpuScalarReferenceKernel {
                     randomAddress(geometry.boundaries().get(3), logical), (byte) (keep ? 1 : 0));
             if (ir.valueType() == DataType.FLOAT64) {
                 double value = keep ? (double) load(arguments.get(0), DataType.FLOAT64,
-                        randomAddress(geometry.boundaries().get(0), logical)) / denominator : 0.0d;
+                        randomAddress(geometry.boundaries().get(0), logical)) * scale : 0.0d;
                 store(arguments.get(2), DataType.FLOAT64,
                         randomAddress(geometry.boundaries().get(2), logical), value);
             } else if (ir.valueType() == DataType.FLOAT32) {
                 float input = keep ? (float) load(arguments.get(0), DataType.FLOAT32,
                         randomAddress(geometry.boundaries().get(0), logical)) : 0.0f;
-                float value = keep ? (float) (((double) input) / denominator) : 0.0f;
+                float value = keep ? input * (float) scale : 0.0f;
                 store(arguments.get(2), DataType.FLOAT32,
                         randomAddress(geometry.boundaries().get(2), logical), value);
             } else {
@@ -672,10 +674,10 @@ public final class CpuScalarReferenceKernel {
                         randomAddress(geometry.boundaries().get(0), logical)) : 0;
                 ScalarValue inputValue = type == DataType.FLOAT16
                         ? ScalarValue.float16Bits(inputBits) : ScalarValue.bfloat16Bits(inputBits);
-                double input = CastValueConversions.convert(
-                        inputValue, DataType.FLOAT64).float64Value();
+                float input = CastValueConversions.convert(
+                        inputValue, DataType.FLOAT32).float32Value();
                 ScalarValue value = keep ? CastValueConversions.convert(
-                        ScalarValue.float64(input / denominator), type)
+                        ScalarValue.float32(input * (float) scale), type)
                         : type == DataType.FLOAT16
                                 ? ScalarValue.float16Bits((short) 0)
                                 : ScalarValue.bfloat16Bits((short) 0);
@@ -1642,8 +1644,8 @@ public final class CpuScalarReferenceKernel {
     }
 
     /**
-     * Evaluates a unary instruction with low composites rounded at each named FLOAT32 site.
-     * FLOAT32/FLOAT64 retain their existing widened/direct reference paths.
+     * Evaluates unary instructions with the declared reciprocal-square-root sites and
+     * low activation composites rounded at each named FLOAT32 working site.
      *
      * @param opcode supported unary opcode, never null
      * @param type declared input type; low values have already been exactly decoded
@@ -1651,10 +1653,11 @@ public final class CpuScalarReferenceKernel {
      * @return non-null boxed result, not yet narrowed to low storage
      */
     private static Object unary(CpuPointwiseOpcode opcode, DataType type, Object input) {
+        if (opcode == CpuPointwiseOpcode.RSQRT && type != DataType.FLOAT64)
+            return Float.valueOf(1.0f / (float) StrictMath.sqrt((float) input));
         if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
             float x = (float) input;
             switch (opcode) {
-                case RSQRT: return Float.valueOf(1.0f / (float) StrictMath.sqrt(x));
                 case SIGMOID, SILU, GELU_EXACT, GELU_TANH_APPROXIMATION:
                     return Float.valueOf(lowActivation(opcode, x));
                 default: break;

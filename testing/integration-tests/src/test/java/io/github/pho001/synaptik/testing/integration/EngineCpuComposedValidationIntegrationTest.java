@@ -154,30 +154,6 @@ final class EngineCpuComposedValidationIntegrationTest {
         }
     }
 
-    @Test void expSoftmaxRejectsProducedInfinityJustLikeDirectInputAcrossSessionRuns() {
-        try (var arena = Arena.ofShared(); var engine = Engine.standard()) {
-            var storage = arena.allocate(2L * Float.BYTES, Float.BYTES);
-            var input = tensor(DataType.FLOAT32, Shape.of(2), storage);
-            for (boolean composed : List.of(false, true)) {
-                Tensor output = (composed ? input.exp() : input).softmax(0);
-                try (var session = engine.prepare(engine.compile(List.of(output)))) {
-                    for (int iteration = 0; iteration < 2; iteration++) {
-                        storage.setAtIndex(ValueLayout.JAVA_FLOAT, 0, composed ? 0 : 1);
-                        storage.setAtIndex(ValueLayout.JAVA_FLOAT, 1,
-                                composed ? 1000 : Float.POSITIVE_INFINITY);
-                        assertThrows(IllegalArgumentException.class, () -> engine.run(session, List.of(input)));
-                        storage.setAtIndex(ValueLayout.JAVA_FLOAT, 1, composed ? 0 : 1);
-                        try (var result = engine.run(session, List.of(input))) {
-                            var bytes = result.materialize(result.publications().getFirst(), 8).bytes();
-                            assertEquals(.5f, bytes.getFloat());
-                            assertEquals(.5f, bytes.getFloat());
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     @Test void nonScalarLossesComposeWithArithmeticAndStridedCallerBoundaries() {
         try (var arena = Arena.ofShared(); var engine = Engine.standard()) {
             for (boolean strided : List.of(false, true)) {

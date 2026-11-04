@@ -90,13 +90,15 @@ final class CpuGeneralScanBodyEmitter {
                         .loadConstant(emission.resets().size()+1-r).isub().laload().lastore();
             }
             var nested = emission.specialization();
-            for (int b = 0; b < nested.boundaryDataTypes().size(); b++) code.aload(2);
+            if (nested.movementOperandTable()) code.aload(2);
+            else for (int b = 0; b < nested.boundaryDataTypes().size(); b++) code.aload(2);
             if (nested.scratchParameter()) scan.boundary(scan.ir.boundaryAccesses().size() + index);
             code.aload(1).loadConstant(index).aaload().loadConstant(0L);
             // Ordinary numeric prefixes and their reset/end trailers remain owner-defined.
             code.aload(1).loadConstant(index).aaload().dup().arraylength().loadConstant(1).isub().laload();
             code.aload(3);
             var type = MethodTypeDesc.ofDescriptor(nested.entryType().descriptorString());
+            if (nested.movementOperandTable()) type = type.changeParameterType(0, SEGMENT);
             type = type.insertParameterTypes(type.parameterCount(), SEGMENT);
             code.invokestatic(scan.owner, scan.prefix + "scanUnit" + index + "$invoke", type);
         }

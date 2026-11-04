@@ -788,7 +788,7 @@ public class CpuTypedEmptyScanConsumerTest {
             return artifact.graph().values().stream().filter(v -> v.id().equals(id)).findFirst().orElseThrow().descriptor();
         }
         private MemorySegment segment(ValueId id) { return fixture.segment(Math.toIntExact(id.value())); }
-        private long[] forwardRaw(int position) { return logical(artifact.publication().forwardBindings().get(position).valueId()); }
+        public long[] forwardRaw(int position) { return logical(artifact.publication().forwardBindings().get(position).valueId()); }
         public double[] forward(int position) { var id = artifact.publication().forwardBindings().get(position).valueId(); return numbers(id); }
         public double[] gradient(int position) { return numbers(artifact.publication().gradientBindings().get(position).valueId()); }
         private double[] numbers(ValueId id) {

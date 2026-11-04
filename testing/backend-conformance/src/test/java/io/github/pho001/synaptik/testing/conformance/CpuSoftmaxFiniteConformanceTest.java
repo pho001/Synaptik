@@ -48,7 +48,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Qualifies finite stable softmax results and CPU's distinct pre-write rejection domain. */
+/** Qualifies finite stable softmax results across supported types and represented layouts. */
 final class CpuSoftmaxFiniteConformanceTest {
     @Test void bothKindsAndFourDtypesHandleOverflowUnderflowAndOffsets() {
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
@@ -94,14 +94,6 @@ final class CpuSoftmaxFiniteConformanceTest {
                                 read(type, output, 0));
                         assertEquals(kind == SoftmaxKind.SOFTMAX ? 1 : 0, read(type, output, 1));
                     }
-                    for (double invalid : new double[] {Double.NaN, Double.POSITIVE_INFINITY,
-                            Double.NEGATIVE_INFINITY}) {
-                        write(type, input, 0, invalid); write(type, input, 1, 0);
-                        write(type, output, 0, -71); write(type, output, 1, -71);
-                        assertThrows(IllegalArgumentException.class, bound::execute);
-                        assertEquals(-71, read(type, output, 0));
-                        assertEquals(-71, read(type, output, 1));
-                    }
                     write(type, input, 0, 0); write(type, input, 1, 0);
                     bound.execute();
                     assertEquals(kind == SoftmaxKind.SOFTMAX ? 0.5 : -Math.log(2),
@@ -111,7 +103,7 @@ final class CpuSoftmaxFiniteConformanceTest {
         }
     }
 
-    @Test void parallelStridedNonLastSlicesValidateCompletelyBeforeWritingAndRescanEveryRun() {
+    @Test void parallelStridedNonLastSlicesIgnoreBackingHolesAndReadFreshValuesEveryRun() {
         Shape shape = Shape.of(3, 8);
         var layout = LayoutDescriptor.of(shape, new long[] {2, 8}, 1, true);
         int count = Math.toIntExact(layout.referencedElementSpan());
@@ -140,24 +132,25 @@ final class CpuSoftmaxFiniteConformanceTest {
                         var bound = fixture.executable().bind(state);
                         bound.execute();
                         assertTiedSlices(kind, type, output);
-                        for (double invalid : new double[] {Double.NaN, Double.POSITIVE_INFINITY,
-                                Double.NEGATIVE_INFINITY}) {
-                            output.fill((byte) 0x5a);
-                            byte[] sentinel = output.toArray(ValueLayout.JAVA_BYTE);
-                            write(type, input, 61, invalid); // final contributor in the last slice
-                            assertThrows(IllegalArgumentException.class, bound::execute);
-                            assertArrayEquals(sentinel, output.toArray(ValueLayout.JAVA_BYTE));
-                            write(type, input, 61, maximum);
+                        for (int pass = 0; pass < 2; pass++) {
+                            for (int slice = 0; slice < 8; slice++) {
+                                write(type, input, 1 + 8 * slice, 0);
+                                write(type, input, 3 + 8 * slice, 0);
+                                write(type, input, 5 + 8 * slice, 0);
+                            }
+                            bound.execute();
+                            double expected = kind == SoftmaxKind.SOFTMAX ? 1.0 / 3 : -Math.log(3);
+                            for (int slice = 0; slice < 8; slice++) for (int member = 0; member < 3; member++)
+                                assertEquals(expected, read(type, output, 1 + 8 * slice + 2 * member),
+                                        tolerance(type));
+                            for (int slice = 0; slice < 8; slice++) {
+                                write(type, input, 1 + 8 * slice, -maximum);
+                                write(type, input, 3 + 8 * slice, maximum);
+                                write(type, input, 5 + 8 * slice, maximum);
+                            }
                             bound.execute();
                             assertTiedSlices(kind, type, output);
                         }
-                        // Even an unavailable worker group must not mask the current input failure.
-                        workers.close();
-                        output.fill((byte) 0x5a);
-                        byte[] sentinel = output.toArray(ValueLayout.JAVA_BYTE);
-                        write(type, input, 61, Double.NEGATIVE_INFINITY);
-                        assertThrows(IllegalArgumentException.class, bound::execute);
-                        assertArrayEquals(sentinel, output.toArray(ValueLayout.JAVA_BYTE));
                     }
                 }
             }

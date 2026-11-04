@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
-import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuSoftmaxInputValidator;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
@@ -58,37 +57,6 @@ final class CpuStableReductionSoftmaxStageATest {
         }
     }
 
-    @Test void nonFiniteAndZeroSelectedExtentRemainRejectedBeforeAnyGeneratedWrite() {
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
-            var layout = new CpuSoftmaxLowering.Layout(new long[] {2}, 0, new long[] {1});
-            var geometry = new CpuSoftmaxLowering.Geometry(SoftmaxKind.SOFTMAX, type, 0,
-                    layout, layout, 1, 2, 2);
-            for (double value : new double[] {Double.NaN, Double.POSITIVE_INFINITY,
-                    Double.NEGATIVE_INFINITY}) {
-                CpuBufferArgument input = type == DataType.FLOAT32
-                        ? new CpuBufferArgument.Floats(new float[] {(float) value, 0}, 0, 8, true)
-                        : new CpuBufferArgument.Doubles(new double[] {value, 0}, 0, 16, true);
-                assertThrows(IllegalArgumentException.class,
-                        () -> CpuSoftmaxInputValidator.validate(input, geometry), type + "/" + value);
-            }
-            for (double[] pair : List.of(new double[] {Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY},
-                    new double[] {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY},
-                    new double[] {Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY},
-                    new double[] {Double.NaN, Double.POSITIVE_INFINITY},
-                    new double[] {Double.NaN, Double.NEGATIVE_INFINITY})) {
-                CpuBufferArgument input = type == DataType.FLOAT32
-                        ? new CpuBufferArgument.Floats(new float[] {(float) pair[0], (float) pair[1]}, 0, 8, true)
-                        : new CpuBufferArgument.Doubles(pair, 0, 16, true);
-                assertThrows(IllegalArgumentException.class,
-                        () -> CpuSoftmaxInputValidator.validate(input, geometry), type + "/" + Arrays.toString(pair));
-            }
-        }
-        assertThrows(IllegalArgumentException.class, () -> CpuSoftmaxLoweringTest.lower(
-                SoftmaxKind.SOFTMAX, DataType.FLOAT32, Shape.of(2, 0), 1));
-        assertEquals(0, CpuSoftmaxLoweringTest.lower(SoftmaxKind.LOG_SOFTMAX,
-                DataType.FLOAT64, Shape.of(0, 2, 3), 1).softmaxGeometry().orElseThrow()
-                .elementCount(), "zero non-selected extent performs no generated slice");
-    }
 
     @Test void indexedPositiveStrideIsExplicitScalarOnlyControlAndCompleteRangesAreDeterministic()
             throws Throwable {

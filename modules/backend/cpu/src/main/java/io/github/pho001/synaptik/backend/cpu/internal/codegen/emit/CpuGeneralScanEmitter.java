@@ -313,20 +313,6 @@ final class CpuGeneralScanEmitter {
                             long.class, long.class, long.class, String.class);
                 }
             }
-            if (unit.ir() instanceof CpuSoftmaxIr softmax) {
-                int value = unit.boundaries().getFirst();
-                code.aload(2); enumValue(softmax.dataType()); valueBase(value);
-                valueArray(value, 0); valueArray(value, 1);
-                code.loadConstant(softmax.axis());
-                var access = composition.values().get(value).access();
-                coefficient(access.extentConstants().get(softmax.axis()), access.extentBatchFactors().get(softmax.axis()));
-                code.loadConstant(0L); count(value, softmax.axis()); code.loadConstant(0L);
-                validatorActivity(value, softmax.axis());
-                invokeValidator("CpuSoftmaxInputValidator", "validateTemporal",
-                        MemorySegment.class, DataType.class, long.class, long[].class, long[].class,
-                        int.class, long.class, long.class, long.class, long.class, boolean.class,
-                        MemorySegment.class, long.class, long.class, long.class);
-            }
             if (unit.ir() instanceof CpuLossIr loss
                     && (loss.targetType() == DataType.INT32 || loss.targetType() == DataType.INT64)) {
                 int logits = unit.boundaries().get(loss.roleBoundaryPositions().getFirst());

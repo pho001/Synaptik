@@ -24,9 +24,8 @@ import java.util.Optional;
 
 /**
  * Lowers one supported static, resolved softmax occurrence to complete normalization-slice
- * ranges and a version-two CPU-private kernel identity. The identity binds the selected axis,
- * representation, three-pass shape, and access plans; run-time values remain for the separate
- * pre-write validator rather than becoming lowering facts.
+ * ranges and a versioned CPU-private kernel identity. The identity binds the selected axis,
+ * representation, normalization algorithm, and access plans, never run-time values.
  * <p>General Scan may retain a single named-axis numeric recipe through {@link #lowerBatch};
  * invocation binding resolves its complete slice geometry without semantic relowering.</p>
  */
@@ -65,14 +64,12 @@ public final class CpuSoftmaxLowering {
         validateInjective(out);
         int axis = ((SoftmaxAttrs) node.operation().attrs()).axis();
         long width = in.extents[axis];
-        if (width <= 0) throw new IllegalArgumentException(
-                "softmax selected-axis extent must be positive");
         long elements = elementCount(in.extents);
         long slices = elements == 0 ? 0 : elements / width;
         var inputBinding = binding(in, CpuAccessPlan.AccessKind.READ);
         var outputBinding = binding(out, CpuAccessPlan.AccessKind.WRITE);
         var ir = new CpuSoftmaxIr((SoftmaxKind) node.operation().kind(),
-                input.descriptor().dataType(), axis, 2, 3,
+                input.descriptor().dataType(), axis, CpuSoftmaxIr.CURRENT_ALGORITHM_VERSION, 3,
                 inputBinding.plan(), outputBinding.plan());
         var geometry = new Geometry(ir.kind(), ir.dataType(), axis, in, out, slices, width,
                 elements);
@@ -89,7 +86,7 @@ public final class CpuSoftmaxLowering {
 
     /**
      * Qualifies original single-B softmax descriptors and retains symbolic slice geometry.
-     * The selected axis may itself carry B; its ordinary positive-width guard is checked at bind.
+     * The selected axis may itself carry B; an actual zero width publishes no elements.
      * @param context complete one-node ordinary projection, with canonical named-axis layouts
      * @return unresolved numeric geometry, never a sampled concrete lowering
      * @throws NullPointerException if the context or a required fact is null
@@ -131,15 +128,17 @@ public final class CpuSoftmaxLowering {
         var in = input.descriptor(); var out = output.descriptor(); int axis = attrs.axis();
         var read = batchBinding(input, CpuAccessPlan.AccessKind.READ, layouts);
         var write = batchBinding(output, CpuAccessPlan.AccessKind.WRITE, layouts);
-        if (read.extentConstants().get(axis) == 0 && read.extentBatchFactors().get(axis) == 0)
-            throw new IllegalArgumentException("softmax width must be positive");
-        long c = 1, f = 0;
-        for (int a = 0; a < in.shape().rank(); a++) if (a != axis) {
-            long ec = read.extentConstants().get(a), ef = read.extentBatchFactors().get(a);
-            f = Math.addExact(Math.multiplyExact(f, ec), Math.multiplyExact(c, ef));
-            c = Math.multiplyExact(c, ec);
+        long c = 0, f = 0;
+        if (read.extentConstants().get(axis) != 0 || read.extentBatchFactors().get(axis) != 0) {
+            c = 1;
+            for (int a = 0; a < in.shape().rank(); a++) if (a != axis) {
+                long ec = read.extentConstants().get(a), ef = read.extentBatchFactors().get(a);
+                f = Math.addExact(Math.multiplyExact(f, ec), Math.multiplyExact(c, ef));
+                c = Math.multiplyExact(c, ec);
+            }
         }
-        var ir = new CpuSoftmaxIr(kind, in.dataType(), axis, 2, 3, read.plan(), write.plan());
+        var ir = new CpuSoftmaxIr(kind, in.dataType(), axis,
+                CpuSoftmaxIr.CURRENT_ALGORITHM_VERSION, 3, read.plan(), write.plan());
         return new CpuPartitionLowering.LoweredPartition(new Geometry.BatchGeometry(ir,
                 List.of(input.id(), output.id()), List.of(in.dataType(), out.dataType()),
                 List.of(read, write), new BatchByteSize(c, f, 1), new BatchByteSize(0, 0, 1)));
@@ -250,7 +249,7 @@ public final class CpuSoftmaxLowering {
      * @param input resolved input layout
      * @param output resolved injective output layout
      * @param sliceCount number of independent complete normalization slices
-     * @param sliceWidth positive selected-axis extent
+     * @param sliceWidth non-negative selected-axis extent
      * @param elementCount shape-preserving represented element count
      */
     public record Geometry(SoftmaxKind kind, DataType dataType, int axis, Layout input,
@@ -299,7 +298,7 @@ public final class CpuSoftmaxLowering {
              * Resolves checked numeric geometry without invoking semantic lowering.
              * @param batch non-negative invocation B, checked against access count/address limits
              * @return ordinary concrete family geometry with the identical compiled IR
-             * @throws IllegalArgumentException if a positive-axis or training-domain rule fails
+             * @throws IllegalArgumentException if resolved access geometry is invalid
              * @throws ArithmeticException if resolved geometry exceeds supported limits
              */
             @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
@@ -307,9 +306,8 @@ public final class CpuSoftmaxLowering {
                 var layouts = resolved.stream().map(CpuSoftmaxLowering::boundLayout).toList();
                 var input = layouts.getFirst(); var output = layouts.getLast();
                 long width = input.extents[ir.axis()];
-                if (width <= 0) throw new IllegalArgumentException("softmax width must be positive");
                 long count = resolved.getFirst().elementCount();
-                long slices = iterationCount.byteSize(batch);
+                long slices = count == 0 ? 0 : iterationCount.byteSize(batch);
                 var geometry = new Geometry(ir.kind(), ir.dataType(), ir.axis(), input, output,
                         slices, width, count);
                 return new CpuPartitionLowering.LoweredPartition(ir, boundaries, resolved,
@@ -376,7 +374,7 @@ public final class CpuSoftmaxLowering {
         public Geometry {
             Objects.requireNonNull(kind, "kind"); Objects.requireNonNull(dataType, "dataType");
             Objects.requireNonNull(input, "input"); Objects.requireNonNull(output, "output");
-            if (axis < 0 || axis >= input.extents.length || sliceCount < 0 || sliceWidth <= 0
+            if (axis < 0 || axis >= input.extents.length || sliceCount < 0 || sliceWidth < 0
                     || elementCount < 0 || !Arrays.equals(input.extents, output.extents)
                     || input.extents[axis] != sliceWidth
                     || elementCount != Math.multiplyExact(sliceCount, sliceWidth))
