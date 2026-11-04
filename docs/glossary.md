@@ -6,8 +6,19 @@ Some entries describe contracts planned by the architecture but not yet implemen
 [implementation roadmap](planning/roadmap.md) is the source for current task status.
 
 New readers can use [First terms](terms.md) as a short reading-order guide, then follow the
-worked [tensor geometry and gradient explanation](explanation/tensors-and-gradients.md)<span data-glossary-navigation="true"> ([tensor glossary](#tensor); [gradient glossary](#term-gradient))</span>.
+worked [tensor geometry and gradient explanation](explanation/tensors-and-gradients.md).
 Definitions distinguish current capabilities from explicitly planned or historical material.
+
+You can also enter at any heading or inline definition. An API name denotes a particular
+programming type or call; an ordinary word such as “operation,” “view,” or “ownership” can have
+several meanings. Follow the qualified explanation rather than assuming a Tensor-specific sense.
+The examples teach meaning, not an additional promise of execution support.
+
+Mathematical examples use real numbers unless a floating-point rule is stated. Stored values
+have limited precision: an ideal identity or derivative is not permission to reorder rounded
+operations. [Special values and signed zero](#nan-infinity-and-signed-zero) and the operation's
+empty-domain rules still apply. Sizes and indices count logical positions unless bytes or another
+unit are named.
 
 ## Grouped quick index
 
@@ -50,7 +61,7 @@ Tensor/NN expressions
 
 [Model](#term-model) defines typed expression semantics without executing them. [Compiler](#term-compiler) [captures](#term-capture-meanings) and validates
 [graphs](#graph) and supports a bounded functional-[gradient](#term-gradient) domain; unsupported [derivative](#term-derivative) paths reject.
-[Planning](#term-planning) selects ownership from actual [occurrence](#term-occurrence) capabilities. [Prepare](#prepare) [coordinates](#axis-rank-scalar-vector-and-matrix) the [resource
+[Planning](#term-planning) selects ownership from actual [occurrence](#term-occurrence) capabilities. [Prepare](#prepare) coordinates the [resource
 transaction](#resource-transaction-and-rollback), while [backends](#backend) provide concrete representations, prepared computations and transfers.
 [Runtime](#term-runtime) executes the prepared recipe; [Engine](#term-engine) composes the lifecycle, reusable sessions and bounded
 tuning. Runtime representation [leases](#term-lease) are not a public backend-memory escape hatch.
@@ -92,7 +103,7 @@ alternative implementation choices; the grouping does not make those alternative
 
 A <a id="term-compiler"></a>**compiler** translates a structured description into another form. The Java compiler turns Java source into class files; Synaptik's **Compiler** instead [captures](#term-capture-meanings) [Tensor](#tensor) expressions into a [graph](#graph), constructs selected [derivatives](#term-derivative), and validates/transforms that graph. An <a id="term-abstract-syntax-tree-ast"></a>**abstract syntax tree (AST)** represents parsed syntax as a hierarchy. A computation graph represents data dependencies and is not necessarily that syntax tree.
 
-<a id="term-code-generation"></a>**Code generation** or code emission produces implementation code. This is different from a [Scan](#term-cumulative-scan)
+<a id="term-code-generation"></a>**Code generation** or code emission produces implementation code. This is different from a [Scan](#general-differentiable-scan)
 emission, which records an output at a sequence step. Generating Java class bytes and later
 [JIT](#term-just-in-time-compilation-jit)-compiling them into [machine code](#term-machine-code) are also distinct stages.
 
@@ -109,6 +120,8 @@ A <a id="term-recurrent-neural-network-rnn"></a>**recurrent neural network (RNN)
 A <a id="term-leaf"></a>**leaf** is a [Tensor](#tensor) with no producing expression. This says where its expression history stops, not whether it has stored values: a supplied [weight](#term-weight) may be a stored leaf, while an input <a id="term-prototype"></a>**prototype** may be a storage-free leaf used only to describe the expected type and geometry. A derived expression records a [producer](#term-producer) but is not thereby an already-computed [buffer](#term-buffer).
 
 A <a id="term-constant"></a>**constant** has a fixed meaning at the boundary describing it. Not every stored leaf is a [compile](#compile)-time constant: callers can provide new input values, and a [model](#term-model)'s private [trainable parameters](#trainable-parameter) can change. [Compiler](#term-compiler) constant classification, caller input [binding](#term-binding), and owning storage are separate facts. See [Tensor](#tensor), [provenance](#provenance), [bindable input](#bindable-input), and [compile-time constant source](#compile-time-constant-source).
+
+The word “leaf” also appears in other structures. A [dependency leaf](#term-dependency-leaf) has no further project dependencies in the graph being discussed; a proof-tree leaf is one terminal premise or numerical contributor. Neither classification implies a producerless Tensor or stored input values. Eager [random initialization](#tensor-random-initialization) creates stored Tensor leaves, whereas a descriptor-only input prototype need not contain values.
 
 ### Parameter, argument, and target meanings
 
@@ -149,10 +162,17 @@ A <a id="term-descriptor"></a>**descriptor** records properties needed to interp
 two-category classification task. A Java binary class name is another naming convention, not an
 operation's operand count. The surrounding qualifier determines the relevant meaning.
 
+<a id="term-binary-operation"></a>**Binary operation** means a computation with two logical operand positions, such as addition of two [Tensor expressions](#tensor). Each operand can contain many elements; “two” counts roles, not rank, bit width, or stored numbers. If the same Tensor fills both positions, there are still two [input occurrences](#term-occurrence). Binary file encoding and two-category classification are different senses.
+
 ### Linear algebra building blocks
 
-A <a id="term-dot-product"></a>**dot product** pairs corresponding [coordinates](#axis-rank-scalar-vector-and-matrix), multiplies each pair and sums the products.
-As a mathematical example, `[1, 3]` dotted with `[2, 2]` is `1*2 + 3*2 = 8`. [Matrix multiplication](#matrix-multiplication--matmul)
+A <a id="term-dot-product"></a>**dot product** measures the combined contribution of matching [coordinates](#axis-rank-scalar-vector-and-matrix): multiply each pair, then add those products. For real vectors $a$ and $b$ of equal non-negative length $n$,
+
+$$
+a\cdot b=\sum_{i=0}^{n-1}a_i b_i.
+$$
+
+Here $i$ is a zero-based position, and $a_i,b_i$ are the two values at that position. An empty sum ($n=0$) is zero. For $a=(1,3)$ and $b=(2,2)$, $a\cdot b=1\times2+3\times2=8$: both positions contribute, rather than selecting one. This is real arithmetic, not a prescribed floating reduction tree. [Matrix multiplication](#matrix-multiplication--matmul)
 combines many such contractions; the [operation definition](#matrix-multiplication--matmul)
 specifies its [dimensions](#dimension) and numerical rules, rather than a dictionary example fixing execution order.
 
@@ -187,6 +207,18 @@ original value is not the parameter later updated by training. A later execution
 instead borrow input storage under its own lifetime contract. Copying, borrowing, and ownership
 transfer are different actions; name which one the particular API performs.
 
+At these concrete boundaries, “owns” does not always mean the same action:
+
+| Call and participants | What crosses the call | What the receiver retains or copies | Lifetime consequence |
+|---|---|---|---|
+| Application calls `TensorFactory.fromFlatArray` | Descriptor and flat represented values | A copy in new heap storage | Later source-array mutation cannot change the imported Tensor |
+| Application calls `Parameter.replace` on a module wrapper | A compatible Tensor reference | The exact reference, not a value copy | Existing expressions still refer to the old Tensor; new forwards use the new binding |
+| Application builds an owned NN Model from supplied parameters | External state values | Private Model working copies, once per external identity | Training changes private state, not the application's original values |
+| Application calls ordinary `Engine.run` | Input Tensor identities and current storage associations | Borrowed captured storage, not copied or pinned bytes | Keep input memory alive and free of conflicting writes through result close |
+| Runtime cold-binds a backend executable | Run-specific representations selected by the recipe | Checked direct borrowed references | RunState/RunResult, not the bound action, governs resource cleanup |
+
+For the storage consequences in a full call sequence, read [ownership and lifetimes](explanation/ownership.md). For constructing descriptions without execution, read [the framework stages](explanation/framework.md).
+
 ### Index mappings and cost dominance
 
 A <a id="term-cartesian-product"></a>**Cartesian product** contains every tuple made by choosing one [coordinate](#axis-rank-scalar-vector-and-matrix) from each [axis](#term-axis).
@@ -219,6 +251,8 @@ whether a reusable entry exists; an [embedding](#embedding) lookup selects rows 
 searches for a class or resource. Looking something up does not imply copying it or acquiring its
 cleanup responsibility. A Java [method-handle lookup](#term-method-handle-lookup) is a more
 specific access-permission object, not the general search [operation](#operation).
+
+<a id="term-validation-pass"></a>A **validation pass** visits a declared input domain to check conditions before dependent work. A bounds pass checks every index before writes; an **overlap check** compares referenced memory regions to detect conflicting use. Here “scan” can simply mean an inspection pass, not a [cumulative operation](#cumulative-scan), recurrent loop or [general Scan](#general-differentiable-scan). Proving that all accessed regions are safe is separate from checking only logical element counts.
 
 ### Logical alignment and byte alignment
 
@@ -316,25 +350,41 @@ axes or compute a matrix's linear-algebra rank.
 
 ### Bias and activation
 
-A <a id="term-bias"></a>**bias** is an added [model](#term-model) [parameter](#term-parameter) that shifts a calculation independently of the current input: in `y = x * weight + bias`, bias allows a nonzero output when x is zero. This is different from statistical bias, which means systematic estimation error.
+A <a id="term-bias"></a>**bias** is an added [model](#term-model) [parameter](#trainable-parameter) that shifts a calculation independently of the current input. For real input $x$, coefficient $w$ (weight), and offset $b$ (bias), the affine prediction is $y=xw+b$. For $x=0$, $w=2$, and $b=3$, the prediction remains $y=3$: the offset is not multiplied by the input. This is different from statistical bias, which means systematic estimation error.
 
 An <a id="term-activation"></a>**activation** is a function applied to a layer’s values, usually to let several layers express more than one [linear transformation](#linear-algebra-building-blocks). <a id="term-relu"></a>**ReLU** (rectified linear unit) keeps positive inputs and maps negative inputs to zero. <a id="term-sigmoid"></a>**Sigmoid** maps [finite](#term-finite) inputs smoothly between zero and one; <a id="term-tanh"></a>**tanh** (hyperbolic tangent) maps them between minus one and one. These functions are not themselves evidence that a [backend](#backend) supports their execution or differentiation. See [GELU](#gaussian-error-linear-unit--gelu), [SiLU](#sigmoid-linear-unit--silu), and [affine transform](#affine-transform).
 
-In configuration or workflow prose, **activation** can instead [mean](#term-mean) enabling a [feature](#term-feature) or making
+In configuration or workflow prose, **activation** can instead mean enabling a [software feature](#term-software-feature) or making
 a selected plan effective. Enabling [Java preview features](#java-preview-incubator-modules-and-compiler-tiers) is not applying a neural-network
 activation function; the surrounding qualifier selects the meaning.
 
 ### Optimizer and stochastic gradient descent
 
-An <a id="term-optimizer"></a>**optimizer** is the rule that changes [trainable parameters](#trainable-parameter) using computed [gradients](#term-gradient). Differentiation answers how the chosen [objective](#term-objective) changes; the optimizer decides what update to make. Plain <a id="term-stochastic-gradient-descent-sgd"></a>**stochastic gradient descent (SGD)** uses `new_parameter = old_parameter - learning_rate * gradient`. “Stochastic” refers to using sampled training data, often a [mini-batch](#term-mini-batch); the update formula does not itself draw random numbers.
+An <a id="term-optimizer"></a>**optimizer** changes [trainable parameters](#trainable-parameter) using computed [gradients](#term-gradient), aiming to reduce a selected scalar [objective](#term-objective). A reporting metric need not be that objective and can even be a quantity to maximize. Compiler owns differentiation; Training applies the optimizer after Engine evaluates the objective and gradients.
 
-For [parameter](#term-parameter) `3`, gradient `4`, and [learning rate](#term-learning-rate) `0.1`, plain SGD produces `2.6`. <a id="term-momentum"></a>**Momentum** remembers a moving update direction across steps. <a id="term-weight-decay"></a>**Weight decay** shrinks parameters according to an explicit optimizer rule; it is not the gradient itself. **[Adam](#adaptive-optimizer--adam-adamw)** expands to adaptive moment estimation; **[AdamW](#adaptive-optimizer--adam-adamw)** means Adam with decoupled weight decay. See their [existing definition](#adaptive-optimizer--adam-adamw), [gradients and learning rates](#gradient-and-learning-rate), and [TrainingSession](#training-session--trainingsession) for the implemented [ownership](#term-ownership-meanings) and restrictions.
+Plain <a id="term-stochastic-gradient-descent-sgd"></a>**stochastic gradient descent (SGD)** updates each parameter coordinate by
+
+$$
+\theta_{t+1}=\theta_t-\eta g_t.
+$$
+
+Here $t\ge0$ counts accepted updates, $\theta_t$ is one real parameter value before update $t$, $g_t$ is the objective's derivative with respect to that value, and $\eta>0$ is the learning rate. With $\theta_t=3$, $g_t=4$, and $\eta=0.1$, the ideal result is $2.6$: a positive derivative moves the parameter downward. A finite step does not guarantee a lower objective. Implemented arithmetic rounds in the session's working format. “Stochastic” refers to sampled training data, often a [mini-batch](#term-mini-batch), not a random draw in this formula.
+
+<a id="term-momentum"></a>**Momentum** remembers a moving update direction across steps. <a id="term-weight-decay"></a>**Weight decay** shrinks parameters according to an explicit optimizer rule; it is not the gradient itself. **[Adam](#adaptive-optimizer--adam-adamw)** expands to adaptive moment estimation; **[AdamW](#adaptive-optimizer--adam-adamw)** means Adam with decoupled weight decay. See their [existing definition](#adaptive-optimizer--adam-adamw), [gradients and learning rates](#gradient-and-learning-rate), and [TrainingSession](#training-session--trainingsession) for the implemented [ownership](#term-ownership-meanings) and restrictions.
 
 ### Derivative and chain rule
 
-A <a id="term-derivative"></a>**derivative** measures the local rate at which an output changes with an input. For `y = x * x`, the derivative at x=3 is 6: a small input change produces roughly six times that output change. A <a id="term-partial-derivative"></a>**partial derivative** varies one [coordinate](#axis-rank-scalar-vector-and-matrix) while holding the others fixed. A <a id="term-sensitivity"></a>**sensitivity** is such a change relationship, often scaled by the output question being asked.
+A <a id="term-derivative"></a>**derivative** measures a local rate of change. For a real function $f$ at input $x$, it is the limit
 
-The <a id="term-chain-rule"></a>**chain rule** combines local derivatives through intermediate calculations. For `u = 2 * x` and `y = u * u`, at x=3 the local rates are `du/dx = 2` and `dy/du = 12`, so `dy/dx = 24`. Contributions from several paths add. A mathematically differentiable function need not have a supported derivative rule in Synaptik; see [autograd](#autograd).
+$$
+f'(x)=\lim_{h\to0}\frac{f(x+h)-f(x)}{h},
+$$
+
+when that finite limit exists; $h$ is a nonzero input perturbation tending to zero. For $f(x)=x^2$, $f'(x)=2x$, so $f'(3)=6$: sufficiently small input changes produce approximately six times that output change. This mathematical limit is not a floating-point evaluation procedure.
+
+A <a id="term-partial-derivative"></a>**partial derivative** is the same rate for one input [coordinate](#axis-rank-scalar-vector-and-matrix) of a multi-input function while all other coordinates remain fixed. For $f(x,z)=x^2+z$, $\partial f/\partial x=2x$ and $\partial f/\partial z=1$. A <a id="term-sensitivity"></a>**sensitivity** expresses how an output changes with an earlier value, often scaled by a supplied [differentiation seed](#primal-adjoint-and-differentiation-seed); doubling that seed doubles the rate being propagated.
+
+The <a id="term-chain-rule"></a>**chain rule** combines local [derivatives](#term-derivative) through intermediate values. If differentiable real functions compose as $u=u(x)$ and $y=y(u)$, then $dy/dx=(dy/du)(du/dx)$. For $u=2x$, $y=u^2$, and $x=3$, the intermediate value is $u=6$, the local rates are $du/dx=2$ and $dy/du=2u=12$, and their product is $dy/dx=24$. Contributions from several dependency paths add. A mathematically differentiable function need not have a supported Synaptik rule; see [autograd](#autograd).
 
 Read solid arrows as the forward calculation and dashed arrows as the backward sensitivity
 calculation at x=3. Multiplying the two local rates gives input sensitivity 24.
@@ -351,13 +401,19 @@ flowchart LR
 
 ### Jacobian and vector-Jacobian product
 
-A <a id="term-jacobian"></a>**Jacobian** is a table of partial [derivatives](#term-derivative): each row corresponds to one output [coordinate](#axis-rank-scalar-vector-and-matrix) and each column to one input coordinate. For outputs `[x + y, x - y]`, the Jacobian rows are `[1, 1]` and `[1, -1]`.
+A <a id="term-jacobian"></a>**Jacobian** collects the [partial derivatives](#term-partial-derivative) of a differentiable function $f:\mathbb{R}^n\to\mathbb{R}^m$. Its entry $J_{ij}=\partial f_i/\partial x_j$ gives output coordinate $i$'s rate with respect to input coordinate $j$, for $0\le i<m$ and $0\le j<n$. For $f(x,z)=(x+z,x-z)$,
 
-A <a id="term-vector-jacobian-product-vjp"></a>**vector-Jacobian product (VJP)** combines those output rows with supplied output sensitivities to obtain input sensitivities. Output [weights](#term-weight) `[2, 3]` in this example give input sensitivities `[5, -1]`. [Reverse-mode](#primal-adjoint-and-differentiation-seed) differentiation can construct that product without storing the whole derivative table. A <a id="term-jacobian-vector-product-jvp"></a>**Jacobian-vector product (JVP)** instead asks how one chosen input perturbation changes outputs. These mathematical terms do not promise either an unrestricted public [API](#term-application-programming-interface-api) or support for every [operation](#operation).
+$$
+J=\begin{pmatrix}1&1\\1&-1\end{pmatrix}.
+$$
+
+A <a id="term-vector-jacobian-product-vjp"></a>**vector-Jacobian product (VJP)** propagates chosen output [sensitivities](#term-sensitivity) $v\in\mathbb{R}^m$ back to inputs through a [Jacobian](#term-jacobian) $J$: input component $j$ is $\sum_{i=0}^{m-1}v_iJ_{ij}$, for $0\le j<n$ inputs and $m$ outputs. For the function $(x+z,x-z)$, $v=(2,3)$ gives $(2+3,2-3)=(5,-1)$. [Reverse mode](#term-reverse-mode) can build this product without storing the whole table.
+
+A <a id="term-jacobian-vector-product-jvp"></a>**Jacobian-vector product (JVP)** propagates an input perturbation $u\in\mathbb{R}^n$ forward through a differentiable function's [Jacobian](#term-jacobian) $J$: output component $i$ is $\sum_{j=0}^{n-1}J_{ij}u_j$, for $0\le i<m$. With the same two-input function and $u=(1,0)$, it gives $(1,1)$: changing only the first input changes both outputs equally. These are mathematical constructions, not promises of unrestricted public APIs or every operation's derivative support.
 
 ### Primal, adjoint, and differentiation seed
 
-A <a id="term-primal"></a>**primal** is an original forward value, as opposed to its [derivative](#term-derivative)-related value. In `y = x * x`, x and y are primals. An <a id="term-adjoint"></a>**adjoint** is the reverse-propagated [sensitivity](#term-sensitivity) associated with a primal; Synaptik describes these contributions as [cotangents](#cotangent).
+A <a id="term-primal"></a>**primal** is an original forward value, rather than a value describing a [derivative](#term-derivative). For real $x$ and $y=x^2$, both $x$ and $y$ are primals; $2x$ describes a rate, not another original input. An <a id="term-adjoint"></a>**adjoint** is the reverse-propagated [sensitivity](#term-sensitivity) associated with a primal. With unit sensitivity at $y$, the adjoint at $x=3$ is $6$; with sensitivity two at $y$, it is $12$. Synaptik represents these questions by [cotangent expressions](#cotangent), not mutable gradient fields on the original Tensors.
 
 A differentiation **[seed](#term-seed)** chooses the output sensitivity that starts the backward calculation. Seed one for [scalar](#term-scalar) y asks for y’s own derivative; seed two asks for twice that derivative. This is not a random-number seed. <a id="term-reverse-mode"></a>**Reverse mode** starts with output sensitivities and works toward inputs; <a id="term-forward-mode"></a>**forward mode** propagates a chosen input change, called a <a id="term-tangent"></a>**tangent**, toward outputs. See the [chain rule](#derivative-and-chain-rule) and [Jacobian products](#jacobian-and-vector-jacobian-product).
 
@@ -460,7 +516,7 @@ A <a id="term-cpu"></a>**CPU** (central processing unit) is a general-purpose pr
 
 <a id="term-cblas"></a>**CBLAS** is the C interface to Basic Linear Algebra Subprograms, not another backend [owner](#term-owner).
 
-<a id="term-mpp"></a>**MPP** means Metal Performance Primitives, a separate Apple numerical interface. “Classic-MPS” refers to older Metal Performance Shaders interfaces, not MPSGraph. The [environment-bound certificate decision](design/decisions/0024-environment-bound-metal-raw-certificates.md)<span data-glossary-navigation="true"> ([certificate glossary](#formal-proof-certificate-and-trusted-assumptions))</span> records that neither classic-MPS nor MPP is positively certified there; these names must not be read as additional qualified routes.
+<a id="term-mpp"></a>**MPP** means Metal Performance Primitives, a separate Apple numerical interface. “Classic-MPS” refers to older Metal Performance Shaders interfaces, not MPSGraph. The [environment-bound certificate decision](design/decisions/0024-environment-bound-metal-raw-certificates.md) records that neither classic-MPS nor MPP is positively certified there; these names must not be read as additional qualified routes.
 
 ### Floating-point precision and rounding
 
@@ -476,7 +532,9 @@ BF16 abbreviates BFLOAT16; F16, F32, and F64 are context-dependent short names f
 
 ### NaN, infinity, and signed zero
 
-<a id="term-nan"></a>**NaN** means not-a-number, a [floating-point](#term-floating-point) value class used for invalid or undefined numerical results such as zero divided by zero. A NaN can [carry](#term-carry) stored **[payload](#artifact-envelope-and-atomic-publication)** bits; equality and propagation rules are not the same as for ordinary numbers.
+<a id="term-nan"></a>**NaN** means not-a-number, a [floating-point](#term-floating-point) value class used for invalid or undefined numerical results, such as zero divided by zero. A NaN can carry [payload bits](#term-nan-payload); equality and propagation rules differ from ordinary numbers.
+
+<a id="term-nan-payload"></a>**NaN payload** means information encoded in the fraction bits of a [floating-point NaN](#term-nan), beyond merely identifying it as not-a-number. Two NaNs can have different raw representations. An operation may preserve, canonicalize or leave these bits unspecified under its contract. These are not artifact-file payloads, and equal payload bits do not make NaNs numerically equal.
 
 Positive and negative <a id="term-infinity"></a>**infinity** represent unbounded magnitudes in the floating format, not the largest finite numbers. A <a id="term-finite"></a>**finite** value is neither NaN nor infinity. <a id="term-signed-zero"></a>**Signed zero** has positive-zero and negative-zero representations; their numerical equality does not make their bits or every [operation](#operation)’s behavior identical. For example, reciprocal zero sign distinguishes positive and negative infinity. Synaptik operation families specify selection, propagation, and zero-sign behavior; no universal “ignore NaN” rule should be assumed.
 
@@ -486,7 +544,9 @@ Positive and negative <a id="term-infinity"></a>**infinity** represent unbounded
 
 A <a id="term-unit-in-the-last-place-ulp"></a>**unit in the last place (ULP)** is the spacing represented by the final retained digit at a particular [floating-point](#term-floating-point) scale. Spacing changes with magnitude, so a one-ULP difference is not one fixed real-number distance everywhere. An ordered-bit distance counts representable floating values under a specified ordering; it must not be casually substituted for another ULP convention.
 
-A <a id="term-tolerance"></a>**tolerance** is a stated acceptance threshold when comparing results. <a id="term-absolute-error"></a>**Absolute error** is the magnitude of the difference; <a id="term-relative-error"></a>**relative error** scales that difference by a specified reference magnitude. Relative error alone is unsuitable near zero. A test tolerance or <a id="term-error-envelope"></a>**error envelope** describes permitted comparison error in that test or contract, not permission for arbitrary [compiler](#term-compiler) rewrites. See [profile-free numerical semantics](#profile-free-numerical-semantics).
+A <a id="term-tolerance"></a>**tolerance** is an acceptance threshold for a numerical comparison, not exact equality. If $a$ is an evaluated real-valued answer and $r$ a chosen finite reference, <a id="term-absolute-error"></a>**absolute error** is $|a-r|$, in the values' units. <a id="term-relative-error"></a>**Relative error** is $|a-r|/|r|$ for $r\ne0$, a dimensionless ratio. For $a=10.1$ and $r=10$, these are $0.1$ and $0.01$ (one percent). Relative error is undefined at zero and unhelpful near zero. NaN, infinity and signed-zero comparisons require their own rules.
+
+An <a id="term-error-envelope"></a>**error envelope** states permitted comparison error over a named domain, such as an absolute threshold on finite test outputs. It is not permission for arbitrary [compiler rewrites](#compiler-transformations-and-dominance). See [profile-free numerical semantics](#profile-free-numerical-semantics).
 
 ### Subnormal, DAZ, FTZ, overflow, and underflow
 
@@ -500,7 +560,7 @@ A <a id="term-subnormal"></a>**subnormal** (also called denormal) is a represent
 
 <a id="term-conditioning"></a>**Conditioning** asks how much the exact mathematical answer changes when the problem’s inputs change slightly. An ill-conditioned problem can magnify tiny input changes even if the calculation is performed carefully. A <a id="term-condition-number"></a>**condition number** quantifies that [sensitivity](#term-sensitivity) for a stated problem and scale.
 
-<a id="term-numerical-stability"></a>**Numerical stability** asks how an algorithm handles [rounding](#term-rounding) and approximation for that problem. Subtracting nearly equal rounded values can lose most useful significant digits, called **[cancellation](#term-cancellation)**; an algebraically equivalent stable formulation may avoid unnecessary [loss](#loss). Stable computation cannot recover information already absent from the inputs or make an ill-conditioned problem insensitive. “Stable sorting” is unrelated: it concerns tie order, not numerical error.
+<a id="term-numerical-stability"></a>**Numerical stability** asks how an algorithm handles [rounding](#term-rounding) and approximation for that problem. Subtracting nearly equal rounded values can lose most useful significant digits, called **[cancellation](#term-cancellation)**; an algebraically equivalent stable formulation may avoid unnecessary loss of numerical information. Stable computation cannot recover information already absent from the inputs or make an ill-conditioned problem insensitive. “Stable sorting” is unrelated: it concerns tie order, not numerical error.
 
 ### Schema, serialization, and checkpoint
 
@@ -528,7 +588,7 @@ A **[DTO](#data-transfer-object--dto)** ([data-transfer object](#data-transfer-o
 
 An <a id="term-architecture-decision-record-adr"></a>**architecture decision record (ADR)** records a significant decision, its context, and consequences. It is historical evidence, not a substitute for current architecture authority. <a id="term-continuous-integration-ci"></a>**Continuous integration (CI)** automatically runs selected build and review checks when changes are integrated.
 
-<a id="term-conformance"></a>**Conformance** means meeting a stated contract. <a id="term-qualification"></a>**Qualification** is bounded evidence that a particular implementation, [target](#term-target), or route meets the checks required for a stated use; it is not universal support. A <a id="term-fixture"></a>**fixture** is controlled setup/data used by a test. A <a id="term-mock"></a>**mock** is a substitute with arranged behavior and cannot prove that the real [backend](#backend) works. A <a id="term-regression"></a>**regression** is an unintended [loss](#loss) of behavior previously expected. A <a id="term-smoke-test"></a>**smoke test** checks a small important path, not exhaustive correctness. A <a id="term-test-oracle"></a>**test oracle** supplies the expected answer. <a id="term-junit"></a>**JUnit** is a Java testing framework. <a id="term-tck"></a>**TCK** means technology compatibility kit, a suite used to check a stated compatibility contract.
+<a id="term-conformance"></a>**Conformance** means meeting a stated contract. <a id="term-qualification"></a>**Qualification** is bounded evidence that a particular implementation, [target](#term-target), or route meets the checks required for a stated use; it is not universal support. A <a id="term-fixture"></a>**fixture** is controlled setup/data used by a test. A <a id="term-mock"></a>**mock** is a substitute with arranged behavior and cannot prove that the real [backend](#backend) works. A <a id="term-regression"></a>**regression** is an unintended loss of behavior previously expected. A <a id="term-smoke-test"></a>**smoke test** checks a small important path, not exhaustive correctness. A <a id="term-test-oracle"></a>**test oracle** supplies the expected answer. <a id="term-junit"></a>**JUnit** is a Java testing framework. <a id="term-tck"></a>**TCK** means technology compatibility kit, a suite used to check a stated compatibility contract.
 
 <a id="term-differential-testing"></a>**Differential testing** compares implementations; a <a id="term-canary"></a>**canary** is a deliberate [guard](#term-guard) value used to detect unintended writes. A numerical oracle must provide an independently justified expected answer, not just a repeated [hash](#term-hash) of one implementation’s output.
 
@@ -552,12 +612,15 @@ A <a id="term-manifest"></a>**manifest** lists the content, [identities](#term-i
 
 <a id="term-warmup"></a>**Warmup** runs work before collecting the intended measurements, for example to let [JVM](#term-java-virtual-machine-jvm) [compilation](#compiler-engine-and-execution-stage-names) settle. <a id="term-sampling"></a>**[Sampling](#term-sampling-machine-learning-and-hyperparameters)** collects measured observations; a timing sample is not a training-data [sample](#term-sample-machine-learning-and-hyperparameters). <a id="term-latency"></a>**Latency** is time for one defined unit of work, while <a id="term-throughput"></a>**throughput** is completed work per unit time. Their units and measured [lifecycle](#lifecycle) boundary must be stated.
 
-A **[distribution](#term-distribution)** describes how measurements vary. The <a id="term-mean"></a>**mean** is their sum divided by count; the <a id="term-median"></a>**median** is a middle value under a stated even-count rule; a <a id="term-percentile"></a>**percentile** describes a position in the ordered observations. <a id="term-variance"></a>**Variance** measures squared spread around the mean, and <a id="term-standard-deviation"></a>**standard deviation** is its [square root](#norms-elementary-functions-and-probability-distributions). An <a id="term-outlier"></a>**outlier** is an unusually distant observation, not automatic permission to discard data. These summaries report different facts; none proves correctness or authorizes production defaults. See [benchmarking](#benchmark-report--benchmarking) and [statistical correction](#statistical-correction).
+A measurement **[distribution](#term-distribution)** describes how observed values vary, rather than a software package. For $n>0$ finite timing measurements $t_i$, indexed by $0\le i<n$ in one common unit, the <a id="term-mean"></a>**mean** is $\bar t=n^{-1}\sum_{i=0}^{n-1}t_i$. Times $(1,2,9)$ milliseconds have mean $4$ milliseconds: the slow sample affects the average.
 
-The <a id="term-geometric-mean"></a>**geometric mean** multiplies positive measurements and takes
-the root for their count, rather than adding and dividing. For two positive ratios it is
-`sqrt(a * b)`: ratios 2 and 8 give 4, whereas their arithmetic mean is 5. The estimator must name
-which mean it uses; these formulas are not interchangeable.
+The <a id="term-median"></a>**median** is a middle [ordered observation](#stable-full-ordering). For $(1,2,9)$ milliseconds it is $2$ milliseconds, unlike the mean of $4$. An even sample count needs a stated rule, such as averaging the two middle observations. A <a id="term-percentile"></a>**percentile** marks a position in the ordered measurement distribution; the 90th percentile describes its upper portion, not an average. A finite sample's rank/interpolation convention must be stated because several are valid.
+
+<a id="term-variance"></a>**Variance** measures squared spread around a mean. For $n>0$ finite observations $t_i$, indexed by $0\le i<n$, population variance is $v=n^{-1}\sum_{i=0}^{n-1}(t_i-\bar t)^2$, with $\bar t$ their [mean](#term-mean). The divisor or [statistical correction](#statistical-correction) must be named. <a id="term-standard-deviation"></a>**Standard deviation** is the non-negative root $\sqrt v$ of that variance, restoring the original units. Times $(1,3)$ milliseconds have population variance $1$ square millisecond and standard deviation $1$ millisecond. These real definitions do not select a floating algorithm.
+
+An <a id="term-outlier"></a>**outlier** is an observation unusually distant from the rest, such as one long pause among otherwise similar timings. The label alone does not authorize discarding it. These summaries answer different questions; none proves correctness or authorizes production defaults. See [benchmark boundaries](#benchmark-report--benchmarking) and [statistical correction](#statistical-correction).
+
+The <a id="term-geometric-mean"></a>**geometric mean** combines positive measurements multiplicatively. For $n>0$ real measurements $a_i>0$, indexed by $0\le i<n$, it is $G=(\prod_{i=0}^{n-1}a_i)^{1/n}$. For two dimensionless ratios $2$ and $8$, $G=\sqrt{2\times8}=4$, whereas their [arithmetic mean](#term-mean) is $(2+8)/2=5$. Times must use one common unit before aggregation. The real identity does not require a floating implementation to form the raw product, which might overflow. An estimator must name its mean and domain.
 
 <a id="term-steady-state"></a>**Steady state** means behavior has stabilized under stated conditions; <a id="term-nonstationary"></a>**nonstationary** measurements change with time. A <a id="term-censored"></a>**censored** observation stops before its completion time is observed. Warmup alone proves neither steady state nor causality.
 
@@ -581,7 +644,7 @@ are particular uses of validation, not the meaning of every documentation or rev
 
 <a id="term-fail-closed"></a>**Fail-closed** means rejecting when required safety or support cannot be established, rather than silently proceeding. This is not a fallback that pretends success. **Semantic** facts concern what a calculation means; **physical** facts concern its actual storage and execution. Valid semantic construction alone does not prove a physical route exists.
 
-A <a id="term-pure"></a>**pure** calculation depends only on its explicit inputs and does not introduce hidden state changes. PURE is also used as a precise [scan](#term-cumulative-scan) effect classification; its owning contract, not this general explanation, determines admission. A pure expression can still require resources when it is eventually executed.
+A <a id="term-pure"></a>**pure** calculation depends only on its explicit inputs and does not introduce hidden state changes. PURE is also used as a precise [scan](#general-differentiable-scan) effect classification; its owning contract, not this general explanation, determines admission. A pure expression can still require resources when it is eventually executed.
 
 ### Resource transaction and rollback
 
@@ -632,7 +695,7 @@ A <a id="term-module"></a>**module** can mean a repository/build unit, a [Java m
 
 A <a id="term-mental-model"></a>**mental model** or <a id="term-reader-model"></a>**reader model** is a simplified explanation
 used to reason about a system. It is not an executable Model, a neural-network instance, or saved
-model state. Likewise, a repository layout or the [shape](#shape) of a document describes organization,
+model state. Likewise, a repository layout or the structure of a document describes organization,
 not a tensor's storage [layout](#layout) or numerical shape.
 
 A <a id="term-cumulative-scan"></a>**[cumulative scan](#cumulative-scan)** produces running combinations along an [axis](#term-axis), such as `[1, 3, 6]` from cumulative sum of `[1, 2, 3]`. A **[general scan](#general-differentiable-scan)** repeats a body with explicit carried state and other inputs/outputs. They are separate [operation](#operation) families, not interchangeable names for every loop. See [cumulative scan](#cumulative-scan) and [general differentiable scan](#general-differentiable-scan).
@@ -675,6 +738,8 @@ A Java <a id="term-preview-feature"></a>**preview feature** is an [evaluation](#
 
 A <a id="term-fat-jar"></a>**fat JAR** bundles [dependency](#term-dependency) contents into one [Java archive](#java-platform-and-build-tools). <a id="term-shading"></a>**Shading** rewrites or relocates packaged dependency contents, often to avoid name conflicts. Neither packaging technique proves compatibility or grants [distribution](#term-distribution) rights.
 
+<a id="term-semantic-oracle"></a>A **semantic oracle** supplies an independently justified expected [numerical meaning](#profile-free-numerical-semantics), such as known results and exceptional-value behavior for a fixed input. A <a id="term-structural-oracle"></a>**structural oracle** instead compares a stated program representation or projection, such as control flow, carrier access or dataflow. Equal outputs on sampled inputs do not prove identical program structure; equal selected structure does not by itself prove all numerical behavior. Both are bounded [test oracles](#term-test-oracle), not performance evidence or a general formal-equivalence proof. See the [historical finite scalar-immediate matrix](planning/backends/cpu/tasks/0008q1-finite-scalar-immediate-clamp-matrix.md).
+
 ### Review and test workflow vocabulary
 
 A <a id="term-unit-test"></a>**unit test** [targets](#term-target) a small behavior; an <a id="term-integration-test"></a>**integration test** checks real components working together; an <a id="term-architecture-test"></a>**architecture test** checks selected structural rules such as forbidden dependencies. A <a id="term-benchmark-harness"></a>**benchmark harness** is the program collecting measurements; its <a id="term-measurement-protocol"></a>**measurement protocol** states the boundary, repetitions, retained [samples](#term-sample-machine-learning-and-hyperparameters), and interpretation rules. None of these checks proves unexercised inputs or environments.
@@ -687,7 +752,13 @@ A <a id="term-source-revision"></a>**source revision** identifies recorded repos
 
 ### Storage mapping, contiguity, and injectivity
 
-An <a id="term-affine-storage-mapping"></a>**affine storage mapping** computes an [element](#term-element) position from an offset plus [coordinate](#axis-rank-scalar-vector-and-matrix)-times-[stride](#term-stride) terms. With offset zero and strides `[3, 1]`, [matrix](#term-matrix-meanings) coordinate `[1, 2]` reaches element `5`. This addressing meaning of “affine” is different from a layer’s [scale-and-bias transform](#affine-transform).
+An <a id="term-affine-storage-mapping"></a>**affine storage mapping** converts logical coordinates to a storage-element position. For rank $R\ge0$, extents $d_j\ge0$, coordinates $0\le i_j<d_j$, offset $o$ and element strides $s_j$, the position is
+
+$$
+p=o+\sum_{j=0}^{R-1}i_js_j.
+$$
+
+All of $p,o,s_j$ count elements, not bytes; actual layouts also require their checked bounds and permitted stride signs. With offset $o=0$, strides $(3,1)$ and coordinate $(1,2)$, $p=0+1\times3+2\times1=5$. A zero extent has no legal complete coordinate to address. This addressing sense of “affine” differs from a layer's [scale-and-bias transform](#affine-transform).
 
 <a id="term-row-major"></a>**Row-major** order changes the last [axis](#term-axis) fastest; <a id="term-column-major"></a>**column-major** changes the first axis fastest. <a id="term-contiguous"></a>**Contiguous** means adjacent values in the stated traversal occupy adjacent storage positions. An offset-contiguous region can begin after position zero. An <a id="term-injective"></a>**injective** mapping sends different logical coordinates to different storage positions; repeated reads may be allowed where overlapping independent writes would be unsafe.
 
@@ -703,7 +774,7 @@ A matrix <a id="term-leading-dimension"></a>**leading dimension** is a storage s
 
 A <a id="term-rounding-site"></a>**rounding site** is a specified point where an arithmetic result is rounded to its working format. A primitive site is one such elementary arithmetic or function [evaluation](#term-evaluation) boundary. <a id="term-fused-multiply-add-fma"></a>**Fused multiply-add (FMA)** calculates `a * b + c` with one final [rounding](#term-rounding), unlike separately rounding the product and then the addition. It can therefore change a [floating-point](#term-floating-point) answer even when the real-number formulas agree.
 
-An <a id="term-aggregate-floor"></a>**aggregate floor** is a minimum numerical obligation, not the FLOOR function: every declared contributor must participate exactly once, with the required [identities](#term-identity-meanings), counts, divisors, and allowed arithmetic sites. A different reduction tree is not permission to omit a term. <a id="term-compensated-summation"></a>**Compensated summation** retains corrections for some rounding [loss](#loss) while adding the same selected terms. **[Working arithmetic](#accumulator-type)** is the numerical format used before final output conversion; see [accumulator type](#accumulator-type) and [numerical semantics](#profile-free-numerical-semantics).
+An <a id="term-aggregate-floor"></a>**aggregate floor** is a minimum numerical obligation, not the FLOOR function: every declared contributor must participate exactly once, with the required [identities](#term-identity-meanings), counts, divisors, and allowed arithmetic sites. A different reduction tree is not permission to omit a term. <a id="term-compensated-summation"></a>**Compensated summation** retains corrections for some rounding loss while adding the same selected terms. **[Working arithmetic](#accumulator-type)** is the numerical format used before final output conversion; see [accumulator type](#accumulator-type) and [numerical semantics](#profile-free-numerical-semantics).
 
 ### Device submission, synchronization, and execution context
 
@@ -737,7 +808,11 @@ A <a id="term-heuristic"></a>**heuristic** is a rule-based estimate among legal 
 
 ### Hessian and higher derivatives
 
-A <a id="term-second-derivative"></a>**second derivative** measures how a first [derivative](#term-derivative) changes. A <a id="term-hessian"></a>**Hessian** is the table of second partial derivatives of a [scalar](#term-scalar) output. A <a id="term-hessian-vector-product-hvp"></a>**Hessian-vector product (HVP)** applies that table to one input direction without necessarily publishing the full table; it is a derivative calculation, not another [parameter](#term-parameter) update.
+A <a id="term-second-derivative"></a>**second derivative** measures how a [first derivative](#term-derivative) changes. For real $f(x)=x^3$, $f'(x)=3x^2$ and $f''(x)=6x$, so $f''(2)=12$ describes a changing slope, not an optimizer update.
+
+A <a id="term-hessian"></a>**Hessian** collects second [partial derivatives](#term-partial-derivative) of a twice continuously differentiable scalar function $f:\mathbb{R}^n\to\mathbb{R}$: $H_{ij}=\partial^2 f/(\partial x_i\partial x_j)$ for $0\le i,j<n$. For $f(x,z)=x^2+3z^2$, it is $H=\begin{pmatrix}2&0\\0&6\end{pmatrix}$.
+
+A <a id="term-hessian-vector-product-hvp"></a>**Hessian-vector product (HVP)** applies that [Hessian](#term-hessian) to a direction $v\in\mathbb{R}^n$, with component $(Hv)_i=\sum_{j=0}^{n-1}H_{ij}v_j$. In the example, $v=(1,2)$ yields $(2,12)$, showing how the gradient changes in that direction. The full table need not be published. Synaptik's [functional-gradient request](#functional-gradient-request) admits only its bounded stages and operation-specific rules, not arbitrary derivative orders.
 
 ### Optimizer refinements and initialization
 
@@ -747,7 +822,11 @@ In [optimizer](#term-optimizer) configuration, <a id="term-dampening"></a>**damp
 
 ### Saturation, pole, and extremum
 
-<a id="term-saturation"></a>**Saturation** clamps a value to a representable boundary; it is not implied by [overflow](#term-overflow). A <a id="term-pole"></a>**pole** is a formula input where the value becomes unbounded. An <a id="term-extremum"></a>**extremum** is a minimum or maximum over a stated domain; an empty domain must use its explicit boundary rule rather than select a nonexistent input.
+<a id="term-saturation"></a>**Saturation** clamps an out-of-range value to a boundary where the conversion's rule permits it. For an illustrative signed 8-bit saturating conversion, mathematical integer $200$ becomes the maximum $127$; a modular conversion would produce a different result. This example does not introduce a public INT8 Tensor type. [Overflow](#term-overflow) alone does not imply saturation.
+
+A <a id="term-pole"></a>**pole** is an input near which a function's magnitude becomes unbounded. For the real reciprocal $f(x)=1/x$ on $x\ne0$, zero is a pole; it is not assigned an ordinary finite real value. Floating signed-zero reciprocal rules are separate.
+
+An <a id="term-extremum"></a>**extremum** is a minimum or maximum over a specified domain. For values $(2,7,4)$, the maximum is $7$; [arg-max](#arg-extrema-tie-policy) instead identifies its position. An empty domain has no selected input, so each reduction must use its explicit empty-domain boundary rule.
 
 ### Elementwise, unary, binary, and interval vocabulary
 
@@ -759,9 +838,9 @@ A <a id="term-deferred-obligation"></a>**deferred obligation** remains mandatory
 
 ### Norms, elementary functions, and probability distributions
 
-A <a id="term-norm"></a>**norm** measures the magnitude of a collection. <a id="term-l1"></a>**L1** adds absolute values; <a id="term-l2"></a>**L2** takes the square root of their squared sum. For `[3, 4]`, L1 is `7` and L2 is `5`. Absolute value removes the sign; the nonnegative square root of 25 is 5. A norm is a size measurement, whereas [normalization](#term-normalization) changes values using a shared scale.
+A <a id="term-norm"></a>**norm** measures the size of a vector. For real coordinates $x_i$, indexed by $0\le i<n$ for a non-negative integer length $n$, <a id="term-l1"></a>**L1** is the sum of coordinate magnitudes, $\lVert x\rVert_1=\sum_{i=0}^{n-1}|x_i|$, and <a id="term-l2"></a>**L2** is Euclidean length, $\lVert x\rVert_2=\sqrt{\sum_{i=0}^{n-1}x_i^2}$. Empty sums are zero. For $x=(3,4)$, L1 is $3+4=7$ and L2 is $\sqrt{9+16}=5$. The absolute value $|x_i|$ removes a sign and the square root is non-negative. These real-number definitions do not prescribe a floating summation algorithm. A norm measures size; [normalization](#term-normalization) changes values using a shared scale.
 
-The natural exponential <a id="term-expx"></a>**exp(x)** raises e (approximately 2.71828) to x. The natural logarithm **[log](#term-log)(x)** is its inverse for positive real x. These mathematical meanings do not select an [overflow](#term-overflow)-safe numerical algorithm.
+The natural exponential <a id="term-expx"></a>**exp(x)** is $e^x$ for a real input $x$, where the constant $e\approx2.71828$. The natural logarithm **log(x)** is its inverse for $x>0$: $\log(e^x)=x$ and $\log(1)=0$. For example, $\exp(0)=1$. These identities do not specify an overflow-safe [floating-point](#term-floating-point) algorithm or behavior for NaN and infinities; operation-specific numerical rules do.
 
 A <a id="term-probability-distribution"></a>**probability distribution** describes how likely outcomes are. A normal or <a id="term-gaussian-distribution"></a>**Gaussian [distribution](#term-distribution)** is bell-shaped around its [mean](#term-mean); a <a id="term-uniform-distribution"></a>**uniform distribution** gives equal probability to equal-sized regions in its interval; a <a id="term-bernoulli-distribution"></a>**Bernoulli distribution** has two outcomes with a specified probability of success. A <a id="term-statistic"></a>**statistic** summarizes a collection; a <a id="term-running-statistic"></a>**running statistic** combines information across successive collections, such as [batches](#term-batch-machine-learning-and-hyperparameters).
 
@@ -785,7 +864,7 @@ A **[convolutional neural network](#term-convolutional-neural-network-cnn) ([CNN
 
 A <a id="term-boolean-mask"></a>**boolean mask** supplies true/false flags whose meaning belongs to the consuming [operation](#operation). Excluding a value before arithmetic is not the same as multiplying it by zero: [NaN](#term-nan) multiplied by zero is still NaN in ordinary floating arithmetic.
 
-Sequence **[padding](#padding)** fills unused positions of a rectangular [batch](#term-batch-machine-learning-and-hyperparameters); a <a id="term-valid-length"></a>**valid length** declares how many positions belong to a sequence. A leading active prefix is one particular validity convention, not a universal consequence of zero-filled storage. A [scan](#term-cumulative-scan)’s inactive transitions do not automatically mask a later classifier or [loss](#loss). See [sequence metadata](#host-sequence-metadata).
+Sequence **[padding](#padding)** fills unused positions of a rectangular [batch](#term-batch-machine-learning-and-hyperparameters); a <a id="term-valid-length"></a>**valid length** declares how many positions belong to a sequence. A leading active prefix is one particular validity convention, not a universal consequence of zero-filled storage. A [scan](#general-differentiable-scan)’s inactive transitions do not automatically mask a later classifier or [loss](#loss). See [sequence metadata](#host-sequence-metadata).
 
 <a id="term-eager-evaluation"></a>**Eager evaluation** performs numerical work immediately; <a id="term-lazy-evaluation"></a>**lazy evaluation** records work for later. Immediate metadata [validation](#term-validation) does not imply immediate numerical [evaluation](#term-evaluation). A <a id="term-closed-inventory"></a>**closed inventory** is a fixed supported set of cases, not a closed resource. <a id="term-bound-state"></a>**Bound state** can mean required state positions are established without implying allocated values or an executable; use the owning [API](#term-application-programming-interface-api)’s exact [binding](#term-binding) meaning.
 
@@ -795,7 +874,13 @@ Sequence **[padding](#padding)** fills unused positions of a rectangular [batch]
 
 <a id="term-twos-complement"></a>**Two’s-complement** is the fixed-width signed integer encoding used here. <a id="term-sign-extension"></a>**Sign extension** widens it by repeating the sign bit, preserving the represented integer. <a id="term-truncation-toward-zero"></a>**Truncation toward zero** removes a fractional part. Checked size arithmetic must reject [overflow](#term-overflow) where required; it must not silently adopt a numeric operation’s modular rule.
 
-A <a id="term-finite-difference-gradient-check"></a>**finite-difference gradient check** estimates a [derivative](#term-derivative) by perturbing inputs and comparing outputs. <a id="term-central-differences"></a>**Central differences** perturb both sides. This is approximate checking, not the way [autograd](#autograd) constructs derivatives; [rounding](#term-rounding), perturbation size, and nondifferentiable points affect the comparison.
+A <a id="term-finite-difference-gradient-check"></a>**finite-difference gradient check** estimates a [derivative](#term-derivative) from nearby function values to compare with a separately derived answer. <a id="term-central-differences"></a>**Central differences** use perturbations on both sides:
+
+$$
+f'(x)\approx\frac{f(x+h)-f(x-h)}{2h},\qquad h>0.
+$$
+
+Here $f$ is a real function differentiable near input $x$ and $h$ is a small input step. For $f(x)=x^2$, $x=3$, and $h=0.01$, the ideal quotient is $(3.01^2-2.99^2)/0.02=6$. Rounded evaluation need not give exactly six. Very small $h$ can cause cancellation; larger $h$ can miss local curvature. This is approximate checking, not Compiler's differentiation procedure, and does not establish a derivative at a nondifferentiable point.
 
 <a id="term-ieee"></a>**IEEE** expands to Institute of Electrical and Electronics Engineers; <a id="term-ieee-754"></a>**IEEE 754** is its floating-point standard. Mentioning it does not override operation-specific rules or make every compact format identical. A <a id="term-binade"></a>**binade** is the magnitude interval between successive powers of two, within which normal [binary](#term-binary-descriptor-and-metadata) floating values have uniform spacing.
 
@@ -861,9 +946,9 @@ Literal [structural equality](#term-structural-equality) is neither necessary no
 
 ### Fixed-point arithmetic
 
-Represent a fractional value as an integer multiplied by a fixed scale. In the referenced Q48 and Q32 calculations, the scale provides 48 or 32 fractional [binary](#term-binary-descriptor-and-metadata) positions.
+**Fixed-point arithmetic** represents fractions with one fixed scale. If $q$ is the stored integer and $F\ge0$ is the number of fractional binary positions, the represented real value is $x=q/2^F$. With $F=4$ and $q=24$, $x=24/16=1.5$. In the historical Q48 and Q32 calculations, $F$ is respectively $48$ or $32$; the range still depends on integer width and sign convention. A [floating-point exponent](#term-exponent) instead varies between values. Multiplication and rescaling need explicit rounding and overflow rules; the notation alone supplies neither.
 
-Example: An integer can represent a value divided by 2^48 while the arithmetic itself uses integer operations.
+For example, a Q48 integer $q$ denotes $q/2^{48}$ while the implementation uses integer operations. This explains a historical representation, not a public Tensor data type.
 
 A fixed-point scale is explicit and fixed; a [floating-point](#term-floating-point) [exponent](#term-exponent) varies with each encoded number.
 
@@ -1019,11 +1104,9 @@ differences](#arithmetic-rearrangement-and-finite-difference-checks) or delegate
 optimizer configuration scale, not part of differentiation: plain [SGD](#term-stochastic-gradient-descent-sgd) applies
 `parameter - learning_rate * gradient`.
 
-The tutorial's first objective has weight gradient -40; its rate 0.05 gives a weight update of +2.
-Changing the objective's reduction or data scale changes this reasoning. The
-[worked step](explanation/tensors-and-gradients.md#the-first-training-step) distinguishes the
-pre-update objective from a new [evaluation](#term-evaluation) after the update. See also
-[Compiler-owned AD](architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation)<span data-glossary-navigation="true"> ([Compiler glossary](#term-compiler); [AD glossary](#autograd))</span>.
+In the [worked training step](explanation/tensors-and-gradients.md#the-first-training-step), the weight gradient is $-40$ and the learning rate is $0.05$. Plain SGD changes the weight by $-0.05\times(-40)=+2$ in real arithmetic. The objective returned by that step was evaluated before the update; seeing a new parameter does not retroactively change that loss. A new evaluation assesses the updated state. Changing reduction or data scale changes the gradient. See [Compiler-owned differentiation](#autograd).
+
+<a id="term-inference-meanings"></a>**Inference** generally derives facts from known information. In Compiler, descriptor inference derives a result's type, shape and layout facts from an operation and its input descriptions; it does not read Tensor values. In machine learning, [model inference](#term-inference) instead computes predictions using current parameter values. For example, deriving result Shape `[2,4]` from compatible matrix descriptors is not multiplying the matrices. These meanings share a word, not an execution stage.
 
 ### Inference and evaluation
 
@@ -1142,7 +1225,13 @@ axis list selects a point domain and is distinct from full reduction over every 
 
 ### Statistical correction
 
-Statistical correction changes the divisor used to estimate spread. For values `[1, 3]`, the squared deviations sum to `2`: dividing by `2` gives [population variance](#population-variance) `1`, while correction one divides by `1` and gives `2`.
+**Statistical correction** changes a spread estimate's divisor. For $N>0$ finite real values $x_i$ with $0\le i<N$, mean $\mu=N^{-1}\sum_{i=0}^{N-1}x_i$, and correction $c\ge0$, corrected variance is
+
+$$
+v_c=\frac{\sum_{i=0}^{N-1}(x_i-\mu)^2}{N-c},\qquad N>c.
+$$
+
+The standard deviation is $\sqrt{v_c}$, in the input's units; variance has squared units. For $(1,3)$, $N=2$, $\mu=2$, and the squared-deviation numerator is $2$. Thus $c=0$ gives $v_0=1$, while $c=1$ gives $v_1=2$. This real formula does not choose a floating accumulation algorithm.
 
 The implemented non-negative `long` value subtracted from selected-domain count `N` in [variance](#term-variance) and
 [standard deviation](#term-standard-deviation). Correction zero requests population statistics; correction one is the usual
@@ -1152,7 +1241,13 @@ an [accumulator type](#accumulator-type), [rounding](#term-rounding) mode, denom
 
 ### Log-sum-exp
 
-Log-sum-exp takes exponentials, adds them, then takes a logarithm. It is useful when calculations naturally use logarithms of positive quantities: for two zeros its real-arithmetic value is `log(2)`. A stable implementation can avoid unnecessarily forming huge exponentials.
+**Log-sum-exp** combines scores already expressed on a logarithmic scale. For a non-empty finite real slice with entries $x_i$, indexed by $0\le i<n$,
+
+$$
+\operatorname{LSE}(x)=\log\!\left(\sum_{i=0}^{n-1}e^{x_i}\right).
+$$
+
+The natural logarithm reverses exponentiation; two zero scores give $\log(e^0+e^0)=\log2$. With $m=\max_i x_i$, the real identity $\operatorname{LSE}(x)=m+\log\sum_i e^{x_i-m}$ explains why shifting can avoid huge intermediate exponentials. Rounded evaluation follows the operation's sites, not unrestricted real rearrangement. Empty and special-value domains use the explicit family rules, not this finite derivation.
 
 The implemented floating reduction meaning `log(sum(exp(x_i)))` over selected [axes](#term-axis). It is one
 first-class `LOG_SUM_EXP` [occurrence](#term-occurrence) rather than stored [exp](#term-expx), sum, and [log](#term-log) operations. The contract
@@ -1243,7 +1338,7 @@ Data `[2, 3, 4]`, axis `1`, and indices `[5, 6]` therefore produce
 or checking bounds. The current [CPU portable route](#cpu-portable-route) executes one fully static resolved-layout
 [occurrence](#term-occurrence) with complete deterministic pre-write bounds [validation](#term-validation); this does not move bounds
 checking into [Model](#term-model) construction or make dynamic layouts executable. See [Gather and Gather Elements semantic kinds and
-attributes](reference/tensor/operation-indexing.md#gather-and-gather-elements-semantic-kinds-and-attributes)<span data-glossary-navigation="true"> ([Gather Elements glossary](#gather-elements))</span> and
+attributes](reference/tensor/operation-indexing.md#gather-and-gather-elements-semantic-kinds-and-attributes) and
 [axis-gather expressions](reference/tensor/gather.md#axis-gather-expressions).
 
 ### Embedding
@@ -1318,7 +1413,7 @@ clamp, select a default, or produce an all-false row. [Compiler](#term-compiler)
 remain separately owned. The current [CPU portable route](#cpu-portable-route) supplies the first fully static resolved-
 [layout](#layout) backend [lowering](#lowering), strict bounds enforcement, and execution path; other layouts, backends,
 and general composition remain planned. See
-[one-hot encoding expressions in the Tensor API](reference/tensor/gather.md#one-hot-encoding-expressions)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+[one-hot encoding expressions in the Tensor API](reference/tensor/gather.md#one-hot-encoding-expressions).
 
 ### Gather Elements
 
@@ -1551,7 +1646,7 @@ The [normative](#term-normative) rules that define Synaptik's [module](#term-mod
 
 ### Autograd
 
-Automatic differentiation (AD), also called autograd, constructs a calculation of how outputs change when selected inputs change. For `y = x * x`, the [derivative](#term-derivative) is `2 * x`; differentiation builds that relationship rather than estimating it by trying nearby input values. [Reverse mode](#term-reverse-mode) works backward from an output using the [chain rule](#derivative-and-chain-rule).
+**Automatic differentiation (AD)**, also called autograd, builds a calculation of how outputs change with selected inputs. For real $y=x^2$, it constructs the derivative $dy/dx=2x$ rather than trying nearby stored values. [Reverse mode](#term-reverse-mode) applies the [chain rule](#term-chain-rule) from outputs toward inputs. Compiler owns that transformation; a backend later evaluates only assigned forward or derivative expressions.
 
 Automatic differentiation: a [compiler](#term-compiler) transformation that derives [gradient](#term-gradient) computations from the
 forward computation when the [compile mode](#compile-mode--compilemode) requires them. In Synaptik, the compiler owns global
@@ -1571,7 +1666,7 @@ Compiler task 0005B is Complete with [binding](#term-binding)-aware expansion pl
 statistics, [norm](#term-norm), and [normalization](#term-normalization) formulas. Compiler task 0005C is Complete with [layout](#layout),
 window, indexing/scatter, ordering, and explicit-state [dropout](#dropout--inverted-dropout) formulas. Compiler task 0005D is
 Complete with the representable attention, [convolution](#term-channels-first-convolution-layers), [pooling](#term-pooling), and [loss](#loss) formulas. See
-[Training graph](architecture/training-graph.md)<span data-glossary-navigation="true"> ([Training graph glossary](#training-graph))</span>.
+[Training graph](architecture/training-graph.md).
 
 ### Autotuning / model autotuning
 
@@ -1789,7 +1884,7 @@ is backend-level and [boolean](#data-type--datatype); it is separate from regist
 scoring, route selection, preparation, and execution. Current internal hard eligibility combines
 that answer with separate availability and intent facts without changing its level. A capability is not a
 kernel, a live executable service, a rejection diagnostic, or a promise that one fixed
-implementation route will always be selected. See [Partition scoring](architecture/partition-scoring.md)<span data-glossary-navigation="true"> ([Partition glossary](#partition))</span>.
+implementation route will always be selected. See [Partition scoring](architecture/partition-scoring.md).
 
 ### Backend capability provider / `BackendCapabilityProvider`
 
@@ -1955,7 +2050,7 @@ choose an [owner](#term-owner). The later public no-match exception type and mes
 
 ### Backend-owned lowering
 
-The rule that each [concrete backend](#concrete-backend) translates its assigned planned partitions into its own executable representation during [prepare](#prepare). [Lowering](#lowering), [fusion](#term-fusion), [specialization](#term-specialization), and [kernel](#kernel) selection stay together because they depend on [backend](#backend)-specific execution and storage models. There is no shared lowering [module](#term-module). See [Runtime, Prepare, and Backend Boundary](architecture/runtime-prepare-backend-boundary.md)<span data-glossary-navigation="true"> ([Runtime glossary](#term-runtime))</span>.
+The rule that each [concrete backend](#concrete-backend) translates its assigned planned partitions into its own executable representation during [prepare](#prepare). [Lowering](#lowering), [fusion](#term-fusion), [specialization](#term-specialization), and [kernel](#kernel) selection stay together because they depend on [backend](#backend)-specific execution and storage models. There is no shared lowering [module](#term-module). See [Runtime, Prepare, and Backend Boundary](architecture/runtime-prepare-backend-boundary.md).
 
 ### Backend route
 
@@ -1971,6 +2066,10 @@ selection therefore retains one `BackendId("cpu")` and has no fixed vendor-prior
 
 The portable [CPU](#term-cpu) route generates Java code for supported work without requiring an optional native numerical library. Portable means its implementation basis is Java; it does not mean every [tensor](#tensor) [operation](#operation) or [shape](#shape) is supported.
 
+#### Reading the retained CPU implementation history
+
+The paragraphs naming completed task numbers or schema increments explain how the route grew. Their original counts, measured rows and exclusions apply to that checkpoint, not every later cutover. A Java carrier (`short[]` or `byte[]`) can represent several distinct [logical formats](#data-type--datatype). Use each focused current family section for admission rather than treating a task list as today's universal capability table. The [softmax entry](#softmax--log-softmax) explicitly records its current six-floating-type and full special/empty-value domain.
+
 The [bytecode](#term-bytecode)-first Java [Class-File API](#term-class-file-api) plus [Vector API](#term-vector-api) production baseline inside the single CPU
 [backend](#backend). It is the always-available semantic fallback for every operation [occurrence](#term-occurrence) it truthfully
 supports, although a [scalar](#term-scalar) reference remains available separately for [conformance](#term-conformance) and [fail-closed](#term-fail-closed)
@@ -1985,6 +2084,8 @@ FLOAT64 parity to its original twenty-one eligible opcodes. Completed CPU 0005J 
 floating [extrema](#saturation-pole-and-extremum)/clamp/[ReLU](#term-relu)/sign/cast, signed-integral arithmetic/extrema/cast, [canonical](#term-canonical-form)-[BOOL](#data-type--datatype)
 logic/cast, and virtual floating-[mask](#term-boolean-mask)-to-WHERE vector rows; every other admitted row or ineligible
 access pattern retains deterministic scalar or parallel-scalar fallback.
+
+#### How did pointwise and low-precision support grow?
 
 Completed CPU 0008J adds exactly 44 [BFLOAT16](#term-bfloat16) pointwise forms through generated scalar and caller-
 parallel scalar execution. Numerical consumers decode raw [represented bits](#term-represented-bits) to FLOAT32, and every
@@ -2031,6 +2132,8 @@ retains scalar or parallel-scalar fallback. Those schema numbers record the hist
 projections, not the current compatibility envelope or every later numerical repair. See
 [CPU kernel specialization](#cpu-kernel-specialization) for that distinction. This changes no
 public capability, architecture boundary, materialization policy, or tuning policy.
+
+#### Which movement and indexing families were added?
 
 Completed CPU 0006 added one static resolved-[layout](#layout) affine-copy family through the same portable
 route. It composes bounded straight-line [view](#term-view-meanings) chains during cold analysis, keeps eligible internal
@@ -2100,6 +2203,8 @@ across the five numeric types, with scalar or whole-slice parallel-scalar sequen
 zero workspace/materialization, and schema 20.
 
 The current FP16 cutover extends both cumulative scans to all six numeric types.
+
+#### How should the retained reduction/schema history be read?
 
 Completed CPU 0007A adds one fully static resolved-layout ordinary `MIN`, `MAX`, `ALL`, or `ANY`
 occurrence. It accepts exact full, single-axis, and multi-axis forms; an empty multi-axis selection
@@ -2203,6 +2308,8 @@ proof retains the typed general-long body. Its five accepted fixed-case ratios h
 `0.811182115x`; this closes the bounded twenty-row comparison, not every aggregate shape or
 environment.
 
+#### Which aggregate families does that history describe?
+
 Completed CPU 0007A1 admits ordinary SUM and PROD for FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32,
 and INT64, and MEAN for the four floating types, in the same full, single-axis, multi-axis, and
 empty-axis-list forms. Floating SUM uses an exact real sum followed by one result-format
@@ -2252,6 +2359,8 @@ partial/combine, or cross-backend numerical promise.
 
 The current FP16 cutover extends all five advanced floating aggregates to FLOAT16.
 
+#### How are units combined within a partition?
+
 Complete CPU 0008B generalizes complete CPU-owned partitions to one-through-eight-node directed
 acyclic graphs. Analysis forms stable computation units, contracts ordinary pointwise pairs
 subject to hard structural budgets, and preserves materialized unit boundaries across [fan-out](#term-fan-out),
@@ -2286,7 +2395,7 @@ demand on every outcome.
 
 CPU0074's [selected row-region reservation](architecture/contracts/runtime-prepare-engine.md#cpu0074-run-owned-synchronous-reservation)
 is implemented and MAIN accepted with CPU0074 Complete. It reserves actual
-participant demand once for one [Scan](#term-cumulative-scan) invocation, lending that same live sufficient reservation
+participant demand once for one [Scan](#general-differentiable-scan) invocation, lending that same live sufficient reservation
 synchronously to workers without double charging. Caller and workers do no concurrent math;
 all started work joins before merge/[carry](#term-carry), scratch reuse or [release](#term-release). This does not change existing
 budget behavior or introduce a public execution/numerical mode. See the
@@ -2322,7 +2431,7 @@ tied-with-portable, insufficient-benefit, or ineligible case remains portable du
 selected native plan does not fall back later. Explicit [oneDNN](#term-onednn) 3.14.0 primitive/[Graph](#graph) routes now
 also realize qualified bare [homogeneous](#term-homogeneous) static FLOAT32 MATMUL with K > 1, including normalized
 broadcast [batches](#term-batch-machine-learning-and-hyperparameters), inside the same CPU [owner](#term-owner). [API](#term-application-programming-interface-api) preference is not forced provider selection;
-see the [oneDNN configuration and qualification boundary](backend-guide/cpu-backend.md#explicit-onednn-composition)<span data-glossary-navigation="true"> ([qualification glossary](#term-qualification))</span>.
+see the [oneDNN configuration and qualification boundary](backend-guide/cpu-backend.md#explicit-onednn-composition).
 Accelerate [BLAS](#term-blas)/vDSP/vForce, distinct [oneMKL](#term-onemkl) BLAS/[VML](#term-vml) and distinct [AOCL](#term-aocl)-BLAS/AOCL-LibM and
 optional [ZenDNN](#term-zendnn) routes remain planned. ARM itself does not name one [native library](#term-native-library).
 
@@ -2413,7 +2522,7 @@ distinct. Selective projections and versioned payloads identify changed generate
 requiring every family to acquire the same projection number. `CpuKernelSpecialization` owns
 both compatibility bytes and generated-class identity bytes; `CpuGeneratorSchema` owns the
 current envelope. See [CPU numerical semantics and compatibility](backend-guide/cpu-backend.md#numerical-semantics-and-capability)
-and the [profile-free backend identity contract](architecture/contracts/backend-execution.md#profile-free-backend-capability-and-identity)<span data-glossary-navigation="true"> ([backend identity glossary](#backend-identity--backendid))</span>.
+and the [profile-free backend identity contract](architecture/contracts/backend-execution.md#profile-free-backend-capability-and-identity).
 
 The following [schema](#term-schema) notes record historical increments, not a current envelope or capability
 inventory. Schema 18 retained the schema-17 distinctions for the
@@ -2467,6 +2576,8 @@ the direct typed body. Schemas 52–58 add [Conv3d](#conv3d--ncdhw), [MATMUL](#m
 schemas 59–67 add BFLOAT16 pointwise, cross-type CAST, bounded vector families, scalar-power
 self-containment, terminal emission, scalar-segment layout, and numerical-profile identity.
 Schema 68 activates direct [FLOAT16](#term-float16) execution throughout the portable generated families.
+
+#### Which facts remain outside generated-class identity?
 
 Compatible extents, offsets, strides, starting [coordinates](#axis-rank-scalar-vector-and-matrix), and resource magnitudes remain cold
 when they do not change emitted code. Selected shaped Scan, named-batch MATMUL, row-region,
@@ -2815,6 +2926,8 @@ execution remain reproducible for a future compatible Config, [Prepare](#prepare
 based on end-to-end evidence. [Runtime](#term-runtime) never selects, autotunes, or searches candidate
 representations.
 
+<a id="term-scalar-immediate"></a>A **scalar immediate** is one typed value embedded in an [operation's attributes](#operationattrs), such as a fixed multiplier, rather than another Tensor input. It can be applied across many Tensor coordinates by scalar or SIMD code. In contrast, the [SCALAR execution strategy](#cpu-portable-execution-strategy) processes one logical element at a time. Thus an operation with a scalar multiplier need not use scalar execution, and a scalar loop can process two full Tensor operands.
+
 ### CPU portable execution strategy
 
 A [CPU](#term-cpu) execution strategy combines two independent choices: process one [element](#term-element) or several [lanes](#term-lane) at a time, and use one thread or several workers. Here “[vector](#term-vector)” describes hardware-lane computation, not a [rank-one](#axis-rank-scalar-vector-and-matrix) [tensor](#tensor).
@@ -3076,7 +3189,7 @@ A backward graph is the calculation of sensitivities derived from the original o
 The [graph](#graph) [nodes](#node) produced by capturing [gradient](#term-gradient) [Tensor](#tensor) expressions derived from an original
 forward Tensor expression. In backward-capable [compile](#compile) modes, the [compiler](#term-compiler) [captures](#term-capture-meanings) forward
 outputs and gradient roots together once, then validates and optimizes the [immutable](#term-immutable) combined
-graph before [planning](#term-planning). See [Training graph](architecture/training-graph.md)<span data-glossary-navigation="true"> ([Training graph glossary](#training-graph))</span>.
+graph before [planning](#term-planning). See [Training graph](architecture/training-graph.md).
 
 ### Batch dimension
 
@@ -3091,7 +3204,15 @@ execution unit. See [Matrix-multiplication expressions](reference/tensor/matmul-
 
 ### Scaled dot-product attention
 
-Attention forms an output by choosing how strongly to use each value row. A query describes what is being sought, keys describe what each candidate matches, and the resulting [weights](#term-weight) mix the value rows.
+**Attention** mixes value rows according to how well each key matches a query. For one finite real unmasked query, let $q_r$ be its $E>0$ features, $k_{jr}$ key $j$'s features, and $v_{ja}$ value $j$'s coordinate $a$. With $S>0$ keys, indices $0\le r<E$, $0\le j<S$, and $0\le a<E_v$,
+
+$$
+s_j=\alpha\sum_{r=0}^{E-1}q_rk_{jr},\qquad
+w_j=\frac{e^{s_j}}{\sum_{h=0}^{S-1}e^{s_h}},\qquad
+o_a=\sum_{j=0}^{S-1}w_jv_{ja}.
+$$
+
+Here $\alpha>0$ is scale (by default $1/\sqrt E$), $s_j$ is a score, $w_j$ its mixing weight, and $o_a$ the output. Equal scores for values $2$ and $6$ give weights $(1/2,1/2)$ and output $4$. The formula is a finite real explanation, not permission to replace attention's literal guarded arithmetic with first-class stable softmax. Masks, infinity, NaN and empty key rows follow their explicit attention rules below.
 
 An implemented [backend](#backend)-independent [operation](#operation) meaning that compares query rows with key rows,
 [softmax](#softmax--log-softmax)-normalizes the resulting eligible [attention scores](#attention-score), and uses those
@@ -3148,7 +3269,7 @@ separate explicit [BOOL](#data-type--datatype) [mask](#term-boolean-mask) combin
 
 ### Categorical cross entropy
 
-Categorical cross entropy measures how poorly class scores agree with the reference class or class [distribution](#term-distribution). Assigning little probability to the reference class gives a larger [loss](#loss); raw scores are [logits](#logit), not already-normalized probabilities.
+**Categorical cross entropy** penalizes disagreement with a reference class distribution. For finite real class logits $z_j$, indexed by $0\le j<C$ with $C>0$, define ideal probability $p_j=e^{z_j}/\sum_{h=0}^{C-1}e^{z_h}$. A dense target has $t_j\ge0$ and $\sum_j t_j=1$; loss is $L=-\sum_{j=0}^{C-1}t_j\log p_j$, omitting zero-target terms. An index target $k$ instead requests $L=-\log p_k$, with $0\le k<C$. Equal two-class scores give $p_k=1/2$ and loss $\log2$ for either class; placing more probability on the target lowers that loss. Synaptik consumes logits directly using its stable guarded formula, not probabilities rounded by a previous softmax. Bounds, ignored samples, special values and reductions retain their separate operation rules.
 
 A loss meaning that compares a logits [slice](#slice) with either a [dense target](#dense-target) distribution or one [index
 target](#index-target). Synaptik represents both directly from logits with a stable negative-[log-softmax](#softmax--log-softmax) meaning;
@@ -3271,7 +3392,7 @@ sole [provenance](#provenance) reference.
 
 [Gradient](#term-gradient) eligibility survives only when it was already requested and both source and target are
 floating. That descriptor fact is not a gradient rule or [backend](#backend) differentiability promise.
-[Model](#term-model) defines all 49 ordered current-type value conversions through the stateless
+[Model](#term-model) defines all 81 ordered source/target conversions among its nine current types through the stateless
 `CastValueConversions` [scalar](#term-scalar) reference: same-type casts preserve [raw bits](#storage-mapping-contiguity-and-injectivity); floating and integral
 sources round directly to floating targets with [round-to-nearest, ties-to-even](#floating-point-precision-and-rounding); lossy floating NaNs
 canonicalize while lossless [widening](#term-widening) left-aligns the complete [NaN](#term-nan) fraction; floating-to-integral
@@ -3307,7 +3428,7 @@ downloads for all seven carriers, including locally produced [scalar](#term-scal
 positive-stride SELECT/[SLICE](#slice) targets. This is selected-adapter materialization; the separate
 CPU/Metal transfer contract supports the same seven carriers over [rank](#term-rank)-0..16 static canonical or
 positive-stride non-overlapping layouts. See
-[canonical caller-owned host snapshots](backend-guide/cpu-backend.md#canonical-caller-owned-host-snapshots)<span data-glossary-navigation="true"> ([host glossary](#term-host))</span>.
+[canonical caller-owned host snapshots](backend-guide/cpu-backend.md#canonical-caller-owned-host-snapshots).
 
 ### Canonical workload signature
 
@@ -3582,13 +3703,13 @@ request states desired computation semantics, while the layout kind classifies a
 dynamic results remain unresolved. Construction records exact one-input [provenance](#provenance) without
 inspecting input geometry or storage and without choosing an [alias](#aliasing-and-arena) or copy, allocating storage,
 or defining [compiler](#term-compiler), [planning](#term-planning), [prepare](#prepare), [backend](#backend), [runtime](#term-runtime), gradient, or execution behavior. See
-[Contiguous expressions](reference/tensor/reshape-expand.md#contiguous-expressions)<span data-glossary-navigation="true"> ([Contiguous glossary](#term-contiguous))</span>, [Contiguous semantic
+[Contiguous expressions](reference/tensor/reshape-expand.md#contiguous-expressions), [Contiguous semantic
 kind](reference/tensor/operation-geometry.md#contiguous-semantic-kind), [Layout](#layout), and
 [Materialization](#materialization).
 
 ### Cotangent
 
-A cotangent says how strongly a selected output depends on an earlier value. For [scalar](#term-scalar) `y = x * x`, sending [sensitivity](#term-sensitivity) `1` from `y` yields sensitivity `2 * x` at `x`; an explicit [seed](#term-seed) other than one scales that question.
+A **cotangent** is a reverse-mode [sensitivity](#term-sensitivity) associated with a value. For real $y=x^2$, an output seed $s$ asks for input sensitivity $s\,dy/dx=2sx$. At $x=3$, $s=1$ yields $6$ and $s=2$ yields $12$. The seed changes the differentiation question, not the primal input or an optimizer learning rate. Synaptik represents this by temporary ordinary Tensor expressions under [Compiler-owned autograd](#autograd), not gradient fields attached to Tensors.
 
 The [reverse-mode](#primal-adjoint-and-differentiation-seed) sensitivity that flows backward from a selected output toward an earlier [Tensor](#tensor).
 Current package-private [autograd](#autograd) accepts exact-[Shape](#shape) explicit cotangents or supplies an exact typed
@@ -3633,7 +3754,7 @@ The current ordinary [Engine](#term-engine) [facade](#term-facade) named
 privately retains the compile recipe needed for preparation but exposes no graph-local [identity](#term-identity-meanings),
 [partition](#partition), diagnostic, storage, or execution authority. It has no [close lifecycle](#ownership-borrowing-and-lease), and its
 metadata remains readable after Engine closure. See the
-[Compile API](reference/compiler/capture.md#current-model-contracts)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+[Compile API](reference/compiler/capture.md#current-model-contracts).
 
 ### Concrete backend
 
@@ -3696,7 +3817,7 @@ See
 
 ### Dropout / inverted dropout
 
-Dropout randomly suppresses selected values during training. Inverted dropout scales kept values to compensate for the dropped fraction, while [evaluation](#term-evaluation) can bypass dropping; explicit random state makes the requested random progression visible.
+**Dropout** randomly suppresses selected values during training. For finite real input $x$ and drop probability $0\le p<1$, inverted dropout returns $x/(1-p)$ when kept and positive zero when dropped. For $p=1/2$ and $x=3$, the two possible results are $6$ and $0$; their ideal expectation is $3$. This compensates in expectation, not by preserving each individual run's value. [Evaluation](#term-evaluation) may bypass dropping. Explicit [graph RNG state](#graph-rng-state--graphrngstate) records which abstract random interval a call uses; constructing the expression samples nothing.
 
 A training-only stochastic [operation](#operation) that drops a requested fraction of logical input positions.
 Current `Tensor.dropout(probability, state)` represents inverted dropout: a kept value is ideally
@@ -3756,7 +3877,7 @@ separately executes the fully static, resolved-[layout](#layout) [FLOAT64](#term
 directly, including optional intrinsic bias, groups/depthwise geometry, [scalar](#term-scalar) or parallel-scalar
 complete-output-cell ranges, and the bounded [fusion](#term-fusion)/materialized-suffix forms documented in the
 CPU backend guide. Other backend algorithms and execution forms remain planned. See
-[Tensor API](reference/tensor/convolution.md#grouped-nchw-conv2d-expressions)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+[Tensor API](reference/tensor/convolution.md#grouped-nchw-conv2d-expressions).
 
 For FLOAT32, CONV2D and [CONV3D](#conv3d--ncdhw) preserve exact geometry, conceptual padding, bias,
 and contributor membership. Every term participates exactly once while arithmetic recurses through
@@ -3809,6 +3930,18 @@ The [OFP8](#term-ofp8) formats `FLOAT8_E4M3` and `FLOAT8_E5M2` store one raw byt
 raw NaN and [signed-zero](#nan-infinity-and-signed-zero) bits. There is no implicit quantization scale. See
 [OFP8 boundaries](architecture/contracts/foundational-modules.md#ofp8-representation-and-operation-boundaries).
 
+The current Model enum contains **nine logical types**; this is not a count of Java carriers or admitted backend routes:
+
+| Logical category | Model formats | Typical heap carrier for represented elements |
+|---|---|---|
+| Floating | FLOAT64; FLOAT32 | `double[]`; `float[]` respectively |
+| Floating, distinct 16-bit formats | BFLOAT16; FLOAT16 | raw `short[]` for either format; the descriptor distinguishes them |
+| Floating, distinct 8-bit formats | FLOAT8_E4M3; FLOAT8_E5M2 | raw `byte[]`; the descriptor distinguishes their exponent/fraction and special-value rules |
+| Signed integral | INT32; INT64 | `int[]`; `long[]` respectively |
+| Boolean | BOOL | canonical `byte[]` values zero or one, not packed one-bit storage |
+
+Two formats sharing a carrier are not interchangeable. For example, interpreting FLOAT16 bits as BFLOAT16 changes their numerical meaning without converting any bits. [Tensor factory import](#tensor-factory) therefore needs an explicit descriptor or a specifically named low-format method. An enum constant has a Java ordinal, but ordinal position is not a persisted wire tag or a backend capability claim. Retained CPU task/schema inventories below document their original six-/seven-type increments; those counts are not the current Model enum inventory. See [the source type declaration](../modules/model/src/main/java/io/github/pho001/synaptik/model/datatype/DataType.java) and [numeric promotion](#numeric-promotion).
+
 ### Numeric promotion
 
 Numeric promotion chooses a common [element](#term-element) type for a mixed-type calculation. It is different from an explicit cast requested by the caller, and it does not mean every category pair may be combined.
@@ -3840,7 +3973,7 @@ to the family's zero-sign rule. Both are forbidden for [FLOAT64](#term-float64) 
 low [narrowing](#term-narrowing). Floating scatter MUL includes every contributor once but may use a rounded tree.
 Finite tolerance belongs only to backend/route/family/dtype/size tests, not public result
 envelopes, [Compiler](#term-compiler) rewrite permission, or [Runtime](#term-runtime) policy. See the
-[normative Model contract](architecture/contracts/foundational-modules.md#profile-free-numerical-semantics)<span data-glossary-navigation="true"> ([normative glossary](#term-normative))</span>.
+[normative Model contract](architecture/contracts/foundational-modules.md#profile-free-numerical-semantics).
 Historical ADRs and tasks referring to `NumericalProfile`, `STRICT_IEEE`, and [`ACCELERATOR`](#term-accelerator)
 describe the pre-cutover design, not current caller controls. `DeviceClass.ACCELERATOR` remains a
 separate backend-neutral [ownership](#term-ownership-meanings) preference, not a numerical mode.
@@ -3998,14 +4131,14 @@ implements bounded ordinary [homogeneous](#term-homogeneous) [FLOAT32](#term-flo
 with [rank](#term-rank)-at-most-two boundaries plus qualified automatic-differentiation [views](#term-view-meanings), generated [scalar](#term-scalar),
 single-range execution and [operation](#operation)-qualified B=0. MAIN accepted the capability on 2026-10-24
 after final independent reviews and the native-enabled integration gate passed;
-the [bounded symbolic Scan direction](architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([symbolic Scan glossary](#symbolic-scan))</span>
+the [bounded symbolic Scan direction](architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)
 has implemented Compiler0014 [inference](#term-inference)/actual first-order [AD](#autograd)/scoped binding, independently
 reviewed and MAIN accepted after compatibility [validation](#term-validation), under completed Model0041 authority.
-Prepare0014 implements the bounded FLOAT32 [Scan](#term-cumulative-scan) CPU/Engine vertical, with final [qualification](#term-qualification)
+Prepare0014 implements the bounded FLOAT32 [Scan](#general-differentiable-scan) CPU/Engine vertical, with final [qualification](#term-qualification)
 tracked in its [task](planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md). [NN](#neural-network-module-parameter-buffer-and-forward-context)/[TrainingSession](#training-session--trainingsession),
 cold/copy/wire and other [backend](#backend)/[dtype](#data-type--datatype)/route extensions remain separately gated. See the
 [authority](architecture/contracts/runtime-prepare-engine.md#accepted-symbolic-batch-resource-contract)
-and [handoff example](architecture/runtime-prepare-backend-boundary.md#accepted-symbolic-batch-handoff)<span data-glossary-navigation="true"> ([handoff glossary](#term-handoff))</span>.
+and [handoff example](architecture/runtime-prepare-backend-boundary.md#accepted-symbolic-batch-handoff).
 
 ### Symbolic Scan
 
@@ -4037,7 +4170,7 @@ Neither source construction nor a [metadata](#term-metadata)-only test provider 
 FLOAT32-only all-valid symbolic layer did not implement FLOAT64; current ordinary CPU composition
 supersedes that historical exclusion under the same ordinary guards, including qualified B=0.
 [Engine geometry memo](#engine-geometry-memo) remains unimplemented. Cold/wire and NN workflow restrictions are unchanged.
-The [sole Scan semantic owner](architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([Scan glossary](#term-cumulative-scan); [owner glossary](#term-owner))</span>
+The [sole Scan semantic owner](architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)
 defines roles, actual [derivative](#term-derivative) closure and independent B=0/T=0 behavior.
 
 ### Run memory geometry / `RunMemoryGeometry`
@@ -4064,7 +4197,7 @@ full fresh [Compiler](#term-compiler) bind/private obligations, storage/physical
 publication descriptors. [Atomic](#resource-transaction-and-rollback) complete snapshots, active-[admission](#term-admission)-bounded candidates and
 close-without-late-publication preserve [Runtime](#term-runtime)'s sole [run](#term-run) lease; no late outward-close gate is
 added after inward admission. See the
-[memo lifecycle owner](architecture/contracts/runtime-prepare-engine.md#accepted-engine-geometry-memo)<span data-glossary-navigation="true"> ([lifecycle glossary](#lifecycle))</span>
+[memo lifecycle owner](architecture/contracts/runtime-prepare-engine.md#accepted-engine-geometry-memo)
 and [future miss/hit example](architecture/runtime-prepare-backend-boundary.md#future-symbolic-scan-and-geometry-reuse).
 
 ### Deferred graph constraint
@@ -4121,13 +4254,13 @@ construction records the request and [provenance](#provenance) without calculati
 
 Gaussian error linear unit (GELU) is an [activation](#term-activation) that smoothly attenuates negative inputs while largely retaining large positive inputs. It uses the standard normal probability curve; its precise formula below is the requested meaning, not a selected approximation algorithm.
 
-A smooth floating activation with exact mathematical [target](#term-target) `x * Phi(x)`, where [`Phi`](#term-phi) is the
+A smooth floating activation with exact mathematical [target](#term-target) $x\Phi(x)$, where [`Phi`](#term-phi) is the
 standard normal cumulative [distribution](#term-distribution) function. Equivalently, exact GELU is
-`0.5 * x * (1 + erf(x / sqrt(2)))`. Synaptik represents it as the parameterless first-class
+$\frac{x}{2}\left(1+\operatorname{erf}(x/\sqrt2)\right)$. Synaptik represents it as the parameterless first-class
 `UnaryElementwiseKind.GELU` semantic [identity](#term-identity-meanings).
 
 `UnaryElementwiseKind.GELU_TANH_APPROXIMATION` is a separate fixed function:
-`0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))`. It is not a configurable mode of
+$\frac{x}{2}\left(1+\tanh\left(\sqrt{2/\pi}\,(x+0.044715x^3)\right)\right)$. It is not a configurable mode of
 exact GELU. Both functions use the continuous extension [negative infinity](#nan-infinity-and-signed-zero) to [negative zero](#nan-infinity-and-signed-zero),
 preserve [signed zero](#term-signed-zero), map [positive infinity](#nan-infinity-and-signed-zero) to positive infinity, and propagate [NaN](#term-nan). Current
 `Tensor.gelu()` and `geluTanhApproximation()` construct [model](#term-model) [metadata](#term-metadata) and [provenance](#provenance) only; they do
@@ -4135,6 +4268,8 @@ not execute either function or define [backend](#backend) algorithms. The curren
 does define first-order formulas: [finite](#term-finite) and NaN inputs use the corresponding analytic
 [derivative](#term-derivative), positive infinity returns the incoming [cotangent](#cotangent), and negative infinity returns exact
 [positive zero](#nan-infinity-and-signed-zero).
+
+In these GELU formulas, $x\in\mathbb{R}$ is one finite input value, $\Phi(x)$ is the standard normal cumulative probability, $\operatorname{erf}$ is the [error function](#term-error-function), and $\pi$ is the circle constant. At $x=0$, $\Phi(0)=1/2$ and both functions return zero. At $x=1$, exact GELU is approximately $0.8413$: it retains most, but not all, of that input. The formulas explain real targets; the special-value extensions above and the operation's working arithmetic remain binding.
 
 ### Functional gradient request
 
@@ -4149,6 +4284,8 @@ an exact typed positive one only for an eligible [scalar](#term-scalar) output. 
 rejects an unreachable target; `ZERO` returns an ordinary exact typed zero expression.
 `FORWARD_AND_BACKWARD` and the initial `TRAINING_STEP` require this request, while `FORWARD_ONLY`
 rejects it. The value exposes no public [compile](#compile) call or Tensor gradient [lifecycle](#lifecycle).
+
+<a id="term-checked-metadata-construction"></a>**Checked metadata construction** applies an ordinary derivative formula to descriptive operands rather than live Tensor objects. Compiler uses the same formula body, checking Model construction rules and independently inferred [descriptors](#tensor-descriptor), without consuming Tensor IDs or evaluating values. Describing addition still has to establish compatible shapes and types; it does not add stored numbers. This is not a second differentiation algebra or a backend executor. See the [shared construction contract](planning/modules/compiler/tasks/0017b-shared-checked-ordinary-gradient-construction.md#construction-contract).
 
 ### Forward graph
 
@@ -4178,7 +4315,7 @@ The selected fold [matrix](#term-matrix-meanings) is limited to [BOOL](#data-typ
 and same-typed signed-integral [scalar](#term-scalar) arithmetic over explicit splats. It does not evaluate
 floating/[BFLOAT16](#term-bfloat16) facts, casts, unselected operations, or dense payloads; construct [autograd](#autograd);
 derive [publication](#term-publication) or [planning](#term-planning); allocate physical values; or expose a public compiler [API](#term-application-programming-interface-api). See
-[Compile API](reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization)<span data-glossary-navigation="true"> ([Compile glossary](#compile))</span>.
+[Compile API](reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization).
 
 ### Pre-capture Tensor-expression autograd
 
@@ -4207,12 +4344,14 @@ orders one and two and remain target-distinct when several targets share one fin
 This design is [compile](#compile)-local. It creates no third reverse stage, arbitrary nested derivative
 chain, persistent or runtime tape, [mutable](#term-mutable) Tensor gradient state, `Tensor.backward()`, second
 gradient algebra, or [backend](#backend)-owned global autograd. The maintained
-[Compile API](reference/compiler/autograd.md#current-package-private-pre-capture-autograd)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span> records the current
+[Compile API](reference/compiler/autograd.md#current-package-private-pre-capture-autograd) records the current
 [operation](#operation)-specific, [fail-closed](#term-fail-closed) derivative [matrix](#term-matrix-meanings).
 
 ### Neural-network module, parameter, buffer, and forward context
 
 A neural network (NN) [module](#term-module) groups a reusable calculation with named state. [Parameters](#term-parameter) may be learned, persistent [buffers](#term-buffer) retain other [model](#term-model) state, and a forward context supplies explicit per-call choices; these are different roles even when each contains [tensors](#tensor). A neural network connects learned numerical transformations; a [multilayer perceptron](#term-multilayer-perceptron-mlp) ([MLP](#neural-network-families)) is a stack of [feature](#term-feature)-mixing layers and [nonlinear](#term-nonlinear) [activations](#term-activation). The recurrent cell families and exact state rules are defined below.
+
+#### What does a module own?
 
 `extensions/nn` currently provides direct-state and module-tree foundations, typed functional
 Model [topology](#term-topology), [eager](#term-eager-evaluation) parameter initializers, five concrete non-recurrent layers including
@@ -4241,6 +4380,8 @@ Discovery rejects a malformed repeated module [identity](#term-identity-meanings
 `train()` or `eval()` likewise performs a complete iterative identity [preflight](#term-preflight) before assigning
 any mode, so a malformed cycle or shared child cannot expose a partial requested-mode change.
 
+#### How do declarations and replacements differ?
+
 A normal parameter declaration requires a floating Tensor with `requiresGrad == true` and
 privately [captures](#term-capture-meanings) its exact [data type](#data-type--datatype) and immutable structural [Shape](#shape) as the permanent replacement
 [schema](#term-schema). A concrete input-dependent module may instead reserve a private name and validator before
@@ -4264,6 +4405,8 @@ replacement, and `Buffer` exposes no public wrapper update capability or declara
 schema. Parameter and buffer replacement each affect one binding and provide no thread safety,
 version, update sequencing, or cross-binding consistency guarantee. A parameter or buffer is not
 a Tensor subtype and adds no [gradient](#term-gradient) state to Tensor.
+
+#### What does a state dictionary snapshot?
 
 A **state dictionary** is the current immutable, ordered, shallow in-memory snapshot of a complete
 module tree's parameter and buffer bindings. `Module.stateDictionary()` emits each module's direct
@@ -4303,6 +4446,8 @@ Loading the same four unique paths in a different candidate order is valid when 
 match. Omitting `encoder.runningMean` fails before any target changes. The example demonstrates
 path/order and validate-before-install behavior; it does not read, serialize, or execute Tensor
 values.
+
+#### What can a checkpoint preserve?
 
 A **[checkpoint](#term-checkpoint)** is a semantic recovery [artifact](#term-artifact). Generic Checkpoint (`modules/checkpoint`,
 [Gradle](#term-gradle) `:extensions:checkpoint`) depends publicly on Model and privately on [Compiler](#term-compiler)'s cold source
@@ -4349,6 +4494,8 @@ contracts. `Module` still has no generic `forward(...)` method or optimizer algo
 [`UnaryTensorModule`](#unary-tensor-module-and-sequential) subtype adds only the exact unary
 Tensor-forward [signature](#term-signature) needed by current `Sequential` composition.
 
+#### Who chooses and advances initialization randomness?
+
 The current stateless `ParameterInitializers` namespace creates eager floating Tensor leaves that
 a module may subsequently bind as parameters. Its exact eight entries cover typed zero and one,
 explicit-source normal and continuous-uniform [sampling](#term-sampling-machine-learning-and-hyperparameters), fixed unit-gain [Glorot](#term-glorot-uniform) normal/uniform, and
@@ -4381,6 +4528,8 @@ creates no generator. The four-argument dispatcher accepts exactly the six sampl
 forwards the exact caller-owned source. `requiresRandomGenerator()` distinguishes those routes;
 neither route adds a default source or changes the named initializer semantics.
 
+#### How does Linear acquire state and construct a forward expression?
+
 The current final `Linear` module owns one rank-two weight `Parameter` in
 `[outFeatures, inFeatures]` orientation and an optional exact [rank-one](#axis-rank-scalar-vector-and-matrix) `[outFeatures]` bias
 `Parameter`. Callers may supply exact parameter Tensors or construct both immediately from
@@ -4412,6 +4561,8 @@ expression chain: neither first-forward initialization nor later forward constru
 executes the result. The stable parameter accessors expose the same wrappers as module discovery,
 so a compatible replacement affects a later forward call while an expression already constructed
 from an earlier binding remains unchanged.
+
+#### Which state belongs to normalization and embedding layers?
 
 The current final `LayerNorm` module is the stateful owner for mandatory affine
 layer-[normalization](#term-normalization) state. It owns equal-Shape `scale` and `bias` parameters over one
@@ -4483,13 +4634,15 @@ numerical randomness, gradients, [compilation](#compiler-engine-and-execution-st
 thread-safety. A caller requests sequential consumption by passing one returned `nextState` to a
 later training call; reusing `start` instead expresses a branch.
 
+#### When are recurrent parameters initialized?
+
 An **automatic recurrent cell** is an [RNN](#term-recurrent-neural-network-rnn), [GRU](#term-gated-recurrent-unit-gru), or [LSTM](#term-long-short-term-memory-lstm) cell constructed from explicit hidden
 width, bias choice, floating parameter type, a `ParameterInitialization` policy, and a seed but
 without input width. Construction reserves `inputWeight`, `hiddenWeight`,
 and optional `bias` in that order and creates no generator, Tensor, Parameter, or [recurrent state](#backpropagation-through-time-and-recurrent-state).
 The first compatible represented step or descriptor-valid owning Sequence `forwardScan` infers
 only a positive static final input extent. Unlike static [unrolling](#term-unrolling) with no represented step,
-a [scan](#term-cumulative-scan) binds even with zero time/batch or runtime all-zero lengths, because it needs parameter
+a [scan](#neural-network-module-parameter-buffer-and-forward-context) binds even with zero time/batch or runtime all-zero lengths, because it needs parameter
 inputs. It validates descriptors without reading length values or creating a dummy step. A sampling
 policy creates one fresh standard `L64X128MixRandom` stream per attempt and initializes the
 complete input [matrix](#term-matrix-meanings) before the complete hidden matrix; each packed or unpacked Shape derives
@@ -4503,6 +4656,8 @@ failure afterward retains the published group. Compatible simultaneous first cal
 cell-local initialization. Accessors, recursive discovery, and state export [fail closed](#admission-preflight-and-fail-closed-validation) until
 forward, scan initialization or strict load publishes the entire group. This is a layer-local
 lifecycle, not a general module build [API](#term-application-programming-interface-api).
+
+#### What does one RNN, GRU, or LSTM cell call pass?
 
 A **vanilla recurrent neural-network (RNN) cell** is the current final `RnnCell`, which constructs
 one explicit state-transition step. It owns floating, gradient-eligible parameters named
@@ -4589,6 +4744,8 @@ differs from vanilla RNN and GRU cells, whose visible output and next hidden sta
 and which carry no separate cell state. `LstmCell` extends `Module` directly; its three-Tensor
 input contract and two-state result exclude it from `UnaryTensorModule` and `Sequential`.
 
+#### How do Java lengths determine a static sequence?
+
 A **construction-time length** is one element of the Java `long[]` supplied to a current static
 one-directional or bidirectional recurrent sequence. There is exactly one length per original
 batch row, each in `[0, time]`. Each method validates the caller array and, when at least one step
@@ -4664,6 +4821,8 @@ values, public training, backend [lowering](#lowering), scheduled work, or runti
 This sequence packing is different from GRU/LSTM **gate-parameter packing**, which places gate
 matrices and optional bias intervals in a fixed checkpoint order. It also does not produce a
 dense padded output and does not infer padding from zero-valued data.
+
+#### How does a fixed scan differ from static unrolling?
 
 A **fixed recurrent scan** is the current Model-owned `RNN_TANH`, `GRU_RESET_AFTER`, or `LSTM`
 expression family. It consumes a fully static time-major input, explicit initial states and packed
@@ -4743,7 +4902,7 @@ Runtime/Prepare, kernel selection, backend storage representations, or a [concre
 
 An owned Model source gives a [Model](#term-model) its own working state rather than mutating the caller’s original [tensors](#tensor). Its supported source construction, copying, [persistence](#term-persistence), and numerical execution are separate boundaries, detailed below.
 
-The implemented all-valid general-[scan](#term-cumulative-scan) workflow reuses this [owner](#term-owner) through bounded [Compiler](#term-compiler) [cold
+The implemented all-valid general-[scan](#general-differentiable-scan) workflow reuses this [owner](#term-owner) through bounded [Compiler](#term-compiler) [cold
 reconstruction](#term-cold-reconstruction) and [Checkpoint](#term-checkpoint) attachment-preserving in-memory copy/[rebind](#capture-graph-ports-and-reconstruction). All-valid means every
 static time step participates, not arbitrary body support. Qualified static [canonical](#term-canonical-form) [homogeneous](#term-homogeneous)
 [FLOAT32](#term-float32)/[FLOAT64](#term-float64) occurrences can compute and train; [padding](#padding) and body-file support remain excluded.
@@ -4757,7 +4916,7 @@ external [identity](#term-identity-meanings) once; builder-supplied state is cop
 create fresh private state, and load adopts final [heap](#term-heap) values directly. This is not another [IR](#term-intermediate-representation-ir) or
 executor. Builder construction/compute/train are independent of [serialization](#term-serialization) [admission](#term-admission).
 Definition/graph acquisition uses the bounded
-[Compiler source slice](architecture/contracts/compiler-autograd.md#compile-lifecycle)<span data-glossary-navigation="true"> ([slice glossary](#slice))</span>, including
+[Compiler source slice](architecture/contracts/compiler-autograd.md#compile-lifecycle), including
 selected default [CNN](#term-convolutional-neural-network-cnn)/static recurrent graphs, complete typed [Pool3d](#pool3d--ncdhw-pooling), cold fixed scans and the
 general-body exception. Bounded general-body save/load uses
 [graph-model.v4](architecture/contracts/extensions-training.md#canonical-graph-model-version-4)
@@ -4775,7 +4934,7 @@ sessions/preparations and [native memory](#aliasing-and-arena) but never a [borr
 
 ### General differentiable scan
 
-A general differentiable scan repeats a body over a sequence while carrying state from one step to the next. For a running total, each step reads the previous total and one new input; differentiating the [scan](#term-cumulative-scan) propagates sensitivities through those step-to-step dependencies.
+A general differentiable scan repeats a body over a sequence while carrying state from one step to the next. For a running total, each step reads the previous total and one new input; differentiating the [scan](#general-differentiable-scan) propagates sensitivities through those step-to-step dependencies.
 
 Model0038 adds a bounded length-aware source/structural-[IR](#term-intermediate-representation-ir) foundation to the all-valid scan
 described below. Compiler0013 adds independent length [inference](#term-inference), bounded first-order reverse
@@ -4795,7 +4954,7 @@ separately qualified owned [RNN](#term-recurrent-neural-network-rnn) workflow us
 not all [PURE](#term-pure) bodies. See the
 [source-construction example](reference/tensor/general-scan.md#length-aware-source-only-construction),
 [changing-B execution example](user-guide/running-models.md#symbolic-length-scan-with-changing-batch-size)
-and [combined CPU scope](backend-guide/cpu-backend.md#symbolic-length-scan-cpu-execution)<span data-glossary-navigation="true"> ([scope glossary](#term-scope))</span>.
+and [combined CPU scope](backend-guide/cpu-backend.md#symbolic-length-scan-cpu-execution).
 The owned all-valid workflow below does not widen length-mode [NN](#neural-network-module-parameter-buffer-and-forward-context) or cold [admission](#term-admission).
 
 [Model](#term-model) PURE validity, bounded cold constructor support, AD/[backend](#backend) qualification and persistence
@@ -4824,13 +4983,13 @@ Selected [derivatives](#term-derivative) preserve ordinary [ND](#term-nd) cuts a
 is distinct from present all-zero [seeds](#commit-release-distribution-log-and-seed-meanings); activity plans retain carry/contribution presence, with
 explicit [materialization](#materialization) across Scan boundaries. Low CPU arithmetic follows its parity cutover.
 This is not fixed RNN/[GRU](#term-gated-recurrent-unit-gru)/[LSTM](#term-long-short-term-memory-lstm) [BPTT](#term-backpropagation-through-time-bptt), arbitrary control flow, broader NN/cold persistence or [Metal](#term-metal) Scan. The
-[scan semantic owner](architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([owner glossary](#term-owner))</span>
+[scan semantic owner](architecture/contracts/recurrent-scan.md#general-differentiable-scan)
 defines its complete bounded protocol; the [conceptual example](architecture/general-differentiable-scan.md#conceptual-forward-and-reverse-example)
 explains forward/[residual](#scan-residual-port-and-history-demand)/reverse relationships.
 
 ### Length-aware scan row role
 
-A row role states which [axis](#term-axis) identifies independent [batch](#term-batch-machine-learning-and-hyperparameters) members inside a length-aware [scan](#term-cumulative-scan). Equal axis sizes do not prove equal roles: a batch of four and a [feature](#term-feature) width of four still [mean](#term-mean) different [coordinates](#axis-rank-scalar-vector-and-matrix).
+A row role states which [axis](#term-axis) identifies independent [batch](#term-batch-machine-learning-and-hyperparameters) members inside a length-aware [scan](#general-differentiable-scan). Equal axis sizes do not prove equal roles: a batch of four and a [feature](#term-feature) width of four still [mean](#term-mean) different [coordinates](#axis-rank-scalar-vector-and-matrix).
 
 An explicit identified original batch coordinate: ROW(axis) can describe any completely proved
 intermediate axis/[rank](#term-rank); SHARED has no row coordinate. Retained sequence/header declarations are
@@ -4850,7 +5009,7 @@ complete bounded rules.
 
 A formal is a declared body input, like a function [parameter](#term-parameter); an actual is the value supplied to it. [Primal](#term-primal) [binding](#term-binding) connects original forward values used by [derivative](#term-derivative) formulas to the correct inputs of a reverse [scan body](#backpropagation-through-time-and-recurrent-state).
 
-A [scan](#term-cumulative-scan) formal is an [identity](#term-identity-meanings)-distinct, storage/[provenance](#provenance)-free [Tensor](#tensor) declared as [carry](#term-carry),
+A [scan](#general-differentiable-scan) formal is an [identity](#term-identity-meanings)-distinct, storage/[provenance](#provenance)-free [Tensor](#tensor) declared as [carry](#term-carry),
 step or [invariant input](#term-invariant-input) to a source body, not a placeholder for a captured [ValueId](#logical-valueid-versus-physical-memory-slot). Source
 bindings match exact named or static [shapes](#shape); static formals are [canonical](#term-canonical-form) and symbolic formals
 have unresolved numeric [layouts](#layout), without binding a numeric B. Actual outer
@@ -4872,9 +5031,13 @@ SHARED value is normalized before contribution accumulation, including shared in
 Compiler0015 preserves the same protocol with one named B, including generated ROW(1) literals,
 exact shared histories and parameter-shaped accumulators; it adds no [runtime](#term-runtime) tape or evaluator.
 
+<a id="term-structural-cotangent-activity"></a>**Structural cotangent activity** records whether a reverse-mode [contribution](#cotangent) is present at all, not whether its number equals zero. An absent contribution suppresses its associated computation; a present zero still follows the formula, so multiplying it by NaN need not yield zero. In a [general Scan](#general-differentiable-scan), `ScanActivityPlan` relates presence roots to local body work. An optional merge with only one present operand keeps that operand's raw representation instead of adding a fabricated zero. This metadata is neither a derivative formula nor a public sparse-gradient API. Compiler, Prepare and the backend check its applicability independently; see the [activity-plan fields and merge rules](reference/compiler/planning.md).
+
+<a id="term-residual-meanings"></a>**Residual** means something retained or left over in a specified calculation. A [Scan residual](#scan-residual-port-and-history-demand) is a forward value saved for later use. A compensation residual is a correction term tracking numerical rounding loss in [compensated summation](#term-compensated-summation). A performance residual is a remaining measured timing gap against a named comparison. None of these meanings implies either of the others; a timing gap does not allocate saved Tensor history.
+
 ### Scan residual port and history demand
 
-A [scan](#term-cumulative-scan) residual is a forward value that later work may need, such as a previous [recurrent state](#backpropagation-through-time-and-recurrent-state). History demand asks which such values actually need to be retained across time, rather than allocating every possible history.
+A [scan](#general-differentiable-scan) residual is a forward value that later work may need, such as a previous [recurrent state](#backpropagation-through-time-and-recurrent-state). History demand asks which such values actually need to be retained across time, rather than allocating every possible history.
 
 A [canonical](#term-canonical-form) scan residual port is [metadata](#term-metadata)/wrapper reserved at original [immutable](#term-immutable) [producer](#term-producer)
 construction for a retained body value, including previous [carry](#term-carry). Current [Model](#term-model) constructs these
@@ -4990,7 +5153,7 @@ description entry points read current [bindings](#term-binding) under caller [qu
 after legal replacement or strict loading. Training's duplicate/overlap rejection is unchanged.
 See the [reconstruction guide](user-guide/declarative-models.md). ModelSpecification description and
 descriptor-only reconstruction perform no file I/O. NN also owns the separate `nn.checkpoint`
-[facade](#term-facade)/codecs: [whole-model persistence](reference/checkpoint/models.md#whole-model-save-and-automatic-load)<span data-glossary-navigation="true"> ([persistence glossary](#term-persistence))</span>
+[facade](#term-facade)/codecs: [whole-model persistence](reference/checkpoint/models.md#whole-model-save-and-automatic-load)
 stores this closed configuration and [detached](#detached-model-results) values, delegates generic file I/O to ArtifactFile,
 then returns a value-loaded model.
 Neither capability supplies training [resume](#schema-serialization-and-checkpoint) or arbitrary Java model [capture](#term-capture-meanings).
@@ -5115,7 +5278,7 @@ per final [graph](#graph) node: zero for an original forward [producer](#term-pr
 first [reverse-mode](#primal-adjoint-and-differentiation-seed) stage, and two for one first owned by the second stage. It retains the exact
 graph reference and augments unchanged [`GraphPhase`](#graph-phase); it contains no [Tensor](#tensor),
 request, storage, [backend](#backend), [runtime](#term-runtime), or execution state.
-It also retains immutable `scanActivityByNode()` associations keyed by containing [Scan](#term-cumulative-scan) nodes,
+It also retains immutable `scanActivityByNode()` associations keyed by containing [Scan](#general-differentiable-scan) nodes,
 each referencing that [occurrence](#term-occurrence)'s exact independently scoped body graph. The three-[argument](#term-argument)
 constructor accepts graph, derivative-order map and activity map; the two-argument form creates
 no activity annotations. Copies/rewrites preserve or explicitly remap annotations. This remains
@@ -5221,7 +5384,7 @@ RIGHT/TIME_MAJOR counts into a fresh ordinary [canonical](#term-canonical-form) 
 including empty B; it never reads or repacks values. The application binds that [mutable](#term-mutable) export
 through existing [NN](#neural-network-module-parameter-buffer-and-forward-context)/[Engine](#term-engine) APIs. Logical axis order does not prove physical layout or execution
 support, and LEFT support does not extend the [scan](#term-cumulative-scan)'s right-padded valid-prefix semantics.
-See the [Data sequence batching API](reference/data/sequences.md#explicit-runtime-scan-lengths)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+See the [Data sequence batching API](reference/data/sequences.md#explicit-runtime-scan-lengths).
 
 ### Frozen whitespace tokenizer
 
@@ -5234,7 +5397,7 @@ ordinary IDs start at 2, [padding](#padding) (PAD) is 0 and unknown (UNK) is 1. 
 and preserves exact case, punctuation and [UTF-16](#term-utf-16) without [normalization](#term-normalization). Each absent [run](#term-run) emits
 one UNK. `TextSequenceBatcher` encodes rows and delegates padding and [host](#term-host) counts to Data;
 neither token IDs nor counts add masking, execution or [runtime](#term-runtime) length [binding](#term-binding). See the
-[Text API](reference/text/tokenization.md)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span> and [host sequence metadata](#host-sequence-metadata).
+[Text API](reference/text/tokenization.md) and [host sequence metadata](#host-sequence-metadata).
 
 ### Host storage
 
@@ -5284,7 +5447,7 @@ that semantic kernel is not an executable implementation route.
 
 General matrix multiplication (GEMM) is the numerical-library [operation](#operation) that scales a [matrix](#term-matrix-meanings) product and optionally adds a scaled existing output. [BLAS](#term-blas) means [Basic Linear Algebra Subprograms](#mps-mpsgraph-and-openblas); this entry describes a bounded library call, not every high-level [MATMUL](#matrix-multiplication--matmul) form. SGEMM and DGEMM name the single- and double-[precision](#term-precision) GEMM variants, respectively.
 
-The low-level operation `C[m,n] = alpha * (A[m,k] x B[k,n]) + beta * C[m,n]`. The current
+For real matrices $A$ shaped $m\times k$, $B$ shaped $k\times n$, and old output $C$ shaped $m\times n$, GEMM requests $C'_{ij}=\alpha\sum_{r=0}^{k-1}A_{ir}B_{rj}+\beta C_{ij}$ for $0\le i<m$ and $0\le j<n$. Here $\alpha,\beta$ are scalar coefficients and $m,n,k$ are matrix extents; $r$ visits the shared contraction. With one-element matrices $A=(2)$, $B=(3)$, $C=(5)$, $\alpha=1$ and $\beta=2$, the ideal result is $6+10=16$. The library call implements its specified rounded arithmetic, not arbitrary real-number reassociation. The current
 [OpenBLAS](#term-openblas) provider implements only [FLOAT32](#term-float32) and [FLOAT64](#term-float64) dense [row-major](#term-row-major), non-transposed GEMM over
 caller-owned [native memory](#aliasing-and-arena) beginning at byte offset zero. It validates and forwards one already-
 normalized call; it does not own [Tensor](#tensor) [rank](#term-rank) adaptation, batching, [broadcasting](#broadcasting), [transposition](#linear-algebra-building-blocks),
@@ -5318,7 +5481,7 @@ session close cannot affect the transferred resource. Without transfer, closing 
 qualify or select the native route. Disabled or unavailable discovery exposes no invocation, so
 composition can retain the independently valid portable plan. The current types are unsupported
 package-private CPU internals, not public Config, [Engine](#term-engine), or provider APIs. See the [CPU backend
-guide](backend-guide/cpu-backend.md#internal-automatic-discovery-and-lifetime)<span data-glossary-navigation="true"> ([backend glossary](#backend))</span>.
+guide](backend-guide/cpu-backend.md#internal-automatic-discovery-and-lifetime).
 
 ### OpenBLAS qualification
 
@@ -5407,11 +5570,11 @@ Caller [matrix](#term-matrix-meanings) segments remain [borrowed](#ownership-bor
 [prepare](#prepare) now owns one narrow qualified OpenBLAS [MATMUL](#matrix-multiplication--matmul) route, while composition owns provider
 selection, thread-state coordination, lifetime, and any restoration. Every broader [normalization](#term-normalization)
 or fallback policy remains separately owned. See the [CPU backend
-guide](backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route)<span data-glossary-navigation="true"> ([backend glossary](#backend))</span>.
+guide](backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route).
 
 ### Layout
 
-The logical mapping from a [tensor](#tensor)'s multidimensional indices to positions in storage. A layout can describe [contiguous](#term-contiguous), offset-contiguous, strided, or broadcast [views](#term-view-meanings) using facts such as [element](#term-element) [strides](#term-stride) and [storage offset](#term-storage-offset). Layout describes geometry and [aliasing](#term-aliasing); it does not own storage or decide whether a copy must be materialized. See the [Tensor API](reference/tensor/layouts.md#resolved-layouts)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+The logical mapping from a [tensor](#tensor)'s multidimensional indices to positions in storage. A layout can describe [contiguous](#term-contiguous), offset-contiguous, strided, or broadcast [views](#term-view-meanings) using facts such as [element](#term-element) [strides](#term-stride) and [storage offset](#term-storage-offset). Layout describes geometry and [aliasing](#term-aliasing); it does not own storage or decide whether a copy must be materialized. See the [Tensor API](reference/tensor/layouts.md#resolved-layouts).
 
 ### Logical splat
 
@@ -5600,7 +5763,13 @@ first-order convention returns zero at every input [coordinate](#axis-rank-scala
 
 ### Mean-squared error / MSE
 
-Mean-squared error (MSE) measures squared differences between [predictions](#term-prediction) and matching [targets](#term-target). For predictions `[2, 4]` and targets `[1, 6]`, errors are `[1, 4]`, their sum is `5`, and their [mean](#term-mean) is `2.5`.
+**Mean-squared error (MSE)** averages squared differences between matching predictions and targets. For finite real prediction coordinates $p_i$ and target coordinates $t_i$, with $0\le i<n$ and $n>0$,
+
+$$
+L=\frac1n\sum_{i=0}^{n-1}(p_i-t_i)^2.
+$$
+
+For predictions $(2,4)$ and targets $(1,6)$, squared errors are $(1,4)$, their sum is $5$, and their mean is $L=2.5$. The denominator counts elements, not merely batch rows. This real formula explains the loss, not a rounded reduction order; the empty rules follow below.
 
 The implemented [loss](#loss) meaning represented by `LossKind.MEAN_SQUARED_ERROR` and
 `MeanSquaredErrorAttrs(reduction)`. For prediction `p_i` and exact-[shape](#shape) target `t_i`, each logical
@@ -5619,7 +5788,13 @@ restored through logical [Tensor](#tensor) counts before exact [descriptor](#ter
 
 ### Matrix multiplication / `MATMUL`
 
-Matrix multiplication combines rows of the left operand with columns of the right by adding pairwise products. For row `[2, 3]` and column `[4, 5]`, the result is `2 * 4 + 3 * 5 = 23`; this differs from [element](#term-element)-by-element multiplication.
+**Matrix multiplication** adds pairwise products from a left row and right column. For real matrices $A$ shaped $m\times k$ and $B$ shaped $k\times n$, result $C$ has shape $m\times n$ and
+
+$$
+C_{ij}=\sum_{r=0}^{k-1}A_{ir}B_{rj},\quad 0\le i<m,\quad 0\le j<n.
+$$
+
+Here $m,n,k$ are non-negative integer extents and $r$ visits the contracted coordinates. An empty contraction ($k=0$) is zero. A row $(2,3)$ and column $(4,5)$ give $2\times4+3\times5=23$, one result rather than two elementwise products. This real arithmetic does not fix a floating accumulation tree.
 
 The implemented [backend](#backend)-independent [operation](#operation) that contracts the final left [axis](#term-axis) with the right
 [vector](#term-vector) axis or the penultimate right [matrix](#term-matrix-meanings) axis, broadcasts leading [batch](#term-batch-machine-learning-and-hyperparameters) [dimensions](#dimension)
@@ -5675,7 +5850,7 @@ A `BufferSlot` is deeply [immutable](#term-immutable) and may be retained by the
 [Prepare](#prepare) assigns slots before execution. The current Runtime runner creates or borrows physical
 representations, binds prepared work to them, and executes the schedule. [`RunState`](#run-state--runstate) uses the
 entry-list position rather than this numeric value for direct representation access. See the
-[Runtime API](reference/runtime/memory.md#current-slot-identities)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+[Runtime API](reference/runtime/memory.md#current-slot-identities).
 
 ### Buffer validity
 
@@ -6065,6 +6240,8 @@ Java list size, not as a sentinel. [Signatures](#term-signature) match attribute
 missing or malformed family declarations, and contain no operand [inference](#term-inference), [graph](#graph)-wide rule,
 [backend capability](#backend-capability), or executable behavior.
 
+#### Parameterless and scalar arithmetic families
+
 The first production family is `BinaryArithmeticKind`, an enum containing exactly `ADD`, `SUB`,
 `MUL`, `DIV`, `MIN`, `MAX`, and `POW`. These values identify ordered tensor-to-tensor [elementwise](#term-elementwise)
 arithmetic meanings. They have no intrinsic [parameters](#term-parameter) and therefore compose with
@@ -6076,7 +6253,7 @@ rather than [serialization](#term-serialization) or [dispatch](#term-dispatch) k
 
 The second production family is `UnaryElementwiseKind`, an enum containing exactly `ABS`, `NEG`,
 `RECIPROCAL`, [`LOG`](#term-log), `LOG1P`, [`EXP`](#term-expx), `EXPM1`, [`ERF`](#term-erf), `SQRT`, `RSQRT`, `FLOOR`, `CEIL`, `SIGN`,
-`RELU`, [`SIGMOID`](#term-sigmoid), and [`TANH`](#term-tanh). These values identify one-input elementwise mathematical or
+`RELU`, [`SIGMOID`](#term-sigmoid), [`TANH`](#term-tanh), `GELU`, `GELU_TANH_APPROXIMATION`, and `SILU`. These nineteen values identify one-input elementwise mathematical or
 [activation](#term-activation) meanings and compose with `NoOperationAttrs.INSTANCE`. Their shared signature declares
 one input and one output. `RSQRT`, `LOG1P`, and `EXPM1` remain first-class rather than decomposed
 transforms. No kind promises an algorithm, bitwise result, fixed accuracy bound, or [backend route](#backend-route).
@@ -6120,6 +6297,8 @@ negative zero for every non-NaN input. Public `clampMin` creates one scalar MAX 
 `clampMax` one scalar MIN producer; no separate one-bound kind exists. These semantics promise no
 [NaN payload](#nan-infinity-and-signed-zero), algorithm, gradient rule, backend route, or execution. Integral ADD, SUB, and MUL use
 fixed-width [two's-complement](#arithmetic-rearrangement-and-finite-difference-checks) modular meaning; integral MIN and MAX use ordinary signed order.
+
+#### Comparisons, logic, selection, and conversion
 
 The fourth production family is `BinaryComparisonKind`, an enum containing exactly
 `GREATER_THAN`, `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL`. These
@@ -6174,6 +6353,8 @@ implemented public `Tensor.cast` method separately owns fresh expression constru
 retention, unresolved [layout](#layout), floating-only eligibility retention, and one-input provenance. Their
 text forms are diagnostic rather than serialization or dispatch contracts.
 
+#### Reductions, cumulative scans, and normalization
+
 The eighth production family is `AggregateReductionKind`, an enum containing exactly `SUM`,
 [`MEAN`](#term-mean), `PROD`, `MIN`, `MAX`, `ALL`, `ANY`, `ARG_MAX`, `ARG_MIN`, `LOG_SUM_EXP`, [`VARIANCE`](#term-variance),
 `STANDARD_DEVIATION`, `L1_NORM`, and `L2_NORM`. The first seven ordinary kinds pair
@@ -6224,6 +6405,8 @@ Shape, data-type policy, result descriptor, provenance, numerical algorithm, gra
 `Tensor.logSoftmax` separately own floating validation, Shape-aware axis normalization, exact
 Shape/type/eligibility retention in an unresolved descriptor, fresh identity, and one-input
 provenance without calculating values.
+
+#### Shape, movement, indexing, and window families
 
 The eleventh production family is `ContiguousKind`, whose sole [`CONTIGUOUS`](#term-contiguous) value is a
 parameterless request for [canonical](#term-canonical-form) dense [row-major](#term-row-major), zero-offset result geometry. The twelfth is
@@ -6385,14 +6568,14 @@ and logical per-value memory relationships, while their end-to-end orchestration
 or planned. Planning answers where a [node](#node) or segment should [run](#term-run) and which logical values its
 regions consume or produce. It does not choose concrete [kernels](#kernel), perform backend-specific
 [lowering](#lowering), allocate physical [buffers](#term-buffer), or inspect [runtime](#term-runtime) [residency](#residency). See [Partition
-scoring](architecture/partition-scoring.md)<span data-glossary-navigation="true"> ([Partition glossary](#partition))</span>.
+scoring](architecture/partition-scoring.md).
 
 ### Prepare
 
 Prepare turns the compiled logical recipe into a reusable execution recipe. Shared coordination assigns resource positions while each [backend](#backend) chooses its own implementation; actual [run](#term-run)-specific values arrive later.
 
 The [lifecycle](#lifecycle) stage that turns [immutable](#term-immutable) [compile artifacts](#compile-artifacts) into reusable [runtime](#term-runtime)-[ready](#term-ready) state.
-Shared Prepare projects [partition](#partition)-scoped facts, [coordinates](#axis-rank-scalar-vector-and-matrix) backend analysis, assigns stable
+Shared Prepare projects [partition](#partition)-scoped facts, coordinates backend analysis, assigns stable
 [buffer](#term-buffer)/workspace slots from exact declarations, invokes backend finalization against those slots,
 and validates the result. Each [concrete backend](#concrete-backend) owns [lowering](#lowering), route selection, the [opaque](#term-opaque)
 analysis plan, and executable construction. Prepare creates analysis results, prepared partitions,
@@ -6427,7 +6610,7 @@ has no producing partition. The constant's exact [`ScalarValue`](#typed-scalar-v
 descriptor's data type. The map carries logical splats only; it contains no dense [payload](#artifact-envelope-and-atomic-publication) or
 physical [materialization](#materialization).
 
-General-[scan](#term-cumulative-scan) nodes retain their exact independently scoped compiled bodies and ordered roles.
+General-[scan](#general-differentiable-scan) nodes retain their exact independently scoped compiled bodies and ordered roles.
 [Validation](#term-validation) rejects dynamic local descriptors and checks positional formal/actual and outer-role
 associations without resolving local IDs through outer values. Formals keep positional [gradient](#term-gradient)
 flags; [differentiable](#derivative-and-chain-rule) outer roles use the conservative OR of [carry](#term-carry)/sequence/[invariant](#term-invariant) actual flags,
@@ -6609,7 +6792,7 @@ physical [binding](#term-binding), representation, [residency](#residency) fact,
 
 ### Graph preparation / `GraphPreparation`
 
-Graph preparation [coordinates](#axis-rank-scalar-vector-and-matrix) all [partition](#partition) analyses and finalizations into one reusable [prepared execution](#prepared-execution--preparedexecution). It validates the complete [handoff](#term-handoff) rather than assuming individually valid pieces necessarily fit together.
+Graph preparation coordinates all [partition](#partition) analyses and finalizations into one reusable [prepared execution](#prepared-execution--preparedexecution). It validates the complete [handoff](#term-handoff) rather than assuming individually valid pieces necessarily fit together.
 
 The implemented stateless public [Prepare](#prepare) [operation](#operation) that consumes one exact `CompileArtifacts`,
 one typed positional `PartitionPreparation` per planned partition, and one explicit
@@ -6677,7 +6860,7 @@ authenticates fixed selected geometry without weakening Runtime defaults. Caller
 existing [borrowed](#ownership-borrowing-and-lease) payload; constant sources use fresh per-[run](#term-run) initialized [buffers](#term-buffer).
 
 The resource is a declaration only: no allocation, acquisition, initialization, execution, dummy
-[producer](#term-producer), COPY, reverse [Scan](#term-cumulative-scan) or publication bypass. Current nonempty-partition policy is unchanged.
+[producer](#term-producer), COPY, reverse [Scan](#general-differentiable-scan) or publication bypass. Current nonempty-partition policy is unchanged.
 
 ### Prepared execution / `PreparedExecution`
 
@@ -6698,7 +6881,7 @@ reverse attempt-all cleanup or defers that cleanup to the last admitted lease. T
 Prepare now supplies the transactional resource [handoff](#term-handoff). [Engine](#term-engine) 0010 is implemented: ordinary
 and advanced Engine prepared handles are closeable outward owners of exactly one inward Runtime
 execution. See the
-[Runtime API](reference/runtime/prepared-execution.md#current-prepared-execution)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+[Runtime API](reference/runtime/prepared-execution.md#current-prepared-execution).
 
 The outward Engine owner has one accepted future [metadata](#term-metadata)-only exception under the
 [Engine geometry memo](#engine-geometry-memo): replacing immutable facts cannot change prepared
@@ -7107,7 +7290,7 @@ complete [heterogeneous](#term-heterogeneous) logical run, borrows caller inputs
 schedule work, executes cold-bound prepared units, manages [residency](#residency)/[materialization](#materialization)/transfer,
 publishes results, and cleans resources still owned by the run. <a id="term-runtime"></a>**Runtime** is the [module](#term-module) and
 machinery that performs this work. Run does not optimize [graphs](#graph), discover [backends](#backend), lower
-partitions, or choose [kernels](#kernel). See [Lifecycle](architecture/lifecycle.md#run-lifecycle)<span data-glossary-navigation="true"> ([Lifecycle glossary](#lifecycle))</span>.
+partitions, or choose [kernels](#kernel). See [Lifecycle](architecture/lifecycle.md#run-lifecycle).
 
 ### Prepared execution runner / `PreparedExecutionRunner`
 
@@ -7218,8 +7401,8 @@ non-empty, fully static, resolved-[layout](#layout) plan to be registered and su
 covers returned canonical [payload](#artifact-envelope-and-atomic-publication) lengths only. Use
 `compile -> prepare -> run(explicit inputs) -> materialize` for ordinary repeated runs or selective
 publication copying; direct prepared-handle [ownership](#term-ownership-meanings) remains available at the lower level. See
-[Public API](reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span> and
-[Runtime API](reference/runtime/engine-boundary.md#current-ordinary-engine-boundary)<span data-glossary-navigation="true"> ([Runtime glossary](#term-runtime))</span>.
+[Public API](reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
+[Runtime API](reference/runtime/engine-boundary.md#current-ordinary-engine-boundary).
 
 ### One-shot scalar-objective backward execution
 
@@ -7245,8 +7428,8 @@ state. Explicit [seeds](#commit-release-distribution-log-and-seed-meanings), mul
 and reuse stay on the existing lower-level ordinary or advanced APIs. Current execution requires a
 supported non-empty static/resolved composition; ordinary [CPU](#term-cpu)/[Metal](#term-metal) mixed-[owner](#term-owner) execution is
 bounded to its exact transfer domain, and pure zero-[node](#node) compositions remain unsupported. See
-[Public API](reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span> and
-[Compile API](reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries)<span data-glossary-navigation="true"> ([Compile glossary](#compile))</span>.
+[Public API](reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
+[Compile API](reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries).
 
 ### Run state / `RunState`
 
@@ -7339,7 +7522,7 @@ uses object [identity](#term-reference-identity), so only reuse of the same unkn
 Expression construction performs local checked arithmetic and [canonicalization](#occurrence-identity-and-canonical-form) only. It does not
 bind named dimensions, evaluate concrete sizes, solve [graph](#graph)-wide constraints, construct [Tensor](#tensor)
 operations, or add [compiler](#term-compiler), [prepare](#prepare), [runtime](#term-runtime), storage, or [backend](#backend) state. See [Symbolic extent
-expressions](reference/tensor/shapes.md#symbolic-extent-expressions)<span data-glossary-navigation="true"> ([extent glossary](#term-extent))</span>.
+expressions](reference/tensor/shapes.md#symbolic-extent-expressions).
 
 ### Scalar select
 
@@ -7383,13 +7566,15 @@ attributes](reference/tensor/operation-indexing.md#scalar-select-semantic-kind-a
 
 Sigmoid linear unit (SiLU) is an [activation](#term-activation) that multiplies each input by its [sigmoid](#term-sigmoid) gate, a smooth value between zero and one. It is a numerical function, not a training-mode toggle.
 
-A smooth floating activation with mathematical [target](#term-target) `x * sigmoid(x)`, equivalently
-`x / (1 + exp(-x))`. Synaptik represents it as the parameterless first-class
+A smooth floating activation with mathematical [target](#term-target) $x\,\sigma(x)$, equivalently
+$x/(1+e^{-x})$. Synaptik represents it as the parameterless first-class
 `UnaryElementwiseKind.SILU` semantic [identity](#term-identity-meanings) and exposes the [canonical](#term-canonical-form) `Tensor.silu()` spelling;
 the public [API](#term-application-programming-interface-api) has no `swish` [alias](#aliasing-and-arena). Its continuous extension maps [negative infinity](#nan-infinity-and-signed-zero) to [negative
 zero](#nan-infinity-and-signed-zero), preserves [signed zero](#term-signed-zero), maps [positive infinity](#nan-infinity-and-signed-zero) to positive infinity, and propagates [NaN](#term-nan).
 Current [Tensor](#tensor) construction records type-, [Shape](#shape)-, eligibility-, and [provenance](#provenance) [metadata](#term-metadata) without
 executing the function or defining [compiler](#term-compiler) [decomposition](#term-decomposition), [gradients](#term-gradient), or [backend](#backend) algorithms.
+
+For the finite real SiLU formula, $x$ is one input coordinate and $\sigma(x)=1/(1+e^{-x})$ is its [sigmoid](#term-sigmoid) gate. At $x=0$ the output is zero; at $x=1$ it is approximately $0.7311$. The gate scales the value rather than changing a layer's execution mode. Finite real formulas and the explicit infinity/NaN extensions are separate from rounded backend algorithms.
 
 ### Slice
 
@@ -7473,7 +7658,7 @@ define [lowering](#lowering), backend, or execution behavior. Current package-pr
 supported floating base [cotangent](#cotangent) and extracts the supported floating update cotangent for both
 `SliceAttrs` and target-relative `CropToShapeAttrs` after exact constraint-aware [preflight](#term-preflight). See
 [Slice update and
-target-relative crop expressions](reference/tensor/slicing.md#slice-update-and-target-relative-crop-expressions)<span data-glossary-navigation="true"> ([target-relative crop glossary](#target-relative-crop))</span>.
+target-relative crop expressions](reference/tensor/slicing.md#slice-update-and-target-relative-crop-expressions).
 
 The current [CPU portable route](#cpu-portable-route) separately executes exactly one fully static, resolved-layout
 SLICE_UPDATE [occurrence](#term-occurrence) with either attribute form. Its output-domain pass has copy-base-then-
@@ -7507,7 +7692,7 @@ placement and ordered `[base, update]` provenance. [Model](#term-model) stores n
 current [compiler](#term-compiler) [inference](#term-inference), [preflight](#term-preflight), and first-order [autograd](#autograd) retain and adopt the placement
 form. See
 [Slice update and target-relative crop
-expressions](reference/tensor/slicing.md#slice-update-and-target-relative-crop-expressions)<span data-glossary-navigation="true"> ([Slice update glossary](#slice-update))</span>.
+expressions](reference/tensor/slicing.md#slice-update-and-target-relative-crop-expressions).
 
 ### Softmax / log-softmax
 
@@ -7518,17 +7703,29 @@ and `SoftmaxKind.LOG_SOFTMAX`. Both pair with `SoftmaxAttrs`, which carries one 
 non-negative [axis](#term-axis). A normalization [slice](#slice) contains positions that vary along that axis while every
 other logical [coordinate](#axis-rank-scalar-vector-and-matrix) remains fixed.
 
-For an all-finite slice, [Model](#term-model) selects the exact represented maximum `m`, sums one shifted
-`exp(x_i-m)` contributor per position, and publishes `exp(x_i-m)/sum` or
-`(x_i-m)-log(sum)` at the declared working [precision](#term-precision). Compensated accumulation may track
-[rounding](#term-rounding) error without adding contributors. This stable construction avoids incidental [overflow](#term-overflow)
-of unshifted [EXP](#term-expx). A rounded softmax probability may [underflow](#term-underflow) to zero even when the corresponding
-log-softmax remains finite. For `[1, 2, 3]`, the ideal meanings are
-approximately `[0.09003057, 0.24472847, 0.66524096]` and
-`[-2.40760596, -1.40760596, -0.40760596]`; exponentiating the latter values recovers the former.
-The example states ideal mathematics; the numerical contract specifies finite-precision sites
-separately. Slices containing [infinities](#nan-infinity-and-signed-zero) retain their pre-existing literal special-value
-construction rather than [borrowing](#term-borrowing) the finite-slice shift.
+#### What is the finite real-number calculation?
+
+For a non-empty slice of finite real scores $x_i$, indexed by $0\le i<n$ with $n>0$, define maximum $m=\max_i x_i$ and shifted exponential sum $Z=\sum_{j=0}^{n-1}e^{x_j-m}$. Then
+
+$$
+p_i=\frac{e^{x_i-m}}{Z},\qquad \ell_i=(x_i-m)-\log Z.
+$$
+
+Here $p_i$ is softmax probability and $\ell_i$ its log-softmax value. In real arithmetic $Z>0$, $\sum_i p_i=1$ and $e^{\ell_i}=p_i$. Equal scores $(0,0)$ give $Z=2$, $p=(1/2,1/2)$ and $\ell=(-\log2,-\log2)$: neither position is preferred. Scores $(1,2,3)$ give probabilities approximately $(0.09003057,0.24472847,0.66524096)$ and log-probabilities approximately $(-2.40760596,-1.40760596,-0.40760596)$.
+
+Model fixes the maximum selection and shifted arithmetic sites, not unlimited real rearrangement. [Compensated accumulation](#term-compensated-summation) can track rounding error without adding contributors. Even finite represented inputs can have a working subtraction overflow to negative infinity; that shifted exponential is zero. A rounded probability can underflow to zero while the directly calculated log-probability remains finite. These are distinct from slices whose input already contains infinity.
+
+#### What happens outside the finite-slice derivation?
+
+- Any NaN input makes every output in that slice NaN.
+- With positive infinity but no NaN, each positive-infinity position is NaN; the remaining positions are positive zero for softmax and negative infinity for log-softmax.
+- A slice containing negative infinity, but neither NaN nor positive infinity, uses the literal unshifted exponential/sum formula. Its finite members are not automatically stabilized. At FLOAT32, `[-infinity, 1000]` therefore gives softmax `[+0, NaN]` and log-softmax `[-infinity, -infinity]` because the unshifted finite exponential overflows.
+- An all-negative-infinity non-empty slice produces NaN everywhere. NaN sign and payload are unspecified.
+- A zero extent produces an empty shape-preserving result: there is no output position to normalize.
+
+These are ordinary softmax's rules, not [attention's guarded weights](#attention-weight). In particular, attention's equal sharing between positive-infinity ties must not be substituted here.
+
+#### What do Model and Compiler each construct?
 
 The semantic values do not retain a [Tensor](#tensor) or Shape, normalize caller-facing negative axes,
 construct [descriptors](#term-descriptor) or [provenance](#provenance), define data-type eligibility or [gradients](#term-gradient), select [compiler](#term-compiler)
@@ -7542,8 +7739,12 @@ forward numerical algorithm, [backend route](#backend-route), or execution resul
 expressions](reference/tensor/normalization.md#softmax-expressions) and [Softmax
 semantic kinds and attributes](reference/tensor/operation-reductions.md#softmax-semantic-kinds-and-attributes).
 
+For a finite real slice, let $g_i$ be the incoming output [cotangent](#cotangent), with $0\le i<n$. The input cotangent is $p_i(g_i-\sum_{j=0}^{n-1}g_jp_j)$ for softmax, or $g_i-e^{\ell_i}\sum_{j=0}^{n-1}g_j$ for log-softmax, where $p$ and $\ell$ are the respective forward outputs. For equal two-position softmax and incoming $g=(1,0)$, the result is $(1/4,-1/4)$: increasing one score also reduces the other position's probability. Compiler constructs its exact ordinary operations above; this ideal case does not define new special-value derivative policy.
+
+#### What does the current CPU family execute?
+
 The current [CPU](#term-cpu) portable family recognizes a first-class softmax [occurrence](#term-occurrence), not any
-equivalent-looking decomposed [graph](#graph). Its admitted representations and layouts are listed in the
+equivalent-looking decomposed [graph](#graph). It admits all six floating types—FLOAT64, FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3 and FLOAT8_E5M2—under its fully static resolved-layout guards. The exact heap/segment carrier and layout rules are in the
 [current CPU stable-softmax family](backend-guide/cpu-backend.md#current-stable-softmax-family).
 The current algorithm [identity](#term-identity-meanings) covers Model finite, [NaN](#term-nan), [infinity](#term-infinity) and empty-slice rules; the old
 finite-input-only restriction is historical. A zero [extent](#term-extent) makes the shape-preserving result
@@ -7551,7 +7752,7 @@ empty, so there is no source-value pass or output write. This does not qualify u
 backend routes or cross-backend bitwise agreement.
 
 Cold [binding](#term-binding) validates [carrier](#term-storage-carrier) access, spans, [alignment](#term-alignment), output [injectivity](#storage-mapping-contiguity-and-injectivity) and non-overlap.
-There is no separate finite-value [admission](#term-admission) [scan](#term-cumulative-scan). Complete-slice ranges need no workspace;
+There is no separate pass that rejects non-finite input values. Complete-slice ranges need no workspace;
 ordinary finite slices use maximum, compensated shifted-exponential sum and final-store passes.
 SOFTMAX does not compute a logarithm; LOG_SOFTMAX computes its kind-specific logarithm. Special
 value paths retain the Model-defined meanings rather than treating every row as finite.
@@ -7562,7 +7763,13 @@ as a capability promise.
 
 ### Layer normalization
 
-Layer normalization centers and rescales each selected trailing [feature](#term-feature) [slice](#slice) independently. It uses the values within that slice, not a [dataset](#term-dataset)-wide stored average or a statistics pass over unrelated [samples](#term-sample-machine-learning-and-hyperparameters).
+**Layer normalization** centers and rescales one trailing feature slice independently of other slices. For a non-empty finite real slice $x_i$, indexed by $0\le i<n$, define mean $\mu=n^{-1}\sum_i x_i$ and population variance $v=n^{-1}\sum_i(x_i-\mu)^2$. With explicit $\epsilon>0$,
+
+$$
+z_i=\frac{x_i-\mu}{\sqrt{v+\epsilon}}.
+$$
+
+All sums range from $0$ to $n-1$. Optional affine state gives $y_i=s_i z_i+b_i$, where $s_i,b_i$ are feature scale and bias. For $(1,3)$, $\mu=2$, $v=1$, so $z=(-1,1)/\sqrt{1+\epsilon}$; centering makes the signs opposite. A positive epsilon means the variance of the output is not exactly one. These real formulas do not override the operation's working arithmetic or exceptional-value rules.
 
 Implemented [shape](#shape)-preserving [normalization](#term-normalization) that standardizes every non-empty trailing slice by
 subtracting its [mean](#term-mean) and dividing by `sqrt(populationVariance + epsilon)`. A
@@ -7595,7 +7802,7 @@ portable bitwise promise. Decomposed graphs, dynamic Shapes, [fusion](#term-fusi
 
 ### RMS normalization
 
-[Root mean square](#root-mean-square) (RMS) [normalization](#term-normalization) rescales a [slice](#slice) using the [square root](#norms-elementary-functions-and-probability-distributions) of its average squared value. Unlike [layer normalization](#layer-normalization), it does not first subtract the [mean](#term-mean).
+**Root mean square (RMS) normalization** rescales without centering. For a non-empty finite real slice $x_i$, indexed by $0\le i<n$, define mean square $q=n^{-1}\sum_{j=0}^{n-1}x_j^2$. With explicit $\epsilon>0$, output $z_i=x_i/\sqrt{q+\epsilon}$; optional scale $s_i$ gives $y_i=s_i z_i$. For $(1,3)$, $q=5$, so $z=(1,3)/\sqrt{5+\epsilon}$: both values stay positive, unlike centered [layer normalization](#layer-normalization). This real explanation selects neither a floating accumulation order nor additional backend support.
 
 Implemented [shape](#shape)-preserving root-mean-square normalization that divides every value in a
 non-empty trailing slice by `sqrt(uncenteredMeanSquare + epsilon)`. It does not center values,
@@ -7621,7 +7828,13 @@ Shape support, or [materialization](#materialization).
 
 ### Batch normalization / batch-normalization inference and training
 
-Batch normalization centers and rescales [channel](#term-channel) values using statistics whose source depends on mode. [Inference](#term-inference) consumes supplied running statistics; training computes [batch](#term-batch-machine-learning-and-hyperparameters) statistics and describes a separate running-[statistic](#term-statistic) transition.
+**Batch normalization** shares statistics across values in one channel. For one channel's $N>0$ finite real values $x_i$, indexed by $0\le i<N$, a supplied or computed mean $\mu$, non-negative variance $v$, scale $s$, bias $b$, and $\epsilon>0$ give
+
+$$
+y_i=s\frac{x_i-\mu}{\sqrt{v+\epsilon}}+b.
+$$
+
+For $x=(1,3)$, $\mu=2$, $v=1$, $s=1$ and $b=0$, outputs are $(-1,1)/\sqrt{1+\epsilon}$. Inference consumes supplied running statistics; training computes the current channel's statistics and produces separate next-running-statistic values. This real formula does not permit clamping an invalid supplied variance or replacing the operation's working arithmetic and exceptional-value rules.
 
 Batch normalization uses statistics associated with a channel to center and scale values. The
 implemented `BatchNormKind.BATCH_NORM_INFERENCE` meaning is one stateless five-input [occurrence](#term-occurrence)
@@ -7635,6 +7848,8 @@ by the caller. It is [layout](#layout)-neutral: it does not imply [NCHW](#term-n
 scheduler. Its [extent](#term-extent) `C` must match each exact [rank-one](#axis-rank-scalar-vector-and-matrix) `[C]` scale, [bias](#term-bias), running-[mean](#term-mean), and
 running-[variance](#term-variance) [vector](#term-vector), with unresolved equality deferred when the exact result [Shape](#shape) is still
 known.
+
+#### Which statistics does inference use?
 
 For channel `c`, inference requests
 `((input - runningMean[c]) / sqrt(runningVariance[c] + epsilon)) * scale[c] + bias[c]`. A
@@ -7653,6 +7868,8 @@ non-channel ranges. It accepts typed [heap](#term-heap) arrays, native-order seg
 input/input [aliasing](#term-aliasing) is allowed while output/input overlap is rejected before writes. This [CPU](#term-cpu)
 realization does not add [fusion](#term-fusion), vector/native execution, dynamic Shapes, [autotuning](#autotuning--model-autotuning), or a
 cross-[backend](#backend) bitwise promise.
+#### Which values does training produce?
+
 Training remains a distinct current CPU family.
 
 **Batch-[normalization](#term-normalization) training** reduces every non-channel axis to calculate batch mean and
@@ -7678,6 +7895,10 @@ before mutation or worker submission. [Schema](#term-schema) 50 records this gen
 and [checkpoint](#term-checkpoint) [ownership](#term-ownership-meanings) and cross-step assignment remain in their owning layers; CPU execution
 adds no hidden state or [runtime](#term-runtime) tape.
 
+For a running-statistic transition, let $u$ be the old statistic, $b$ the current batch estimate, and $\rho$ the explicitly configured new-batch weight. The real update is $u_{\mathrm{next}}=(1-\rho)u+\rho b$. With $u=10$, $b=2$ and $\rho=1/4$, it gives $8$: one quarter of the new estimate is used. The batch variance for the next running variance is the unbiased estimate (requiring $N\ge2$ for a non-empty channel), not the population variance used on the current output. Constructing the next statistic is not installing a module buffer; that belongs to NN.
+
+#### Who installs the next running statistics?
+
 The current `extensions/nn` `BatchNorm` [module](#term-module) is the state [owner](#term-owner) for this mandatory affine form.
 It narrows the four state vectors to one positive fully static Shape and exact floating type, and
 requires the selected input channel [Dimension](#dimension) to match that fixed [feature](#term-feature) Dimension structurally.
@@ -7702,7 +7923,7 @@ axis](#normalized-axis), which is one non-negative integer axis position.
 
 ### Population variance
 
-Population variance measures average squared distance from the [mean](#term-mean). For `[1, 3]`, the mean is `2` and the population variance is `(1 + 1) / 2 = 1`; it is not the average squared input value.
+**Population variance** measures squared spread around a mean. For $N>0$ finite real values $x_i$, indexed by $0\le i<N$, set $\mu=N^{-1}\sum_{i=0}^{N-1}x_i$. Then $v=N^{-1}\sum_{i=0}^{N-1}(x_i-\mu)^2$. For $(1,3)$, $\mu=2$ and $v=((1-2)^2+(3-2)^2)/2=1$. Variance has squared input units, whereas standard deviation $\sqrt v$ has the input's units. This formula neither admits an empty divisor nor selects a floating algorithm; [statistical correction](#statistical-correction) explains alternative divisors.
 
 [Variance](#term-variance) with correction zero: the sum of squared deviations from the mean is divided by the
 population count `N`, not `N - 1`. Current [layer normalization](#layer-normalization) uses population variance and adds
@@ -7711,7 +7932,7 @@ reduction traversal or [backend](#backend) algorithm.
 
 ### Uncentered mean square
 
-Uncentered mean square measures average squared size without subtracting a [mean](#term-mean). For `[1, 3]`, it is `(1 + 9) / 2 = 5`, whereas their [population variance](#population-variance) is `1`.
+**Uncentered mean square** measures average squared size without subtracting a mean. For $N>0$ finite real values $x_i$, indexed by $0\le i<N$, it is $q=N^{-1}\sum_{i=0}^{N-1}x_i^2$. For $(1,3)$, $q=(1+9)/2=5$, whereas [population variance](#population-variance) is $1$. The quantity has squared input units. This formula is not an empty-domain rule or a floating accumulation order.
 
 The sum of squared values divided by the population count `N`, without first subtracting a mean:
 `sum_i(x_i * x_i) / N`. Current [RMS normalization](#rms-normalization) uses this quantity instead of [variance](#term-variance) and has
@@ -7720,7 +7941,7 @@ order or a [backend](#backend) algorithm.
 
 ### Root mean square
 
-Root mean square (RMS) is a size measure that squares values, averages them, then takes the [square root](#norms-elementary-functions-and-probability-distributions). For `[3, 3]` it is `3`, although the [standard deviation](#term-standard-deviation) is zero because both values are equal.
+**Root mean square (RMS)** measures size by squaring, averaging and taking the non-negative root. For $N>0$ finite real values $x_i$, indexed by $0\le i<N$, it is $\operatorname{RMS}(x)=\sqrt{N^{-1}\sum_{i=0}^{N-1}x_i^2}$, in the input's units. For $(3,3)$ it is $\sqrt{(9+9)/2}=3$, but standard deviation is zero because both values equal their mean. Actual normalization adds its explicit [epsilon](#epsilon) before the root and obeys the operation's floating rules.
 
 The positive square root of an [uncentered mean square](#uncentered-mean-square). Current [RMS normalization](#rms-normalization) adds [epsilon](#epsilon) to
 the [mean](#term-mean) square before taking that root, then divides each input value by the result. This meaning
@@ -7743,7 +7964,7 @@ a [Tensor](#tensor) input or a default hidden constant.
 
 ### Affine transform
 
-An affine transform scales and shifts values: for input `3`, scale `2`, and [bias](#term-bias) `1`, the result is `7`. Unlike a general [nonlinear](#term-nonlinear) [activation](#term-activation), this [elementwise](#term-elementwise) transformation is exactly multiplication followed by addition.
+An **affine transform** scales and shifts a value. For real input $z$, scale $s$ and bias $b$, the result is $y=sz+b$. With $z=3$, $s=2$ and $b=1$, $y=7$. In normalization $z$ is the standardized coordinate and scale/bias can vary across features. It is linear only when its offset is zero. This real formula does not promise one fused floating instruction; [FMA](#term-fused-multiply-add-fma) has a distinct rounding boundary.
 
 An elementwise scale followed by bias: `standardized * scale + bias`. Current affine [layer
 normalization](#layer-normalization) requires both explicit operands, each with [Shape](#shape) exactly equal to the [normalized
@@ -7894,7 +8115,7 @@ the factory infers its exact type, fully static shape, and dense-contiguous layo
 a Tensor. Exact typed [scalar](#term-scalar), zero, one, zero-like, and one-like creation is implemented with new
 dense storage and explicit label and gradient intent. Type-safe full-value creation is implemented
 for every current Model data type, and rectangular identity creation uses typed main-diagonal ones
-and off-diagonal zeros. See [allocation, import and constants](reference/tensor/creation.md)<span data-glossary-navigation="true"> ([constants glossary](#term-constant))</span> for
+and off-diagonal zeros. See [allocation, import and constants](reference/tensor/creation.md) for
 the exact type/[carrier](#term-storage-carrier) mappings. [Eager](#term-eager-evaluation) non-empty [`INT32`](#data-type--datatype) and [`INT64`](#data-type--datatype) range creation is also
 implemented as copied canonical dense [leaf](#term-leaf) data. Public
 [`TensorRandoms`](#tensor-random-initialization) owns caller-source normal,
@@ -7972,6 +8193,8 @@ and gradient eligibility in an unresolved descriptor, and records one normalized
 exact probability or [log](#term-log)-probability kind. Each valid call is fresh, unlabeled, and storage-free;
 construction performs no [normalization](#term-normalization) and defines no numerical algorithm, gradient, compiler,
 backend, or execution behavior.
+#### Which geometry requests describe new results?
+
 A `contiguous` request accepts every data type and preserves exact Shape, type, and gradient
 eligibility. A fully static result receives new canonical dense [row-major](#term-row-major), zero-offset geometry;
 a dynamic result remains unresolved. Every request is fresh, unlabeled, and storage-free, records
@@ -8041,6 +8264,8 @@ span](#referenced-element-span), wrap its [heap](#term-heap) segment, and attach
 [`INT64`](#data-type--datatype) uses `long[]`, and [`BOOL`](#data-type--datatype), `FLOAT8_E4M3`, and `FLOAT8_E5M2` use `byte[]`. The raw array
 starts at the JVM default zero representation.
 
+#### Which imports copy data?
+
 Flat import copies these represented types into a new resolved dense-[contiguous](#term-contiguous) tensor.
 `fromFlatArray` uses the descriptor to distinguish BOOL bytes from raw [OFP8](#term-ofp8) bytes; raw FLOAT16
 shorts use the separately named `fromFlatFloat16Array` method rather than the BFLOAT16 overload.
@@ -8050,6 +8275,8 @@ to one. See [allocation, import and constants](reference/tensor/creation.md) for
 The source is not retained or mutated, and later source mutation cannot change the tensor. [Scalar](#term-scalar)
 and empty dense imports follow their logical counts. Offset, strided, broadcast, and unresolved
 layouts are rejected because they require a separate scatter or [view](#term-view-meanings)-population policy.
+
+#### How are nested Java arrays interpreted?
 
 The factory also accepts one [rank-two](#axis-rank-scalar-vector-and-matrix)-or-greater rectangular Java primitive-array [graph](#graph) through an
 `Object` [parameter](#term-parameter), which is necessary because arbitrary array [rank](#term-rank) has no [finite](#term-finite) Java overload
@@ -8116,6 +8343,8 @@ uses no Tensor label, fixes `requiresGrad == true`, and adds only the named [ran
 source-advancement, allocation, or identifier semantics, and it remains separate from deferred
 [`GraphRngState`](#graph-rng-state--graphrngstate).
 
+#### How is each distribution sampled?
+
 Normal random creation accepts one transient caller-owned `RandomGenerator`, fully static
 Java-array-sized [shape](#shape), explicit [`FLOAT64`](#term-float64), [`FLOAT32`](#term-float32), [`BFLOAT16`](#term-bfloat16), or [`FLOAT16`](#term-float16) output, [finite](#term-finite)
 [mean](#term-mean), finite numerically non-negative [standard deviation](#term-standard-deviation), label, and [gradient](#term-gradient) intent. It consumes
@@ -8159,6 +8388,8 @@ accepted as probability zero. `TensorRandoms` builds one complete byte carrier a
 to BOOL flat import; it exposes no data-type, gradient, numeric-truthiness, default-source, or
 probability-tensor option. The same caller ownership, no-synchronization, bounded reproducibility,
 and late failure/no-rollback rules apply.
+
+#### What happens if initialization fails?
 
 Every successful method builds one exact primitive source carrier and delegates once to
 `TensorFactory.fromFlatArray`, which allocates destination storage and the fresh factory ID.
@@ -8503,7 +8734,7 @@ represented bytes from current [heap](#term-heap) or native host storage into fr
 native storage. It changes each existing [Tensor](#tensor)'s [borrowed](#ownership-borrowing-and-lease) host-storage association, not its
 [identity](#term-identity-meanings) or [graph](#graph) [provenance](#provenance), and leaves source storage [ownership](#term-ownership-meanings) with the caller. The caller
 keeps the destination [Arena](#term-arena) alive through session close. It is not a [backend](#backend) transfer or an
-implicit behavior of `TrainingSession.open`. See [Training API](reference/training/parameters.md#explicit-native-parameter-copy)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+implicit behavior of `TrainingSession.open`. See [Training API](reference/training/parameters.md#explicit-native-parameter-copy).
 
 ### Live parameter source / `TrainingParameters`
 
@@ -8526,7 +8757,7 @@ or [AdamW](#adaptive-optimizer--adam-adamw) configuration.
 Paths come from `TrainingParameters.entries()` ([NN](#neural-network-module-parameter-buffer-and-forward-context) adapters use recursive [Module](#term-module) paths). One Training session may assign disjoint
 groups while unlisted parameters use its default optimizer. Both group order and path order participate
 in exact Training-state restore compatibility; groups do not create separate counters or freeze
-[gradient](#term-gradient) [targets](#term-target). See [Training API](reference/training/sessions.md#session-construction-and-input-mapping)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+[gradient](#term-gradient) [targets](#term-target). See [Training API](reference/training/sessions.md#session-construction-and-input-mapping).
 
 ### Training session / `TrainingSession`
 
@@ -8582,7 +8813,7 @@ An [optimizer](#term-optimizer) that tracks first and second moments of each par
 their startup [bias](#term-bias) using the one-based global [optimizer step](#optimizer-and-stochastic-gradient-descent). Adam couples weight decay by adding
 it to the gradient before both moments; AdamW decouples decay by scaling the [master parameter](#term-master-parameter)
 before the adaptive subtraction. Both use Training-owned state after [Engine](#term-engine) execution, not a
-[backend](#backend) optimizer [kernel](#kernel). See [Training API](reference/training/optimizers.md#optimizers-and-gradient-modes)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+[backend](#backend) optimizer [kernel](#kernel). See [Training API](reference/training/optimizers.md#optimizers-and-gradient-modes).
 
 ### First optimizer slot / `firstMomentBytes()`
 
@@ -8591,7 +8822,7 @@ The first optimizer slot stores a per-[parameter](#term-parameter) update histor
 The per-parameter [FLOAT32](#term-float32) or [FLOAT64](#term-float64) slot exposed in a [detached](#detached-model-results) `TrainingState`. It is SGD
 momentum or Adam/AdamW's first moment. `momentumBytes()` remains an exact compatible [alias](#aliasing-and-arena);
 `secondMomentBytes()` exists only for Adam/AdamW and has the same [element](#term-element) width. See
-[Training API](reference/training/optimizers.md#atomicity-state-concurrency-and-close)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+[Training API](reference/training/optimizers.md#atomicity-state-concurrency-and-close).
 
 ### Typed trace DTO
 
@@ -8611,7 +8842,7 @@ A validated non-negative identifier for an input, intermediate, or output logica
 
 ### View
 
-A [tensor](#tensor) or [layout](#layout) interpretation that [aliases](#aliasing-and-arena) storage also used by another logical tensor representation. A [view](#term-view-meanings) may change [shape](#shape), [strides](#term-stride), or offset without copying [elements](#term-element). In the implemented `LayoutDescriptor`, view is explicit [metadata](#term-metadata) independent of geometric kind, except that broadcast repetition through a zero stride must be marked as a view.
+A **tensor view** is a different interpretation of logical coordinates that can refer to existing storage rather than an independent value copy. A transpose can exchange row/column coordinates without rearranging the bytes. In Synaptik's [LayoutDescriptor](#layout), the view flag is explicit metadata independent of geometric kind, except that zero-stride broadcast repetition must be marked as a view. Constructing a view-marked Tensor expression does not attach the input's storage, prove a physical alias, or guarantee a copy-free backend route. [Materialization](#materialization) and actual [aliasing](#term-aliasing) remain separate facts.
 
 ### Window transform
 
@@ -8778,7 +9009,7 @@ matching CPU floating [gradient](#term-gradient) metadata and [lowering](#loweri
 UNFOLD3D/FOLD3D with [F32](#floating-point-precision-and-rounding) [working arithmetic](#accumulator-type) for low types. Qualified [Metal](#term-metal) FLOAT32/BFLOAT16/FLOAT16
 Pool2d/Pool3d training permits overlap; other Metal types retain their independent restrictions.
 Coordinated Metal route/workload/policy/[codec](#term-codec) [identity](#term-identity-meanings) is40; schema20/ABI7 remain unchanged.
-These grants do not imply dynamic/named-B pooling, Metal [Scan](#term-cumulative-scan), pooling [fusion](#term-fusion) or cross-[backend](#backend)
+These grants do not imply dynamic/named-B pooling, Metal [Scan](#general-differentiable-scan), pooling [fusion](#term-fusion) or cross-[backend](#backend)
 performance. Fluent maximum/average Pool3d steps use kernel stride, zero padding, unit dilation
 and floor geometry. Cold sources retain complete typed geometry and select graph-model.v6,
 including otherwise-qualified all-valid/length bodies; no [optimizer](#term-optimizer)/session state is persisted. See
@@ -8966,4 +9197,4 @@ opcodes34/35, twelve i64 [kernel](#kernel)/[stride](#term-stride)/[padding](#pad
 by canonical ceil flag), including contained occurrences. Unchanged sources retain byte-identical
 smallest v1–v5 bytes. All-version decode invokes [metadata](#term-metadata)-only `GraphCompilationPort.validateSource`
 before any candidate Tensor, without Tensor [identities](#term-identity-meanings) or [host](#term-host) copying.
-See the [graph API](reference/checkpoint/graph.md)<span data-glossary-navigation="true"> ([API glossary](#term-application-programming-interface-api))</span>.
+See the [graph API](reference/checkpoint/graph.md).
