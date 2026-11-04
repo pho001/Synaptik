@@ -40,12 +40,15 @@ public final class CpuOneDnnOutputNarrowing {
                 new CpuKernelIr.Value(1, projection.logicalOutputType(), CpuKernelIr.Value.Kind.OUTPUT, write)),
                 List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.CAST, List.of(0), 1)),
                 new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(1, 0)));
+        int schema = CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(ir)
+                ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
+                : projection.logicalOutputType() == DataType.FLOAT16 ? 68 : 60;
         specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
                 CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                 List.of(DataType.FLOAT32, projection.logicalOutputType()),
                 List.of(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
                         CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
-                0, -1, List.of(), false, CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA);
+                0, -1, List.of(), false, schema);
         long count = 1;
         for (long extent : tensor.dimensions()) count = Math.multiplyExact(count, extent);
         elementCount = count;
