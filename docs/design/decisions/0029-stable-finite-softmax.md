@@ -54,7 +54,7 @@ the Model's declared working sites.
 | Option | Advantage | Cost |
 |---|---|---|
 | Keep the literal unshifted formula | No [Model](../../glossary.md#term-model) text change | Turns ordinary [finite](../../glossary.md#term-finite) `[1000,1000]` into [NaN](../../glossary.md#term-nan); would regress the [CPU](../../glossary.md#term-cpu) stable route. |
-| Declare one stable finite-[slice](../../glossary.md#slice) formula | Retains useful finite outputs and the existing CPU algorithm [shape](../../glossary.md#shape) | Requires explicit boundary for [infinity](../../glossary.md#term-infinity) slices and [FLOAT32](../../glossary.md#term-float32) working-site correction. |
+| Declare one stable finite-[slice](../../glossary.md#slice) formula | Retains useful finite outputs and the existing CPU algorithm shape | Requires explicit boundary for [infinity](../../glossary.md#term-infinity) slices and [FLOAT32](../../glossary.md#term-float32) working-site correction. |
 | Allow either stable or literal finite output | Minimizes immediate implementation work | Leaves contradictory result classes, defeating one Model meaning. |
 
 The options differ in observable result class, not merely in finite [tolerance](../../glossary.md#term-tolerance).
@@ -109,7 +109,7 @@ path from the stable finite path.
 
 Old [softmax](../../glossary.md#softmax--log-softmax) class names and compatibility keys become incompatible misses; no migration reader
 is added. Tests cover [overflow](../../glossary.md#term-overflow)/[underflow](../../glossary.md#term-underflow), offsets, admitted [FLOAT32](../../glossary.md#term-float32) extremes, lower-[precision](../../glossary.md#term-precision)
-[narrowing](../../glossary.md#term-narrowing), value rejection before writes, and generated-versus-direct code [shape](../../glossary.md#shape). Attention's
+[narrowing](../../glossary.md#term-narrowing), value rejection before writes, and generated-versus-direct code shape. Attention's
 guarded no-eligible and [infinity](../../glossary.md#term-infinity)-tie cases stay owned by attention. Categorical cross-entropy
 already has its own max-shifted formula and remains unchanged; neither it nor LOG_SUM_EXP
 inherits this exception.

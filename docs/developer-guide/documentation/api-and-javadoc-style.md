@@ -11,7 +11,7 @@ condition that must remain true, and **[nullability](../../glossary.md#term-null
 
 Do not confuse an API with a **[service provider interface](../../glossary.md#term-service-provider-interface-spi) ([SPI](../../glossary.md#api-spi-and-dto))**, a contract implemented by a
 component supplying a service, or an **[application binary interface](../../glossary.md#term-application-binary-interface-abi) ([ABI](../../glossary.md#application-binary-interface-and-native-bridge))**, the compiled calling
-and data-[layout](../../glossary.md#layout) agreement. [Backend](../../glossary.md#backend) implementers may implement an SPI; a [native bridge](../../glossary.md#term-native-bridge) must also
+and data-layout agreement. [Backend](../../glossary.md#backend) implementers may implement an SPI; a [native bridge](../../glossary.md#term-native-bridge) must also
 respect its ABI. Describing those boundaries does not make an internal interface a public API.
 
 Apply [General style](general-style.md) with this profile. The mandatory Java documentation rules in [`AGENTS.md`](../../../AGENTS.md) still apply.

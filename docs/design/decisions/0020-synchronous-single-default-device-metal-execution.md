@@ -22,13 +22,13 @@ returns because the result owns the completed run-state [publication](../../glos
 
 A Metal integration opens one context through the system-default-device path. Configuration names
 the caller-supplied [native library](../../glossary.md#term-native-library), not a physical device. [Planning](../../glossary.md#term-planning) proves abstract eligibility but
-retains [backend ownership](../../glossary.md#backend-ownership) rather than a selected Metal device. [Trace](../../glossary.md#trace) and tuning also [carry](../../glossary.md#term-carry) [tokens](../../glossary.md#term-token)
+retains [backend ownership](../../glossary.md#backend-ownership) rather than a selected Metal device. [Trace](../../glossary.md#trace) and tuning also carry [tokens](../../glossary.md#term-token)
 that could be misread as hardware [identities](../../glossary.md#term-identity-meanings) even though they are not.
 
 Without an explicit decision, synchronous return can be mistaken for output-[lifetime](../../glossary.md#term-lifetime) completion,
 concurrent caller support can be mistaken for an overlap or scheduling guarantee, and the abstract
 `"default"`/zero/session tokens can be mistaken for one stable device [identity](../../glossary.md#term-identity-meanings). Those mistakes
-would make later async, [pooling](../../glossary.md#term-pooling), explicit-device, multi-device, trace, or [cache](../../glossary.md#term-cache) work start from a
+would make later async, pooling, explicit-device, multi-device, trace, or [cache](../../glossary.md#term-cache) work start from a
 false contract.
 
 ## Decision drivers

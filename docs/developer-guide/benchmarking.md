@@ -5,7 +5,7 @@
 This guide defines evidence expected from Synaptik benchmarks and separates [benchmarking](../glossary.md#term-benchmarking) from
 generic tuning transactions, bounded [Engine](../glossary.md#term-engine) composition, [planning](../glossary.md#term-planning) cost, and [runtime profiling](../glossary.md#runtime-profiling).
 The `tools/benchmarks` project contains the report-only [CPU](../glossary.md#term-cpu) Engine [lifecycle](../glossary.md#lifecycle) harness and a fixed
-[Metal](../glossary.md#term-metal) [singleton](../glossary.md#term-singleton)-`NEG` two-route harness. No benchmark result changes production settings.
+[Metal](../glossary.md#term-metal) singleton-`NEG` two-route harness. No benchmark result changes production settings.
 
 ## Prerequisites and terms
 
@@ -15,7 +15,7 @@ designing a harness.
 
 - **[Benchmarking](../glossary.md#term-benchmarking)** runs a fixed reproducible workload and reports measurements without changing
   production settings.
-- A **[benchmark report](../glossary.md#term-benchmark-report)** is the rich [immutable](../glossary.md#term-immutable) evidence from one recorded benchmark [run](../glossary.md#term-run).
+- A **[benchmark report](../glossary.md#term-benchmark-report)** is the rich [immutable](../glossary.md#term-immutable) evidence from one recorded benchmark run.
 - **Phase-1 workload tuning** reuses or measures caller-supplied exact compatible local workloads
   and records selected backend-owned decisions in an explicit persistent workload cache.
 - **Phase-2 complete-plan tuning** authenticates a reusable selected decision or checks and
@@ -190,7 +190,7 @@ valid for a future `PERSISTENT` producer without claiming current persistent CPU
 the operational tool-local `WorkloadTuningRequest`. Possessing the Config value means tuning was
 requested; there is no enabled flag, disabled sentinel, implicit default, or default [cache](../glossary.md#term-cache) path.
 It stores exactly seven ordered user-owned inputs: the minimum-[median](../glossary.md#term-median)-elapsed-nanoseconds
-[objective](../glossary.md#term-objective); a four-count Phase-1 [sampling](../glossary.md#term-sampling-machine-learning-and-hyperparameters) budget; one [opaque](../glossary.md#term-opaque) [schema](../glossary.md#term-schema)-versioned
+objective; a four-count Phase-1 [sampling](../glossary.md#term-sampling-machine-learning-and-hyperparameters) budget; one [opaque](../glossary.md#term-opaque) [schema](../glossary.md#term-schema)-versioned
 [representative-profile identity](../glossary.md#representative-profile-identity); a fallback policy; an explicit workload-cache path; an
 independent five-count Phase-2 `CompletePlanBudget`; and an explicit [model](../glossary.md#term-model)-plan-cache path.
 
@@ -203,7 +203,7 @@ neither a cache-file limit nor a per-result allocation promise.
 
 The Config value stores [identity](../glossary.md#term-identity-meanings) and policy, not work or execution state. Its representative
 profile is an immutable byte [snapshot](../glossary.md#term-snapshot) that identifies evidence; actual representative inputs,
-[Shapes](../glossary.md#shape), model [fingerprint](../glossary.md#term-fingerprint), occurrences, [backend](../glossary.md#backend) candidate [candidate batches](../glossary.md#candidate-batch), cache contents, and execution
+[Shapes](../glossary.md#shape), model [fingerprint](../glossary.md#term-fingerprint), occurrences, [backend](../glossary.md#backend) [candidate batches](../glossary.md#candidate-batch), cache contents, and execution
 resources do not enter Config. Constructing the facade performs no cache I/O, measurement,
 selection, preparation, [Engine](../glossary.md#term-engine) orchestration, or [Runtime](../glossary.md#term-runtime) work.
 
@@ -314,7 +314,7 @@ or aggregated [timing samples](../glossary.md#benchmark-measurement-vocabulary),
 
 Running the same report definition on two [commits](../glossary.md#commit-release-distribution-log-and-seed-meanings) permits a performance comparison. The faster
 result does not update a [CPU](../glossary.md#term-cpu) route threshold, [vector](../glossary.md#term-vector) strategy, thread count, workload tuning
-[cache](../glossary.md#term-cache), or [model](../glossary.md#term-model)-plan cache. The current explicit tuning tools may instead [run](../glossary.md#term-run) a caller-supplied
+[cache](../glossary.md#term-cache), or [model](../glossary.md#term-model)-plan cache. The current explicit tuning tools may instead run a caller-supplied
 bounded Phase-1 or Phase-2 [transaction](../glossary.md#term-transaction) and, when the [producer](../glossary.md#term-producer) permits persistent reuse, publish
 their own compact cache entries. They do not mutate settings as a consequence of this [benchmark
 report](../glossary.md#term-benchmark-report).
@@ -346,7 +346,7 @@ a generic [parameter](../glossary.md#term-parameter) map.
 ```
 
 `CpuLifecycleBenchmark` [schema](../glossary.md#term-schema) 3 reports environment and VM [arguments](../glossary.md#term-argument), fixed input/output [shapes](../glossary.md#shape),
-[compile](../glossary.md#compile) and [prepare](../glossary.md#prepare) timings, per-[timing sample](../glossary.md#benchmark-measurement-vocabulary) iteration counts, raw [candidate batch](../glossary.md#candidate-batch) and normalized repeated-[run](../glossary.md#term-run)
+[compile](../glossary.md#compile) and [prepare](../glossary.md#prepare) timings, per-[timing sample](../glossary.md#benchmark-measurement-vocabulary) iteration counts, raw batch and normalized repeated-[run](../glossary.md#term-run)
 samples, minimum/[median](../glossary.md#term-median)/maximum summaries, raw one-shot totals, stable [FNV-1a](../glossary.md#term-fnv-1a) checksums, preferred
 species bits/[lanes](../glossary.md#term-lane), loaded-class [hash](../glossary.md#term-hash), and evidence [metadata](../glossary.md#term-metadata). Execution uses public
 `Engine.standard()`, [compilation](../glossary.md#compiler-engine-and-execution-stage-names), one reusable [`PreparedExecution`](../glossary.md#prepared-execution--preparedexecution), and explicit
@@ -373,7 +373,7 @@ launch options, not alternate Model semantics or a public numerical profile.
 [Gradle](../glossary.md#term-gradle) normalizes
 profile spelling with `Locale.ROOT`, so `-Pprofile=EVIDENCE` receives the same flags as lowercase.
 Evidence also requires explicit `benchmarkBaseRevision`, executable-source tree, source/configuration
-and source-hash properties, [JVM fork](../glossary.md#term-jvm-fork)/order/[seed](../glossary.md#term-seed) properties, CPU [identity](../glossary.md#term-identity-meanings)/[features](../glossary.md#term-software-feature), and exact portable
+and source-hash properties, [JVM fork](../glossary.md#term-jvm-fork)/order/[seed](../glossary.md#term-seed) properties, CPU [identity](../glossary.md#term-identity-meanings)/features, and exact portable
 worker, [materialization](../glossary.md#materialization), and [OpenBLAS](../glossary.md#term-openblas) policy values. It refuses to run when any is absent. CPU
 0010M's [manifest](../glossary.md#term-manifest) retains the exact structured commands:
 `modules/backend/cpu/evidence/cpu-0010m-defaults/manifest.json`.
@@ -416,14 +416,14 @@ Such a comparison treats fresh [JVM forks](../glossary.md#term-jvm-fork), not wi
 measurement, its reviewed task must seal [target](../glossary.md#term-target) strata, complete workload-policy cases,
 deterministic randomized paired process order and seed, no retry/discard, paired fork-median
 ratios, uncertainty calculation, per-family [regression](../glossary.md#term-regression) ceilings, and aggregate weighting/gate.
-CPU 0010M's manifest records a minimum acceptance framework—not a measurement-[ready](../glossary.md#term-ready) protocol—and
+CPU 0010M's manifest records a minimum acceptance framework—not a measurement-ready protocol—and
 why the earlier reports and pooled aggregates were invalidated.
 
 The `evidence` profile remains report-only. A reviewed backend task may cite only reports that
 satisfy its predeclared protocol and complete policy [scope](../glossary.md#term-scope); running the benchmark never changes a
 route, threshold, [cache](../glossary.md#term-cache), or later preparation.
 
-### [Metal](../glossary.md#term-metal) [singleton](../glossary.md#term-singleton)-NEG routes
+### [Metal](../glossary.md#term-metal) singleton-NEG routes
 
 The Metal benchmark is deliberately one workload rather than an [operation](../glossary.md#operation) or [Shape](../glossary.md#shape) [matrix](../glossary.md#term-matrix-meanings). It
 compiles [canonical](../glossary.md#term-canonical-form) no-grad `FLOAT32 NEG` at Shape `[1_048_576]`, enumerates the
@@ -459,7 +459,7 @@ The NEG oracle flips the sign bit of the stored word, including the sentinel NaN
 infinities and signed zeros; it is deliberately not recomputed using approximate
 real arithmetic. The first sixteen literal words above remain the exact sentinel evidence.
 
-Build the [native bridge](../glossary.md#term-native-bridge), then [run](../glossary.md#term-run) the bounded [smoke](../glossary.md#term-smoke-test) profile:
+Build the [native bridge](../glossary.md#term-native-bridge), then run the bounded [smoke](../glossary.md#term-smoke-test) profile:
 
 ```bash
 # Produce the native bridge explicitly; the benchmark will not discover or build it.
@@ -482,7 +482,7 @@ Timed execution is exactly `PreparedExecutionRunner.run(...) + RunResult.close()
 fresh [Runtime](../glossary.md#term-runtime) output/workspace allocation, [synchronous](../glossary.md#term-synchronous) native invocation/wait, and run-owned
 cleanup. It excludes [compile](../glossary.md#compile), candidate enumeration, prepare, caller upload, trace work, [host](../glossary.md#term-host)
 download, [checksum](../glossary.md#term-checksum), [JSON](../glossary.md#term-json) construction, and integration cleanup. Before [warmup](../glossary.md#term-warmup) and after every
-retained [candidate batch](../glossary.md#candidate-batch), an untimed run downloads all 1,048,576 results and compares their raw words with
+retained batch, an untimed run downloads all 1,048,576 results and compares their raw words with
 the fixed input words XOR `0x80000000`. The report retains all iteration counts, raw batch
 durations, normalized run durations, checksums, and min/[median](../glossary.md#term-median)/max summaries.
 

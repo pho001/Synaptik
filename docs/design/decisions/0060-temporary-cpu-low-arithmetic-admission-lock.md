@@ -11,7 +11,7 @@ and evidence below remain historical records; this reading aid does not amend th
 ## Status
 
 Accepted design under the user's first-production authorization, after independent [scope](../../glossary.md#term-scope) and
-source/seam review. Root and the owning [backend](../../glossary.md#backend) contract [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) the [CPU](../../glossary.md#term-cpu)-only cutover before
+source/seam review. Root and the owning [backend](../../glossary.md#backend) contract coordinate the [CPU](../../glossary.md#term-cpu)-only cutover before
 CPU0078 [Ready](../../glossary.md#term-ready). Implementation and numerical/consumer acceptance are recorded by
 [CPU0078](../../planning/backends/cpu/tasks/0078-temporary-low-arithmetic-lock.md#result), not inferred
 from this decision. The [reviewed matrix](../../backend-guide/production-support.md)<span data-glossary-navigation="true"> ([matrix glossary](../../glossary.md#term-matrix-meanings))</span> remains the

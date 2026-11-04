@@ -52,7 +52,7 @@ The historical pre-cutover text had concrete semantic conflicts that the cutover
 
 | Option | Benefit | Cost or reason rejected |
 |---|---|---|
-| Keep both profiles | Preserves current [API](../../glossary.md#term-application-programming-interface-api) and proof [model](../../glossary.md#term-model) | Retains cold [identity](../../glossary.md#term-identity-meanings) and the split between stored-value and arithmetic rules. |
+| Keep both profiles | Preserves current [API](../../glossary.md#term-application-programming-interface-api) and proof model | Retains cold [identity](../../glossary.md#term-identity-meanings) and the split between stored-value and arithmetic rules. |
 | Rename [`ACCELERATOR`](../../glossary.md#term-accelerator) to `FAST` or `RELAXED` | Small surface change | Renames rather than resolves the global semantic split; implies performance or blanket relaxation. |
 | Introduce a global [tolerance](../../glossary.md#term-tolerance) or [runtime](../../glossary.md#term-runtime) [certificate](../../glossary.md#formal-proof-certificate-and-trusted-assumptions) | One apparent numerical gate | Cannot protect special values, winner selection, exact casts, or rewrite legality; adds production policy. |
 | Remove selectors; define family/[dtype](../../glossary.md#data-type--datatype) rules and test-only tolerances | Separates exact boundaries from arithmetic [qualification](../../glossary.md#term-qualification) | Required coordinated API/identity migration and independent route evidence; Task 0032 completed both. |
@@ -148,7 +148,7 @@ routes. Task 0032's integrated [validation](../../glossary.md#term-validation) a
 Historical readiness evidence in the [Model 0032 brief](../../planning/modules/model/tasks/0032-profile-free-numerical-semantics-reset.md)
 reported that [Metal](../../glossary.md#term-metal) custom low-word `0x0001` survived cast/raw movement, while [`BFLOAT16`](../../glossary.md#term-bfloat16) minimum
 [subnormal](../../glossary.md#term-subnormal) times `128` produced zero even though its exact low result is normal `0x0080`. Final
-low-result [FTZ](../../glossary.md#term-ftz) alone could not explain that observation; input [DAZ](../../glossary.md#term-daz) or earlier [loss](../../glossary.md#loss) could. The
+low-result [FTZ](../../glossary.md#term-ftz) alone could not explain that observation; input [DAZ](../../glossary.md#term-daz) or earlier loss could. The
 precise zeroing site remains unproved, and is not needed to define the allowed-result set.
 [`FLOAT16`](../../glossary.md#term-float16) minimum subnormal times one had a distinct result, so no uniform low-type [device](../../glossary.md#term-device)
 behavior follows. Those original route-local observations alone did not qualify [opaque](../../glossary.md#term-opaque)
@@ -156,7 +156,7 @@ behavior follows. Those original route-local observations alone did not qualify 
 
 ## Consequences and completed cutover
 
-The benefit is one visible exact boundary and no [graph](../../glossary.md#graph)-wide numerical switch. The costs are [loss](../../glossary.md#loss)
+The benefit is one visible exact boundary and no [graph](../../glossary.md#graph)-wide numerical switch. The costs are loss
 of a caller-selected strict mode, changed floating results (notably comparison of [subnormals](../../glossary.md#term-subnormal) and
 scatter-product specials), new family/[dtype](../../glossary.md#data-type--datatype) [qualification](../../glossary.md#term-qualification), and coordinated [identity](../../glossary.md#term-identity-meanings)/[API](../../glossary.md#term-application-programming-interface-api) migration.
 No cross-[backend](../../glossary.md#backend) bitwise [reproducibility](../../glossary.md#artifact-manifest-and-source-provenance) or performance improvement is promised.

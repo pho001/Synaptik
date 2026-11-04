@@ -17,7 +17,7 @@ itself authorized no source successor. This [ADR](../../glossary.md#term-archite
 [architecture root](../../../ARCHITECTURE.md#scope-indexed-normative-contracts) and incorporated
 contracts alone are authoritative. ADR0050's original evidence and decision remain unchanged.
 Bounded status amendment — 2026-10-26: Model0042/Compiler0014/Prepare0014 implement the all-valid
-[F32](../../glossary.md#floating-point-precision-and-rounding) vertical; Model0044/Compiler0015 implement symbolic-length source/[inference](../../glossary.md#term-inference)/actual [AD](../../glossary.md#autograd)/[binding](../../glossary.md#term-binding).
+[F32](../../glossary.md#floating-point-precision-and-rounding) vertical; Model0044/Compiler0015 implement symbolic-length source/[inference](../../glossary.md#term-inference-meanings)/actual [AD](../../glossary.md#autograd)/[binding](../../glossary.md#term-binding).
 Prepare0015's combined F32/[F64](../../glossary.md#floating-point-precision-and-rounding) execution and bounded outer/control/ROW(1) [target](../../glossary.md#term-target) passed independent
 pre-Java review and MAIN acceptance. Implementation amendment — 2026-10-26: the bounded combined
 path is implemented, with owning [validation](../../glossary.md#term-validation) and independent code/structural review passed. Root validation and
@@ -30,7 +30,7 @@ final MAIN acceptance remains pending. This selects no [Engine](../../glossary.m
 Ordinary [homogeneous](../../glossary.md#term-homogeneous) [FLOAT32](../../glossary.md#term-float32) [CPU](../../glossary.md#term-cpu) symbolic-[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) forward and actual first-order backward already
 reuse one [compilation](../../glossary.md#compiler-engine-and-execution-stage-names)/preparation. At decision time, [general Scan](../../glossary.md#general-differentiable-scan) still rejected symbolic [shapes](../../glossary.md#shape) in [Model](../../glossary.md#term-model), [Compiler](../../glossary.md#term-compiler)
 and [Prepare](../../glossary.md#prepare); CPU staged [lowering](../../glossary.md#lowering)/emission bakes extents, [singleton](../../glossary.md#term-singleton) decisions and resource offsets.
-Changing only invocation [binding](../../glossary.md#term-binding) cannot implement [symbolic Scan](../../glossary.md#symbolic-scan). Static FLOAT32/[FLOAT64](../../glossary.md#term-float64) [Scan](../../glossary.md#term-cumulative-scan),
+Changing only invocation [binding](../../glossary.md#term-binding) cannot implement [symbolic Scan](../../glossary.md#symbolic-scan). Static FLOAT32/[FLOAT64](../../glossary.md#term-float64) [Scan](../../glossary.md#general-differentiable-scan),
 its qualified actual-read [views](../../glossary.md#term-view-meanings) and fixed recurrent operations remain the retained baseline.
 
 The user confirmed the original one-B design plus the Model0040 same-geometry amendment and
@@ -41,7 +41,7 @@ wording therefore needs a narrow explicit exception, not an inferred [cache](../
 
 ## Decision drivers
 
-- Keep one [Scan](../../glossary.md#term-cumulative-scan) semantic [owner](../../glossary.md#term-owner) and existing [compile](../../glossary.md#compile)/[prepare](../../glossary.md#prepare)/[run](../../glossary.md#term-run) boundaries, with numeric-only [Runtime](../../glossary.md#term-runtime).
+- Keep one [Scan](../../glossary.md#general-differentiable-scan) semantic [owner](../../glossary.md#term-owner) and existing [compile](../../glossary.md#compile)/[prepare](../../glossary.md#prepare)/[run](../../glossary.md#term-run) boundaries, with numeric-only [Runtime](../../glossary.md#term-runtime).
 - Retain complete actual generated first-order algebra, exact saved values and constituent numerics.
 - Reuse code/routes/slots across B without maximum banks, hidden [topology](../../glossary.md#term-topology) changes or per-B preparation.
 - Avoid repeated covered [Engine](../../glossary.md#term-engine) geometry work while admitting every current [descriptor](../../glossary.md#term-descriptor) and storage.
@@ -50,12 +50,12 @@ wording therefore needs a narrow explicit exception, not an inferred [cache](../
 
 ## Options considered
 
-The alternatives address the same fixed-T/[features](../../glossary.md#term-software-feature) recurrence; the table separates reuse of
+The alternatives address the same fixed-T/[features](../../glossary.md#term-feature) recurrence; the table separates reuse of
 executable meaning from reuse of numeric facts.
 
 | Option | Across changed B | Repeated same B | Main cost or limitation |
 |---|---|---|---|
-| Status quo: static [Scan](../../glossary.md#term-cumulative-scan) only | New static [compilation](../../glossary.md#compiler-engine-and-execution-stage-names)/preparation | Existing prepared static [run](../../glossary.md#term-run) | No genuine [symbolic Scan](../../glossary.md#symbolic-scan); static execution remains supported |
+| Status quo: static [Scan](../../glossary.md#general-differentiable-scan) only | New static [compilation](../../glossary.md#compiler-engine-and-execution-stage-names)/preparation | Existing prepared static [run](../../glossary.md#term-run) | No genuine [symbolic Scan](../../glossary.md#symbolic-scan); static execution remains supported |
 | Per-B static respecialization | Another specialized [graph](../../glossary.md#graph)/preparation/[artifact](../../glossary.md#term-artifact) | Per-B [cache](../../glossary.md#term-cache) could hit | Multiplies plans/code/cache [ownership](../../glossary.md#term-ownership-meanings) and evades the selected one-preparation goal |
 | Selected symbolic numeric [binding](../../glossary.md#term-binding) plus one [metadata](../../glossary.md#term-metadata) entry | Same graph/code/routes/slots, exact actual bytes | Reuse covered pure [Engine](../../glossary.md#term-engine) facts after full fresh [admission](../../glossary.md#term-admission) | Requires scoped obligations, all-port [layout](../../glossary.md#layout) recipes and careful [publication](../../glossary.md#term-publication)/close coordination |
 
@@ -68,7 +68,7 @@ Bindings or supplied [descriptors](../../glossary.md#term-descriptor) would let 
 Accept the bounded [symbolic Scan semantics](../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([symbolic Scan glossary](../../glossary.md#symbolic-scan))</span>:
 one named B with fixed T/[features](../../glossary.md#term-feature)/state widths, existing all-valid surface and exact scoped ports.
 [Model](../../glossary.md#term-model) [PURE](../../glossary.md#term-pure)/[dtype](../../glossary.md#data-type--datatype) validity, bounded [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) [Compiler](../../glossary.md#term-compiler) [AD](../../glossary.md#autograd) and initial [homogeneous](../../glossary.md#term-homogeneous) FLOAT32
-generated [scalar](../../glossary.md#term-scalar) single-range [CPU](../../glossary.md#term-cpu) execution remain distinct admissions. Forward and actual
+generated [scalar](../../glossary.md#cpu-portable-execution-strategy) single-range [CPU](../../glossary.md#term-cpu) execution remain distinct admissions. Forward and actual
 generated reverse must qualify independently; this decision implements none of them.
 
 Accept one [metadata](../../glossary.md#term-metadata)-only replacement slot on the exact [Engine](../../glossary.md#term-engine) prepared [owner](../../glossary.md#term-owner) under the
@@ -115,7 +115,7 @@ retained baseline only, not [symbolic Scan](../../glossary.md#symbolic-scan) or 
 ### Migration, testing, and follow-up
 
 Authority review and MAIN acceptance precede separately [Ready](../../glossary.md#term-ready) [Model](../../glossary.md#term-model) foundation, [Compiler](../../glossary.md#term-compiler)
-[inference](../../glossary.md#term-inference)/actual [AD](../../glossary.md#autograd)/all-port [binding](../../glossary.md#term-binding) and coordinated [Prepare](../../glossary.md#prepare)/[CPU](../../glossary.md#term-cpu)/[Engine](../../glossary.md#term-engine) vertical gates. No new
+[inference](../../glossary.md#term-inference-meanings)/actual [AD](../../glossary.md#autograd)/all-port [binding](../../glossary.md#term-binding) and coordinated [Prepare](../../glossary.md#prepare)/[CPU](../../glossary.md#term-cpu)/[Engine](../../glossary.md#term-engine) vertical gates. No new
 type/[signature](../../glossary.md#term-signature) is selected; any necessary new type or [Runtime](../../glossary.md#term-runtime) [handoff](../../glossary.md#term-handoff) must stop for exact
 package/name/purpose/signature approval. Fixed length execution is now Complete and Prepare0015's
 combined execution is implemented, not a [memo](../../glossary.md#cache-and-memoization) [qualification](../../glossary.md#term-qualification). [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training state reuse,
@@ -127,9 +127,9 @@ reverse versus ordinary [unrolling](../../glossary.md#term-unrolling), both trav
 [overflow](../../glossary.md#term-overflow) before borrow, [aliases](../../glossary.md#aliasing-and-arena), failure/retry/close/concurrent isolation, current input-backed
 [views](../../glossary.md#term-view-meanings), foreign-plan rejection and the bounded memo hit witness. Generated Class-Files must match
 specialized clean-Java algorithm/hot-loop/[dataflow](../../glossary.md#term-dataflow) with no memo access or avoidable hidden
-allocation/[dispatch](../../glossary.md#term-dispatch); bounded warmed matched-work evidence separates setup/[admission](../../glossary.md#term-admission)/[kernel](../../glossary.md#kernel) costs.
+allocation/dispatch; bounded warmed matched-work evidence separates setup/[admission](../../glossary.md#term-admission)/[kernel](../../glossary.md#kernel) costs.
 Retain static [identity](../../glossary.md#term-identity-meanings)/byte/read and unsupported length-boundary rejection regressions. No [dependency](../../glossary.md#term-dependency), [API](../../glossary.md#term-application-programming-interface-api) or executable
-change occurs here, so no architecture-test rerun or performance [run](../../glossary.md#term-run) is required now.
+change occurs here, so no architecture-test rerun or performance run is required now.
 
 ## Related documentation
 

@@ -20,7 +20,7 @@ The user also approved fluent Engine [binding](../../glossary.md#term-binding) o
 Its brief owns evidence. Authorized Training frontier: None. On 2026-10-17,
 [Compiler0008](../../planning/modules/compiler/tasks/0008-cold-source-capture-and-reconstruction.md)
 is Complete: bounded source [API](../../glossary.md#term-application-programming-interface-api) and coordinated root/[compiler](../../glossary.md#term-compiler) authority implemented, Einstein final
-code/docs APPROVE and coordinator Class C [checkpoint](../../glossary.md#term-checkpoint) passed. Its brief owns evidence.
+code/docs APPROVE and coordinator Class C checkpoint passed. Its brief owns evidence.
 Authorized Compiler frontier: None; [Checkpoint0008](../../planning/extensions/checkpoint/tasks/0008-generic-graph-value-persistence-and-nn-glue-cutover.md)
 is Complete after Halley's definitive final APPROVE and the coordinator's source-matched test/Javadoc
 gate on 2026-10-17. Authorized Checkpoint frontier: None. On 2026-10-19,
@@ -75,7 +75,7 @@ Source checks against the pre-Engine0021 current-main/P1 [snapshot](../../glossa
 2. Lazy model-owned Engine.standard() for normal use, currently fresh CPU composition. Explicit
    Engine is borrowed, never closed by the model. Model.load(path[, limits]).withEngine(engine)
    configures that exact same ordinary Model before preparation; application-built models use the
-   same method. Load is cold and opens no Engine or discovery.<span data-glossary-navigation="true"> ([Lazy glossary](../../glossary.md#term-lazy-evaluation); [Engine glossary](../../glossary.md#term-engine); [CPU glossary](../../glossary.md#term-cpu); [borrowed glossary](../../glossary.md#ownership-borrowing-and-lease))</span>
+   same method. Load is cold and opens no Engine or discovery.<span data-glossary-navigation="true"> ([Engine glossary](../../glossary.md#term-engine); [CPU glossary](../../glossary.md#term-cpu); [borrowed glossary](../../glossary.md#ownership-borrowing-and-lease))</span>
 3. One model-owned working weight set feeds compute, train and save. Acquire external values once
    when necessary without changing their Tensor/storage; no ownership-only duplication of loaded
    values. One exact native-admission copy may still be necessary before training.<span data-glossary-navigation="true"> ([weight glossary](../../glossary.md#term-weight); [ownership glossary](../../glossary.md#term-ownership-meanings); [admission glossary](../../glossary.md#term-admission))</span>
@@ -205,7 +205,7 @@ or unchecked-cast assumption is needed. [Compile](../../glossary.md#compile)-onl
   Tensor. GraphCheckpoint hides Compiler types from NN. No Compiler registry or second DAG.<span data-glossary-navigation="true"> ([artifacts glossary](../../glossary.md#term-artifact); [registry glossary](../../glossary.md#term-registry); [DAG glossary](../../glossary.md#term-directed-acyclic-graph-dag))</span>
 
 Compiler0008 source reconciliation (2026-10-17): [capture](../../glossary.md#term-capture-meanings) returns the **raw** [graph](../../glossary.md#graph), validated by
-existing [inference](../../glossary.md#term-inference) without optimization or logical-[layout](../../glossary.md#layout) closure, and exact [leaves](../../glossary.md#term-leaf) collected when
+existing [inference](../../glossary.md#term-inference-meanings) without optimization or logical-[layout](../../glossary.md#layout) closure, and exact [leaves](../../glossary.md#term-leaf) collected when
 that same traversal assigns graph inputs. Reconstruction accepts full-[descriptor](../../glossary.md#term-descriptor)-compatible
 ordinary [Tensor](../../glossary.md#tensor) expressions as positional replacements, not only [provenance](../../glossary.md#provenance)-free leaves: this is
 required for cold symbolic forward/composition. Their upstream provenance remains ordinary input
@@ -250,7 +250,7 @@ No public transfer [API](../../glossary.md#term-application-programming-interfac
 and transfer the actual [resource owner](../../glossary.md#ownership-borrowing-and-lease). Old generic [Model](../../glossary.md#term-model).forward ownership is unchanged.
 
 Save before first compute works because graph construction or load already establishes source and
-[signature](../../glossary.md#term-signature). Save does not [run](../../glossary.md#term-run) Java forward, infer a signature from the last [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) or create an [Engine](../../glossary.md#term-engine).
+[signature](../../glossary.md#term-signature). Save does not run Java forward, infer a signature from the last [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) or create an [Engine](../../glossary.md#term-engine).
 Only host-readable graph values are in this first path; [device](../../glossary.md#term-device)-only source leaves reject rather than
 trigger hidden execution. Old [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [checkpoint](../../glossary.md#term-checkpoint) save still uses public Engine [materialization](../../glossary.md#materialization).
 
@@ -327,7 +327,7 @@ Repeated/concurrent close replays the retained cleanup result, including failure
 Engine must never prevent [release](../../glossary.md#term-release) of model-owned resources.
 
 Freeze occurs when the first admitted compute or configureTraining has passed its argument and
-live-source checks and enters preparation setup, **before** [lazy](../../glossary.md#term-lazy-evaluation) Engine creation, native admission,
+live-source checks and enters preparation setup, **before** lazy Engine creation, native admission,
 [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) or preparation. No engine/configuration argument can then [rebind](../../glossary.md#capture-graph-ports-and-reconstruction) it. Freeze survives
 Engine-creation, [objective](../../glossary.md#term-objective)-builder, native-copy, compile or prepare failure; an explicit retry uses
 the same selected Engine or still-uncreated standard choice. Invalid arguments rejected before
@@ -397,7 +397,7 @@ Preserve `:extensions:training` and `:extensions:checkpoint` project IDs through
 | InferenceSession.[run](../../glossary.md#term-run)(originalInputs) | engine.run(prepared, originalInputs), preserving exact-ID/arbitrary-order [binding](../../glossary.md#term-binding); fresh values explicitly use engine.runValues(prepared, compiledOrderValues). |
 | InferenceSession.compiledGraph/isClosed/close | Existing prepared.compiledGraph/isClosed/close; independently owned results are not closed by prepared close. |
 | [TrainingSession](../../glossary.md#training-session--trainingsession) inferenceSession field/constructor/open/executeAndDecode/isClosed/beginOperation/close | Engine0021 mechanical Engine PreparedExecution/prepare/run migration; preserve public TrainingSession, [transaction](../../glossary.md#term-transaction), prepared-before-[seed](../../glossary.md#term-seed) cleanup and failed-open [rollback](../../glossary.md#term-rollback). |
-| CpuLifecycleBenchmark helper [signatures](../../glossary.md#term-signature); EngineMixedOwnerTestAccess reflection; Engine typed/advanced public-[shape](../../glossary.md#shape) and [lifecycle](../../glossary.md#lifecycle)/integration tests | Engine + PreparedExecution calls; migrate reflective target and [API](../../glossary.md#term-application-programming-interface-api) assertions, including var-typed Engine.session calls; no benchmark execution or [backend](../../glossary.md#backend) redesign. |
+| CpuLifecycleBenchmark helper [signatures](../../glossary.md#term-signature); EngineMixedOwnerTestAccess reflection; Engine typed/advanced public-shape and [lifecycle](../../glossary.md#lifecycle)/integration tests | Engine + PreparedExecution calls; migrate reflective target and [API](../../glossary.md#term-application-programming-interface-api) assertions, including var-typed Engine.session calls; no benchmark execution or [backend](../../glossary.md#backend) redesign. |
 | TrainingSession.open(engine, module, [objective](../../glossary.md#term-objective), [optimizer](../../glossary.md#term-optimizer)[, groups]) | TrainingSession.open(engine, module.trainingParameters(), objective, optimizer[, groups]); remove Module overloads atomically with consumers. |
 | [TrainingParameterStorage](../../glossary.md#native-parameter-copy--trainingparameterstorage).copyToSharedNative(module, [arena](../../glossary.md#term-arena)) | copyToSharedNative(module.trainingParameters(), arena); advanced caller still owns Arena/exclusion. |
 | trainingApiConsumer imports NN Module through Training alone | Generic consumer accepts [TrainingParameters](../../glossary.md#live-parameter-source--trainingparameters) with Training-only [classpath](../../glossary.md#term-classpath); NN caller explicitly depends on NN and calls its adapter. |
@@ -496,13 +496,13 @@ gap: [capture](../../glossary.md#term-capture-meanings) retained [canonical](../
 assumed one output. These gaps belonged to the existing [Compiler](../../glossary.md#term-compiler)/[Checkpoint](../../glossary.md#term-checkpoint) boundary, not to
 new [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) recipes, APIs, types, [modules](../../glossary.md#term-module) or a generic serializer [registry](../../glossary.md#term-registry).
 
-The selected source [slice](../../glossary.md#slice) uses the exact Compiler contract, biased default convolutions and
-the six fixed [scan](../../glossary.md#term-cumulative-scan) overloads. All-family admission and per-network [serialization](../../glossary.md#term-serialization) were rejected: both
+The selected source slice uses the exact Compiler contract, biased default convolutions and
+the six fixed [scan](../../glossary.md#term-fixed-recurrent-scan) overloads. All-family admission and per-network [serialization](../../glossary.md#term-serialization) were rejected: both
 would widen [scope](../../glossary.md#term-scope) without solving canonical source reconstruction. An intermediate single-output
 v3 followed by another scan format was also rejected. One v3 instead carries ordered
 result [descriptors](../../glossary.md#term-descriptor) and implicit prefix-sum values for every [producer](../../glossary.md#term-producer). Producer-aware iterative
 topology retains unused sibling ports without accepting dead producers or recursive traversal.
-Cold [inference](../../glossary.md#term-inference) remains raw; [layout](../../glossary.md#layout) closure and optimized [artifacts](../../glossary.md#term-artifact) are not substitutes.
+Cold [inference](../../glossary.md#term-inference-meanings) remains raw; [layout](../../glossary.md#layout) closure and optimized [artifacts](../../glossary.md#term-artifact) are not substitutes.
 
 Smallest-version selection preserves byte-identical saves for old five-kind/eight-kind sources.
 Appending new operations under v1/v2 would change published formats; writing every source as v3
@@ -510,11 +510,11 @@ would unnecessarily exclude old readers. New readers retain exact old tuples, an
 reject v3. The wire fields live only in the owning contract, not in this [ADR](../../glossary.md#term-architecture-decision-record-adr). ArtifactFile [framing](../../glossary.md#term-framing)
 and old `model.v1`/`whole-model.v1` readers are unchanged.
 
-The cost is a [finite](../../glossary.md#term-finite) supported slice plus explicit multi-output bookkeeping and malformed-wire
+The cost is a finite supported slice plus explicit multi-output bookkeeping and malformed-wire
 coverage. Compiler [preflight](../../glossary.md#term-preflight) remains descriptor-only, including [GATHER](../../glossary.md#gather) indices and runtime length
 inputs; named [host](../../glossary.md#term-host) state is imported only after complete wire/source [validation](../../glossary.md#term-validation). Reconstruction
 calls a scan constructor once, retaining every canonical wrapper even when only finalCell is a
-root. Neither a length [prototype](../../glossary.md#term-prototype)'s bytes nor a scan result-[carrier](../../glossary.md#term-storage-carrier) object is persistent state.
+root. Neither a length [prototype](../../glossary.md#term-prototype)'s bytes nor a scan result-carrier object is persistent state.
 
 The selected user workflow saves a default CNN or static recurrent [Model](../../glossary.md#term-model) before compute, closes
 it, cold-loads it and uses fresh exact-descriptor [batches](../../glossary.md#term-batch-machine-learning-and-hyperparameters). Training is freshly configured where
@@ -532,13 +532,13 @@ mark those tasks complete.
 
 Accepted 2026-10-19: the separately authorized
 [Checkpoint0009](../../planning/extensions/checkpoint/tasks/0009-owned-model-activation-source-and-persistence.md)
-adds only RELU/[TANH](../../glossary.md#term-tanh)/[SIGMOID](../../glossary.md#term-sigmoid) to the completed first [graph](../../glossary.md#graph) [slice](../../glossary.md#slice). This successor does not reopen
+adds only RELU/[TANH](../../glossary.md#term-tanh)/[SIGMOID](../../glossary.md#term-sigmoid) to the completed first [graph](../../glossary.md#graph) slice. This successor does not reopen
 the completed [model](../../glossary.md#term-model)-execution program or supersede its [lifecycle](../../glossary.md#lifecycle)/[dependency](../../glossary.md#term-dependency) decisions.
 [Compiler](../../glossary.md#term-compiler) owns cold [admission](../../glossary.md#term-admission)/reconstruction; [Checkpoint](../../glossary.md#term-checkpoint) owns the wire, as routed by the root
 and enacted in their existing scoped contracts before dependent Java changes.
 
 The existing five-kind limit prevented owned [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) construction because acquisition already calls
-GraphCheckpoint.copy. Compiler-only [widening](../../glossary.md#term-widening) was unsafe: the old encoder defaulted to PERMUTE.
+GraphCheckpoint.copy. Compiler-only widening was unsafe: the old encoder defaulted to PERMUTE.
 The [atomic](../../glossary.md#resource-transaction-and-rollback) change therefore uses explicit [fail-closed](../../glossary.md#term-fail-closed) kind/attributes/[arity](../../glossary.md#term-arity) admission on encoding
 and explicit family reconstruction, without new public APIs, types, [kernels](../../glossary.md#kernel) or build edges.
 
@@ -551,13 +551,13 @@ are unchanged. V2-only overhead is version admission logic, not a second graph r
 Old readers reject v2; new readers accept both exact tuples and downgrade five-kind-only v2 on
 re-save. ArtifactFile/model.v1/whole-model.v1 compatibility remains independent and unchanged.
 
-The cost is a deliberately [finite](../../glossary.md#term-finite) eight-kind capability, not general [operation](../../glossary.md#operation) [serialization](../../glossary.md#term-serialization).
+The cost is a deliberately finite eight-kind capability, not general [operation](../../glossary.md#operation) [serialization](../../glossary.md#term-serialization).
 Tests preserve v1 golden bytes, add independent v2 [opcode](../../glossary.md#term-opcode)/header fixtures and exact-size bounds,
 and compare a three-activation two-[Linear](../../glossary.md#term-linear-meanings) [MLP](../../glossary.md#term-multilayer-perceptron-mlp) against ordinary [Tensor](../../glossary.md#tensor)/[Engine](../../glossary.md#term-engine) forward and [SGD](../../glossary.md#term-stochastic-gradient-descent-sgd)
 oracles. Independent code/documentation review and the coordinator's native-enabled gate remain
 required before acceptance; the task brief records their status and implementation evidence.
 
-### Completed first [slice](../../glossary.md#slice) cutovers
+### Completed first slice cutovers
 
 Current root and scoped rules win. Each implementation packet updates its exact authority,
 explanations, [ADR](../../glossary.md#term-architecture-decision-record-adr) and affected architecture tests together **before code relies on the new rule**:
@@ -572,7 +572,7 @@ explanations, [ADR](../../glossary.md#term-architecture-decision-record-adr) and
    rationale; reconcile ADR0018's owner reference, not optimizer decisions. Update public-shape/
    lifecycle consumers and retain role-aware EngineCompositionContractTest and
    NnTrainingDependencyContractTest edges; no broad exemptions. This bounded Engine0021 cutover is
-   Complete; it did not authorize the later cutovers on its own.<span data-glossary-navigation="true"> ([runtime glossary](../../glossary.md#term-runtime); [prepare glossary](../../glossary.md#prepare); [engine glossary](../../glossary.md#term-engine); [inference glossary](../../glossary.md#term-inference); [Run glossary](../../glossary.md#term-run); [Optimizer glossary](../../glossary.md#term-optimizer); [owner glossary](../../glossary.md#term-owner); [ownership glossary](../../glossary.md#term-ownership-meanings); [leases glossary](../../glossary.md#term-lease); [shape glossary](../../glossary.md#shape))</span>
+   Complete; it did not authorize the later cutovers on its own.<span data-glossary-navigation="true"> ([runtime glossary](../../glossary.md#term-runtime); [prepare glossary](../../glossary.md#prepare); [engine glossary](../../glossary.md#term-engine); [inference glossary](../../glossary.md#term-inference); [Run glossary](../../glossary.md#term-run); [Optimizer glossary](../../glossary.md#term-optimizer); [owner glossary](../../glossary.md#term-owner); [ownership glossary](../../glossary.md#term-ownership-meanings); [leases glossary](../../glossary.md#term-lease))</span>
 2. Training0007: root Repository layout/Module-ownership routing/Dependency rules/Testing
    requirements and extensions-training Training/NN/Optimizer-training lifecycle: generic live
    admission, native-copy ownership, remove Training→NN before NN→Training. The<span data-glossary-navigation="true"> ([Dependency glossary](../../glossary.md#term-dependency))</span>
@@ -598,13 +598,13 @@ explanations, [ADR](../../glossary.md#term-architecture-decision-record-adr) and
    root gate (2026-10-19). Engine rules and dependency edges remain unchanged. NN0028 separately
    coordinates Model convenience/ownership, retaining old declarative behavior and Engine composition authority.
    Completed NN0028 tests cover borrowed Engine closed first, complete model-owned resource cleanup
-   and repeated/concurrent Model.close failure replay.<span data-glossary-navigation="true"> ([coordinate glossary](../../glossary.md#axis-rank-scalar-vector-and-matrix); [borrowed glossary](../../glossary.md#ownership-borrowing-and-lease))</span>
+   and repeated/concurrent Model.close failure replay.<span data-glossary-navigation="true"> ([borrowed glossary](../../glossary.md#ownership-borrowing-and-lease))</span>
 
 Keep ArtifactFile v1 and old [model](../../glossary.md#term-model).v1/whole-model.v1 readers. New [graph](../../glossary.md#graph)-model.v1 uses explicit input
 [descriptors](../../glossary.md#term-descriptor), [leaf](../../glossary.md#term-leaf) roles/[identities](../../glossary.md#term-identity-meanings), [operation](../../glossary.md#operation) attributes and [canonical](../../glossary.md#term-canonical-form) raw values; inputs are not
 saved [batches](../../glossary.md#term-batch-machine-learning-and-hyperparameters). Validate complete data before [publication](../../glossary.md#term-publication); reuse force/revalidate/one-[atomic](../../glossary.md#resource-transaction-and-rollback)-move.
 Persist [signed zero](../../glossary.md#term-signed-zero)/[NaN](../../glossary.md#term-nan) payloads without [normalization](../../glossary.md#term-normalization), reject invalid [BOOL](../../glossary.md#data-type--datatype) bytes before import.
-[Finite](../../glossary.md#term-finite) closed codecs are sufficient; preserve canonical sibling-output [identity](../../glossary.md#term-identity-meanings) whenever admitted.
+Finite closed codecs are sufficient; preserve canonical sibling-output [identity](../../glossary.md#term-identity-meanings) whenever admitted.
 [Backend](../../glossary.md#backend)/[gradient](../../glossary.md#term-gradient) support remains independent; zero-[node](../../glossary.md#node) execution remains explicitly unsupported.
 
 The [program](../../planning/model-execution-refactor.md#phases-and-owner-dag) owns the concrete [DAG](../../glossary.md#term-directed-acyclic-graph-dag)
@@ -612,7 +612,7 @@ and final coordinator signoff. The [Engine0021 brief](../../planning/modules/eng
 records implementation, independent approval and the coordinator's successful cross-[module](../../glossary.md#term-module) gate.
 Training0007 is Complete: generic live [admission](../../glossary.md#term-admission)/native copy and its [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) adapter passed final
 independent review and the coordinator boundary gate. Compiler0008's bounded [API](../../glossary.md#term-application-programming-interface-api)/authority cutover
-is Complete after final independent code/docs APPROVE and the coordinator [checkpoint](../../glossary.md#term-checkpoint); authorized
+is Complete after final independent code/docs APPROVE and the coordinator checkpoint; authorized
 [Compiler](../../glossary.md#term-compiler) and Checkpoint frontiers: None. Checkpoint0008 is Complete after Halley's final APPROVE
 and the coordinator root gate; its brief owns evidence. Training0008 is Complete after Euclid's
 definitive APPROVE and main's root gate (2026-10-19); authorized Training frontier: None.

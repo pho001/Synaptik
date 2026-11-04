@@ -26,7 +26,7 @@ source is now `modules/training`; the original decision and recovery exclusions 
 An exact continuation spans [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [bindings](../../glossary.md#term-binding) and modes, Training [parameters](../../glossary.md#term-parameter) and [optimizer state](../../glossary.md#term-optimizer-state),
 effective [objective](../../glossary.md#term-objective)-construction contexts, and caller-owned next-input and external state.
 `Module.loadStateDictionary` replaces [Tensor](../../glossary.md#tensor) bindings, which an open session has already
-captured. `TrainingSession.restore` checks its fixed parameter [view](../../glossary.md#term-view-meanings) and [payload](../../glossary.md#artifact-envelope-and-atomic-publication) only after a
+captured. `TrainingSession.restore` checks its fixed parameter [view](../../glossary.md#term-view-meanings) and payload only after a
 session exists. `ModelCheckpoint.inspect` exposes [descriptors](../../glossary.md#term-descriptor), not [model](../../glossary.md#term-model) value bytes;
 `ModelCheckpoint.load` rereads and validates a file, then installs into the supplied NN tree.
 Training's logical parameter bytes are [canonical](../../glossary.md#term-canonical-form) [big-endian](../../glossary.md#text-encoding-and-file-boundaries), whereas loaded NN storage uses
@@ -52,7 +52,7 @@ otherwise unnecessary pure pre-open Training validator or cross-[module](../../g
 |---|---|---|
 | Prevalidate all Training restore facts before opening a session | Every failure is found before any installation | The fixed session [view](../../glossary.md#term-view-meanings) does not yet exist; this requires a new validator and may require a new [canonical](../../glossary.md#term-canonical-form) [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) value [API](../../glossary.md#term-application-programming-interface-api). |
 | Install into the published tree and roll back on failure | Reuses one [model](../../glossary.md#term-model) | NN [binding](../../glossary.md#term-binding) replacement invalidates an open session; complete [rollback](../../glossary.md#term-rollback) across [owners](../../glossary.md#term-owner) and external state is not available. |
-| [Prepare](../../glossary.md#prepare) a distinct unpublished model and session, then publish under caller exclusion | Existing [owner](../../glossary.md#term-owner) [validation](../../glossary.md#term-validation) can [run](../../glossary.md#term-run) against the final candidate | Candidate preparation and a possible `state()` [snapshot](../../glossary.md#term-snapshot) cost resources; callers must stage their external state and control the [handoff](../../glossary.md#term-handoff). |
+| Prepare a distinct unpublished model and session, then publish under caller exclusion | Existing [owner](../../glossary.md#term-owner) [validation](../../glossary.md#term-validation) can run against the final candidate | Candidate preparation and a possible `state()` [snapshot](../../glossary.md#term-snapshot) cost resources; callers must stage their external state and control the [handoff](../../glossary.md#term-handoff). |
 
 The third option is selected. The table compares failure isolation, not durable file formats.
 
@@ -90,7 +90,7 @@ schemas with [owner](../../glossary.md#term-owner) [validation](../../glossary.m
 ## Rationale
 
 The [publication](../../glossary.md#term-publication) boundary, not the private candidate's first mutation, is what protects the
-existing live recovery point. [Owner](../../glossary.md#term-owner) checks still [run](../../glossary.md#term-run) on the actual tree and session that will
+existing live recovery point. [Owner](../../glossary.md#term-owner) checks still run on the actual tree and session that will
 be used. A [canonical](../../glossary.md#term-canonical-form) post-open comparison avoids inventing a public [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) value reader merely to
 bridge [byte order](../../glossary.md#text-encoding-and-file-boundaries). `TrainingSession.state()` copies [parameter](../../glossary.md#term-parameter) and [optimizer](../../glossary.md#term-optimizer) payloads, so an
 existing [detached](../../glossary.md#detached-model-results) comparison can avoid that extra allocation and copy where it proves the same

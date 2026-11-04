@@ -64,7 +64,7 @@ that proves transitive [API](../../glossary.md#term-application-programming-inte
 positive and negative fixtures can validate namespace/import rules even while Data has no sources.
 
 Future [host](../../glossary.md#term-host) lengths `[5,3,1]` for time [extent](../../glossary.md#term-extent) 5 describe valid prefixes, with derived [padding](../../glossary.md#padding)
-lengths `[0,2,4]`. They are not the [scan](../../glossary.md#term-cumulative-scan)'s [rank-one](../../glossary.md#axis-rank-scalar-vector-and-matrix) non-[gradient](../../glossary.md#term-gradient) [`INT64`](../../glossary.md#data-type--datatype) [runtime](../../glossary.md#term-runtime) input. A later
+lengths `[0,2,4]`. They are not the [scan](../../glossary.md#term-fixed-recurrent-scan)'s [rank-one](../../glossary.md#axis-rank-scalar-vector-and-matrix) non-[gradient](../../glossary.md#term-gradient) [`INT64`](../../glossary.md#data-type--datatype) [runtime](../../glossary.md#term-runtime) input. A later
 [materialization](../../glossary.md#materialization)/[binding](../../glossary.md#term-binding) decision must connect those lifecycles explicitly, without storing a
 second [canonical](../../glossary.md#term-canonical-form) padding-length or dense-[mask](../../glossary.md#term-boolean-mask) representation. Current static [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) length APIs,
 runtime scan semantics, Model [ownership](../../glossary.md#term-ownership-meanings) and Training behavior remain unchanged.

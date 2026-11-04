@@ -32,7 +32,7 @@ At the time, [Model](../../glossary.md#term-model) owned formulas, guards, contr
 special-value behavior, and saved values. Model 0031 established [backend](../../glossary.md#backend)-independent exact-
 reference strict [unary](../../glossary.md#term-unary) sets for [BFLOAT16](../../glossary.md#term-bfloat16), [FLOAT32](../../glossary.md#term-float32), and [FLOAT64](../../glossary.md#term-float64); the cumulative P12/P13 cutover
 extends those sets to [FLOAT16](../../glossary.md#term-float16). This decision adds only the recursive accelerator superset. For
-that accelerator bound, Java's [scalar](../../glossary.md#term-scalar) and [Vector](../../glossary.md#term-vector) [`TANH`](../../glossary.md#term-tanh) contract is at most 2.5 [ULP](../../glossary.md#term-unit-in-the-last-place-ulp) from the exact
+that accelerator bound, Java's scalar and [Vector](../../glossary.md#term-vector) [`TANH`](../../glossary.md#term-tanh) contract is at most 2.5 [ULP](../../glossary.md#term-unit-in-the-last-place-ulp) from the exact
 result, while FLOAT32 Vector [lanes](../../glossary.md#term-lane) use the specified widen/evaluate/narrow adaptation. A power-of-two [binade](../../glossary.md#term-binade) boundary converts that guarantee
 to an ordered distance of five adjacent [binary32](../../glossary.md#floating-point-precision-and-rounding) representation steps. The one-ULP Java
 logarithmic/exponential contract and retained Metal [`EXP`](../../glossary.md#term-expx)/[`SIGMOID`](../../glossary.md#term-sigmoid) observations fit within
@@ -54,7 +54,7 @@ operation-specific exception [registry](../../glossary.md#term-registry).
 - Preserve exact mapping, contributors, guards, identities, divisors, selections, state, and
   publication.<span data-glossary-navigation="true"> ([publication glossary](../../glossary.md#term-publication))</span>
 - Permit accelerator-relevant [`FLOAT32`](../../glossary.md#term-float32) primitive and aggregation freedom while rejecting reduced
-  precision, algebraic substitution, term loss, and predicate tolerance.<span data-glossary-navigation="true"> ([precision glossary](../../glossary.md#term-precision); [loss glossary](../../glossary.md#loss); [tolerance glossary](../../glossary.md#term-tolerance))</span>
+  precision, algebraic substitution, term loss, and predicate tolerance.<span data-glossary-navigation="true"> ([precision glossary](../../glossary.md#term-precision); [tolerance glossary](../../glossary.md#term-tolerance))</span>
 - Make [opaque](../../glossary.md#term-opaque) vendor operations prove the same recursive set rather than receive a special waiver.
 - Preserve current capabilities, routes, [cache](../../glossary.md#term-cache)/tuning [identities](../../glossary.md#term-identity-meanings), [schemas](../../glossary.md#term-schema), wires, [ABI](../../glossary.md#term-application-binary-interface-abi), and exports.
 
@@ -94,7 +94,7 @@ the completed [Model](../../glossary.md#term-model) 0031 [unary](../../glossary.
 [Operation](../../glossary.md#operation) kind and attributes, [arity](../../glossary.md#term-arity) and [descriptors](../../glossary.md#term-descriptor), [Shape](../../glossary.md#shape)/[layout](../../glossary.md#layout)/[axis](../../glossary.md#term-axis) mapping, contributor
 membership, [masks](../../glossary.md#term-boolean-mask), indices, [graph](../../glossary.md#graph)-[RNG state](../../glossary.md#graph-rng-state--graphrngstate) transitions, traversal, casts, conversions, ordering,
 stability, ties, empty-domain behavior, [identities](../../glossary.md#term-identity-meanings), divisors, and [publication](../../glossary.md#term-publication) remain exact. A
-selected [payload](../../glossary.md#artifact-envelope-and-atomic-publication) is one original candidate representation. Predicates gain no [epsilon](../../glossary.md#epsilon), and
+selected payload is one original candidate representation. Predicates gain no [epsilon](../../glossary.md#epsilon), and
 approximation cannot choose an index, mask, winner, ordering, or state transition.
 
 A comparison may observe [DAZ](../../glossary.md#term-daz)-normalized operands, and [extrema](../../glossary.md#saturation-pole-and-extremum) may treat DAZ-normalized operands as
@@ -119,7 +119,7 @@ are adjacent, and the bound is inclusive.
 After [DAZ](../../glossary.md#term-daz) and before [FTZ](../../glossary.md#term-ftz), an ordinary finite non-subnormal reference admits only
 `distance(actual, reference) <= 5`; a subnormal reference is exact or FTZ. Five is a conservative
 ordered-representation distance ceiling, not five [ULP](../../glossary.md#term-unit-in-the-last-place-ulp) and not a minimality claim. It follows from
-the 2.5-ULP Java [scalar](../../glossary.md#term-scalar)/[Vector](../../glossary.md#term-vector) `TANH` guarantee: at a power-of-two [binade](../../glossary.md#term-binade) boundary the smaller-side
+the 2.5-ULP Java scalar/[Vector](../../glossary.md#term-vector) `TANH` guarantee: at a power-of-two [binade](../../glossary.md#term-binade) boundary the smaller-side
 spacing is half the Java ULP, so the guarantee can span an ordered distance of five adjacent
 representation steps. The one-ULP logarithmic/exponential and retained [Metal](../../glossary.md#term-metal) evidence fit within
 ordered distance two.
@@ -146,7 +146,7 @@ exact-zero [publication](../../glossary.md#term-publication) freedoms remain loc
 
 [Normalization](../../glossary.md#term-normalization), [activation](../../glossary.md#term-activation), [loss](../../glossary.md#loss), attention, [pooling](../../glossary.md#term-pooling), [convolution](../../glossary.md#term-channels-first-convolution-layers), random/[dropout](../../glossary.md#dropout--inverted-dropout), recurrent,
 visible convenience composition, and [Compiler](../../glossary.md#term-compiler)-generated [gradient](../../glossary.md#term-gradient) formulas receive no separate
-[error envelope](../../glossary.md#term-error-envelope). Exact guards [run](../../glossary.md#term-run) first. Every [Model](../../glossary.md#term-model) formula recurses through all named primitive
+[error envelope](../../glossary.md#term-error-envelope). Exact guards run first. Every [Model](../../glossary.md#term-model) formula recurses through all named primitive
 and aggregate sites, including [constants](../../glossary.md#term-constant) and [exponent](../../glossary.md#term-exponent) construction:
 
 - `RSQRT` is `SQRT` plus division; [sigmoid](../../glossary.md#term-sigmoid) is its exact sign [guard](../../glossary.md#term-guard) plus the selected [`EXP`](../../glossary.md#term-expx), add,
@@ -170,7 +170,7 @@ or [tolerance](../../glossary.md#term-tolerance)-based predicate or selection ch
 ## Consequences
 
 - No public enum value, Config shape, policy object, runtime input, capability row, backend route,
-  cache/tuning identity, schema, wire, ABI, or native export changes in this decision.<span data-glossary-navigation="true"> ([shape glossary](../../glossary.md#shape); [runtime glossary](../../glossary.md#term-runtime); [backend route glossary](../../glossary.md#backend-route); [cache glossary](../../glossary.md#term-cache); [identity glossary](../../glossary.md#term-identity-meanings); [schema glossary](../../glossary.md#term-schema); [ABI glossary](../../glossary.md#term-application-binary-interface-abi))</span>
+  cache/tuning identity, schema, wire, ABI, or native export changes in this decision.<span data-glossary-navigation="true"> ([runtime glossary](../../glossary.md#term-runtime); [backend route glossary](../../glossary.md#backend-route); [cache glossary](../../glossary.md#term-cache); [identity glossary](../../glossary.md#term-identity-meanings); [schema glossary](../../glossary.md#term-schema); [ABI glossary](../../glossary.md#term-application-binary-interface-abi))</span>
 - Planning and Compiler transport the exact graph-wide identity. Prepare and concrete backends may
   realize it. Runtime and Trace do not read it.<span data-glossary-navigation="true"> ([Planning glossary](../../glossary.md#term-planning); [Compiler glossary](../../glossary.md#term-compiler); [graph glossary](../../glossary.md#graph); [Prepare glossary](../../glossary.md#prepare); [backends glossary](../../glossary.md#backend); [Trace glossary](../../glossary.md#trace))</span>
 - Existing CPU behavior remains the common exact subset of both profiles. Existing Metal
@@ -202,5 +202,5 @@ persistent [tolerance](../../glossary.md#term-tolerance) [matrix](../../glossary
 - [JDK 26 `Math` elementary-function contracts](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/Math.html)<span data-glossary-navigation="true"> ([JDK glossary](../../glossary.md#term-java-development-kit-jdk))</span>
 - [JDK 26 `StrictMath` elementary-function contracts](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/StrictMath.html)
 - [JDK 26 `VectorOperators` lane contracts](https://docs.oracle.com/en/java/javase/26/docs/api/jdk.incubator.vector/jdk/incubator/vector/VectorOperators.html)<span data-glossary-navigation="true"> ([lane glossary](../../glossary.md#term-lane))</span>
-- [Retained CPU unary scalar evidence](../../planning/backends/cpu/tasks/0005h-portable-unary-transcendental-and-activation-closure.md)<span data-glossary-navigation="true"> ([CPU glossary](../../glossary.md#term-cpu); [scalar glossary](../../glossary.md#term-scalar))</span>
+- [Retained CPU unary scalar evidence](../../planning/backends/cpu/tasks/0005h-portable-unary-transcendental-and-activation-closure.md)<span data-glossary-navigation="true"> ([CPU glossary](../../glossary.md#term-cpu))</span>
 - [Retained CPU FLOAT32 vector evidence](../../planning/backends/cpu/tasks/0005i-float32-vector-parity-and-vector-emission-boundary.md)<span data-glossary-navigation="true"> ([FLOAT32 glossary](../../glossary.md#term-float32); [vector glossary](../../glossary.md#term-vector))</span>

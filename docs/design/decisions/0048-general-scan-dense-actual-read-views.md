@@ -22,11 +22,11 @@ Accepted — 2026-10-24; implemented with focused [qualification](../../glossary
 [CPU0037](../../planning/backends/cpu/tasks/0037-general-scan-dense-read-views.md).
 Main accepted the final capability gates on 2026-10-24.
 The user approved the narrow [CPU](../../glossary.md#term-cpu) extension (“ok, pust se do toho”), not fluent [RNN](../../glossary.md#term-recurrent-neural-network-rnn) migration.
-This record explains the coordinated root/[scan](../../glossary.md#term-cumulative-scan)-[owner](../../glossary.md#term-owner) decision; it is not architecture authority.
+This record explains the coordinated root/[scan](../../glossary.md#general-differentiable-scan)-[owner](../../glossary.md#term-owner) decision; it is not architecture authority.
 
 ## Context
 
-Before this decision, the [homogeneous](../../glossary.md#term-homogeneous) [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) [CPU](../../glossary.md#term-cpu) general-[scan](../../glossary.md#term-cumulative-scan) binder admitted [canonical](../../glossary.md#term-canonical-form)
+Before this decision, the [homogeneous](../../glossary.md#term-homogeneous) [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) [CPU](../../glossary.md#term-cpu) general-[scan](../../glossary.md#general-differentiable-scan) binder admitted [canonical](../../glossary.md#term-canonical-form)
 actuals and zero-offset all-zero-[stride](../../glossary.md#term-stride) [scalar](../../glossary.md#term-scalar) reads. Its dense-read check compared the entire
 [layout](../../glossary.md#layout) [descriptor](../../glossary.md#term-descriptor), including the [view](../../glossary.md#term-view-meanings) flag. A source-grounded NN0032 audit found two cases whose
 addresses are already dense but which fail only this read-layout distinction: Conv1d's final
@@ -59,7 +59,7 @@ body [persistence](../../glossary.md#term-persistence); it did not authorize `.r
 ## Decision and rationale
 
 Choose option 2. The detailed permission belongs only to the
-[scan owner's declared qualification](../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-cumulative-scan); [owner glossary](../../glossary.md#term-owner); [qualification glossary](../../glossary.md#term-qualification))</span>,
+[scan owner's declared qualification](../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#general-differentiable-scan); [owner glossary](../../glossary.md#term-owner); [qualification glossary](../../glossary.md#term-qualification))</span>,
 indexed by the [root invariants](../../../ARCHITECTURE.md#core-invariants).
 All actual read roles in the existing [pointwise](../../glossary.md#term-pointwise)/shaped/[MATMUL](../../glossary.md#matrix-multiplication--matmul) families, including actual [Compiler](../../glossary.md#term-compiler)
 reverse occurrences, receive the same narrow proof. [Canonical](../../glossary.md#term-canonical-form) non-[view](../../glossary.md#term-view-meanings) formals and outputs remain
@@ -88,11 +88,11 @@ source compatibility cannot be inferred from a synthetic [descriptor](../../glos
 ### Migration, testing and follow-up
 
 CPU0037 must demonstrate [canonical](../../glossary.md#term-canonical-form)-twin access/resource/[IR](../../glossary.md#term-intermediate-representation-ir)/[identity](../../glossary.md#term-identity-meanings)/class-byte equality, real
-Conv1d-prefix forward/actual reverse and [singleton](../../glossary.md#term-singleton)-CONCAT-seeded reverse numeric [gradients](../../glossary.md#term-gradient) versus
+Conv1d-prefix forward/actual reverse and singleton-CONCAT-seeded reverse numeric [gradients](../../glossary.md#term-gradient) versus
 independent ordinary [unrolling](../../glossary.md#term-unrolling), plus focused empty/[carrier](../../glossary.md#term-storage-carrier)/reuse/[alias](../../glossary.md#aliasing-and-arena) guards. With generated
 code and [binding](../../glossary.md#term-binding) unchanged, reuse CPU0036's specialized clean-Java/Class-File/performance evidence
 with its limits; no new benchmark or speed claim. Main owns final [module](../../glossary.md#term-module)/[conformance](../../glossary.md#term-conformance)/integration
-and one configured root [checkpoint](../../glossary.md#term-checkpoint) using the existing [native library](../../glossary.md#term-native-library), with performance flags off.
+and one configured root checkpoint using the existing [native library](../../glossary.md#term-native-library), with performance flags off.
 
 Implementation review on 2026-10-24 confirms the read-specific predicate and unchanged formal/write
 guards. Focused tests pass for real Conv1d-prefix and singleton-CONCAT actual reverse workflows,
@@ -108,7 +108,7 @@ implemented by this decision. Fixed/static routes and all other [owners](../../g
 
 ## Related documentation
 
-- [General-scan explanation](../../architecture/general-differentiable-scan.md#dense-actual-reads-implemented-final-gates-pending)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-cumulative-scan))</span>
+- [General-scan explanation](../../architecture/general-differentiable-scan.md#dense-actual-reads-implemented-final-gates-pending)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#general-differentiable-scan))</span>
 - [CPU realization](../../backend-guide/cpu-backend.md#bounded-float32float64-general-scan)<span data-glossary-navigation="true"> ([CPU glossary](../../glossary.md#term-cpu))</span>
 - [NN0032 compatibility evidence and held migration](../../planning/extensions/nn/tasks/0032-fluent-rnn-general-scan-migration.md)
 - [CPU0036 accepted evidence and limitations](../../planning/backends/cpu/tasks/0036-general-scan-javac-loop-control.md#result)

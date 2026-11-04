@@ -1,6 +1,6 @@
 # Coding rules
 
-Use this page to distinguish Java [features](../glossary.md#term-software-feature) that are [ready](../glossary.md#term-ready) for ordinary use from features that
+Use this page to distinguish Java [features](../glossary.md#term-software-feature) that are ready for ordinary use from features that
 need a deliberately limited experiment. The **[Java Development Kit](../glossary.md#term-java-development-kit-jdk) ([JDK](../glossary.md#java-platform-and-build-tools))** provides the [compiler](../glossary.md#term-compiler)
 and development tools; the **[Java Virtual Machine](../glossary.md#term-java-virtual-machine-jvm) ([JVM](../glossary.md#java-platform-and-build-tools))** executes the compiled program.
 
@@ -15,7 +15,7 @@ The project compiles and tests against Java 26. Production code may use stable J
 
 ## Keep experimental activation scoped
 
-[Preview features](../glossary.md#java-preview-incubator-modules-and-compiler-tiers) are not enabled globally. A task that requires a [preview feature](../glossary.md#term-preview-feature) must justify it, limit compiler and [runtime](../glossary.md#term-runtime) flags to the owning module, document portability and [lifecycle](../glossary.md#lifecycle) risks, and add focused [validation](../glossary.md#term-validation). Incubator modules follow the same task-scoped rule.
+[Preview features](../glossary.md#java-preview-incubator-modules-and-compiler-tiers) are not enabled globally. A task that requires a [preview feature](../glossary.md#term-preview-feature) must justify it, limit compiler and [runtime](../glossary.md#term-java-virtual-machine-jvm) flags to the owning module, document portability and [lifecycle](../glossary.md#lifecycle) risks, and add focused [validation](../glossary.md#term-validation). Incubator modules follow the same task-scoped rule.
 
 A **preview feature** is a Java language or platform feature offered for [evaluation](../glossary.md#term-evaluation) before its
 design is final. An **[incubator module](../glossary.md#term-incubator-module)** distributes an experimental library [API](../glossary.md#term-application-programming-interface-api) separately.

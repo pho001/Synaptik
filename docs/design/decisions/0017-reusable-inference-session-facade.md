@@ -71,7 +71,7 @@ established fresh-call semantics of those conveniences.
 ### Keep only the explicit prepared-handle [lifecycle](../../glossary.md#lifecycle)
 
 The status quo is mechanically sufficient but does not provide the authorized user-facing fixed-
-[graph](../../glossary.md#graph) [inference](../../glossary.md#term-inference) [owner](../../glossary.md#term-owner). Every consumer must manually [carry](../../glossary.md#term-carry) two handles and restate their lifecycle.
+[graph](../../glossary.md#graph) [inference](../../glossary.md#term-inference) [owner](../../glossary.md#term-owner). Every consumer must manually carry two handles and restate their lifecycle.
 
 ## Decision
 
@@ -121,7 +121,7 @@ current compatible storage association without weakening [descriptor](../../glos
 - [CPU](../../glossary.md#term-cpu), [Metal](../../glossary.md#term-metal), and supported mixed-owner sessions share identical [lifecycle](../../glossary.md#lifecycle) and result semantics.
 - Concurrent calls reuse [immutable](../../glossary.md#term-immutable) prepared state while retaining isolated [mutable](../../glossary.md#term-mutable) [Runtime](../../glossary.md#term-runtime) state.
 - Existing input and [publication occurrence](../../glossary.md#publication-occurrence) [metadata](../../glossary.md#term-metadata) remains authoritative.
-- Existing direct-adapter and no-[registry](../../glossary.md#term-registry)-[lookup](../../glossary.md#term-lookup) guarantees [carry](../../glossary.md#term-carry) through unchanged.
+- Existing direct-adapter and no-[registry](../../glossary.md#term-registry)-[lookup](../../glossary.md#term-lookup) guarantees carry through unchanged.
 
 ### Negative and risks
 

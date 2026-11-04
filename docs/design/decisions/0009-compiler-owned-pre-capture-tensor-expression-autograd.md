@@ -77,7 +77,7 @@ backward-reachable [producer](../../glossary.md#term-producer) [occurrence](../.
 fails closed before constructing backward expressions if any required rule is absent or
 ambiguous. `FORWARD_ONLY` skips this work.
 
-Named compiler components such as `ElementwiseGradientRules` [dispatch](../../glossary.md#term-dispatch) formulas and call only
+Named compiler components such as `ElementwiseGradientRules` dispatch formulas and call only
 ordinary public [Tensor](../../glossary.md#tensor) methods. One [compile](../../glossary.md#compile) request may use [identity](../../glossary.md#term-identity-meanings)-based maps to collect
 contributions and accumulated [gradients](../../glossary.md#term-gradient); accumulation uses `Tensor.add`. These maps are
 short-lived compiler bookkeeping, not Tensor state or a [graph](../../glossary.md#graph) representation.
@@ -91,7 +91,7 @@ forward-producer identity set, and explicit constant facts. It assigns graph-loc
 classifies every captured producer as `FORWARD` or `BACKWARD`. Result roles may map multiple
 targets to one gradient [`ValueId`](../../glossary.md#logical-valueid-versus-physical-memory-slot); the output boundary retains each distinct gradient value once.
 
-[Inference](../../glossary.md#term-inference) and [validation](../../glossary.md#term-validation) follow capture. [Canonicalization](../../glossary.md#occurrence-identity-and-canonical-form), the exact rewrites and folding already
+[Inference](../../glossary.md#term-inference-meanings) and [validation](../../glossary.md#term-validation) follow capture. [Canonicalization](../../glossary.md#occurrence-identity-and-canonical-form), the exact rewrites and folding already
 selected by compiler tasks 0003A and 0003B, [dead-code elimination](../../glossary.md#term-dead-code-elimination-dce), and phase-local
 [common-subexpression elimination](../../glossary.md#term-common-subexpression-elimination-cse) then operate on the [immutable](../../glossary.md#term-immutable) combined graph where their
 existing guards are proved safe. Changed candidates are revalidated through Compiler 0002. No new
@@ -110,7 +110,7 @@ is available when reverse traversal needs a saved auxiliary, while [graph](../..
 [compiler](../../glossary.md#term-compiler) concern. Compiler [ownership](../../glossary.md#term-ownership-meanings) is explicit without adding public registries, [model](../../glossary.md#term-model)
 [derivative](../../glossary.md#term-derivative) rules, ThreadLocal [scope](../../glossary.md#term-scope), or [mutable](../../glossary.md#term-mutable) Tensor [gradients](../../glossary.md#term-gradient).
 
-[Preflight](../../glossary.md#term-preflight) avoids predictable partial backward construction, while post-[capture](../../glossary.md#term-capture-meanings) [inference](../../glossary.md#term-inference) remains
+[Preflight](../../glossary.md#term-preflight) avoids predictable partial backward construction, while post-[capture](../../glossary.md#term-capture-meanings) [inference](../../glossary.md#term-inference-meanings) remains
 the authoritative semantic check. Consequently, later failures may consume temporary Tensor IDs;
 that cost is compatible with their existing [opaque](../../glossary.md#term-opaque), monotonic, non-reusable contract.
 

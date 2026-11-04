@@ -50,7 +50,7 @@ contributions create only assigned representations and workspaces; one shared as
 ### Separate physical [buffer](../../glossary.md#term-buffer) for every [partition](../../glossary.md#partition) boundary
 
 [Prepare](../../glossary.md#prepare) could allocate another slot for every [owner](../../glossary.md#term-owner) edge. That would duplicate one [immutable](../../glossary.md#term-immutable)
-logical value, abandon the existing multi-representation validity [model](../../glossary.md#term-model), complicate [fan-out](../../glossary.md#term-fan-out), and
+logical value, abandon the existing multi-representation validity model, complicate [fan-out](../../glossary.md#term-fan-out), and
 introduce a second memory and scheduling convention.
 
 ### [Runtime](../../glossary.md#term-runtime) [registry](../../glossary.md#term-registry) or adapter [lookup](../../glossary.md#term-lookup)
@@ -126,7 +126,7 @@ representative [borrowing](../../glossary.md#term-borrowing) or trial work.
 The selected design turns [Planning](../../glossary.md#term-planning)'s existing [producer](../../glossary.md#term-producer) and consumer facts into physical [residency](../../glossary.md#residency)
 only during [Prepare](../../glossary.md#prepare), where exact [owners](../../glossary.md#term-owner), [descriptors](../../glossary.md#term-descriptor), assignments, and [backend](../../glossary.md#backend) collaborations are
 available. One shared slot preserves logical [identity](../../glossary.md#term-identity-meanings), while [owner](../../glossary.md#term-owner)-indexed representations fit the
-existing [Runtime](../../glossary.md#term-runtime) validity [model](../../glossary.md#term-model). Passing the representation index through the finalization
+existing [Runtime](../../glossary.md#term-runtime) validity model. Passing the representation index through the finalization
 assignment prevents backend executables from relying on a global position-zero convention.
 
 A shared assembler keeps one schedule convention and makes order testable. [Preflight](../../glossary.md#term-preflight) makes
@@ -147,7 +147,7 @@ that contains no [registry](../../glossary.md#term-registry), backend ID, provid
 ### Negative and risks
 
 - Buffer assignments and schedule contexts carry additional owner and representation-position
-  metadata.<span data-glossary-navigation="true"> ([Buffer glossary](../../glossary.md#term-buffer); [carry glossary](../../glossary.md#term-carry); [owner glossary](../../glossary.md#term-owner); [metadata glossary](../../glossary.md#term-metadata))</span>
+  metadata.<span data-glossary-navigation="true"> ([Buffer glossary](../../glossary.md#term-buffer); [owner glossary](../../glossary.md#term-owner); [metadata glossary](../../glossary.md#term-metadata))</span>
 - Backend schedule assemblers must expose exact physical creation contributions instead of assuming
   they own the complete graph.<span data-glossary-navigation="true"> ([Backend glossary](../../glossary.md#backend); [graph glossary](../../glossary.md#graph))</span>
 - The initial transfer domain is intentionally narrow; non-[contiguous](../../glossary.md#term-contiguous) [layouts](../../glossary.md#layout), non-[`FLOAT32`](../../glossary.md#term-float32) data,

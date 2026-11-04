@@ -51,7 +51,7 @@ during a [run](../../glossary.md#term-run).
 while ordinary input, output, and scratch [buffers](../../glossary.md#term-buffer) keep their existing [Runtime](../../glossary.md#term-runtime) ownership roles.
 
 [Immutable](../../glossary.md#term-immutable) [constants](../../glossary.md#term-constant) may be uploaded to their assigned Metal buffers once during prepare when the
-later executable task proves the exact representation and [lifetime](../../glossary.md#term-lifetime). Prepare 0006 will [carry](../../glossary.md#term-carry) the
+later executable task proves the exact representation and [lifetime](../../glossary.md#term-lifetime). Prepare 0006 will carry the
 compiled executable or another persistent native object through the [backend](../../glossary.md#backend) finalization result;
 [`PreparedExecution`](../../glossary.md#prepared-execution--preparedexecution) will become its sole Runtime [owner](../../glossary.md#term-owner) only after the complete preparation
 [transaction](../../glossary.md#term-transaction) succeeds.
@@ -73,7 +73,7 @@ occurrences do not create persistent-resource [ownership](../../glossary.md#term
 No command-[buffer](../../glossary.md#term-buffer) wait belongs inside a compiled [Metal](../../glossary.md#term-metal) region. The current [Runtime](../../glossary.md#term-runtime) call is
 [synchronous](../../glossary.md#term-synchronous), so the first executable route waits once after submitting the region, at the end of
 that region or before a later [CPU](../../glossary.md#term-cpu) step or [host](../../glossary.md#term-host) [materialization](../../glossary.md#materialization) must consume its result. General
-[asynchronous](../../glossary.md#term-asynchronous) execution, deferred completion, cross-[run](../../glossary.md#term-run) overlap, and a public future or event [model](../../glossary.md#term-model)
+[asynchronous](../../glossary.md#term-asynchronous) execution, deferred completion, cross-[run](../../glossary.md#term-run) overlap, and a public future or event model
 remain deferred.
 
 ## Storage direction and deferred optimization

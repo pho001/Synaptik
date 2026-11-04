@@ -24,7 +24,7 @@ For a substantive example, provide:
 8. **Interpretation:** what the result proves and what it does not prove.
 9. **Failure or variation:** include one when it teaches an important constraint.
 
-If the example uses conceptual [pseudocode](../../glossary.md#term-pseudocode) or a planned [API](../../glossary.md#term-application-programming-interface-api), label it before the code block. A user-guide command presented as runnable must actually [run](../../glossary.md#term-run) in its stated environment.
+If the example uses conceptual [pseudocode](../../glossary.md#term-pseudocode) or a planned [API](../../glossary.md#term-application-programming-interface-api), label it before the code block. A user-guide command presented as runnable must actually run in its stated environment.
 
 ## Numerical example: [shape](../../glossary.md#shape) [element](../../glossary.md#term-element) count
 
@@ -90,7 +90,7 @@ The input is the source document path plus the relative [target](../../glossary.
 
 ### Procedure and intermediate result
 
-[Run](../../glossary.md#term-run) the repository's Markdown link check, or a targeted local path-and-anchor check when no repository checker exists. The checker resolves the link relative to the source file, then verifies that the [target](../../glossary.md#term-target) file exists.
+Run the repository's Markdown link check, or a targeted local path-and-anchor check when no repository checker exists. The checker resolves the link relative to the source file, then verifies that the [target](../../glossary.md#term-target) file exists.
 
 The intermediate result is the resolved repository path `docs/planning/planning-guide.md`.
 
@@ -123,7 +123,7 @@ not in literal stdout, strict JSON or archived proof bytes.
 
 ## [Validation](../../glossary.md#term-validation)
 
-- [Run](../../glossary.md#term-run) or [compile](../../glossary.md#compile) examples when their document type promises runnable code.
+- Run or compile examples when their document type promises runnable code.
 - Recalculate every numerical walkthrough independently.
 - Verify intermediate and final results against current behavior or tests.
 - Confirm each meaningful code line or procedural step is explained.

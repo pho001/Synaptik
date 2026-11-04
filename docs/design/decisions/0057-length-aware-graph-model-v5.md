@@ -25,7 +25,7 @@ This [ADR](../../glossary.md#term-architecture-decision-record-adr) is explanato
 ## Context
 
 [General Scan](../../glossary.md#general-differentiable-scan) v4 stores all-valid ordinary [tensor](../../glossary.md#tensor) bodies and raw named state in independent lexical
-scopes. [Runtime](../../glossary.md#term-runtime)-length [Scan](../../glossary.md#term-cumulative-scan) adds explicit row roles and a final discrete lengths actual with no
+scopes. [Runtime](../../glossary.md#term-runtime)-length [Scan](../../glossary.md#general-differentiable-scan) adds explicit row roles and a final discrete lengths actual with no
 body formal. Extending the existing [opcode](../../glossary.md#term-opcode) 23 header in place would let old decoders misinterpret
 role bytes as body structure. [Model](../../glossary.md#term-model) source validity alone grants neither cold nor wire [admission](../../glossary.md#term-admission).
 
@@ -38,7 +38,7 @@ allocation, retain exact [aliases](../../glossary.md#aliasing-and-arena)/roles/[
 
 ## Options considered
 
-- Mutate [opcode](../../glossary.md#term-opcode) 23 in v4: rejected because its old record [layout](../../glossary.md#layout) must remain unambiguous.
+- Mutate [opcode](../../glossary.md#term-opcode) 23 in v4: rejected because its old record [layout](../../glossary.md#term-wire-format) must remain unambiguous.
 - Persist prepared/runtime state: rejected because it couples files to backend resources and
   does not represent ordinary portable model source.<span data-glossary-navigation="true"> ([runtime glossary](../../glossary.md#term-runtime); [backend glossary](../../glossary.md#backend); [model glossary](../../glossary.md#term-model))</span>
 - Add a selective v5 outer opcode on the existing envelope and body [codec](../../glossary.md#term-codec): selected.
@@ -74,6 +74,6 @@ with no native/compiled state or [optimizer](../../glossary.md#term-optimizer)-[
 ## Related documentation
 
 - [Root authority](../../../ARCHITECTURE.md#authority-incorporation-and-precedence)
-- [Length-aware Scan](../../architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../glossary.md#term-cumulative-scan))</span>
+- [Length-aware Scan](../../architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../glossary.md#general-differentiable-scan))</span>
 - [Cold constructor inventory](../../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction)
 - [Existing general-body persistence decision](0047-bounded-general-scan-graph-persistence.md)<span data-glossary-navigation="true"> ([persistence glossary](../../glossary.md#term-persistence))</span>

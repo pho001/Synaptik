@@ -37,7 +37,7 @@ module for all recovery would make [model](../../glossary.md#term-model)-only us
 | Option | Advantage | Cost or rejection reason |
 |---|---|---|
 | Add [persistence](../../glossary.md#term-persistence) to [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) | Direct access to [module](../../glossary.md#term-module) state paths | Moves file/[codec](../../glossary.md#term-codec) concerns into NN and couples [inference](../../glossary.md#term-inference) composition to persistence. |
-| Use one [Checkpoint](../../glossary.md#term-checkpoint) extension for models and training | One [artifact](../../glossary.md#term-artifact) [owner](../../glossary.md#term-owner) | Would make [model](../../glossary.md#term-model)-only use [carry](../../glossary.md#term-carry) Training and obscure owner-specific restore [validation](../../glossary.md#term-validation). |
+| Use one [Checkpoint](../../glossary.md#term-checkpoint) extension for models and training | One [artifact](../../glossary.md#term-artifact) [owner](../../glossary.md#term-owner) | Would make [model](../../glossary.md#term-model)-only use carry Training and obscure owner-specific restore [validation](../../glossary.md#term-validation). |
 | Separate model Checkpoint and optional Training Checkpoint adapter | Model-only users retain a small [dependency](../../glossary.md#term-dependency) set; training state stays with its owner | Requires a later adapter and coordinated cross-owner validation. |
 
 The third option is selected. The comparison is about [ownership](../../glossary.md#term-ownership-meanings) and [dependency direction](../../glossary.md#java-platform-and-build-tools), not a

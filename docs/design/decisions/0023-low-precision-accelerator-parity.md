@@ -61,7 +61,7 @@ have P0 evidence sources and therefore cannot be invented in this [manifest](../
   public cancellation/size-aware family envelopes.<span data-glossary-navigation="true"> ([cancellation glossary](../../glossary.md#term-cancellation))</span>
 - Keep accuracy [qualification](../../glossary.md#term-qualification) separate from determinism [metadata](../../glossary.md#term-metadata).
 - Derive F32 parity targets and corresponding BF16 audit answers from actual current CPU and Metal
-  providers, not a hand-written support table or inference.<span data-glossary-navigation="true"> ([F32 glossary](../../glossary.md#floating-point-precision-and-rounding); [targets glossary](../../glossary.md#term-target); [BF16 glossary](../../glossary.md#floating-point-precision-and-rounding); [CPU glossary](../../glossary.md#term-cpu); [Metal glossary](../../glossary.md#term-metal); [inference glossary](../../glossary.md#term-inference))</span>
+  providers, not a hand-written support table or inference.<span data-glossary-navigation="true"> ([F32 glossary](../../glossary.md#floating-point-precision-and-rounding); [targets glossary](../../glossary.md#term-target); [BF16 glossary](../../glossary.md#floating-point-precision-and-rounding); [CPU glossary](../../glossary.md#term-cpu); [Metal glossary](../../glossary.md#term-metal); [inference glossary](../../glossary.md#term-inference-meanings))</span>
 - Keep provider capability and target mapping separate from route selection, certification,
   runtime availability, device identity, and generated-backward ownership.<span data-glossary-navigation="true"> ([runtime glossary](../../glossary.md#term-runtime); [device glossary](../../glossary.md#term-device); [ownership glossary](../../glossary.md#term-ownership-meanings))</span>
 - Reserve append-only [backend identity](../../glossary.md#backend-identity--backendid) values without activating their later consumers.
@@ -83,7 +83,7 @@ The [capability ledger](../../glossary.md#capability-ledger) is generated from a
 provider query [identity](../../glossary.md#term-identity-meanings) — backend, profile, [operation](../../glossary.md#operation) kind and attributes, ordered input/output
 [descriptors](../../glossary.md#term-descriptor), type, [Shape](../../glossary.md#shape), [layout](../../glossary.md#layout), [gradient](../../glossary.md#term-gradient) [metadata](../../glossary.md#term-metadata), [arity](../../glossary.md#term-arity) — and the [boolean](../../glossary.md#data-type--datatype) [F32](../../glossary.md#floating-point-precision-and-rounding) provider answer.
 For an F32-role witness it also queries the corresponding [BF16](../../glossary.md#floating-point-precision-and-rounding) [occurrence](../../glossary.md#term-occurrence) by replacing every F32
-descriptor and F32-typed [scalar](../../glossary.md#term-scalar) or cast [target](../../glossary.md#term-target) in that witness with BF16 while retaining every
+descriptor and F32-typed [scalar](../../glossary.md#term-scalar-immediate) or cast [target](../../glossary.md#term-target) in that witness with BF16 while retaining every
 other field. Target and exclusion columns are P0 mapping decisions, not facts returned by the
 provider. They do not encode route, runtime, [device](../../glossary.md#term-device), [certificate](../../glossary.md#formal-proof-certificate-and-trusted-assumptions), or backward ownership.
 
@@ -110,7 +110,7 @@ arithmetic relaxation. Existing `STRICT_IEEE` rows remain snapshots only and are
 new low-precision [accelerator](../../glossary.md#term-accelerator) capability.
 
 For the [CPU](../../glossary.md#term-cpu) target, [`FLOAT16`](../../glossary.md#term-float16) must first reach parity with the frozen CPU [`FLOAT32`](../../glossary.md#term-float32) row. Existing
-CPU [`BFLOAT16`](../../glossary.md#term-bfloat16) behavior is preserved; the only planned CPU `BFLOAT16` [residual](../../glossary.md#scan-residual-port-and-history-demand) in this tranche is
+CPU [`BFLOAT16`](../../glossary.md#term-bfloat16) behavior is preserved; the only planned CPU `BFLOAT16` residual in this tranche is
 [dropout](../../glossary.md#dropout--inverted-dropout). For [Metal](../../glossary.md#term-metal), both `BFLOAT16` and `FLOAT16` must reach parity with the frozen Metal
 `ACCELERATOR FLOAT32` row. “Parity” means the same [occurrence](../../glossary.md#term-occurrence) domain and semantic result-set
 obligations. It does not require the same route, instruction sequence, performance, or bit pattern,
@@ -141,7 +141,7 @@ Every newly admitted family first requires a complete custom implementation whos
 uses `FLOAT32` working and accumulator values. The family contract explicitly declares where low
 operands may use [DAZ](../../glossary.md#term-daz), low results may use [FTZ](../../glossary.md#term-ftz), and an arithmetic exact-zero result may choose
 either sign. Arithmetic [NaN](../../glossary.md#term-nan) must retain NaN class and the Model formula's domain behavior, but its
-[payload](../../glossary.md#artifact-envelope-and-atomic-publication) and sign are not accuracy requirements. These freedoms never change a predicate, index,
+[payload](../../glossary.md#term-nan-payload) and sign are not accuracy requirements. These freedoms never change a predicate, index,
 mask, selection, state transition, raw copy, or cast.
 
 Within one operation, arithmetic may reassociate and use corresponding `FLOAT32` [FMA](../../glossary.md#term-fused-multiply-add-fma). [Fusion](../../glossary.md#term-fusion) may
@@ -220,7 +220,7 @@ requires a separate ABI decision.
 
 ### Infer low-[precision](../../glossary.md#term-precision) support from an [operation](../../glossary.md#operation) kind
 
-Capability is [occurrence](../../glossary.md#term-occurrence)-specific. Kind-only [inference](../../glossary.md#term-inference) loses attributes, ordered [descriptors](../../glossary.md#term-descriptor),
+Capability is [occurrence](../../glossary.md#term-occurrence)-specific. Kind-only [inference](../../glossary.md#term-inference-meanings) loses attributes, ordered [descriptors](../../glossary.md#term-descriptor),
 [layouts](../../glossary.md#layout), [gradients](../../glossary.md#term-gradient), and [arity](../../glossary.md#term-arity). Rejected.
 
 ### Put route or [certificate](../../glossary.md#formal-proof-certificate-and-trusted-assumptions) facts in the provider [manifest](../../glossary.md#term-manifest)
@@ -232,7 +232,7 @@ or preparation authority. Rejected.
 ### Add a capability-enumeration [API](../../glossary.md#term-application-programming-interface-api)
 
 The stable representative basis can query the actual predicate directly. Redesigning
-[`BackendCapabilityProvider`](../../glossary.md#backend-capability-provider--backendcapabilityprovider) would add public [weight](../../glossary.md#term-weight) without improving the frozen evidence.
+[`BackendCapabilityProvider`](../../glossary.md#backend-capability-provider--backendcapabilityprovider) would add public weight without improving the frozen evidence.
 Rejected.
 
 ### Accept vendor primitives by [operation](../../glossary.md#operation) name or generic [tolerance](../../glossary.md#term-tolerance)

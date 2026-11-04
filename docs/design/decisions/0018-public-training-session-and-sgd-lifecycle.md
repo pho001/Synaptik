@@ -40,7 +40,7 @@ is authoritative; this record explains the selected decision.
 
 - [Compile](../../glossary.md#compile) and [prepare](../../glossary.md#prepare) the combined forward/[backward graph](../../glossary.md#backward-graph) exactly once per [training session](../../glossary.md#training-session--trainingsession).
 - Reuse `CompiledGraph.inputs()`, [gradient](../../glossary.md#term-gradient) `targetIndex`, [Engine](../../glossary.md#term-engine) [`PreparedExecution`](../../glossary.md#prepared-execution--preparedexecution), and [`RunResult`](../../glossary.md#run-result--runresult)
-  rather than create a second scheduler, runner, or publication model.<span data-glossary-navigation="true"> ([publication glossary](../../glossary.md#term-publication); [model glossary](../../glossary.md#term-model))</span>
+  rather than create a second scheduler, runner, or publication model.<span data-glossary-navigation="true"> ([publication glossary](../../glossary.md#term-publication))</span>
 - Preserve stable [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [parameter](../../glossary.md#term-parameter) paths, wrappers, [Tensor](../../glossary.md#tensor) [identities](../../glossary.md#term-identity-meanings), and [host](../../glossary.md#term-host)-storage occurrences.
 - Provide a real built-in [optimizer](../../glossary.md#term-optimizer) with persistent per-parameter state and exact update order.
 - Validate all fallible work before parameter or optimizer mutation.

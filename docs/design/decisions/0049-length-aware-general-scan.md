@@ -17,7 +17,7 @@ Implementation update — 2026-10-24: Model0038's bounded source/structural-[IR]
 implemented and independently approved. MAIN accepted Complete on 2026-10-24 after the combined
 integration retry passed following a test-only ledger repair. Implementation/status amendment —
 2026-10-26: Compiler0013/Prepare0011 and fixed-geometry [F32](../../glossary.md#floating-point-precision-and-rounding)/[F64](../../glossary.md#floating-point-precision-and-rounding) CPU0042 are Complete; Model0044
-source and Compiler0015 [inference](../../glossary.md#term-inference)/actual [AD](../../glossary.md#autograd)/all-port [binding](../../glossary.md#term-binding) add one-B length [metadata](../../glossary.md#term-metadata) support.
+source and Compiler0015 [inference](../../glossary.md#term-inference-meanings)/actual [AD](../../glossary.md#autograd)/all-port [binding](../../glossary.md#term-binding) add one-B length [metadata](../../glossary.md#term-metadata) support.
 Prepare0015's pre-Java [qualification](../../glossary.md#term-qualification) was independently approved and MAIN-accepted on 2026-10-26.
 Implementation amendment — 2026-10-26: Prepare0015 implements combined one-B/fixed-T/[features](../../glossary.md#term-feature)
 F32/F64 execution and its bounded outer/control/ROW(1) prerequisite. Owning [validation](../../glossary.md#term-validation) and independent
@@ -56,7 +56,7 @@ bounded and independent of [backend capability](../../glossary.md#backend-capabi
 
 Adopt the [scan owner's complete protocol](../../architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan)<span data-glossary-navigation="true"> ([owner glossary](../../glossary.md#term-owner))</span>.
 Extend existing ScanAttrs with rowCarryCount and [immutable](../../glossary.md#term-immutable) ordered List<OptionalInt> sequenceRowAxes,
-and [Scan](../../glossary.md#term-cumulative-scan).apply with a final-length-actual [binding](../../glossary.md#term-binding) overload. No lengths body formal or new
+and [Scan](../../glossary.md#general-differentiable-scan).apply with a final-length-actual [binding](../../glossary.md#term-binding) overload. No lengths body formal or new
 production type is selected. New length-mode source admits [homogeneous](../../glossary.md#term-homogeneous) [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) and only
 the selected closed row-preserving algebra; old all-valid [PURE](../../glossary.md#term-pure)/type [admission](../../glossary.md#term-admission) is untouched.
 Leading carries are ROW(0); terminal SHARED suffixes have distinct old.add(contribution) sites.
@@ -90,20 +90,20 @@ does not make all memory [constant](../../glossary.md#term-constant). New reduct
 equivalence promise to another grouping. Mixed [INT64](../../glossary.md#data-type--datatype)/floating [runtime](../../glossary.md#term-runtime) boundaries need real work.
 
 Authority review/MAIN acceptance precedes [Model0038](../../planning/modules/model/tasks/0038-length-aware-scan-source-foundation.md).
-That foundation itself enabled no route: at its acceptance, old [Compiler](../../glossary.md#term-compiler) [inference](../../glossary.md#term-inference)/[AD](../../glossary.md#autograd)/cold,
+That foundation itself enabled no route: at its acceptance, old [Compiler](../../glossary.md#term-compiler) [inference](../../glossary.md#term-inference-meanings)/[AD](../../glossary.md#autograd)/cold,
 [Prepare](../../glossary.md#prepare), [CPU](../../glossary.md#term-cpu) [pointwise](../../glossary.md#term-pointwise)/shaped and [Checkpoint](../../glossary.md#term-checkpoint) encoder explicitly rejected length mode. The later
 implemented and accepted-[target](../../glossary.md#term-target) scopes are distinguished in Status above. Exact v5 field
 encoding/compatibility tests are separately gated, not a task cascade. [Dependency direction](../../glossary.md#java-platform-and-build-tools) and
 execution/resource [owners](../../glossary.md#term-owner) do not change, so this documentation phase changes no architecture tests.
 
-No fluent `.rnn`/fixed-[scan](../../glossary.md#term-cumulative-scan) migration, fixed [BPTT](../../glossary.md#term-backpropagation-through-time-bptt), [GRU](../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../glossary.md#term-long-short-term-memory-lstm) migration, higher-order waiver, implicit
+No fluent `.rnn`/fixed-[scan](../../glossary.md#term-fixed-recurrent-scan) migration, fixed [BPTT](../../glossary.md#term-backpropagation-through-time-bptt), [GRU](../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../glossary.md#term-long-short-term-memory-lstm) migration, higher-order waiver, implicit
 [model](../../glossary.md#term-model)-wide [mask](../../glossary.md#term-boolean-mask)/[MEAN](../../glossary.md#term-mean) change, packing, new executor, low/[Metal](../../glossary.md#term-metal)/[vector](../../glossary.md#term-vector)/parallel/[OpenBLAS](../../glossary.md#term-openblas) route.
-NN0032's advanced second-order CPU [compile](../../glossary.md#compile) [regression](../../glossary.md#term-regression), [singleton](../../glossary.md#term-singleton)-CONCAT copy and unproved
-mixed-[engine](../../glossary.md#term-engine) compatibility remain separate gates. No performance/build [run](../../glossary.md#term-run) is part of this decision.
+NN0032's advanced second-order CPU [compile](../../glossary.md#compile) [regression](../../glossary.md#term-regression), singleton-CONCAT copy and unproved
+mixed-[engine](../../glossary.md#term-engine) compatibility remain separate gates. No performance/build run is part of this decision.
 
 ## Related documentation
 
 The [focused explanation](../../architecture/general-differentiable-scan.md#accepted-length-aware-design-implementation-pending)
 illustrates skipping and shared accumulation. [Checkpoint v5](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)<span data-glossary-navigation="true"> ([Checkpoint glossary](../../glossary.md#term-checkpoint))</span>
-owns future wire/bounds duties, not [scan](../../glossary.md#term-cumulative-scan) semantics. [ADR0045](0045-general-differentiable-scan.md)
+owns future wire/bounds duties, not [scan](../../glossary.md#general-differentiable-scan) semantics. [ADR0045](0045-general-differentiable-scan.md)
 and [ADR0047](0047-bounded-general-scan-graph-persistence.md) remain valid for the unchanged all-valid baseline.

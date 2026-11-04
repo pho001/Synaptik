@@ -9,13 +9,13 @@ Use the [scopes, carries and reverse computation](../../architecture/general-dif
 and evidence below remain historical records; this reading aid does not amend them.
 
 > [`ARCHITECTURE.md`](../../../ARCHITECTURE.md) is authoritative. This ADR records rationale for
-> the incorporated [scan semantic contract](../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-cumulative-scan))</span>,
+> the incorporated [scan semantic contract](../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#general-differentiable-scan))</span>,
 > not an independent contract or implemented capability.
 
 ## Status
 
 Accepted — 2026-10-21. After the concrete ScanBody/source-expression, [Compiler](../../glossary.md#term-compiler)-generated reverse
-[scan](../../glossary.md#term-cumulative-scan) and construction-time [canonical](../../glossary.md#term-canonical-form) [residual](../../glossary.md#scan-residual-port-and-history-demand) ports with demand-only history proposal, and a
+[scan](../../glossary.md#general-differentiable-scan) and construction-time [canonical](../../glossary.md#term-canonical-form) [residual](../../glossary.md#scan-residual-port-and-history-demand) ports with demand-only history proposal, and a
 source-checked framework comparison, the user said “ok, tak tedy pokracuj”. The coordinator recorded
 this as approval of that specific proposal and authority cutover, not arbitrary control flow or
 all implementation slices. The [completed decision brief](../../planning/modules/model/tasks/0034-general-differentiable-scan-decision.md)
@@ -28,12 +28,12 @@ clarifications recorded below; independent authority review and main acceptance 
 The [Model0035 source/IR brief](../../planning/modules/model/tasks/0035-general-scan-source-and-compiled-body.md)<span data-glossary-navigation="true"> ([IR glossary](../../glossary.md#term-intermediate-representation-ir))</span>
 records the implemented and validated [Model](../../glossary.md#term-model) foundation: source construction, canonical ports and
 structural compiled-body attachments. Planning0008 implements optional compiled-body query transport
-and provider contract tests. As of 2026-10-22, Compiler0011 implements scoped [capture](../../glossary.md#term-capture-meanings)/[inference](../../glossary.md#term-inference),
+and provider contract tests. As of 2026-10-22, Compiler0011 implements scoped [capture](../../glossary.md#term-capture-meanings)/[inference](../../glossary.md#term-inference-meanings),
 bounded [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) reverse-scan first-order [AD](../../glossary.md#autograd) and final body-bearing query/demand emission.
 Prepare0010 now implements scoped projection, static [binding](../../glossary.md#term-binding) checks and complete-[graph](../../glossary.md#graph) demand
 [validation](../../glossary.md#term-validation) through the existing resource [handoff](../../glossary.md#term-handoff). CPU0030 subsequently implements bounded
 FLOAT32 same-[shape](../../glossary.md#shape) [pointwise](../../glossary.md#term-pointwise) execution and its independently qualified actual Compiler-generated
-reverse sibling, with focused executable/resource evidence; its named main [checkpoint](../../glossary.md#term-checkpoint) is separate.
+reverse sibling, with focused executable/resource evidence; its named main checkpoint is separate.
 CPU0031 additionally implements qualified [homogeneous](../../glossary.md#term-homogeneous) FLOAT32 broadcast, SUM/sumToShape and bounded
 shape/[layout](../../glossary.md#layout) closure, including actual independently qualified reverse bodies. CPU0032 additionally
 implements static homogeneous FLOAT32 [rank-two](../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../glossary.md#matrix-multiplication--matmul) in the emitted scan and independently
@@ -90,7 +90,7 @@ Manual recipes burden ordinary users with [derivative](../../glossary.md#term-de
 keys hide source containment. Another [AD](../../glossary.md#autograd) algebra/executor or [runtime](../../glossary.md#term-runtime) tape moves responsibilities
 away from their existing [owners](../../glossary.md#term-owner). These are rejected rather than introduced as convenience layers.
 
-### Source [Tensor](../../glossary.md#tensor) body with [canonical](../../glossary.md#term-canonical-form) [residual](../../glossary.md#scan-residual-port-and-history-demand) [metadata](../../glossary.md#term-metadata) and ordinary reverse [scan](../../glossary.md#term-cumulative-scan)
+### Source [Tensor](../../glossary.md#tensor) body with [canonical](../../glossary.md#term-canonical-form) [residual](../../glossary.md#scan-residual-port-and-history-demand) [metadata](../../glossary.md#term-metadata) and ordinary reverse [scan](../../glossary.md#general-differentiable-scan)
 
 Selected. Original [producer](../../glossary.md#term-producer) construction reserves canonical residual ports. [Compiler](../../glossary.md#term-compiler) binds exact
 original primals to reverse formals and uses ordinary [derivative](../../glossary.md#term-derivative) algebra to build a sibling scan.
@@ -99,7 +99,7 @@ after exact resource assignment. This serves the same composition need without a
 
 ## Decision
 
-Broaden the existing recurrent-[scan](../../glossary.md#term-cumulative-scan) [owner](../../glossary.md#term-owner) in place to own complete fixed/[general scan](../../glossary.md#general-differentiable-scan) semantics;
+Broaden the existing recurrent-scan [owner](../../glossary.md#term-owner) in place to own complete fixed/[general scan](../../glossary.md#general-differentiable-scan) semantics;
 retain exactly six incorporated contracts. Root and other scoped contracts establish only their
 own boundaries and link to that owner. The new inventory is exactly the approved [Model](../../glossary.md#term-model) ScanBody,
 Scan/ScanResult, ScanKind/ScanAttrs and CompiledScanBody, existing [producer](../../glossary.md#term-producer)/[node](../../glossary.md#node)/query extensions,
@@ -137,13 +137,13 @@ without pretending today's rule entry points already support reverse formals.
 
 Restricting source construction to the first [CPU](../../glossary.md#term-cpu) algebra/[dtypes](../../glossary.md#data-type--datatype) would confuse Model meaning with
 provider capability: valid [FLOAT16](../../glossary.md#term-float16) [TANH](../../glossary.md#term-tanh) and [FLOAT32](../../glossary.md#term-float32) RELU source should not need a new Model design
-when a later execution [slice](../../glossary.md#slice) qualifies them. Conversely, copying a source emission's local flag
+when a later execution slice qualifies them. Conversely, copying a source emission's local flag
 can lose a temporal [dependency](../../glossary.md#term-dependency): with non-[gradient](../../glossary.md#term-gradient) h0, gradient-bearing x, `nextCarry=h+xStep`
 and `emit=h`, later emissions depend on earlier x steps. The selected outer-input OR avoids that
 false negative without changing formal flags. Its cost is intentional over-approximation for
 unused inputs and T=0; it proves neither a nonzero [derivative](../../glossary.md#term-derivative) nor [AD](../../glossary.md#autograd)/[backend](../../glossary.md#backend) support. The
 [conceptual temporal example](../../architecture/general-differentiable-scan.md#why-outer-construction-flags-are-conservative)
-shows the distinction without claiming implemented [scan](../../glossary.md#term-cumulative-scan) execution.
+shows the distinction without claiming implemented [scan](../../glossary.md#general-differentiable-scan) execution.
 
 The bounded exception supersedes only the blanket prohibition on this specific source/captured
 [scan body](../../glossary.md#backpropagation-through-time-and-recurrent-state). [ADR 0012](0012-fixed-recurrent-scan-without-regions.md)<span data-glossary-navigation="true"> ([ADR glossary](../../glossary.md#term-architecture-decision-record-adr))</span>'s fixed-family design, public
@@ -175,7 +175,7 @@ reverse milestone precedes remaining declared algebra/generated closure and [hom
 completion, including DIV. Low types follow under existing [rounding](../../glossary.md#term-rounding)/saved-state semantics. T=0,
 empties, exact saved values, tied roles, both [seed](../../glossary.md#term-seed) classes, [scope](../../glossary.md#term-scope)/escape rejection, demand/resource
 [overflow](../../glossary.md#term-overflow), overlap, cleanup/retry/[concurrency](../../glossary.md#term-concurrency) and unsupported binder/interior/generated cases need
-new focused evidence. [Residual](../../glossary.md#scan-residual-port-and-history-demand)-root and every [scan](../../glossary.md#term-cumulative-scan) higher-order/createGraph request fail before
+new focused evidence. [Residual](../../glossary.md#scan-residual-port-and-history-demand)-root and every [scan](../../glossary.md#general-differentiable-scan) higher-order/createGraph request fail before
 [derivative](../../glossary.md#term-derivative) allocation. Current fixed tests prove none of this generic capability.
 
 [Padding](../../glossary.md#padding) needs separate row-separability and branch-before-padded-[primal](../../glossary.md#term-primal)/[cotangent](../../glossary.md#cotangent)-read/arithmetic

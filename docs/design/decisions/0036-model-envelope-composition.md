@@ -51,7 +51,7 @@ failure types/order, reread files on inspect/load, and delegate the same semanti
 [Canonical](../../glossary.md#term-canonical-form)-byte access returns an [immutable](../../glossary.md#term-immutable) map structure in [model](../../glossary.md#term-model) [metadata](../../glossary.md#term-metadata) order, keyed by exact
 [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) paths. Every call supplies independent read-only position-zero BIG_ENDIAN ByteBuffer [views](../../glossary.md#term-view-meanings);
 their bytes are immutable, not their cursors. Each [operation](../../glossary.md#operation) fully validates the envelope and
-every ArtifactLimits [dimension](../../glossary.md#dimension) without depending on prior file reads or inspection. No new
+every ArtifactLimits dimension without depending on prior file reads or inspection. No new
 [codec](../../glossary.md#term-codec), [schema](../../glossary.md#term-schema), [registry](../../glossary.md#term-registry), temporary-file composition pipeline, or public model-image type is chosen.
 
 The concrete future consumer compares the complete model [parameter](../../glossary.md#term-parameter) set, [descriptors](../../glossary.md#term-descriptor), and raw

@@ -24,7 +24,7 @@ inputs so one compiled and prepared computation can be reused for different [bat
 changing [graph](../../glossary.md#graph) [topology](../../glossary.md#term-topology).
 
 The current architecture has flat [immutable](../../glossary.md#term-immutable) [Model](../../glossary.md#term-model) expressions and compiled graphs. [Compiler](../../glossary.md#term-compiler) owns
-[capture](../../glossary.md#term-capture-meanings), [inference](../../glossary.md#term-inference), [validation](../../glossary.md#term-validation), and [autograd](../../glossary.md#autograd); [Planning](../../glossary.md#term-planning) chooses [backend ownership](../../glossary.md#backend-ownership); staged [backend](../../glossary.md#backend)
+[capture](../../glossary.md#term-capture-meanings), [inference](../../glossary.md#term-inference-meanings), [validation](../../glossary.md#term-validation), and [autograd](../../glossary.md#autograd); [Planning](../../glossary.md#term-planning) chooses [backend ownership](../../glossary.md#backend-ownership); staged [backend](../../glossary.md#backend)
 preparation owns [lowering](../../glossary.md#lowering) and route choice; Runtime invokes only cold-bound prepared actions.
 There is no body capture, nested graph, region [identity](../../glossary.md#term-identity-meanings), free-variable capture, loop
 [intermediate representation](../../glossary.md#term-intermediate-representation-ir), or Runtime graph interpreter.
@@ -51,14 +51,14 @@ larger architecture whose [ownership](../../glossary.md#term-ownership-meanings)
 
 [Model](../../glossary.md#term-model) could publish a [callback](../../glossary.md#term-callback), lambda, [Tensor](../../glossary.md#tensor) body, nested graph, callable block, or region and
 let callers define the recurrent transition. This would require new body-input/output [identity](../../glossary.md#term-identity-meanings),
-free-variable [capture](../../glossary.md#term-capture-meanings), cross-graph [ownership](../../glossary.md#term-ownership-meanings), nested [inference](../../glossary.md#term-inference), optimization, [autograd](../../glossary.md#autograd), [planning](../../glossary.md#term-planning),
+free-variable [capture](../../glossary.md#term-capture-meanings), cross-graph [ownership](../../glossary.md#term-ownership-meanings), nested [inference](../../glossary.md#term-inference-meanings), optimization, [autograd](../../glossary.md#autograd), [planning](../../glossary.md#term-planning),
 preparation, [serialization](../../glossary.md#term-serialization), and [Runtime](../../glossary.md#term-runtime) contracts. None exists today. Publishing a partial region
 surface would make later consumers invent incompatible semantics.
 
 ### [Host](../../glossary.md#term-host)-side unroll selected by [runtime](../../glossary.md#term-runtime) lengths
 
 An adapter could read a Java `long[]` and construct a different [Tensor](../../glossary.md#tensor) expression for each length
-pattern. This is the current static-container [model](../../glossary.md#term-model), not runtime-value reuse. [Graph](../../glossary.md#graph) construction
+pattern. This is the current static-container model, not runtime-value reuse. [Graph](../../glossary.md#graph) construction
 and [compiled graph](../../glossary.md#compiled-graph--compiledgraphmodel) size can grow with `time`, and changing lengths changes [topology](../../glossary.md#term-topology).
 
 ### Dense masking around ordinary cell expressions
@@ -183,7 +183,7 @@ mutation; [callback](../../glossary.md#term-callback); I/O; or external resource
 bindings. The 2026-10-20 amendment permits cold semantic [graphs](../../glossary.md#graph) and named [host](../../glossary.md#term-host) values under the
 owning [generic source](../../architecture/contracts/extensions-training.md#generic-graph-source-and-values)
 and [graph-model v3 contract](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-3)<span data-glossary-navigation="true"> ([model glossary](../../glossary.md#term-model))</span>.
-The fixed operation and its ordered ports are data, not an executable or serialized result-[carrier](../../glossary.md#term-storage-carrier)
+The fixed operation and its ordered ports are data, not an executable or serialized result-carrier
 object. Prepared executables, native/[backend](../../glossary.md#backend) [artifacts](../../glossary.md#term-artifact) and Runtime state remain rebuilt, never
 persisted. [Prototype](../../glossary.md#term-prototype) valid-length storage is not saved or read by cold [preflight](../../glossary.md#term-preflight); length bounds
 belong to execution. This does not add a body, callback, unroll, [backend route](../../glossary.md#backend-route) or [gradient](../../glossary.md#term-gradient) rule.
@@ -204,7 +204,7 @@ prerequisite or a claim of this amendment. Existing static NN containers stay un
   canonical provenance, and the focused static expression namespace.<span data-glossary-navigation="true"> ([Model glossary](../../glossary.md#term-model); [descriptor glossary](../../glossary.md#term-descriptor); [validation glossary](../../glossary.md#term-validation); [metadata glossary](../../glossary.md#term-metadata); [canonical glossary](../../glossary.md#term-canonical-form); [provenance glossary](../../glossary.md#provenance))</span>
 - Compiler owns one-node capture, inference, final validation, and forward inventory adoption. It
   rejects every backward-capable request reaching the family before constructing any gradient
-  Tensor until BPTT is separately designed.<span data-glossary-navigation="true"> ([Compiler glossary](../../glossary.md#term-compiler); [node glossary](../../glossary.md#node); [capture glossary](../../glossary.md#term-capture-meanings); [inference glossary](../../glossary.md#term-inference); [gradient glossary](../../glossary.md#term-gradient); [Tensor glossary](../../glossary.md#tensor); [BPTT glossary](../../glossary.md#term-backpropagation-through-time-bptt))</span>
+  Tensor until BPTT is separately designed.<span data-glossary-navigation="true"> ([Compiler glossary](../../glossary.md#term-compiler); [node glossary](../../glossary.md#node); [capture glossary](../../glossary.md#term-capture-meanings); [inference glossary](../../glossary.md#term-inference-meanings); [gradient glossary](../../glossary.md#term-gradient); [Tensor glossary](../../glossary.md#tensor); [BPTT glossary](../../glossary.md#term-backpropagation-through-time-bptt))</span>
 - [Planning](../../glossary.md#term-planning) uses the existing ordinary capability query and chooses only [backend ownership](../../glossary.md#backend-ownership).
 - Shared Prepare uses the existing static projection, staged analysis, exact declaration,
   assignment, and finalization contracts; it gains no loop/body contract.<span data-glossary-navigation="true"> ([Prepare glossary](../../glossary.md#prepare))</span>
@@ -227,7 +227,7 @@ routes. [Runtime](../../glossary.md#term-runtime) does not select loop count, co
 One [occurrence](../../glossary.md#term-occurrence) remains one compiled [node](../../glossary.md#node) independent of `time` and lengths; [graph](../../glossary.md#graph) construction
 and graph size for that occurrence are [`O(1)`](../../glossary.md#memory-management-atomic-counters-and-complexity) in `time`. [Backend](../../glossary.md#backend) analysis prepares the transition
 once and never constructs or retains one node, graph, executable, or body per step. The [Runtime](../../glossary.md#term-runtime)
-[hot path](../../glossary.md#term-hot-path) performs no reflection, string [dispatch](../../glossary.md#term-dispatch), [scalar](../../glossary.md#term-scalar) boxing, graph inspection, [operation](../../glossary.md#operation)
+[hot path](../../glossary.md#term-hot-path) performs no reflection, string dispatch, scalar boxing, graph inspection, [operation](../../glossary.md#operation)
 dispatch, backend [lookup](../../glossary.md#term-lookup), route selection, or per-step object-graph growth.
 
 Invalid [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) execute no recurrent [dot products](../../glossary.md#linear-algebra-building-blocks), gates, or state update. Branch-based
@@ -280,7 +280,7 @@ time [alignment](../../glossary.md#term-alignment), and typed final states.
 corrects that surface to `RecurrentScan.rnn/gru/lstm` without changing the semantics. [Compiler](../../glossary.md#term-compiler)
 0006A owns forward adoption and the initial [fail-closed](../../glossary.md#term-fail-closed) [BPTT](../../glossary.md#term-backpropagation-through-time-bptt) boundary. A later concrete-[backend](../../glossary.md#backend)
 task owns truthful execution.
-[Engine](../../glossary.md#term-engine) 0001–0002 own [lifecycle](../../glossary.md#lifecycle) composition and typed caller/output [binding](../../glossary.md#term-binding). NN 0021B [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix)
+[Engine](../../glossary.md#term-engine) 0001–0002 own [lifecycle](../../glossary.md#lifecycle) composition and typed caller/output [binding](../../glossary.md#term-binding). NN 0021B coordinates
 the executable [owner](../../glossary.md#term-owner) sequence; NN 0022 owns Data-facing [runtime](../../glossary.md#term-runtime)-length [API](../../glossary.md#term-application-programming-interface-api) and compatibility.
 Dynamic [Shapes](../../glossary.md#shape), arbitrary [masks](../../glossary.md#term-boolean-mask) with holes, active-row compaction, BPTT, and general regions stay
 separate.

@@ -17,7 +17,7 @@ implementation and [qualification](../../glossary.md#term-qualification). CPU007
 ## Context
 
 Ordinary [Model](../../glossary.md#term-model) RESHAPE accepts equal-[cardinality](../../glossary.md#term-cardinality) value semantics. Model construction and raw
-[Compiler](../../glossary.md#term-compiler) [inference](../../glossary.md#term-inference) prove an exact [view](../../glossary.md#term-view-meanings) only for a present [contiguous](../../glossary.md#term-contiguous) source [layout](../../glossary.md#layout); otherwise
+[Compiler](../../glossary.md#term-compiler) [inference](../../glossary.md#term-inference-meanings) prove an exact [view](../../glossary.md#term-view-meanings) only for a present [contiguous](../../glossary.md#term-contiguous) source [layout](../../glossary.md#layout); otherwise
 the result remains unresolved. That does not prove a view or reject [materialization](../../glossary.md#materialization).
 
 The source-matched Metal0080 candidate passes the unchanged full [F32](../../glossary.md#floating-point-precision-and-rounding) [MLP](../../glossary.md#term-multilayer-perceptron-mlp) and [CNN](../../glossary.md#term-convolutional-neural-network-cnn) public
@@ -33,7 +33,7 @@ closure from a handwritten gradient or CPU result.
 
 ## Decision
 
-### Final [Compiler](../../glossary.md#term-compiler) geometry, not raw source [inference](../../glossary.md#term-inference)
+### Final [Compiler](../../glossary.md#term-compiler) geometry, not raw source [inference](../../glossary.md#term-inference-meanings)
 
 In the second [topological](../../glossary.md#term-topological-order) phase of StaticResultLogicalLayoutClosure, retain resolved outputs,
 retry existing LayoutInference, check inferred [dtype](../../glossary.md#data-type--datatype)/[Shape](../../glossary.md#shape) agreement, and prefer any proved
@@ -99,7 +99,7 @@ unpublished profile37 candidate is not redefined. No blanket [Compiler](../../gl
 Compiler0019 and Metal0081 may implement against a frozen coordinated candidate; CPU0079's
 provider cutover waits for CPU0078 acceptance. MAIN owns exact layered preimages/approved
 bytes, shared ledgers, native build/sign/package/clean install and every executable check.
-Workers [run](../../glossary.md#term-run) no builds/tests/formatters. Rebuild the changed native source; the earlier ad-hoc
+Workers run no builds/tests/formatters. Rebuild the changed native source; the earlier ad-hoc
 profile37 package cannot certify the final source and is not a trusted public [binary](../../glossary.md#term-binary-descriptor-and-metadata).
 
 Keep the unchanged all-15-[graph](../../glossary.md#graph) original [F32](../../glossary.md#floating-point-precision-and-rounding)/[BF16](../../glossary.md#floating-point-precision-and-rounding)/[F16](../../glossary.md#floating-point-precision-and-rounding) forward/both-generated-[gradient](../../glossary.md#term-gradient) consumer.

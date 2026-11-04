@@ -100,7 +100,7 @@ failure without inventing [rollback](../../glossary.md#term-rollback) for an alr
 ## Consequences
 
 - One file has atomic live visibility under the existing temporary-file/force/atomic-move policy,
-  not universal power-loss durability, authentication, or a non-atomic fallback.<span data-glossary-navigation="true"> ([atomic glossary](../../glossary.md#resource-transaction-and-rollback); [loss glossary](../../glossary.md#loss); [durability glossary](../../glossary.md#term-durability); [authentication glossary](../../glossary.md#term-authentication))</span>
+  not universal power-loss durability, authentication, or a non-atomic fallback.<span data-glossary-navigation="true"> ([atomic glossary](../../glossary.md#resource-transaction-and-rollback); [durability glossary](../../glossary.md#term-durability); [authentication glossary](../../glossary.md#term-authentication))</span>
 - Detached values and public defensive copies may increase heap demand. Canonical encoded-byte
   limits do not constitute a memory budget or large-model support evidence.<span data-glossary-navigation="true"> ([Detached glossary](../../glossary.md#detached-model-results); [heap glossary](../../glossary.md#term-heap); [Canonical glossary](../../glossary.md#term-canonical-form); [model glossary](../../glossary.md#term-model))</span>
 - Logical low-precision values remain distinct from F32 masters; all raw signed zeros/slot bits

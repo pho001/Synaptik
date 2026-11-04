@@ -29,7 +29,7 @@ feed that same pass. The small comparison is not general correctness or timing e
 ## Decision drivers
 
 - Preserve represented arithmetic, saved/public uses, [aliases](../../glossary.md#aliasing-and-arena), activity and resource lifetimes.
-- Reuse current [operation](../../glossary.md#operation) math through both ordinary and [Scan](../../glossary.md#term-cumulative-scan) callers, without a second executor.
+- Reuse current [operation](../../glossary.md#operation) math through both ordinary and [Scan](../../glossary.md#general-differentiable-scan) callers, without a second executor.
 - Bound cold proofs and live locals; retain fallbacks and literal noneligible [artifacts](../../glossary.md#term-artifact).
 - Distinguish exact ordinary SUM from Scan's represented algorithm and avoid capability inflation.
 
@@ -54,7 +54,7 @@ It is selected; exact names/[signatures](../../glossary.md#term-signature)/budge
 ## Decision and rationale
 
 Select the common cold [IR](../../glossary.md#term-intermediate-representation-ir)/proof/emission mechanism in the [CPU](../../glossary.md#term-cpu) [owner](../../glossary.md#term-owner). Ordinary [graphs](../../glossary.md#graph) lower to
-one full-body work item; [Scan](../../glossary.md#term-cumulative-scan) wraps generation inside its existing time/activity loop. The
+one full-body work item; [Scan](../../glossary.md#general-differentiable-scan) wraps generation inside its existing time/activity loop. The
 region is physical [lowering](../../glossary.md#lowering) of an unchanged semantic [DAG](../../glossary.md#term-directed-acyclic-graph-dag), not a new [Model](../../glossary.md#term-model) [operation](../../glossary.md#operation), [Compiler](../../glossary.md#term-compiler)
 graph, scheduler or [Runtime](../../glossary.md#term-runtime)/[Engine](../../glossary.md#term-engine)/[Prepare](../../glossary.md#prepare) protocol. Existing math owners retain algorithms;
 ordinary exact SUM and its required [producer](../../glossary.md#term-producer) storage/workspace remain separate.
@@ -75,13 +75,13 @@ These are design opportunities, not measured speedups or guaranteed no-copy beha
 ### Negative and risks
 
 Complete uses, [dependency](../../glossary.md#term-dependency) convexity, named [axes](../../glossary.md#term-axis), physical [aliases](../../glossary.md#aliasing-and-arena) and inclusive lifetimes make
-cold [admission](../../glossary.md#term-admission) more demanding. Bounded [features](../../glossary.md#term-software-feature)/live locals deliberately reject some groups.
+cold [admission](../../glossary.md#term-admission) more demanding. Bounded [features](../../glossary.md#term-feature)/live locals deliberately reject some groups.
 Saved or external uses can retain [materialization](../../glossary.md#materialization). Shared generation seams must preserve old
 fallback byte/local order; selected groups cannot reuse incompatible unfused [artifacts](../../glossary.md#term-artifact).
 
 ### Migration, testing and follow-up
 
-The owning contract reserves only selected ordinary projection 72 and selective ordinary/[Scan](../../glossary.md#term-cumulative-scan)
+The owning contract reserves only selected ordinary projection 72 and selective ordinary/[Scan](../../glossary.md#general-differentiable-scan)
 row-[fusion](../../glossary.md#term-fusion)-v1 suffixes. Global envelope 71 and Scan projection 71 remain; noneligible controls
 retain literal keys/ClassFiles/resources. Both callers qualified before eligible traversal glue
 retired; fallback math, temporal/history [ownership](../../glossary.md#term-ownership-meanings) and required ordinary D stores remain.
@@ -89,8 +89,8 @@ CPU0073 provides durable actual-[AD](../../glossary.md#autograd), empty/range/ac
 Java/generated-ClassFile inspection. Its implemented selection requires a computed row [producer](../../glossary.md#term-producer)
 shared by a terminal and another required sink, not direct-input/movement sharing alone.
 Independent code/tests/[Javadoc](../../glossary.md#term-javadoc) review closed all findings; MAIN's 42-test join passed. The task
-distinguishes the failed full-[module](../../glossary.md#term-module) [run](../../glossary.md#term-run) from passing repairs and approved unchanged-outcome
-transfer. [Finite](../../glossary.md#term-finite) retention evidence authenticates 356 pre-edit payloads and seven selected reverse
+distinguishes the failed full-[module](../../glossary.md#term-module) run from passing repairs and approved unchanged-outcome
+transfer. Finite retention evidence authenticates 356 pre-edit payloads and seven selected reverse
 retirements; the missing initial case-level diagnostic is not reconstructed. These results establish
 bounded implementation, not speed or universal [artifact](../../glossary.md#term-artifact) preservation.
 All old timing budgets are closed; measurements require
@@ -101,6 +101,6 @@ outside this decision.
 
 - [CPU0073 brief](../../planning/backends/cpu/tasks/0073-row-map-multi-reduction-fusion.md)
 - [Approved detailed proposal](../../planning/backends/cpu/row-map-multi-reduction-fusion-plan.md)
-- [Scan semantic owner](../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../glossary.md#term-cumulative-scan); [owner glossary](../../glossary.md#term-owner))</span>
+- [Scan semantic owner](../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../glossary.md#general-differentiable-scan); [owner glossary](../../glossary.md#term-owner))</span>
 - [Scan explanation](../../architecture/general-differentiable-scan.md#accepted-row-map-fusion-design-not-execution-availability)
 - [CPU contributor guide](../../backend-guide/cpu-backend.md#accepted-row-map-and-multiple-terminal-fusion-design)<span data-glossary-navigation="true"> ([CPU glossary](../../glossary.md#term-cpu))</span>

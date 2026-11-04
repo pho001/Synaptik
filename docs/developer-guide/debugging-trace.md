@@ -11,7 +11,7 @@ Here Scan denotes a recurrent/body traversal, not the cumulative-sum operation.
 
 An **[observer](../glossary.md#term-observer)** is a [callback](../glossary.md#term-callback) supplied by the caller to receive diagnostic events. A **trace**
 records facts about work at selected observation points; it is not a second execution controller.
-Each event has an **envelope** containing common identification information and a **[payload](../glossary.md#artifact-envelope-and-atomic-publication)**
+Each event has an **envelope** containing common identification information and a **[payload](../glossary.md#trace-payload--tracepayload)**
 containing the producer's specific facts. A **route** is the [backend](../glossary.md#backend)'s chosen implementation path,
 not merely the caller's preferred configuration.
 
@@ -39,7 +39,7 @@ flowchart LR
 Read the diagram from each [producer](../glossary.md#term-producer) on the left to the shared [observer](../glossary.md#term-observer) on the right. The three
 producers explain different boundaries; receiving an event from one does not enable the others.
 
-Every event uses the existing `TraceEvent` envelope. Read the typed [payload](../glossary.md#artifact-envelope-and-atomic-publication) instead of parsing
+Every event uses the existing `TraceEvent` envelope. Read the typed [payload](../glossary.md#trace-payload--tracepayload) instead of parsing
 exception text to select a route or recovery policy. Events contain [detached](../glossary.md#detached-model-results) facts, not [graph](../glossary.md#graph),
 [Tensor](../glossary.md#tensor), storage, native-handle or Throwable references. Monotonic timestamps are not wall-clock
 times; compare them only within the producer's documented clock domain.
@@ -83,7 +83,7 @@ Inspect `configuredApi`, `selectedRoute` and each selected unit's `nativeApi` se
 A [`GRAPH`](../glossary.md#graph) preference does not prove that Graph or even oneDNN was selected. An ONEDNN [partition](../glossary.md#partition)
 may still retain ordinary CPU units. Rejection facts distinguish unqualified geometry,
 unsupported realization, an actual native unsupported status, and unit/whole-plan cost decisions.
-`NOT_CONFIGURED` and `COMPARISON_SKIPPED` [mean](../glossary.md#term-mean) no corresponding native comparison was performed.
+`NOT_CONFIGURED` and `COMPARISON_SKIPPED` mean no corresponding native comparison was performed.
 Each of the unit and rejection lists retains at most 32 facts and has its own list-truncation flag.
 Failure status is present only when the [producer](../glossary.md#term-producer) actually received that primary native status.
 These CPU observations are cold [PREPARE](../glossary.md#prepare) facts, not per-[element](../glossary.md#term-element) or [RUN](../glossary.md#term-run) instrumentation.

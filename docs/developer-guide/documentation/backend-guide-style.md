@@ -2,7 +2,7 @@
 
 ## Purpose
 
-A [backend](../../glossary.md#backend) guide teaches a backend contributor how to integrate a [concrete backend](../../glossary.md#concrete-backend) while preserving shared [compile](../../glossary.md#compile), [planning](../../glossary.md#term-planning), [prepare](../../glossary.md#prepare), and [runtime](../../glossary.md#term-runtime) boundaries. It should connect the integration [lifecycle](../../glossary.md#lifecycle) to a focused [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters) implementation.
+A [backend](../../glossary.md#backend) guide teaches a backend contributor how to integrate a [concrete backend](../../glossary.md#concrete-backend) while preserving shared [compile](../../glossary.md#compile), [planning](../../glossary.md#term-planning), [prepare](../../glossary.md#prepare), and [runtime](../../glossary.md#term-runtime) boundaries. It should connect the integration [lifecycle](../../glossary.md#lifecycle) to a focused sample implementation.
 
 Apply [General style](general-style.md), [Developer guide style](developer-guide-style.md), and the [example format](example-format.md) where relevant.
 
@@ -19,7 +19,7 @@ nor one successful example establishes the backend's entire supported domain.
 - List prerequisites, native/[toolchain](../../glossary.md#term-toolchain) requirements, and shared contracts the backend implements.
 - Explain the [lifecycle](../../glossary.md#lifecycle) from capability reporting through [backend ownership](../../glossary.md#backend-ownership), [prepare](../../glossary.md#prepare)-time [lowering](../../glossary.md#lowering), executable construction, [runtime](../../glossary.md#term-runtime) execution, storage, and tracing.
 - Identify which [module](../../glossary.md#term-module) owns each decision and resource.
-- Provide a minimal [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters) implementation or integration skeleton using current contracts; label conceptual code when contracts are not implemented yet.
+- Provide a minimal sample implementation or integration skeleton using current contracts; label conceptual code when contracts are not implemented yet.
 - Explain registration and composition without implying runtime discovery.
 - Show sample inputs, important intermediate [artifacts](../../glossary.md#term-artifact), expected result, and interpretation.
 - Document failure handling, resource [ownership](../../glossary.md#term-ownership) and [release](../../glossary.md#term-release), [concurrency](../../glossary.md#term-concurrency) assumptions, and diagnostic evidence.
@@ -44,10 +44,10 @@ the selected route without controlling it.
 ## Avoid
 
 - moving [backend](../../glossary.md#backend)-specific [lowering](../../glossary.md#lowering) or [kernel](../../glossary.md#kernel) selection into shared [planning](../../glossary.md#term-planning) or [runtime](../../glossary.md#term-runtime);
-- treating [scalar](../../glossary.md#term-scalar), [Vector API](../../glossary.md#term-vector-api), or [OpenBLAS](../../glossary.md#term-openblas) routes as separate [CPU](../../glossary.md#term-cpu) backends;
+- treating [scalar](../../glossary.md#cpu-portable-execution-strategy), [Vector API](../../glossary.md#term-vector-api), or [OpenBLAS](../../glossary.md#term-openblas) routes as separate [CPU](../../glossary.md#term-cpu) backends;
 - service-locator or reflective discovery examples presented as the core mechanism;
 - native handles without [ownership](../../glossary.md#term-ownership-meanings) and [lifetime](../../glossary.md#term-lifetime) rules;
-- a [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters) that skips capability, [prepare](../../glossary.md#prepare), or error behavior; and
+- a sample that skips capability, [prepare](../../glossary.md#prepare), or error behavior; and
 - claims of [conformance](../../glossary.md#term-conformance) without commands and results.
 
 ## [Validation](../../glossary.md#term-validation)

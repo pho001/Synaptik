@@ -47,7 +47,7 @@ types, [shapes](../../glossary.md#shape), [layouts](../../glossary.md#layout), a
 
 Search representative platform-wide workload buckets, install robust defaults, and later refine
 them for a [model](../../glossary.md#term-model). This improves granularity, but it creates a separate baseline subsystem and
-profile even though the same model-guided workflow and workload [cache](../../glossary.md#term-cache) can pre-[seed](../../glossary.md#term-seed) a [target](../../glossary.md#term-target) from a
+profile even though the same model-guided workflow and workload [cache](../../glossary.md#term-cache) can pre-seed a [target](../../glossary.md#term-target) from a
 representative model corpus.
 
 ### One [model](../../glossary.md#term-model)-[autotuning](../../glossary.md#autotuning--model-autotuning) workflow with two coordinated phases
@@ -92,13 +92,13 @@ Concrete backend candidate generators are typed, version-controlled, tested, and
 their routes. They derive and prune candidates from target capabilities, canonical workload
 facts, and the tuning budget. [CPU](../../glossary.md#term-cpu) [matrix](../../glossary.md#term-matrix-meanings)-multiplication candidates may include supported Java
 [Vector API](../../glossary.md#term-vector-api) species and strategy, unroll, tile, parallelism, and [OpenBLAS](../../glossary.md#term-openblas) thread configurations.
-[Scalar](../../glossary.md#term-scalar), [vector](../../glossary.md#term-vector), and OpenBLAS are route-specific typed configurations, not [boolean](../../glossary.md#data-type--datatype) flags.
-Candidate discovery uses no `Map<String,Object>`, string [dispatch](../../glossary.md#term-dispatch), reflective annotations,
+[Scalar](../../glossary.md#cpu-portable-execution-strategy), [vector](../../glossary.md#term-vector), and OpenBLAS are route-specific typed configurations, not [boolean](../../glossary.md#data-type--datatype) flags.
+Candidate discovery uses no `Map<String,Object>`, string dispatch, reflective annotations,
 central knob [registry](../../glossary.md#term-registry), generic configuration language, or arbitrary vector-[lane](../../glossary.md#term-lane) promise.
 
 The ordinary model author supplies the model, target, representative input or shape profiles,
-[objective](../../glossary.md#term-objective), budget, constraints, and explicit caches. Backend authors supply backend candidate
-spaces. Running the same workflow over a representative model corpus may pre-[seed](../../glossary.md#term-seed) the same [cache](../../glossary.md#term-cache);
+objective, budget, constraints, and explicit caches. Backend authors supply backend candidate
+spaces. Running the same workflow over a representative model corpus may pre-seed the same [cache](../../glossary.md#term-cache);
 there is no separate platform-calibration workflow, abstraction, or profile.
 
 Future [persistence](../../glossary.md#term-persistence) uses an explicit file-backed reusable workload tuning cache and a
@@ -125,7 +125,7 @@ planning.
 [target](../../glossary.md#term-target) facts are compatible. Bounded complete-plan measurement then [captures](../../glossary.md#term-capture-meanings) [fusion](../../glossary.md#term-fusion), [ownership](../../glossary.md#term-ownership-meanings),
 layout, [materialization](../../glossary.md#materialization), and surrounding [graph](../../glossary.md#graph) effects that isolated route timing cannot predict.
 Keeping candidate generation with each architecture [owner](../../glossary.md#term-owner) preserves type safety and decision
-ownership, while [opaque](../../glossary.md#term-opaque) orchestration can apply one [objective](../../glossary.md#term-objective) and budget across the complete
+ownership, while [opaque](../../glossary.md#term-opaque) orchestration can apply one objective and budget across the complete
 [model](../../glossary.md#term-model). Explicit versioned [artifacts](../../glossary.md#term-artifact) make reuse visible and invalidatable without introducing
 [runtime](../../glossary.md#term-runtime) search or hidden state.
 

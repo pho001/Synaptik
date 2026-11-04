@@ -25,11 +25,11 @@ Accepted — required by the current [architecture contract](../../glossary.md#a
 
 ## Options considered
 
-No historical deliberation is available. The contract explicitly contrasts typed [payload](../../glossary.md#artifact-envelope-and-atomic-publication) families with a primary `Map<String,String>` [model](../../glossary.md#term-model). It also permits typed [trace](../../glossary.md#trace) attributes as a limited [backend](../../glossary.md#backend)-specific escape hatch.
+No historical deliberation is available. The contract explicitly contrasts typed [payload](../../glossary.md#trace-payload--tracepayload) families with a primary `Map<String,String>` model. It also permits typed [trace](../../glossary.md#trace) attributes as a limited [backend](../../glossary.md#backend)-specific escape hatch.
 
 ## Decision
 
-Use a common event envelope with typed [compile](../../glossary.md#compile), [prepare](../../glossary.md#prepare), [run](../../glossary.md#term-run), and [backend](../../glossary.md#backend) payloads. Use [trace](../../glossary.md#trace)-local identifiers. Keep `modules/trace` free of [graph](../../glossary.md#graph) traversal, execution, business logic, [runtime](../../glossary.md#term-runtime) state, and [producer](../../glossary.md#term-producer)-layer dependencies. Do not use `Map<String,String>` as the primary [model](../../glossary.md#term-model).
+Use a common event envelope with typed [compile](../../glossary.md#compile), [prepare](../../glossary.md#prepare), [run](../../glossary.md#term-run), and [backend](../../glossary.md#backend) payloads. Use [trace](../../glossary.md#trace)-local identifiers. Keep `modules/trace` free of [graph](../../glossary.md#graph) traversal, execution, business logic, [runtime](../../glossary.md#term-runtime) state, and [producer](../../glossary.md#term-producer)-layer dependencies. Do not use `Map<String,String>` as the primary model.
 
 ## Rationale
 

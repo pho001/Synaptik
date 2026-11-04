@@ -11,7 +11,7 @@ and evidence below remain historical records; this reading aid does not amend th
 ## Status
 
 Accepted — user approval and main authority approval, 2026-10-20. Data and Text are implemented;
-the final repository [checkpoint](../../glossary.md#term-checkpoint) is tracked in the task brief. This [ADR](../../glossary.md#term-architecture-decision-record-adr) explains the
+the final repository checkpoint is tracked in the task brief. This [ADR](../../glossary.md#term-architecture-decision-record-adr) explains the
 [authoritative root](../../../ARCHITECTURE.md), not a separate authority.
 
 ## Context and decision drivers
@@ -43,7 +43,7 @@ existing flat package. Migrate `RightPaddedSequenceBatch` directly, without an [
 side selecting valid prefix or suffix. [Axis](../../glossary.md#term-axis) order remains explicit and independent of side.
 
 The integral batcher requires explicit [padding](../../glossary.md#padding) value, side and order, pads long[] rows to [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)
-maximum without [truncation](../../glossary.md#term-truncation-toward-zero), and creates one [contiguous](../../glossary.md#term-contiguous) non-[gradient](../../glossary.md#term-gradient) [INT64](../../glossary.md#data-type--datatype) [heap](../../glossary.md#term-heap) [Tensor](../../glossary.md#tensor) through
+maximum without truncation, and creates one [contiguous](../../glossary.md#term-contiguous) non-[gradient](../../glossary.md#term-gradient) [INT64](../../glossary.md#data-type--datatype) [heap](../../glossary.md#term-heap) [Tensor](../../glossary.md#tensor) through
 public [Model](../../glossary.md#term-model) allocation. Check [element](../../glossary.md#term-element) geometry incrementally before batch-sized metadata/output;
 the element [carrier](../../glossary.md#term-storage-carrier) limit is Integer.MAX_VALUE and bytes use checked long arithmetic, not an int
 byte cap. Fill the allocated destination directly, with no full-size staging/import recopy.
@@ -86,7 +86,7 @@ Text0001 worker owns registration/enforcement and external numerical test plumbi
 focused module [validation](../../glossary.md#term-validation), followed by independent targeted review and shared-doc finalization
 after each worker stops.
 
-LEFT metadata is not accepted by the current [scan](../../glossary.md#term-cumulative-scan) contract: scans remain right-valid-prefix only.
+LEFT metadata is not accepted by the current [scan](../../glossary.md#term-fixed-recurrent-scan) contract: scans remain right-valid-prefix only.
 No implicit [host](../../glossary.md#term-host)-length [runtime](../../glossary.md#term-runtime) [binding](../../glossary.md#term-binding), [BPTT](../../glossary.md#term-backpropagation-through-time-bptt) extension, native [lifetime](../../glossary.md#term-lifetime) or execution pipeline is
 introduced. Frozen vocabulary is deliberately less capable than a trained/persisted [tokenizer](../../glossary.md#frozen-whitespace-tokenizer);
 same-sized vocabularies need not have the same ID mapping, and no [persistence](../../glossary.md#term-persistence) compatibility claim

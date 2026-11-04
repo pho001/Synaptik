@@ -45,7 +45,7 @@ The internal fixed-ID codec and Engine [handoff](../../glossary.md#term-handoff)
 [Checkpoint](../../glossary.md#term-checkpoint)'s package-private [model](../../glossary.md#term-model) [codec](../../glossary.md#term-codec) encodes `SYNMOD01` version-one [metadata](../../glossary.md#term-metadata) under [`schema`](../../glossary.md#term-schema).
 It records exact 32-byte caller configuration [SHA-256](../../glossary.md#term-sha-256) and optional input-[artifact](../../glossary.md#term-artifact) SHA-256, then
 ordered exact [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) paths, fixed kind/type IDs, static [Shape](../../glossary.md#shape) extents, and checked [canonical](../../glossary.md#term-canonical-form) byte
-lengths. The owning contract defines the precise wire [layout](../../glossary.md#layout) and ID table. Its SHA-256 is the
+lengths. The owning contract defines the precise wire [layout](../../glossary.md#term-wire-format) and ID table. Its SHA-256 is the
 schema [fingerprint](../../glossary.md#term-fingerprint). State payloads use eight-digit ordinal keys, not NN paths. The enclosing
 artifact remains `model.v1` under the unchanged [opaque](../../glossary.md#term-opaque) v1 envelope.
 

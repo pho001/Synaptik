@@ -62,7 +62,7 @@ Synaptik adopts the six-way [scope](../../glossary.md#term-scope)-indexed struct
 It explicitly incorporates these [normative](../../glossary.md#term-normative) files:
 
 1. [Foundational modules](../../architecture/contracts/foundational-modules.md)
-2. [Fixed recurrent scan](../../architecture/contracts/recurrent-scan.md)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-cumulative-scan))</span>
+2. [Fixed recurrent scan](../../architecture/contracts/recurrent-scan.md)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-fixed-recurrent-scan))</span>
 3. [Compiler and automatic differentiation](../../architecture/contracts/compiler-autograd.md)<span data-glossary-navigation="true"> ([Compiler glossary](../../glossary.md#term-compiler); [automatic differentiation glossary](../../glossary.md#autograd))</span>
 4. [Runtime, Prepare, and Engine](../../architecture/contracts/runtime-prepare-engine.md)<span data-glossary-navigation="true"> ([Runtime glossary](../../glossary.md#term-runtime); [Prepare glossary](../../glossary.md#prepare); [Engine glossary](../../glossary.md#term-engine))</span>
 5. [Backend execution](../../architecture/contracts/backend-execution.md)<span data-glossary-navigation="true"> ([Backend glossary](../../glossary.md#backend))</span>
@@ -82,7 +82,7 @@ behavior, implementation status, or plan.
 
 ## Rationale
 
-The selected structure retains a single authority [graph](../../glossary.md#graph) while reducing the amount of unrelated
+The selected structure retains a single authority graph while reducing the amount of unrelated
 material a focused task must read. Six cohesive domains are broad enough to avoid fragmented
 micro-contracts and narrow enough to give every moved rule one [owner](../../glossary.md#term-owner). Keeping cross-cutting
 invariants and [dependency direction](../../glossary.md#java-platform-and-build-tools) in the root makes precedence visible before a reader follows

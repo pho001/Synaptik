@@ -83,7 +83,7 @@ Java production [API](../../glossary.md#term-application-programming-interface-a
 
 A layer can be evaluated without being optimized, but it cannot define its own state if
 [`Parameter`](../../glossary.md#term-parameter) belongs to a downstream [optimizer](../../glossary.md#term-optimizer) extension. The selected boundary lets a [module](../../glossary.md#term-module) own
-the values and mode that [shape](../../glossary.md#shape) its forward computation, while a generic optimizer iterates over
+the values and mode that shape its forward computation, while a generic optimizer iterates over
 those declarations. For example, a [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)-[normalization](../../glossary.md#term-normalization) module owns train/eval behavior and
 running-[statistic](../../glossary.md#term-statistic) [buffers](../../glossary.md#term-buffer); an optimizer may update its trainable scale and [bias](../../glossary.md#term-bias) but has no reason
 to choose that forward behavior.

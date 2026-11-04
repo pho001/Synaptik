@@ -41,7 +41,7 @@ roles; do not add [graph](../../glossary.md#graph) operations or copy data to im
 
 ## Rationale
 
-A compiled ordinary body with fixed [carry](../../glossary.md#term-carry) [shape](../../glossary.md#shape)/[dtype](../../glossary.md#data-type--datatype) is the established [Scan](../../glossary.md#term-cumulative-scan) [model](../../glossary.md#term-model); see
+A compiled ordinary body with fixed [carry](../../glossary.md#term-carry) [shape](../../glossary.md#shape)/[dtype](../../glossary.md#data-type--datatype) is the established [Scan](../../glossary.md#general-differentiable-scan) model; see
 [JAX lax.scan](https://docs.jax.dev/en/latest/_autosummary/jax.lax.scan.html). Synaptik retains its
 own explicit row-activity, [binding](../../glossary.md#term-binding), numerical and [lifecycle](../../glossary.md#lifecycle) contracts, not JAX [serialization](../../glossary.md#term-serialization) or
 arbitrary control-flow semantics. A small composition method exposes that existing capability
@@ -52,7 +52,7 @@ without duplicating recurrence mathematics or introducing a new execution archit
 [F32](../../glossary.md#floating-point-precision-and-rounding)/[F64](../../glossary.md#floating-point-precision-and-rounding) rnnScan builder sources intentionally use [canonical](../../glossary.md#term-canonical-form) general output [layouts](../../glossary.md#layout) and v5
 [persistence](../../glossary.md#term-persistence) after [qualification](../../glossary.md#term-qualification). Direct fixed forwardScan, ordinary statically [unrolled](../../glossary.md#backpropagation-through-time-and-recurrent-state) recurrence,
 [GRU](../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../glossary.md#term-long-short-term-memory-lstm), old fixed files and retained low construction remain unchanged. Any source containing
-a fixed [scan](../../glossary.md#term-cumulative-scan) still rejects training before setup; no higher-order compatibility waiver follows.
+a fixed [scan](../../glossary.md#term-fixed-recurrent-scan) still rejects training before setup; no higher-order compatibility waiver follows.
 
 The added public method requires substantive bounds/numerical/initialization/[ownership](../../glossary.md#term-ownership-meanings) tests,
 not a repinned exact-method inventory. Consumer acceptance includes changed lengths, inactive

@@ -22,7 +22,7 @@ using the [Model](../../glossary.md#term-model) [lifecycle](../../glossary.md#li
 ## Decision drivers
 
 Keep one execution [lifecycle](../../glossary.md#lifecycle), private working state and current live guards. Reuse existing layers
-and [Tensor](../../glossary.md#tensor) semantics without [widening](../../glossary.md#term-widening) [Compiler](../../glossary.md#term-compiler) reconstruction, [checkpoint](../../glossary.md#term-checkpoint) formats or adjoints.
+and [Tensor](../../glossary.md#tensor) semantics without widening [Compiler](../../glossary.md#term-compiler) reconstruction, [checkpoint](../../glossary.md#term-checkpoint) formats or adjoints.
 
 ## Options considered
 
@@ -45,7 +45,7 @@ the Model usable and [Engine](../../glossary.md#term-engine) selection unfrozen.
 
 MLPs retain v1/v2 round trips; CNNs and all-output [TBF](../../glossary.md#term-tbf) recurrent stacks can execute without a format
 extension. Unsupported saves remain explicit failures. Static recurrent [unrolling](../../glossary.md#term-unrolling) increases cold
-[graph](../../glossary.md#graph) size and is not [scan](../../glossary.md#term-cumulative-scan) [BPTT](../../glossary.md#term-backpropagation-through-time-bptt); [Conv3d](../../glossary.md#conv3d--ncdhw) backward remains unsupported. Exact [signatures](../../glossary.md#term-signature), state guards,
+[graph](../../glossary.md#graph) size and is not [scan](../../glossary.md#term-fixed-recurrent-scan) [BPTT](../../glossary.md#term-backpropagation-through-time-bptt); [Conv3d](../../glossary.md#conv3d--ncdhw) backward remains unsupported. Exact [signatures](../../glossary.md#term-signature), state guards,
 native [admission](../../glossary.md#term-admission), exclusion and closure remain shared with existing owned Models.
 
 Tests must compare compute and [SGD](../../glossary.md#term-stochastic-gradient-descent-sgd) against independent [Tensor](../../glossary.md#tensor)/[Engine](../../glossary.md#term-engine) equations, cover private

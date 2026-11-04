@@ -2,7 +2,7 @@
 
 ## What you will learn
 
-This guide explains which boundaries architecture tests protect and how to [run](../glossary.md#term-run) their [Gradle](../glossary.md#term-gradle) [module](../glossary.md#term-module).
+This guide explains which boundaries architecture tests protect and how to run their [Gradle](../glossary.md#term-gradle) [module](../glossary.md#term-module).
 The `testing/architecture-tests` project contains focused Config/[Planning](../glossary.md#term-planning) checks, exact generic
 Training and [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [dependency](../glossary.md#term-dependency)/[admission](../glossary.md#term-admission) checks, and [Runtime](../glossary.md#term-runtime) dependency and direct-hot-path coverage
 from [Runtime 0014](../planning/modules/runtime/tasks/0014-runtime-architecture-enforcement.md).
@@ -48,7 +48,7 @@ For example, a [unit test](../glossary.md#term-unit-test) could produce the righ
 test instead checks whether a backend follows the shared behavior required of it; neither kind
 of test proves all possible inputs or all architecture rules.
 
-## [Run](../glossary.md#term-run) the current [module](../glossary.md#term-module)
+## Run the current [module](../glossary.md#term-module)
 
 ```bash
 # Select the boundary-check project, rather than treating numerical tests as architecture evidence.
@@ -69,7 +69,7 @@ Training's explicit public Engine [lifecycle](../glossary.md#lifecycle) role, no
 
 | Symptom | Cause | Correction |
 |---|---|---|
-| A test encodes a rule found only in a guide | Explanatory text was treated as authority. | [Trace](../glossary.md#trace) the assertion to `ARCHITECTURE.md` first. |
+| A test encodes a rule found only in a guide | Explanatory text was treated as authority. | Trace the assertion to `ARCHITECTURE.md` first. |
 | A [module](../glossary.md#term-module) [dependency](../glossary.md#term-dependency) passes but a forbidden method appears | Only Gradle edges were checked. | Add source/[bytecode](../glossary.md#term-bytecode) checks for semantic [API](../glossary.md#term-application-programming-interface-api) restrictions. |
 | A new rule is added only to a test | The contract and enforcement drifted. | Update the coordinated architecture [artifacts](../glossary.md#term-artifact) required by `AGENTS.md`. |
 

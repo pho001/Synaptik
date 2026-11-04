@@ -27,12 +27,12 @@ handle types, or physical [release](../../glossary.md#term-release) mechanics.
 ## Decision drivers
 
 - one deterministic [owner](../../glossary.md#term-owner) for persistent prepared resources;
-- [immutable](../../glossary.md#term-immutable) reusable recipe semantics with an explicit [finite](../../glossary.md#term-finite) [resource lifetime](../../glossary.md#ownership-borrowing-and-lease);
+- [immutable](../../glossary.md#term-immutable) reusable recipe semantics with an explicit finite [resource lifetime](../../glossary.md#ownership-borrowing-and-lease);
 - safe concurrent [synchronous](../../glossary.md#term-synchronous) runs and a close protocol without indefinite waiting;
 - transactional preparation and complete partial-failure [rollback](../../glossary.md#term-rollback);
 - [backend](../../glossary.md#backend)-owned physical mechanics with no concrete-backend [dependency](../../glossary.md#term-dependency) in [Runtime](../../glossary.md#term-runtime); and
 - no raw `Object`, unchecked generic access, registry, string dispatch, concrete-type switch,
-  cleaner, or garbage-collection correctness dependency.<span data-glossary-navigation="true"> ([registry glossary](../../glossary.md#term-registry); [dispatch glossary](../../glossary.md#term-dispatch))</span>
+  cleaner, or garbage-collection correctness dependency.<span data-glossary-navigation="true"> ([registry glossary](../../glossary.md#term-registry))</span>
 
 ## Options considered
 
@@ -45,7 +45,7 @@ resources transactionally into the completed execution.
 ### Direct [ownership](../../glossary.md#term-ownership-meanings) by [PreparedExecutable](../../glossary.md#prepared-executable--preparedexecutable)
 
 This puts a native resource near its user, but schedule occurrences may repeat one executable or
-several executables may share one compiled resource. Closing the [occurrence](../../glossary.md#term-occurrence) [graph](../../glossary.md#graph) would therefore
+several executables may share one compiled resource. Closing the [occurrence](../../glossary.md#term-occurrence) graph would therefore
 duplicate ownership, require reference counting in [backend](../../glossary.md#backend) recipes, or make cleanup depend on
 schedule [topology](../../glossary.md#term-topology).
 
@@ -72,7 +72,7 @@ resources.
 Synaptik selects one central private prepared-resource aggregate owned by [`PreparedExecution`](../../glossary.md#prepared-execution--preparedexecution).
 [Runtime](../../glossary.md#term-runtime) defines only a narrow [nominal](../../glossary.md#term-nominal) [`PreparedResource`](../../glossary.md#prepared-resource--preparedresource) [lifecycle](../../glossary.md#lifecycle) contract. A [concrete backend](../../glossary.md#concrete-backend)
 implements that contract and performs the physical [release](../../glossary.md#term-release) of its native state. The aggregate is
-not a public resource [lookup](../../glossary.md#term-lookup) [API](../../glossary.md#term-application-programming-interface-api) and exposes no [backend](../../glossary.md#backend) [payload](../../glossary.md#artifact-envelope-and-atomic-publication).
+not a public resource [lookup](../../glossary.md#term-lookup) [API](../../glossary.md#term-application-programming-interface-api) and exposes no [backend](../../glossary.md#backend) payload.
 
 One prepared [owner](../../glossary.md#term-owner) may publish a backend-private child [lease](../../glossary.md#term-lease) to a fresh [run](../../glossary.md#term-run)-owned representation
 only when the underlying physical state is [immutable](../../glossary.md#term-immutable) and the representation is read-only. In that
@@ -138,7 +138,7 @@ that may itself need to finish through the same [prepared resource](../../glossa
 This bounded child-[lease](../../glossary.md#term-lease) rule supports prepared [immutable](../../glossary.md#term-immutable) [constants](../../glossary.md#term-constant) without extending the
 [synchronous](../../glossary.md#term-synchronous) execution lease through [`RunResult`](../../glossary.md#run-result--runresult). It does not authorize a pool: [mutable](../../glossary.md#term-mutable) outputs
 outlive the synchronous call and mutable address workspaces are rewritten during cold [binding](../../glossary.md#term-binding).
-[Pooling](../../glossary.md#term-pooling) them requires a separately reviewed async/result-[lifetime](../../glossary.md#term-lifetime) contract for exclusive return,
+Pooling them requires a separately reviewed async/result-[lifetime](../../glossary.md#term-lifetime) contract for exclusive return,
 reset/validity, bounded capacity/eviction, context close, and cleanup failure.
 
 ## Consequences

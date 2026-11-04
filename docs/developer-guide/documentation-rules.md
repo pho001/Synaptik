@@ -94,7 +94,7 @@ An independent documentation/review context must:
 
 The implementation pass owns executable tests and hands their concise evidence to an independent
 review context. That context must not rerun a successful Java test suite unless it changes
-executable Java behavior after the [run](../glossary.md#term-run), the evidence is missing or stale, or the task identifies a
+executable Java behavior after the run, the evidence is missing or stale, or the task identifies a
 concrete cross-check risk. Javadoc-only edits do not require Java tests, but final Javadoc
 generation must occur after those edits.
 
@@ -109,7 +109,7 @@ Use the validation section in the selected profile. At minimum:
 - search relevant terminology and anchors in the [glossary](../glossary.md);
 - verify examples against current behavior or label conceptual examples clearly;
 - generate [Javadoc](../glossary.md#term-javadoc) for affected Java [modules](../glossary.md#term-module) after final Javadoc edits when Java APIs changed;
-- [run](../glossary.md#term-run) `git diff --check` and check new files for trailing whitespace; and
+- run `git diff --check` and check new files for trailing whitespace; and
 - review the final diff for accidental authority changes, duplicated rules, and unrelated edits.
 
 Evidence identifies the reviewer, selected profile, files or topics reviewed, and exact validation

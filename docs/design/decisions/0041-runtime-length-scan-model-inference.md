@@ -1,4 +1,4 @@
-# [ADR](../../glossary.md#term-architecture-decision-record-adr) 0041 [Runtime](../../glossary.md#term-runtime) length [scan](../../glossary.md#term-cumulative-scan) [Model](../../glossary.md#term-model) [inference](../../glossary.md#term-inference)
+# [ADR](../../glossary.md#term-architecture-decision-record-adr) 0041 [Runtime](../../glossary.md#term-runtime) length [scan](../../glossary.md#term-fixed-recurrent-scan) [Model](../../glossary.md#term-model) [inference](../../glossary.md#term-inference)
 
 
 ## Editorial reading context
@@ -18,7 +18,7 @@ NN0022 supplies [runtime](../../glossary.md#term-runtime)-length recurrent expre
 CPU0028 executes their [canonical](../../glossary.md#term-canonical-form) [FLOAT32](../../glossary.md#term-float32) forward occurrences through public [Engine](../../glossary.md#term-engine) preparations.
 [Graph](../../glossary.md#graph)-[model](../../glossary.md#term-model) v3 already copies, saves and restores flat scans and ordered inputs. The remaining
 workflow gap is constructing and computing an ordinary [owned Model](../../glossary.md#model-module-buffer-and-scan-distinctions) without manual list indexing.
-The prior owned-Model contract explicitly withheld [scan](../../glossary.md#term-cumulative-scan) compute and training support.
+The prior owned-Model contract explicitly withheld [scan](../../glossary.md#term-fixed-recurrent-scan) compute and training support.
 
 [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) already owns private model state and high-level exclusion. Engine owns [compile](../../glossary.md#compile), [prepare](../../glossary.md#prepare) and
 [run](../../glossary.md#term-run); Training owns [optimizer](../../glossary.md#term-optimizer) sessions; [Compiler](../../glossary.md#term-compiler) rejects scan [backpropagation through time](../../glossary.md#term-backpropagation-through-time-bptt) ([BPTT](../../glossary.md#backpropagation-through-time-and-recurrent-state)).
@@ -37,7 +37,7 @@ setup side effects. Avoid Data prerequisites, hidden recurrent [carry](../../glo
 Keeping direct [Engine](../../glossary.md#term-engine)/list orchestration alone preserves the status quo but leaves the [owned
 Model](../../glossary.md#model-module-buffer-and-scan-distinctions) workflow unavailable. Replacing static builder recurrence with scans would change existing
 semantics and training. A new runner or [model](../../glossary.md#term-model) hierarchy would duplicate [lifecycle](../../glossary.md#lifecycle) [ownership](../../glossary.md#term-ownership-meanings).
-Explicit [scan](../../glossary.md#term-cumulative-scan) recipes on the existing builder provide the bounded [inference](../../glossary.md#term-inference) capability without
+Explicit [scan](../../glossary.md#term-fixed-recurrent-scan) recipes on the existing builder provide the bounded [inference](../../glossary.md#term-inference) capability without
 those migrations.
 
 ## Decision
@@ -55,7 +55,7 @@ Model<List<Tensor>, List<Tensor>> buildWithLengths();
 HostTensorValue compute(Tensor firstInput, Tensor secondInput);
 ```
 
-[Scan](../../glossary.md#term-cumulative-scan) recipes use existing biased FORWARD Sequence.forwardScan, positive hidden widths, existing
+[Scan](../../glossary.md#term-fixed-recurrent-scan) recipes use existing biased FORWARD Sequence.forwardScan, positive hidden widths, existing
 [seeds](../../glossary.md#commit-release-distribution-log-and-seed-meanings), independent [parameters](../../glossary.md#term-parameter) and zero initial hidden/cell states. The first scan establishes
 positive static time/[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)/[features](../../glossary.md#term-feature) ([TBF](../../glossary.md#term-tbf)) geometry and one shared non-[gradient](../../glossary.md#term-gradient) [INT64](../../glossary.md#data-type--datatype) `[B]` length
 input. Later scans preserve T/B. The terminal declares `[values, validLengths]` and one result;
@@ -70,7 +70,7 @@ two and zero transitions; selecting dense time index 3 is not equivalent. A clas
 finalHidden may produce nonzero scores for the zero-length row.
 
 The compute overload applies to any owned two-input/one-output [Model](../../glossary.md#term-model) in declared positional order,
-including loaded graphs, without role [inference](../../glossary.md#term-inference). It uses one [admission](../../glossary.md#term-admission), checks [arity](../../glossary.md#term-arity) before
+including loaded graphs, without role [inference](../../glossary.md#term-inference-meanings). It uses one [admission](../../glossary.md#term-admission), checks [arity](../../glossary.md#term-arity) before
 [arguments](../../glossary.md#term-argument), and delegates internally to the existing computeOpen with Long.MAX_VALUE. Optional
 cold forward is not required before compute. Builder cold composition retains instantiated owned
 steps through existing adapters, Sequential [ownership](../../glossary.md#term-ownership-meanings) and ModelForward, not recipes or callbacks.
@@ -85,7 +85,7 @@ clear gradient eligibility or depend on late [Compiler](../../glossary.md#term-c
 
 Explicit recipe names preserve the distinction between static [unrolling](../../glossary.md#term-unrolling) and [runtime](../../glossary.md#term-runtime) length values.
 The list-boundary [Model](../../glossary.md#term-model) represents both inputs honestly, while the convenience removes indexing
-without inventing [scan](../../glossary.md#term-cumulative-scan)-specific execution. Existing source and execution [owners](../../glossary.md#term-owner) already separate
+without inventing [scan](../../glossary.md#term-fixed-recurrent-scan)-specific execution. Existing source and execution [owners](../../glossary.md#term-owner) already separate
 cold composition from cached [inference](../../glossary.md#term-inference). Early training rejection prevents an unsupported request
 from disrupting usable inference state.
 
@@ -97,7 +97,7 @@ including nested types, [dependency edge](../../glossary.md#term-dependency-edge
 If existing adapters cannot express the composition, implementation must stop and replan.
 
 The builder intentionally offers neither explicit [carry](../../glossary.md#term-carry) nor finalCell output; callers needing
-those use advanced boundaries. Positive builder extents remain narrower than the [scan](../../glossary.md#term-cumulative-scan) [operation](../../glossary.md#operation)'s
+those use advanced boundaries. Positive builder extents remain narrower than the [scan](../../glossary.md#term-fixed-recurrent-scan) [operation](../../glossary.md#operation)'s
 zero T/B allowance. Execution [qualification](../../glossary.md#term-qualification) stays [canonical](../../glossary.md#term-canonical-form) [FLOAT32](../../glossary.md#term-float32) [CPU](../../glossary.md#term-cpu), independently of broader
 valid floating expressions. No [backend](../../glossary.md#backend) numerics, [BPTT](../../glossary.md#term-backpropagation-through-time-bptt), Data, native [ABI](../../glossary.md#term-application-binary-interface-abi) or [persistence](../../glossary.md#term-persistence) format changes.
 Existing v3 preserves sibling ports and declared input positions, not user-input role [metadata](../../glossary.md#term-metadata).
@@ -105,13 +105,13 @@ Existing v3 preserves sibling ports and declared input positions, not user-input
 NN0022B must validate mixed stacks and [padding](../../glossary.md#padding), generic two-input [arity](../../glossary.md#term-arity)/[lifecycle](../../glossary.md#lifecycle) precedence,
 save-before-compute and load round trips, early rejection without setup effects, and unchanged
 static training. Independent code/documentation review and the coordinated contract-boundary
-test/[Javadoc](../../glossary.md#term-javadoc) [checkpoint](../../glossary.md#term-checkpoint) remain implementation gates, not completed by this policy decision.
+test/[Javadoc](../../glossary.md#term-javadoc) checkpoint remain implementation gates, not completed by this policy decision.
 
 ## Related documentation
 
 - [Root lifecycle](../../../ARCHITECTURE.md#core-lifecycle)<span data-glossary-navigation="true"> ([lifecycle glossary](../../glossary.md#lifecycle))</span>
 - [Owning NN contract](../../architecture/contracts/extensions-training.md#owned-tensor-models)<span data-glossary-navigation="true"> ([NN glossary](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
-- [Fixed scan semantics](../../architecture/contracts/recurrent-scan.md#valid-lengths-traversal-and-outputs)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-cumulative-scan))</span>
+- [Fixed scan semantics](../../architecture/contracts/recurrent-scan.md#valid-lengths-traversal-and-outputs)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-fixed-recurrent-scan))</span>
 - [Graph-model v3](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-3)<span data-glossary-navigation="true"> ([Graph glossary](../../glossary.md#graph); [model glossary](../../glossary.md#term-model))</span>
 - [Owned composition explanation](../../architecture/module-boundaries.md#owned-tensor-model-composition)
 - [ADR 0039 graph persistence](0039-portable-graph-model-persistence.md)<span data-glossary-navigation="true"> ([ADR glossary](../../glossary.md#term-architecture-decision-record-adr); [persistence glossary](../../glossary.md#term-persistence))</span>

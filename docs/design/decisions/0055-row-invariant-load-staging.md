@@ -1,4 +1,4 @@
-# [ADR](../../glossary.md#term-architecture-decision-record-adr) 0055: Generic [scalar](../../glossary.md#term-scalar) row-[invariant](../../glossary.md#term-invariant) external-cell load staging
+# [ADR](../../glossary.md#term-architecture-decision-record-adr) 0055: Generic [scalar](../../glossary.md#cpu-portable-execution-strategy) row-[invariant](../../glossary.md#term-invariant) external-cell load staging
 
 
 ## Editorial reading context
@@ -21,7 +21,7 @@ are authoritative. This record explains the accepted exception; the task owns ex
 
 CPU0075 deliberately reused external cells only within active rows. A separate frozen Java
 experiment moved ten genuine [invariant input](../../glossary.md#term-invariant-input)-cell reads outside the row/time loops while
-retaining the actual [F32](../../glossary.md#floating-point-precision-and-rounding) reverse [Scan](../../glossary.md#term-cumulative-scan)'s arithmetic, stores and memory-backed per-time [carry](../../glossary.md#term-carry) ADDs.
+retaining the actual [F32](../../glossary.md#floating-point-precision-and-rounding) reverse [Scan](../../glossary.md#general-differentiable-scan)'s arithmetic, stores and memory-backed per-time [carry](../../glossary.md#term-carry) ADDs.
 In `/private/tmp/synaptik-scan-weight-lab.pLXEmb/RESULT.md`, the B256 observation is a 17.92%
 [median](../../glossary.md#term-median)-time reduction; B32's 18.90% includes an outer timing-loop [C2](../../glossary.md#term-c2) [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) transition.
 This is bounded Java-source evidence, not a generator port, universal speedup or [C1](../../glossary.md#term-c1) repair.
@@ -46,7 +46,7 @@ types, emitters, framework or entry/helper [ABI](../../glossary.md#term-applicat
 
 ## Decision and rationale
 
-Use existing ordinary and [Scan](../../glossary.md#term-cumulative-scan) [owners](../../glossary.md#term-owner) to prove source/storage/affine/temporal invariance,
+Use existing ordinary and [Scan](../../glossary.md#general-differentiable-scan) [owners](../../glossary.md#term-owner) to prove source/storage/affine/temporal invariance,
 whole-[lifetime](../../glossary.md#term-lifetime) [alias](../../glossary.md#aliasing-and-arena)/store safety and activity/branch dominance. An invocation-[invariant](../../glossary.md#term-invariant) cell
 may remain local across T; a SHARED history cell must be reloaded at its consuming active
 original time. For example, two different time slices of a saved shared [matrix](../../glossary.md#term-matrix-meanings) must not reuse
@@ -76,7 +76,7 @@ The owning contract defines selective staging markers in both identity streams w
 qualifies ADR0054's within-row-only boundary, without rewriting its completed result or budgets.
 
 The implemented proof is deliberately narrower than all eligible [kernel](../../glossary.md#kernel) bodies. Only complete
-actually consumed fixed-[feature](../../glossary.md#term-software-feature) views of [rank](../../glossary.md#term-rank) at most two qualify; Scan also requires every
+actually consumed fixed-[feature](../../glossary.md#term-feature) views of [rank](../../glossary.md#term-rank) at most two qualify; Scan also requires every
 nonformal self-rooted [producer](../../glossary.md#term-producer) to lie in the region's row sites, terminals or finish [epilogue](../../glossary.md#term-epilogue).
 Unknown multi-stage lifetimes retain checked reads. Source-authenticated scopes exclude ROW
 histories, carries/banks/scratch and already-hoisted [scalar](../../glossary.md#term-scalar) roots. Zero row dependence in a
@@ -94,7 +94,7 @@ defines the exact common bases; this is not permission to grow resources or the 
 
 Less redundant access is possible, but longer local lifetimes can increase [compilation](../../glossary.md#compiler-engine-and-execution-stage-names)/register
 pressure; a lower [bytecode](../../glossary.md#term-bytecode) load count is not a performance proof. Temporal/[alias](../../glossary.md#aliasing-and-arena) and caller/helper
-proof complexity increases. Existing helper [bindings](../../glossary.md#term-binding) may preclude once-per-whole-[Scan](../../glossary.md#term-cumulative-scan) staging;
+proof complexity increases. Existing helper [bindings](../../glossary.md#term-binding) may preclude once-per-whole-[Scan](../../glossary.md#general-differentiable-scan) staging;
 that limitation must remain explicit, not motivate a new frame or [runtime](../../glossary.md#term-runtime) [cache](../../glossary.md#term-cache).
 
 The [CPU0076 Result](../../planning/backends/cpu/tasks/0076-row-invariant-load-staging.md#result)

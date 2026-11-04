@@ -16,7 +16,7 @@ was synchronized on 2026-08-03.
 
 ## Context
 
-After [planning](../../glossary.md#term-planning) assigns a [graph](../../glossary.md#graph) region to a [backend](../../glossary.md#backend), that region still needs backend-specific [decomposition](../../glossary.md#term-decomposition), [fusion](../../glossary.md#term-fusion), [specialization](../../glossary.md#term-specialization), route selection, storage decisions, and executable construction. Those decisions depend on one backend's execution [model](../../glossary.md#term-model) and native facilities.
+After [planning](../../glossary.md#term-planning) assigns a [graph](../../glossary.md#graph) region to a [backend](../../glossary.md#backend), that region still needs backend-specific [decomposition](../../glossary.md#term-decomposition), [fusion](../../glossary.md#term-fusion), [specialization](../../glossary.md#term-specialization), route selection, storage decisions, and executable construction. Those decisions depend on one backend's execution model and native facilities.
 
 The architecture previously named ASM as a [CPU](../../glossary.md#term-cpu) route and separately required an architecture
 update before [bytecode](../../glossary.md#term-bytecode)-generated CPU [fused](../../glossary.md#specialization-and-fusion) [kernels](../../glossary.md#kernel). CPU planning now selects the Java 26

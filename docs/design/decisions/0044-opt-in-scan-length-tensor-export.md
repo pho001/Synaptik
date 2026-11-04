@@ -1,4 +1,4 @@
-# [ADR](../../glossary.md#term-architecture-decision-record-adr) 0044: Opt-in [scan](../../glossary.md#term-cumulative-scan) length [Tensor](../../glossary.md#tensor) export
+# [ADR](../../glossary.md#term-architecture-decision-record-adr) 0044: Opt-in [scan](../../glossary.md#term-fixed-recurrent-scan) length [Tensor](../../glossary.md#tensor) export
 
 
 ## Editorial reading context
@@ -12,12 +12,12 @@ and evidence below remain historical records; this reading aid does not amend th
 
 Accepted — 2026-10-21. The user approved the exact narrow [API](../../glossary.md#term-application-programming-interface-api) and implementation [scope](../../glossary.md#term-scope) with
 “ok,pustse do toho”. Contract cutover and Java implementation are enacted; NN0022A is Complete
-after independent APPROVE and main's source-matched architecture/root [checkpoint](../../glossary.md#term-checkpoint) on 2026-10-21.
+after independent APPROVE and main's source-matched architecture/root checkpoint on 2026-10-21.
 This record explains, but does not override, the [architecture contract](../../glossary.md#architecture-contract).
 
 ## Context
 
-Data already declares valid counts for [borrowed](../../glossary.md#ownership-borrowing-and-lease) padded [tensors](../../glossary.md#tensor). Existing [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [scan](../../glossary.md#term-cumulative-scan) Models accept
+Data already declares valid counts for [borrowed](../../glossary.md#ownership-borrowing-and-lease) padded [tensors](../../glossary.md#tensor). Existing [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [scan](../../glossary.md#term-fixed-recurrent-scan) Models accept
 ordinary values and [runtime](../../glossary.md#term-runtime) [INT64](../../glossary.md#data-type--datatype) lengths through public [Engine](../../glossary.md#term-engine) execution. [Host](../../glossary.md#term-host) [metadata](../../glossary.md#term-metadata) is not
 itself a [graph](../../glossary.md#graph) input, and requiring NN to consume Data objects would reverse the allowed [dependency](../../glossary.md#term-dependency).
 The current floating-only ModelBuilder has no [Embedding](../../glossary.md#embedding) recipe, so a count export cannot also
@@ -55,7 +55,7 @@ there is no native allocation, [device](../../glossary.md#term-device) transfer,
 
 The record already knows the side, [axes](../../glossary.md#term-axis) and [immutable](../../glossary.md#term-immutable) counts needed to reject incompatible
 representations. For RIGHT/TIME_MAJOR counts `[3,1,0]`, export yields those exact three values;
-the application can supply them beside [canonical](../../glossary.md#term-canonical-form) [FLOAT32](../../glossary.md#term-float32) `[3,3,F]` values to a [scan](../../glossary.md#term-cumulative-scan) [Model](../../glossary.md#term-model).
+the application can supply them beside [canonical](../../glossary.md#term-canonical-form) [FLOAT32](../../glossary.md#term-float32) `[3,3,F]` values to a [scan](../../glossary.md#term-fixed-recurrent-scan) [Model](../../glossary.md#term-model).
 LEFT counts cannot be passed as prefixes without moving values, so rejection prevents silently
 executing the wrong interval. Fresh storage prevents one consumer's mutations leaking to another.
 

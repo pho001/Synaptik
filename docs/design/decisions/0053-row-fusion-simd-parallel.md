@@ -19,7 +19,7 @@ this record explains their decision, not independent authority.
 ## Context and decision drivers
 
 CPU0073 shares computed row-local values among row outputs and multiple terminal contractions/
-represented [Scan](../../glossary.md#term-cumulative-scan) sums, but its [scalar](../../glossary.md#term-scalar)-only ordered override prevents [SIMD](../../glossary.md#simd)/worker realizations.
+represented [Scan](../../glossary.md#general-differentiable-scan) sums, but its [scalar](../../glossary.md#cpu-portable-execution-strategy)-only ordered override prevents [SIMD](../../glossary.md#simd)/worker realizations.
 The global [aggregate floor](../../glossary.md#term-aggregate-floor) already permits rounded trees; changing global [Model](../../glossary.md#term-model) semantics is
 unnecessary. The user selected the bounded extension while retaining [dtype](../../glossary.md#data-type--datatype), exact [masks](../../glossary.md#term-boolean-mask)/saved
 values and distinct per-time [carry](../../glossary.md#term-carry) ADDs. Ordinary exact SUM/[MEAN](../../glossary.md#term-mean) remain separate.
@@ -32,11 +32,11 @@ predeclared scratch and current failure/close behavior without a new executor or
 
 ## Options considered
 
-- Keep [scalar](../../glossary.md#term-scalar)-only [fusion](../../glossary.md#term-fusion): preserves current [artifacts](../../glossary.md#term-artifact) but does not deliver the selected capability.
+- Keep [scalar](../../glossary.md#cpu-portable-execution-strategy)-only [fusion](../../glossary.md#term-fusion): preserves current [artifacts](../../glossary.md#term-artifact) but does not deliver the selected capability.
 - Vectorize across rows: requires strided access handling and cross-row activity treatment; it is
   not selected for the primary F3/H2 reverse with mixed lengths.
 - Use feature/output SIMD and bounded raw transpose staging; split rows only across synchronous
-  workers with private partials. Reserve participant demand once and lend it during dispatch.<span data-glossary-navigation="true"> ([feature glossary](../../glossary.md#term-software-feature); [SIMD glossary](../../glossary.md#simd); [transpose glossary](../../glossary.md#term-transpose); [synchronous glossary](../../glossary.md#term-synchronous); [dispatch glossary](../../glossary.md#term-dispatch))</span>
+  workers with private partials. Reserve participant demand once and lend it during dispatch.<span data-glossary-navigation="true"> ([feature glossary](../../glossary.md#term-feature); [SIMD glossary](../../glossary.md#simd); [transpose glossary](../../glossary.md#term-transpose); [synchronous glossary](../../glossary.md#term-synchronous); [dispatch glossary](../../glossary.md#term-dispatch))</span>
 - Release/reacquire inline permits around every dispatch: can be budget-safe but adds repeated
   admission/lease transitions; not selected for this current need.<span data-glossary-navigation="true"> ([Release glossary](../../glossary.md#term-release); [admission glossary](../../glossary.md#term-admission); [lease glossary](../../glossary.md#term-lease))</span>
 - Introduce a new executor/cohort or mandatory reusable Job framework: unnecessary new ownership
@@ -44,7 +44,7 @@ predeclared scratch and current failure/close behavior without a new executor or
 
 ## Decision and rationale
 
-Choose [feature](../../glossary.md#term-software-feature)/output-[lane](../../glossary.md#term-lane) [SIMD](../../glossary.md#simd) in selected CPU0073-shaped regions, retaining full feature-K
+Choose [feature](../../glossary.md#term-feature)/output-[lane](../../glossary.md#term-lane) [SIMD](../../glossary.md#simd) in selected CPU0073-shaped regions, retaining full feature-K
 order and preferred [target](../../glossary.md#term-target)/[dtype](../../glossary.md#data-type--datatype) species. Masked tails prevent out-of-domain loads/stores.
 The primary actual F3/H2 saved-[primal](../../glossary.md#term-primal) reverse can stage W/U transposes in ten represented cells
 (40 [F32](../../glossary.md#floating-point-precision-and-rounding) / 80 [F64](../../glossary.md#floating-point-precision-and-rounding) bytes before [alignment](../../glossary.md#term-alignment)). True invariants stage once per [run](../../glossary.md#term-run) under activity;
@@ -61,16 +61,16 @@ double charging or nested acquisitions. Join precedes consumers, carry transitio
 
 ## Consequences
 
-[Scalar](../../glossary.md#term-scalar) CPU0073 and noneligible [artifacts](../../glossary.md#term-artifact) remain literal controls; only new exec-v1 realization
+[Scalar](../../glossary.md#cpu-portable-execution-strategy) CPU0073 and noneligible [artifacts](../../glossary.md#term-artifact) remain literal controls; only new exec-v1 realization
 payloads/helper ABIs advance. Production scalar/thread-count-one defaults stay unchanged. A
 standard [RNN](../../glossary.md#term-recurrent-neural-network-rnn) forward may have no terminal region and remains scalar; genuinely [fused](../../glossary.md#specialization-and-fusion) forward
 and actual reverse need independent [qualification](../../glossary.md#term-qualification). The permission does not widen [dtype](../../glossary.md#data-type--datatype)/[layout](../../glossary.md#layout),
 ordinary exact SUM/[MEAN](../../glossary.md#term-mean), standalone [MATMUL](../../glossary.md#matrix-multiplication--matmul)-K, [FMA](../../glossary.md#term-fused-multiply-add-fma) or public numerical modes.
 
 Costs include bounded [transpose](../../glossary.md#term-transpose)/partial scratch, one [run](../../glossary.md#term-run)-bound context/arrays/calls and existing
-Job/queue/failure/[latch](../../glossary.md#control-flow-graph) [metadata](../../glossary.md#term-metadata) per [dispatch](../../glossary.md#term-dispatch). Reserving participant demand throughout entry may
+Job/queue/failure/latch [metadata](../../glossary.md#term-metadata) per [dispatch](../../glossary.md#term-dispatch). Reserving participant demand throughout entry may
 reduce [concurrency](../../glossary.md#term-concurrency) while caller-only setup/merge runs; no fairness/[throughput](../../glossary.md#term-throughput) improvement is
-claimed. Small B/masked [features](../../glossary.md#term-software-feature) may be slower. [Finite](../../glossary.md#term-finite) arithmetic differs across permitted
+claimed. Small B/masked [features](../../glossary.md#term-feature) may be slower. [Finite](../../glossary.md#term-finite) arithmetic differs across permitted
 terminal groupings, with no cross-strategy/thread-count/[device](../../glossary.md#term-device) bitwise guarantee.
 
 Implementation must supply optimal same-realization Java/ClassFile evidence, finite per-op/dtype
@@ -88,7 +88,7 @@ No [commit](../../glossary.md#term-commit)/push or general [pointwise](../../glo
 ## Related documentation
 
 - [CPU mechanism and exact seams](../../architecture/contracts/backend-execution.md#cpu0074-selected-row-region-execution-exception)<span data-glossary-navigation="true"> ([CPU glossary](../../glossary.md#term-cpu))</span>
-- [Scan semantic exception](../../architecture/contracts/recurrent-scan.md#cpu0074-selected-terminal-grouping-exception)<span data-glossary-navigation="true"> ([Scan glossary](../../glossary.md#term-cumulative-scan))</span>
+- [Scan semantic exception](../../architecture/contracts/recurrent-scan.md#cpu0074-selected-terminal-grouping-exception)<span data-glossary-navigation="true"> ([Scan glossary](../../glossary.md#general-differentiable-scan))</span>
 - [Run-owned reservation](../../architecture/contracts/runtime-prepare-engine.md#cpu0074-run-owned-synchronous-reservation)<span data-glossary-navigation="true"> ([Run glossary](../../glossary.md#term-run))</span>
 - [Scan explanation](../../architecture/general-differentiable-scan.md#accepted-but-unimplemented-row-fusion-simd-and-workers)
 - [CPU0074 brief](../../planning/backends/cpu/tasks/0074-row-fusion-simd-parallel.md)

@@ -101,7 +101,7 @@ programs, poisons supplied [targets](../../glossary.md#term-target), repeats eac
 expected output and repeat [identity](../../glossary.md#term-identity-meanings). It separately exercises 257-word odd counts. Offset/hole and
 zero-count boundaries remain ineligible rather than being generalized from the dense evidence.
 
-Only after the base RESHAPE/PERMUTE/[CONTIGUOUS](../../glossary.md#term-contiguous) [matrix](../../glossary.md#term-matrix-meanings) passed did the same [run](../../glossary.md#term-run) admit
+Only after the base RESHAPE/PERMUTE/[CONTIGUOUS](../../glossary.md#term-contiguous) [matrix](../../glossary.md#term-matrix-meanings) passed did the same run admit
 [SLICE](../../glossary.md#slice)/CONCAT/TILE rows. The active store contains only exhaustive program rows and binds the exact
 evidence-file digests. The identity ledger activates [certificate](../../glossary.md#formal-proof-certificate-and-trusted-assumptions) [schema](../../glossary.md#term-schema) 1 and ABI 6 together.
 

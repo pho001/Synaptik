@@ -36,8 +36,8 @@ remains authoritative.
 - Make native and partial-construction ownership mechanically unambiguous.
 - Preserve the current ordinary [CPU](../../glossary.md#term-cpu) convenience without implying discovery.
 - Admit a complete single-owner CPU or Metal vertical slice before cross-owner transfer semantics
-  exist.<span data-glossary-navigation="true"> ([owner glossary](../../glossary.md#term-owner); [Metal glossary](../../glossary.md#term-metal); [slice glossary](../../glossary.md#slice))</span>
-- Make [dependency](../../glossary.md#term-dependency), [API](../../glossary.md#term-application-programming-interface-api) [shape](../../glossary.md#shape), duplicate [identity](../../glossary.md#term-identity-meanings), [rollback](../../glossary.md#term-rollback), and closure rules automatable.
+  exist.<span data-glossary-navigation="true"> ([owner glossary](../../glossary.md#term-owner); [Metal glossary](../../glossary.md#term-metal))</span>
+- Make [dependency](../../glossary.md#term-dependency), [API](../../glossary.md#term-application-programming-interface-api) shape, duplicate [identity](../../glossary.md#term-identity-meanings), [rollback](../../glossary.md#term-rollback), and closure rules automatable.
 
 ## Options considered
 
@@ -66,13 +66,13 @@ discovery.
 
 A global registry would avoid passing a composition object through construction, but it would make
 tests and lifetimes process-coupled and permit late [backend](../../glossary.md#backend) lookup after [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) or
-preparation. Runtime selection and fallback would violate the prepared-schedule [model](../../glossary.md#term-model).
+preparation. Runtime selection and fallback would violate the prepared-schedule model.
 
 ## Decision
 
 Synaptik selects the [Engine](../../glossary.md#term-engine) builder with concrete [ownership](../../glossary.md#term-ownership-meanings) overloads.
 
-The current public [shape](../../glossary.md#shape) is:
+The current public shape is:
 
 ```java
 try (Engine.Builder builder = Engine.builder()) {
@@ -161,13 +161,13 @@ analysis prevents partial preparation-time resource acquisition and accidental f
 - The current Metal Engine slice includes Metal-owned host ingress, host materialization, complete
   schedule contribution, and conformance evidence; capability alone remains insufficient.<span data-glossary-navigation="true"> ([host glossary](../../glossary.md#term-host); [materialization glossary](../../glossary.md#materialization); [conformance glossary](../../glossary.md#term-conformance))</span>
 - [Metal](../../glossary.md#term-metal)'s backend-local route candidates do not make public [model autotuning](../../glossary.md#autotuning--model-autotuning) generic;
-  `prepareTuned(...)` remains [CPU](../../glossary.md#term-cpu)-only for this [slice](../../glossary.md#slice).
+  `prepareTuned(...)` remains [CPU](../../glossary.md#term-cpu)-only for this slice.
 - The existing CPU-only advanced surface is not made generic by this decision.
 
 ### Implementation evidence and follow-up
 
 [Engine](../../glossary.md#term-engine) task 0015 implemented the public builder, its two [ownership](../../glossary.md#term-ownership-meanings) overloads, [atomic](../../glossary.md#resource-transaction-and-rollback) build, and
-[close lifecycle](../../glossary.md#ownership-borrowing-and-lease). [API](../../glossary.md#term-application-programming-interface-api)-[shape](../../glossary.md#shape) and [lifecycle](../../glossary.md#lifecycle) tests cover entry-time transfer, duplicate IDs, [snapshot](../../glossary.md#term-snapshot)
+[close lifecycle](../../glossary.md#ownership-borrowing-and-lease). [API](../../glossary.md#term-application-programming-interface-api)-shape and [lifecycle](../../glossary.md#lifecycle) tests cover entry-time transfer, duplicate IDs, [snapshot](../../glossary.md#term-snapshot)
 timing, registration and construction [rollback](../../glossary.md#term-rollback), reverse close, distinct suppression,
 self-suppression avoidance, and post-build builder closure. Architecture tests lock the
 intentional API-visible Engine-to-[CPU](../../glossary.md#term-cpu)/[Metal](../../glossary.md#term-metal) edges while retaining the prohibition on every

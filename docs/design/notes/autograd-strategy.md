@@ -107,7 +107,7 @@ is no current caller-supplied seed, non-[scalar objective](../../glossary.md#los
   output wrappers, and immutable indexed provenance. It owns no derivative rule.<span data-glossary-navigation="true"> ([occurrence glossary](../../glossary.md#term-occurrence); [canonical glossary](../../glossary.md#term-canonical-form); [immutable glossary](../../glossary.md#term-immutable); [provenance glossary](../../glossary.md#provenance); [derivative glossary](../../glossary.md#term-derivative))</span>
 - `modules/compiler` owns preflight, output seeds, differentiation targets, rule dispatch,
   deterministic reverse traversal, contribution accumulation, phase-aware capture, validation,
-  and combined optimization.<span data-glossary-navigation="true"> ([preflight glossary](../../glossary.md#term-preflight); [seeds glossary](../../glossary.md#commit-release-distribution-log-and-seed-meanings); [targets glossary](../../glossary.md#term-target); [dispatch glossary](../../glossary.md#term-dispatch); [capture glossary](../../glossary.md#term-capture-meanings); [validation glossary](../../glossary.md#term-validation))</span>
+  and combined optimization.<span data-glossary-navigation="true"> ([preflight glossary](../../glossary.md#term-preflight); [seeds glossary](../../glossary.md#commit-release-distribution-log-and-seed-meanings); [targets glossary](../../glossary.md#term-target); [capture glossary](../../glossary.md#term-capture-meanings); [validation glossary](../../glossary.md#term-validation))</span>
 - Planning assigns backend ownership after expansion. Concrete backends prepare assigned regions.
   Runtime executes prepared work and never derives gradients.<span data-glossary-navigation="true"> ([Planning glossary](../../glossary.md#term-planning); [backend ownership glossary](../../glossary.md#backend-ownership); [backends glossary](../../glossary.md#backend); [prepare glossary](../../glossary.md#prepare); [Runtime glossary](../../glossary.md#term-runtime))</span>
 
@@ -130,7 +130,7 @@ The closed implemented matrix through Compiler 0005B is:
 
 | Family | Current exact variants |
 |---|---|
-| [Elementwise](../../glossary.md#term-elementwise) | All seven promoted floating [binary](../../glossary.md#term-binary-descriptor-and-metadata) arithmetic kinds; all eight exact-type floating [scalar](../../glossary.md#term-scalar) kinds, including first-class `CLAMP`; promoted branch-only `WHERE`; floating-to-floating `CAST`; and all nineteen floating [unary](../../glossary.md#term-unary) kinds |
+| [Elementwise](../../glossary.md#term-elementwise) | All seven promoted floating [binary](../../glossary.md#term-binary-descriptor-and-metadata) arithmetic kinds; all eight exact-type floating [scalar](../../glossary.md#term-scalar-immediate) kinds, including first-class `CLAMP`; promoted branch-only `WHERE`; floating-to-floating `CAST`; and all nineteen floating [unary](../../glossary.md#term-unary) kinds |
 | Reduction/[scan](../../glossary.md#term-cumulative-scan)/[softmax](../../glossary.md#softmax--log-softmax) | Floating ordinary full, single-[axis](../../glossary.md#term-axis), and ordered multi-axis `SUM`/[`MEAN`](../../glossary.md#term-mean)/`PROD`/`MIN`/`MAX`; masked floating `SUM`/`MEAN`; [binding](../../glossary.md#term-binding)-aware floating `SUM_TO_SHAPE`; floating `LOG_SUM_EXP`, [`VARIANCE`](../../glossary.md#term-variance), `STANDARD_DEVIATION`, `L1_NORM`, `L2_NORM`, `CUM_SUM`, `CUM_PROD`, `SOFTMAX`, and `LOG_SOFTMAX` |
 | [Normalization](../../glossary.md#term-normalization) | No-affine and affine floating [Layer normalization](../../glossary.md#layer-normalization); no-scale and scaled floating [RMS normalization](../../glossary.md#rms-normalization); all five floating [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)-[inference](../../glossary.md#term-inference) inputs; and batch-training public output slots zero through two with their exact input-role matrices |
 | [Linear](../../glossary.md#term-linear-meanings) algebra | Every current floating [`MATMUL`](../../glossary.md#matrix-multiplication--matmul) [vector](../../glossary.md#term-vector)/matrix [rank](../../glossary.md#term-rank) pairing, with role-aware mixed-floating normalization and batch unbroadcasting |
@@ -167,7 +167,7 @@ cotangent. `SUM_TO_SHAPE` is invertible only when every aligned input/[target](.
 exactly equal, the static target [extent](../../glossary.md#term-extent) is one, or the binding-dependent inverse uses the exact
 forward target-one-or-target-equal-source predicate. Binding-dependent `EXPAND` similarly emits
 `source == 1 || source == target` for each unresolved aligned pair. These obligations remain
-deferred [compile](../../glossary.md#compile) constraints; preflight proves the inverse relationship without binding a [symbol](../../glossary.md#term-symbol).
+deferred [compile](../../glossary.md#compile) constraints; preflight proves the inverse relationship without binding a [symbol](../../glossary.md#dimension).
 CUM_SUM retains exclusivity and reverses scan direction; PERMUTE uses the inverse [permutation](../../glossary.md#permutation).
 
 Product reduction is division-free: sequential keep-dimension reductions are reversed with

@@ -25,7 +25,7 @@ length-aware and both traversal directions. The required [target](../../glossary
 PURE family within genuine [descriptor](../../glossary.md#term-descriptor), [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix), activity and ordinary derivative constraints.
 Effects, unknown operations, nested bodies, arbitrary while and higher-order [AD](../../glossary.md#autograd) remain excluded.
 
-Do not copy ordinary [shape](../../glossary.md#shape) algorithms, derivatives or [kernels](../../glossary.md#kernel) into [Scan](../../glossary.md#term-cumulative-scan). Do not route each time
+Do not copy ordinary [shape](../../glossary.md#shape) algorithms, derivatives or [kernels](../../glossary.md#kernel) into [Scan](../../glossary.md#general-differentiable-scan). Do not route each time
 step through prepared executables, an interpreter, [graph](../../glossary.md#graph) [lookup](../../glossary.md#term-lookup), source replay, callbacks or a
 new scheduler. Existing [Model](../../glossary.md#term-model)/Compiler/[Prepare](../../glossary.md#prepare)/CPU [owners](../../glossary.md#term-owner) remain responsible for their phases.
 CPU low numerical [admission](../../glossary.md#term-admission) stays locked; [Metal](../../glossary.md#term-metal)'s separately qualified production work remains
@@ -36,12 +36,12 @@ mandatory and is not changed by this CPU design.
 ### Shared per-output [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) and [dependency](../../glossary.md#term-dependency) facts
 
 Ordinary [descriptor](../../glossary.md#term-descriptor) validity remains with [Model](../../glossary.md#term-model)'s checked family constructors and independent
-[Compiler](../../glossary.md#term-compiler) `CapturedGraphInference`. Factor [Scan](../../glossary.md#term-cumulative-scan)'s existing row-transfer logic into one descriptor-
+[Compiler](../../glossary.md#term-compiler) `CapturedGraphInference`. Factor [Scan](../../glossary.md#general-differentiable-scan)'s existing row-transfer logic into one descriptor-
 only semantic seam on the existing Model Scan [owner](../../glossary.md#term-owner), callable by Model construction and raw
 Compiler [validation](../../glossary.md#term-validation) after their own ordinary descriptor proof. It must not reconstruct validation
 [Tensors](../../glossary.md#tensor), consume IDs, consult [CPU](../../glossary.md#term-cpu) geometry or trust a serialized/source-attached proof [artifact](../../glossary.md#term-artifact).
 
-A single [immutable](../../glossary.md#term-immutable) nested advanced [metadata](../../glossary.md#term-metadata) [carrier](../../glossary.md#term-storage-carrier) is justified to replace the present duplicated
+A single [immutable](../../glossary.md#term-immutable) nested advanced [metadata](../../glossary.md#term-metadata) carrier is justified to replace the present duplicated
 one-role-per-[producer](../../glossary.md#term-producer) assumption: per [canonical](../../glossary.md#term-canonical-form) output, identified optional row [axis](../../glossary.md#term-axis), terminal
 row-dependency taint and ordered direct input-dependency positions. This is semantic metadata,
 not another [graph](../../glossary.md#graph)/[registry](../../glossary.md#term-registry)/type hierarchy. [Model0048](../../planning/modules/model/tasks/0048-shared-ordinary-scan-value-semantics.md)
@@ -75,7 +75,7 @@ A terminal result cannot feed row work. A SHARED [accumulator](../../glossary.md
 left operand of its own distinct per-time `old.add(contribution)`, with exact [shape](../../glossary.md#shape)/[dtype](../../glossary.md#data-type--datatype) and no
 shared-carry dependency in the contribution. No per-row accumulator update or [mask](../../glossary.md#term-boolean-mask)-after-math.
 
-### Ordinary typed [inference](../../glossary.md#term-inference) and lexical first-order [AD](../../glossary.md#autograd)
+### Ordinary typed [inference](../../glossary.md#term-inference-meanings) and lexical first-order [AD](../../glossary.md#autograd)
 
 Reuse ordinary [descriptor](../../glossary.md#term-descriptor) inference for every local value, including [BOOL](../../glossary.md#data-type--datatype)/[INT32](../../glossary.md#data-type--datatype)/[INT64](../../glossary.md#data-type--datatype) outputs,
 explicit casts, saved auxiliaries and [canonical](../../glossary.md#term-canonical-form) siblings. Remove body-wide floating [dtype](../../glossary.md#data-type--datatype) coupling,
@@ -98,12 +98,12 @@ construction adapters; it is not a companion [derivative](../../glossary.md#term
 - Compute required temporal carry flow using existing compile-time coverage/planning owners,
   without unrolling a T-sized derivative graph. Preserve tied positional contributions and
   original-input-aligned nullable derivative results. T=0 identity and finite traversal demand
-  must not be replaced with a blanket all-input differentiable classification.<span data-glossary-navigation="true"> ([carry glossary](../../glossary.md#term-carry); [compile glossary](../../glossary.md#compile); [unrolling glossary](../../glossary.md#term-unrolling); [graph glossary](../../glossary.md#graph); [finite glossary](../../glossary.md#term-finite); [differentiable glossary](../../glossary.md#derivative-and-chain-rule))</span>
+  must not be replaced with a blanket all-input differentiable classification.<span data-glossary-navigation="true"> ([carry glossary](../../glossary.md#term-carry); [compile glossary](../../glossary.md#compile); [unrolling glossary](../../glossary.md#term-unrolling); [graph glossary](../../glossary.md#graph); [differentiable glossary](../../glossary.md#derivative-and-chain-rule))</span>
 - Model0046 represents a no-ROW reverse with only required SHARED accumulators, or true empty
   carry when no accumulator is needed. Do not restore a synthetic floating carry restriction.<span data-glossary-navigation="true"> ([accumulator glossary](../../glossary.md#accumulator-type))</span>
 - Full lexical original inventory must receive ordinary forward-only exclusions as well as
   selected derivative eligibility. Outer inventory traversal alone does not visit Scan bodies.
-  Existing Conv3d/fixed-recurrent and other ordinary gates do not disappear with the whitelist.<span data-glossary-navigation="true"> ([Scan glossary](../../glossary.md#term-cumulative-scan); [Conv3d glossary](../../glossary.md#conv3d--ncdhw))</span>
+  Existing Conv3d/fixed-recurrent and other ordinary gates do not disappear with the whitelist.<span data-glossary-navigation="true"> ([Scan glossary](../../glossary.md#general-differentiable-scan); [Conv3d glossary](../../glossary.md#conv3d--ncdhw))</span>
 
 A substantive preconstruction gap remains to close in the [Compiler](../../glossary.md#term-compiler) task: reuse/factor ordinary
 metadata/constructibility proof beside the actual ordinary rule owners, and prove the relevant
@@ -132,7 +132,7 @@ Ordinary contribution-list merging preserves source order: neither present means
 present means exact raw [identity](../../glossary.md#term-identity-meanings) of that term; both present execute the existing ordinary ADD.
 The represented ADD remains in the numeric [graph](../../glossary.md#graph) with a two-scope merge fact, not zero operands
 or a different formula. A ROW merge uses original-b presence, not [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) zero. Presence roots
-propagate through the [finite](../../glossary.md#term-finite) selected [carry](../../glossary.md#term-carry) routes; inactive length rows retain old numeric/control
+propagate through the finite selected [carry](../../glossary.md#term-carry) routes; inactive length rows retain old numeric/control
 carry, while active absent cotangents have false presence and publish typed [positive zero](../../glossary.md#nan-infinity-and-signed-zero) if needed.
 
 All-valid empty [Tensor](../../glossary.md#tensor) occurrences remain structurally present even with B=0 or zero [feature](../../glossary.md#term-feature)
@@ -160,12 +160,12 @@ accumulators: (numeric shared-carry position, completed contribution scope)
 Root numbering is carries followed by seedFormals; the structural records have no Tensor,
 [producer](../../glossary.md#term-producer), numerical cotangent values, runtime address or derivative formula. [Capture](../../glossary.md#term-capture-meanings) remaps the
 ephemeral source identities into local IDs. [Compiler](../../glossary.md#term-compiler)'s existing DerivativeGraphMetadata retains
-the scoped plans per containing [Scan](../../glossary.md#term-cumulative-scan) [node](../../glossary.md#node) through its existing eighth CompileArtifacts component;
+the scoped plans per containing [Scan](../../glossary.md#general-differentiable-scan) [node](../../glossary.md#node) through its existing eighth CompileArtifacts component;
 Planning capability queries carry the neutral optional plan and [Prepare](../../glossary.md#prepare) projects it without
 Compiler aggregate objects. No ninth source sidecar or Model [gradient](../../glossary.md#term-gradient) state is introduced.
 
 Every captured generated node needs a scope, including primal-only nodes; actual unreachable
-[eager](../../glossary.md#term-eager-evaluation) temporaries are checked before IDs but need no runtime node. Rebuild/demand/optimization
+eager temporaries are checked before IDs but need no runtime node. Rebuild/demand/optimization
 must remap control metadata with the exact body. [CSE](../../glossary.md#term-common-subexpression-elimination-cse)/[fusion](../../glossary.md#term-fusion)/hoisting cannot cross incompatible
 activity or merge semantics; equal readiness must be proved, not inferred from equal numeric
 inputs. Providers/Prepare independently validate memberships, [bindings](../../glossary.md#term-binding), root positions, complete
@@ -179,7 +179,7 @@ empty fields. New controlled/composite entries use a selective namespace only.
 Construct a body-local analysis/[PrepareContext](../../glossary.md#prepare-context-preparecontext) from the actual `CompiledScanBody.graph()` [nodes](../../glossary.md#node),
 values, requirements and next/emission/[residual](../../glossary.md#scan-residual-port-and-history-demand) demand. Then reuse
 `CpuPartitionDagDecomposer.decompose/unitContext` and `CpuPartitionLowering.lower` for ordinary
-physical units. A subset context built against the outer one-node [Scan](../../glossary.md#term-cumulative-scan) [DAG](../../glossary.md#term-directed-acyclic-graph-dag) is incorrect.
+physical units. A subset context built against the outer one-node [Scan](../../glossary.md#general-differentiable-scan) [DAG](../../glossary.md#term-directed-acyclic-graph-dag) is incorrect.
 
 Honor real logical [layouts](../../glossary.md#layout) and selected physical mappings. Do not mark [views](../../glossary.md#term-view-meanings)/destinations
 [contiguous](../../glossary.md#term-contiguous) just to make a lowerer accept them. Translate ordinary unit boundaries to existing
@@ -189,11 +189,11 @@ are not a second semantic executor or another [Runtime](../../glossary.md#term-r
 
 ### Same-class static methods, one existing emitted time loop
 
-Factor the central `CpuClassFileKernelGenerator` method-emission [dispatch](../../glossary.md#term-dispatch) so a focused ordinary
+Factor the central `CpuClassFileKernelGenerator` method-emission dispatch so a focused ordinary
 emitter can populate a named static method in the same [hidden class](../../glossary.md#term-hidden-class). Each helper retains its
 ordinary [carrier](../../glossary.md#term-storage-carrier)/scratch/long-array/start/end [descriptor](../../glossary.md#term-descriptor) and local-slot assumptions; existing
 `CpuCarrierEmitter` [layout](../../glossary.md#layout) setup stays first. Fixed direct calls connect methods from the existing
-emitted [Scan](../../glossary.md#term-cumulative-scan) control loop. No per-time [method-handle lookup](../../glossary.md#term-method-handle-lookup), interface dispatch or unit loop.
+emitted [Scan](../../glossary.md#general-differentiable-scan) control loop. No per-time [method-handle lookup](../../glossary.md#term-method-handle-lookup), interface dispatch or unit loop.
 
 Prefix subsidiary method names deterministically per unit. `CpuLossEmitter`'s dispatcher,
 `lossContiguousInt` and `lossGenericAffine` must all use that namespace. Standalone names/method
@@ -201,7 +201,7 @@ order remain unchanged. Authenticate the exact composite method inventory, descr
 code/local/class/[constant](../../glossary.md#term-constant)-pool budgets and verified bytes in the existing verifier, not its old
 one-or-three-method assumption. Method limits are real resource bounds, not an [opcode](../../glossary.md#term-opcode) whitelist.
 
-Composite-only Scan entries may [carry](../../glossary.md#term-carry) numeric long[][] geometry packs and one [run](../../glossary.md#term-run)-owned control
+Composite-only Scan entries may carry numeric long[][] geometry packs and one [run](../../glossary.md#term-run)-owned control
 segment; retained Scan and standalone ordinary entry descriptors remain unchanged. Controlled
 ordinary helpers append that control segment after their existing carrier/scratch/geometry/range
 [parameters](../../glossary.md#term-parameter). Allocate packs/control/cursors and bind disjoint scratch once per run, not per T.
@@ -221,7 +221,7 @@ range/activity entry points in existing [Softmax](../../glossary.md#softmax--log
 generated call to an existing numerical-domain [guard](../../glossary.md#term-guard) is not a prepared-executable invocation.
 Only numeric current bases/ranges/roles survive; no [runtime](../../glossary.md#term-runtime) [graph](../../glossary.md#graph) is supplied to a validator.
 
-For each unit: inputs [ready](../../glossary.md#term-ready), validate its complete active [validation](../../glossary.md#term-validation) domain, then perform its
+For each unit: inputs ready, validate its complete active [validation](../../glossary.md#term-validation) domain, then perform its
 active numerical ranges. Do not validate row zero, write it, and discover a later bad row.
 Earlier units need no [rollback](../../glossary.md#term-rollback). Activity must dominate loads and dependent arithmetic, not just
 published stores. Scatter's output range does not restrict its update/index traversal; active
@@ -235,7 +235,7 @@ generation/definition, not merely an outer [FLOAT32](../../glossary.md#term-floa
 
 ### Compatibility and selective [identity](../../glossary.md#term-identity-meanings)
 
-New code-shaping composite facts belong in a selective [Scan](../../glossary.md#term-cumulative-scan) namespace/baked suffix: ordered
+New code-shaping composite facts belong in a selective [Scan](../../glossary.md#general-differentiable-scan) namespace/baked suffix: ordered
 ordinary [IR](../../glossary.md#term-intermediate-representation-ir)/specializations, exact method inventory, typed temporal mapping, activity/[validation](../../glossary.md#term-validation)/
 reset protocol, [provenance](../../glossary.md#provenance) and scratch/[lifetime](../../glossary.md#term-lifetime) facts. Exclude invocation B/L/T-varying bases,
 physical slots and addresses. No blanket global/family bump, dormant profile or [runtime](../../glossary.md#term-runtime) unlock.
@@ -254,7 +254,7 @@ lexical [AD](../../glossary.md#autograd) and proof -> scoped [Prepare](../../glo
 Independent design/authority/[Ready](../../glossary.md#term-ready) review precedes each coherent source [owner](../../glossary.md#term-owner); no speculative stub
 or competing [runtime](../../glossary.md#term-runtime) path is an acceptable intermediate deliverable.
 
-Required proof includes the unchanged 24-case [scalar](../../glossary.md#term-scalar)-forward/actual joint-backward program;
+Required proof includes the unchanged 24-case [scalar](../../glossary.md#cpu-portable-execution-strategy)-forward/actual joint-backward program;
 representative supported families and their genuine ordinary backward closure; typed predicates/
 indices/casts/discrete histories; all-SHARED families; per-output BatchNorm/attention routes;
 grouped [Conv2d](../../glossary.md#convolution--conv2d) with nonleading row intermediates; [embedding](../../glossary.md#embedding) shared-[parameter](../../glossary.md#term-parameter) ADD-scatter [gradients](../../glossary.md#term-gradient);

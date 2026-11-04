@@ -35,7 +35,7 @@ The second alternative is represented by explicit contract prohibitions; this [A
 
 ## Decision
 
-Use the layered [ownership](../../glossary.md#term-ownership-meanings) and [dependency](../../glossary.md#term-dependency) [model](../../glossary.md#term-model) in [`ARCHITECTURE.md`](../../../ARCHITECTURE.md). Model owns semantics, [planning](../../glossary.md#term-planning) owns [backend](../../glossary.md#backend)-neutral ownership, [compiler](../../glossary.md#term-compiler) owns [graph](../../glossary.md#graph) transformation, [prepare](../../glossary.md#prepare) owns shared transition contracts, concrete backends own implementation, [runtime](../../glossary.md#term-runtime) executes prepared work, [engine](../../glossary.md#term-engine) composes components, and [trace](../../glossary.md#trace) remains a typed [DTO](../../glossary.md#data-transfer-object--dto) [leaf](../../glossary.md#term-dependency-leaf).
+Use the layered [ownership](../../glossary.md#term-ownership-meanings) and [dependency](../../glossary.md#term-dependency) model in [`ARCHITECTURE.md`](../../../ARCHITECTURE.md). Model owns semantics, [planning](../../glossary.md#term-planning) owns [backend](../../glossary.md#backend)-neutral ownership, [compiler](../../glossary.md#term-compiler) owns [graph](../../glossary.md#graph) transformation, [prepare](../../glossary.md#prepare) owns shared transition contracts, concrete backends own implementation, [runtime](../../glossary.md#term-runtime) executes prepared work, [engine](../../glossary.md#term-engine) composes components, and [trace](../../glossary.md#trace) remains a typed [DTO](../../glossary.md#data-transfer-object--dto) [leaf](../../glossary.md#term-dependency-leaf).
 
 ## Rationale
 

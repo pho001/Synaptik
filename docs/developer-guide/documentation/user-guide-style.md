@@ -41,7 +41,7 @@ infer setup from an index of unrelated APIs.
 ## Avoid
 
 - beginning with architecture history instead of the user's goal;
-- examples that cannot [run](../../glossary.md#term-run) in the documented environment;
+- examples that cannot run in the documented environment;
 - placeholders presented as literal commands;
 - unexplained output;
 - internal implementation detail that does not help complete or troubleshoot the task; and

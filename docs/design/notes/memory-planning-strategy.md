@@ -61,7 +61,7 @@ does not say whether either availability uses [aliasing](../../glossary.md#term-
 
 A dynamic or expression-[dimension](../../glossary.md#dimension) value retains its full `TensorDescriptor`. [Planning](../../glossary.md#term-planning) does not
 replace an unresolved [extent](../../glossary.md#term-extent) with a byte count, and logical `DataType.byteWidth()` does not choose
-backend [alignment](../../glossary.md#term-alignment) or [padding](../../glossary.md#padding).
+backend [alignment](../../glossary.md#term-alignment) or padding.
 
 ## Planned physical reuse example
 
@@ -72,7 +72,7 @@ If `ValueId(4)` dies before `ValueId(9)` is produced, [prepare](../../glossary.m
 The current logical plan does not accept `ForwardPublicationBinding` or
 `GradientPublicationBinding`; [graph](../../glossary.md#graph) outputs provide only a preservation obligation, while the
 [compiler](../../glossary.md#term-compiler)-owned `PublicationPlan` owns [tensor](../../glossary.md#tensor)-to-value [publication](../../glossary.md#term-publication) context. Allocation algorithms,
-[alignment](../../glossary.md#term-alignment), [alias](../../glossary.md#aliasing-and-arena) analysis, workspace [pooling](../../glossary.md#term-pooling),
+[alignment](../../glossary.md#term-alignment), [alias](../../glossary.md#aliasing-and-arena) analysis, workspace pooling,
 [ownership](../../glossary.md#term-ownership-meanings) of externally supplied memory, dynamic-[shape](../../glossary.md#shape) [specialization](../../glossary.md#term-specialization), [concurrency](../../glossary.md#term-concurrency), and
 out-of-memory diagnostics remain for focused tasks. Any solution must keep physical addresses and
 [mutable](../../glossary.md#term-mutable) [residency](../../glossary.md#residency) out of [compile artifacts](../../glossary.md#compile-artifacts).

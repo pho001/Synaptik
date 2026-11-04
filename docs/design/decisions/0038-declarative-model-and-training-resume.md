@@ -40,7 +40,7 @@ and [cotangent](../../glossary.md#cotangent) Arena, not the [borrowed](../../glo
 ## Decision drivers
 
 - Load supported models without lambdas, restore callbacks, manual construction or [digest](../../glossary.md#term-digest) plumbing.
-- Keep semantic reconstruction in [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context), recipe/[run](../../glossary.md#term-run) [lifecycle](../../glossary.md#lifecycle) in Training, codecs/files downstream.
+- Keep semantic reconstruction in [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context), recipe/run [lifecycle](../../glossary.md#lifecycle) in Training, codecs/files downstream.
 - Preserve existing explicit APIs, ArtifactFile v1 and published `model.v1`.
 - Reconstruct actual attributes, wiring and sharing, not merely compare a configuration [hash](../../glossary.md#term-hash).
 - Make resource [ownership](../../glossary.md#term-ownership) and [fail-closed](../../glossary.md#term-fail-closed) capability limits observable and testable.
@@ -53,7 +53,7 @@ and [cotangent](../../glossary.md#cotangent) Arena, not the [borrowed](../../glo
 3. Put all model/loss/session logic in Checkpoint, or add a general ModelExecutor/transaction framework.
    Reject: bypasses NN/Training and invents an execution/persistence framework.<span data-glossary-navigation="true"> ([loss glossary](../../glossary.md#loss); [Checkpoint glossary](../../glossary.md#term-checkpoint); [transaction glossary](../../glossary.md#term-transaction); [NN glossary](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [persistence glossary](../../glossary.md#term-persistence))</span>
 4. Add a closed NN declarative specification, whole-model persistence and an optional adapter
-   composing a Training-owned recipe and run. Propose this bounded option.<span data-glossary-navigation="true"> ([run glossary](../../glossary.md#term-run))</span>
+   composing a Training-owned recipe and run. Propose this bounded option.
 
 <a id="nn-decision-selected-for-review"></a>
 
@@ -77,7 +77,7 @@ freezes all constructors, typed step records, [Activation](../../glossary.md#ter
 Description reads current [bindings](../../glossary.md#term-binding) under caller [quiescence](../../glossary.md#term-quiescence); it never trusts cached [alias](../../glossary.md#aliasing-and-arena) groups
 after legal parameter replacement or strict loading. Numeric nested paths have no new root prefix.
 
-Reconstruction creates one [descriptor](../../glossary.md#term-descriptor)-only Tensor per validated alias group or [singleton](../../glossary.md#term-singleton), binds
+Reconstruction creates one [descriptor](../../glossary.md#term-descriptor)-only Tensor per validated alias group or singleton, binds
 NN-owned layers and returns a fully bound [evaluation](../../glossary.md#term-evaluation) skeleton for existing strict state load.
 Existing TensorFactory.create and supplied-state constructors allocate no [weight](../../glossary.md#term-weight) storage;
 convolution reservation-load tests prove initialization-free binding. NN0026's focused tests now
@@ -125,7 +125,7 @@ Use only public [capture](../../glossary.md#term-capture-meanings)/inspect/canon
 Defaults are 256 MiB complete file/aggregate, 4 MiB [manifest](../../glossary.md#term-manifest), 16384 entries, 64-byte kind/key,
 64 MiB single [payload](../../glossary.md#artifact-envelope-and-atomic-publication). A fixed 1 MiB definition and NN 4096-[occurrence](../../glossary.md#term-occurrence)/depth-64 ceiling also apply
 to advanced limits. These are encoded bounds, not peak-[heap](../../glossary.md#term-heap) budgets. Dry-size/check definition and
-[residual](../../glossary.md#scan-residual-port-and-history-demand) [metadata](../../glossary.md#term-metadata), encode at most 1 MiB, [hash](../../glossary.md#term-hash), then public capture with exact projected limits
+residual [metadata](../../glossary.md#term-metadata), encode at most 1 MiB, [hash](../../glossary.md#term-hash), then public capture with exact projected limits
 preflights actual component/outer bounds before Engine or bulk values. Recheck before prefixed
 copies; no duplicate private parser or new validator. Description and values capture may each read
 state under caller [quiescence](../../glossary.md#term-quiescence), not a combined [snapshot](../../glossary.md#term-snapshot) [transaction](../../glossary.md#term-transaction). File [publication](../../glossary.md#term-publication) stays intact.
@@ -139,7 +139,7 @@ native [ownership](../../glossary.md#term-ownership-meanings) or throwaway initi
 Unknown recurrent IDs [fail closed](../../glossary.md#admission-preflight-and-fail-closed-validation) now. NN0027 owns only Model-only semantic description/reconstruction
 using existing static Rnn/Gru/Lstm capabilities; CP0005C owns explicit versioned recurrent definition
 wire/whole-save/load adoption. Initial-state/output selection, format version and Training [gradient](../../glossary.md#term-gradient)
-[admission](../../glossary.md#term-admission) are future decisions before detailed briefs. Neither waits on optimized [scan](../../glossary.md#term-cumulative-scan)/[backend](../../glossary.md#backend)
+[admission](../../glossary.md#term-admission) are future decisions before detailed briefs. Neither waits on optimized [scan](../../glossary.md#term-fixed-recurrent-scan)/[backend](../../glossary.md#backend)
 [BPTT](../../glossary.md#term-backpropagation-through-time-bptt)/Data, and CP0005B v1 claims no recurrent files. Ordinary [unrolled](../../glossary.md#backpropagation-through-time-and-recurrent-state) differentiation depends
 on its constituent operations; only fixed RecurrentScan BPTT is explicitly blocked here.
 
@@ -148,7 +148,7 @@ on its constituent operations; only fixed RecurrentScan BPTT is explicitly block
 Training owns `TrainingRecipe` and `TrainingRun` in its existing public package.
 The recipe describes a supported [scalar](../../glossary.md#term-scalar) [loss](../../glossary.md#loss), options, named input/[target](../../glossary.md#term-target) static [dtype](../../glossary.md#data-type--datatype)/[Shapes](../../glossary.md#shape) and
 [binding](../../glossary.md#term-binding) meaning, modes/effective contexts and [gradient](../../glossary.md#term-gradient) mode. TrainingState alone encodes saved
-[optimizer](../../glossary.md#term-optimizer)/groups; fresh [run](../../glossary.md#term-run) creation receives optimizer/groups separately. Recipe semantics,
+[optimizer](../../glossary.md#term-optimizer)/groups; fresh run creation receives optimizer/groups separately. Recipe semantics,
 [objective](../../glossary.md#term-objective) construction and reusable typed [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) binding are Training responsibilities.
 A run exclusively owns its recreated [model](../../glossary.md#term-model), shared native [parameter](../../glossary.md#term-parameter) [Arena](../../glossary.md#term-arena), placeholders and
 [TrainingSession](../../glossary.md#training-session--trainingsession), [borrowing](../../glossary.md#term-borrowing) the supplied [Engine](../../glossary.md#term-engine). The optional [persistence](../../glossary.md#term-persistence) adapter does not become
@@ -187,7 +187,7 @@ The [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-co
 BatchNorm/[Dropout](../../glossary.md#dropout--inverted-dropout), recurrent states and generic I/O remain excluded. [Backend](../../glossary.md#backend) execution is separately
 admitted; [Conv3d](../../glossary.md#conv3d--ncdhw) [gradients](../../glossary.md#term-gradient) and fixed RecurrentScan [BPTT](../../glossary.md#term-backpropagation-through-time-bptt) remain [fail-closed](../../glossary.md#term-fail-closed). Ordinary static [unrolling](../../glossary.md#term-unrolling)
 depends on normal constituent-[operation](../../glossary.md#operation) adjoints, not a blanket recurrent-[autograd](../../glossary.md#autograd) ban. The closed initial tree has no
-reused execution [nodes](../../glossary.md#node). A future execution [DAG](../../glossary.md#term-directed-acyclic-graph-dag) is a separate choice, not [inference](../../glossary.md#term-inference) from [ownership](../../glossary.md#term-ownership-meanings).
+reused execution [nodes](../../glossary.md#node). A future execution [DAG](../../glossary.md#term-directed-acyclic-graph-dag) is a separate choice, not [inference](../../glossary.md#term-inference-meanings) from [ownership](../../glossary.md#term-ownership-meanings).
 `model.v1` alone stores per-path values, not source [identity](../../glossary.md#term-identity-meanings); the selected whole-[model](../../glossary.md#term-model) contract carries
 NN alias meaning without altering the current values-only format. Recurrent policy remains future.
 
@@ -213,7 +213,7 @@ payloads and counters as the state-codec foundation; Training public constructor
 remain the validators. Recipe wire IDs/limits and Training defaults remain decisions before [Ready](../../glossary.md#term-ready);
 CP0005B defaults are frozen separately, not acceptance of adapter outer limits.
 
-Before publishing any model/[run](../../glossary.md#term-run), compare definition-predicted complete [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) state [descriptors](../../glossary.md#term-descriptor) and
+Before publishing any model/run, compare definition-predicted complete [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) state [descriptors](../../glossary.md#term-descriptor) and
 [alias](../../glossary.md#aliasing-and-arena) topology to independently validated raw values; training additionally compares the COMPLETE
 [parameter](../../glossary.md#term-parameter) path/type/Shape/logical-byte set with TrainingState. Decode bounded known recipe data,
 load the private NN skeleton, copy native parameters, apply modes/contexts, build the [scalar](../../glossary.md#term-scalar)
@@ -252,12 +252,12 @@ hot-path string [lookup](../../glossary.md#term-lookup). Run [admission](../../g
 - No automatic cursor/epoch/RNG/scheduler/scaler restoration, changing per-step dropout stream,
   BatchNorm step-aligned training-buffer recovery or cross-device exact continuation is claimed.<span data-glossary-navigation="true"> ([epoch glossary](../../glossary.md#term-epoch-meanings); [RNG glossary](../../glossary.md#graph-rng-state--graphrngstate); [dropout glossary](../../glossary.md#dropout--inverted-dropout); [buffer glossary](../../glossary.md#term-buffer); [device glossary](../../glossary.md#term-device))</span>
 - Reuse file checksums and atomic-live publication; no authentication, universal power-loss
-  guarantee, saved backend/device/compiled artifacts or automatic backend discovery.<span data-glossary-navigation="true"> ([atomic glossary](../../glossary.md#resource-transaction-and-rollback); [publication glossary](../../glossary.md#term-publication); [authentication glossary](../../glossary.md#term-authentication); [loss glossary](../../glossary.md#loss); [backend glossary](../../glossary.md#backend); [artifacts glossary](../../glossary.md#term-artifact))</span>
+  guarantee, saved backend/device/compiled artifacts or automatic backend discovery.<span data-glossary-navigation="true"> ([atomic glossary](../../glossary.md#resource-transaction-and-rollback); [publication glossary](../../glossary.md#term-publication); [authentication glossary](../../glossary.md#term-authentication); [backend glossary](../../glossary.md#backend); [artifacts glossary](../../glossary.md#term-artifact))</span>
 - NN ownership and implementation are accepted; CP-only whole-model contract/explanations are
   accepted after final independent approval. No dependency/build
   edge changes or new dependency test is needed. Before any downstream Ready decision, separately
   coordinate its owning contract, explanations, ADR and applicable architecture/integration tests.
-  CP0005B is Complete on accepted packet base <span data-glossary-navigation="true"> ([NN glossary](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [ownership glossary](../../glossary.md#term-ownership-meanings); [dependency glossary](../../glossary.md#term-dependency); [Ready glossary](../../glossary.md#term-ready); [coordinate glossary](../../glossary.md#axis-rank-scalar-vector-and-matrix); [ADR glossary](../../glossary.md#term-architecture-decision-record-adr))</span>`7d65f660051becc9bc6adc6f08af155b08096b59`,
+  CP0005B is Complete on accepted packet base <span data-glossary-navigation="true"> ([NN glossary](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [ownership glossary](../../glossary.md#term-ownership-meanings); [dependency glossary](../../glossary.md#term-dependency); [Ready glossary](../../glossary.md#term-ready); [ADR glossary](../../glossary.md#term-architecture-decision-record-adr))</span>`7d65f660051becc9bc6adc6f08af155b08096b59`,
   with independent reviews and recorded module/Javadoc/integration evidence in its brief. Neither this
   acceptance nor NN accepts future recurrent/Training/adapter contracts or opens their build gates.<span data-glossary-navigation="true"> ([module glossary](../../glossary.md#term-module); [Javadoc glossary](../../glossary.md#term-javadoc))</span>
 - Selected serial order, with each capability in clean implementation and independent review:

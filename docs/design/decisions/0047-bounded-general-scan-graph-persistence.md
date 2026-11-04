@@ -1,4 +1,4 @@
-# [ADR](../../glossary.md#term-architecture-decision-record-adr) 0047: Bounded general-[scan](../../glossary.md#term-cumulative-scan) [graph](../../glossary.md#graph) [persistence](../../glossary.md#term-persistence)
+# [ADR](../../glossary.md#term-architecture-decision-record-adr) 0047: Bounded general-[scan](../../glossary.md#general-differentiable-scan) [graph](../../glossary.md#graph) [persistence](../../glossary.md#term-persistence)
 
 
 ## Editorial reading context
@@ -23,7 +23,7 @@ and owned-workflow decisions remain unchanged, and extends the graph [persistenc
 
 ## Context
 
-[Compiler](../../glossary.md#term-compiler) now reconstructs bounded general-[scan](../../glossary.md#term-cumulative-scan) bodies, [Checkpoint](../../glossary.md#term-checkpoint) copy/[rebind](../../glossary.md#capture-graph-ports-and-reconstruction) preserves scoped
+[Compiler](../../glossary.md#term-compiler) now reconstructs bounded general-[scan](../../glossary.md#general-differentiable-scan) bodies, [Checkpoint](../../glossary.md#term-checkpoint) copy/[rebind](../../glossary.md#capture-graph-ports-and-reconstruction) preserves scoped
 attachments and [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) supports the all-valid owned compute/first-order training workflow. Disk
 save/load rejected bodies independently of those capabilities when this decision was made.
 Published [graph](../../glossary.md#graph)-[model](../../glossary.md#term-model) v1/v2/v3
@@ -56,7 +56,7 @@ The options differ in what can be saved and whether existing source/format bound
 
 Use ArtifactFile v1 kind [graph](../../glossary.md#graph)-[model](../../glossary.md#term-model).v4 for sources containing [general SCAN](../../glossary.md#general-differentiable-scan), with one inline scoped
 body per [occurrence](../../glossary.md#term-occurrence). The [extensions-training owner](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-4)<span data-glossary-navigation="true"> ([owner glossary](../../glossary.md#term-owner))</span>
-alone defines all wire fields, guards, bounds and failure order. Outer [admission](../../glossary.md#term-admission) is v3 plus [SCAN](../../glossary.md#term-cumulative-scan);
+alone defines all wire fields, guards, bounds and failure order. Outer [admission](../../glossary.md#term-admission) is v3 plus [SCAN](../../glossary.md#general-differentiable-scan);
 body admission is exactly [Compiler's existing cold inventory](../../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction).
 Model-valid [PURE](../../glossary.md#term-pure) is not automatically reconstructible, [differentiable](../../glossary.md#derivative-and-chain-rule) or executable.
 
@@ -105,4 +105,4 @@ automatically; published old files remain supported without conversion.
 
 - [Graph checkpoint API and bounded v4 persistence](../../api/graph-checkpoint-api.md#bounded-general-scan-persistence)<span data-glossary-navigation="true"> ([Graph glossary](../../glossary.md#graph); [checkpoint glossary](../../glossary.md#term-checkpoint); [API glossary](../../glossary.md#term-application-programming-interface-api); [persistence glossary](../../glossary.md#term-persistence))</span>
 - [Cold source and scoped persistence explanation](../../architecture/general-differentiable-scan.md#bounded-cold-persistence)
-- [Owned general-scan workflow](../../user-guide/running-models.md#train-an-all-valid-general-scan)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-cumulative-scan))</span>
+- [Owned general-scan workflow](../../user-guide/running-models.md#train-an-all-valid-general-scan)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#general-differentiable-scan))</span>

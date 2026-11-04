@@ -21,7 +21,7 @@ are authoritative; this record explains the decision and does not broaden [backe
 The internal v1 [model](../../glossary.md#term-model) candidate and [opaque](../../glossary.md#term-opaque) file envelope can [capture](../../glossary.md#term-capture-meanings) complete [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) state, but
 callers need a public save, inspection, and strict load workflow. Typed inspection names Model
 [`DataType`](../../glossary.md#data-type--datatype) and [`Shape`](../../glossary.md#shape), while save/load name NN [`Module`](../../glossary.md#term-module) and public [`Engine`](../../glossary.md#term-engine). The file contains
-one [payload](../../glossary.md#artifact-envelope-and-atomic-publication) per path, not source [Tensor](../../glossary.md#tensor) [identity](../../glossary.md#term-identity-meanings). NN's loader can initialize reserved [lazy](../../glossary.md#term-lazy-evaluation) state,
+one [payload](../../glossary.md#artifact-envelope-and-atomic-publication) per path, not source [Tensor](../../glossary.md#tensor) [identity](../../glossary.md#term-identity-meanings). NN's loader can initialize reserved lazy state,
 but the v1 file cannot establish an unbound [target](../../glossary.md#term-target)'s intended [aliases](../../glossary.md#aliasing-and-arena).
 
 ## Decision drivers
@@ -29,7 +29,7 @@ but the v1 file cannot establish an unbound [target](../../glossary.md#term-targ
 - Keep v1 bytes and [opaque](../../glossary.md#term-opaque) [artifact](../../glossary.md#term-artifact) [publication](../../glossary.md#term-publication) unchanged.
 - Let [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) validate and install whole-tree state; use only public [Engine](../../glossary.md#term-engine) [materialization](../../glossary.md#materialization) at save.
 - Expose typed, [detached](../../glossary.md#detached-model-results) inspection without leaking live [owners](../../glossary.md#term-owner).
-- [Fail closed](../../glossary.md#admission-preflight-and-fail-closed-validation) on ambiguous [target](../../glossary.md#term-target) sharing or unbound [lazy](../../glossary.md#term-lazy-evaluation) state.
+- [Fail closed](../../glossary.md#admission-preflight-and-fail-closed-validation) on ambiguous [target](../../glossary.md#term-target) sharing or unbound lazy state.
 - Preserve every represented bit and use compatible [host](../../glossary.md#term-host) carriers without an [arena](../../glossary.md#term-arena) [lifetime](../../glossary.md#term-lifetime).
 
 ## Options considered
@@ -40,7 +40,7 @@ but the v1 file cannot establish an unbound [target](../../glossary.md#term-targ
 | Typed inspection and direct Model `api` edge | Useful public [descriptors](../../glossary.md#term-descriptor) | Expands the published [dependency](../../glossary.md#term-dependency) set and requires coordinated contract/test updates. |
 | Infer source [aliases](../../glossary.md#aliasing-and-arena) from equal payloads | No format change | Equal values do not prove shared source [Tensor](../../glossary.md#tensor) [identity](../../glossary.md#term-identity-meanings). |
 | Add alias IDs to v1 | Verifiable source [topology](../../glossary.md#term-topology) | Breaks the frozen v1 wire and needs a separate format/[NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) decision. |
-| Accept [lazy](../../glossary.md#term-lazy-evaluation) [target](../../glossary.md#term-target) restore | Matches NN's in-memory loader | Its alias topology is not knowable through the complete bound [snapshot](../../glossary.md#term-snapshot). |
+| Accept lazy [target](../../glossary.md#term-target) restore | Matches NN's in-memory loader | Its alias topology is not knowable through the complete bound [snapshot](../../glossary.md#term-snapshot). |
 
 ## Decision
 
@@ -58,7 +58,7 @@ aliases. No wire byte or [artifact](../../glossary.md#term-artifact) [publicatio
 The direct [Model](../../glossary.md#term-model) edge expresses the actual public typed [API](../../glossary.md#term-application-programming-interface-api) rather than relying on transitive
 implementation leakage. [Target](../../glossary.md#term-target)-defined sharing is the only complete [alias](../../glossary.md#aliasing-and-arena) policy possible with
 unchanged v1 bytes; rejecting differing bytes prevents silently collapsing distinct values.
-Refusing [lazy](../../glossary.md#term-lazy-evaluation) targets avoids installing under unknown alias [topology](../../glossary.md#term-topology). Raw integer-width bit copy
+Refusing lazy targets avoids installing under unknown alias [topology](../../glossary.md#term-topology). Raw integer-width bit copy
 avoids floating conversion and [NaN](../../glossary.md#term-nan) [canonicalization](../../glossary.md#occurrence-identity-and-canonical-form).
 
 ## Consequences
@@ -72,7 +72,7 @@ Callers can inspect [detached](../../glossary.md#detached-model-results) state b
 ### Negative and risks
 
 The [API](../../glossary.md#term-application-programming-interface-api) cannot authenticate adversarial files, reconstruct Java [model](../../glossary.md#term-model) code, prove source [alias](../../glossary.md#aliasing-and-arena)
-[identity](../../glossary.md#term-identity-meanings), [resume](../../glossary.md#schema-serialization-and-checkpoint) training, or promise rename survival after power [loss](../../glossary.md#loss). Limits do not bound peak
+[identity](../../glossary.md#term-identity-meanings), [resume](../../glossary.md#schema-serialization-and-checkpoint) training, or promise rename survival after power loss. Limits do not bound peak
 [heap](../../glossary.md#term-heap). [Target](../../glossary.md#term-target) and source must be [quiescent](../../glossary.md#term-quiescent) during their respective calls.
 
 ### Migration, testing, and follow-up

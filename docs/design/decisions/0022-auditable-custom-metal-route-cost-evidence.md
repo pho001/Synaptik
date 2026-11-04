@@ -56,12 +56,12 @@ are not substitutes.
 ## Decision
 
 A single complete-domain, numerical-pass survivor needs no comparative cost gate. It may become the
-fixed route after its ordinary [lifecycle](../../glossary.md#lifecycle)/resource review because there is no alternative to [rank](../../glossary.md#term-rank).
+fixed route after its ordinary [lifecycle](../../glossary.md#lifecycle)/resource review because there is no alternative to [rank](../../glossary.md#term-ranking).
 
 When multiple candidates survive with identical proven semantics and domain, a timing-free decision
 is allowed only by **strict [structural dominance](../../glossary.md#term-structural-dominance-index-mappings-and-cost-dominance)**. Candidate A strictly dominates candidate B when
 A has no more compute dispatches, no more route-owned temporary bytes, and is strictly better in at
-least one of those two [dimensions](../../glossary.md#dimension). Every compared fact must be exact:
+least one of those two dimensions. Every compared fact must be exact:
 
 - an explicit custom route may use an auditable source-bound declaration only when retained source
   owns every command encoder dispatch and every resource used by the synchronous hot invocation;<span data-glossary-navigation="true"> ([dispatch glossary](../../glossary.md#term-dispatch); [synchronous glossary](../../glossary.md#term-synchronous))</span>
@@ -86,9 +86,9 @@ authorized route during cold preparation; [Runtime](../../glossary.md#term-runti
 
 ### Require comparative timing even for one survivor
 
-There is no competing route to [rank](../../glossary.md#term-rank), so this adds noise without decision information. Rejected.
+There is no competing route to [rank](../../glossary.md#term-ranking), so this adds noise without decision information. Rejected.
 
-### Let uncontrolled local timing [rank](../../glossary.md#term-rank) survivors
+### Let uncontrolled local timing [rank](../../glossary.md#term-ranking) survivors
 
 The environment cannot support a [qualification](../../glossary.md#term-qualification) claim. Retaining the [samples](../../glossary.md#term-sample-machine-learning-and-hyperparameters) as diagnostics while
 withholding route authority is the truthful boundary. Rejected as a selection rule.
@@ -104,7 +104,7 @@ a controlled environment. Accepted.
 
 ## Consequences
 
-- Single-survivor rows close without a comparative cost [run](../../glossary.md#term-run).
+- Single-survivor rows close without a comparative cost run.
 - Multiple identical-semantics/domain survivors may close without timing only when one strictly
   structurally dominates every other survivor.
 - [Nondominated](../../glossary.md#compiler-transformations-and-dominance) alternatives remain pending a controlled environment; local timing is diagnostic.

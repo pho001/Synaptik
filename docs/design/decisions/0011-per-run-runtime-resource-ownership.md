@@ -37,9 +37,9 @@ Runtime understand backend storage and introduce policy not required by the curr
 - explicit [ownership](../../glossary.md#term-ownership-meanings) and failure cleanup for caller, [run](../../glossary.md#term-run), result, and prepared resources;
 - [backend](../../glossary.md#backend)-owned physical representations and mechanics without concrete-backend dependencies;
 - [heterogeneous](../../glossary.md#term-heterogeneous) Java types resolved once before the execution [hot path](../../glossary.md#term-hot-path);
-- direct-reference hot-path access without maps, reflection, string [dispatch](../../glossary.md#term-dispatch), or repeated casts;
+- direct-reference hot-path access without maps, reflection, string dispatch, or repeated casts;
 - explicit prepared transfer work rather than discovery or fallback during execution; and
-- no speculative [pooling](../../glossary.md#term-pooling), [aliasing](../../glossary.md#term-aliasing), coherence, or multi-[device](../../glossary.md#term-device) scheduler.
+- no speculative pooling, [aliasing](../../glossary.md#term-aliasing), coherence, or multi-[device](../../glossary.md#term-device) scheduler.
 
 ## Options considered
 
@@ -77,7 +77,7 @@ classes and the actual allocation, [release](../../glossary.md#term-release), tr
 [`MemorySegment`](../../glossary.md#term-memorysegment), [Metal](../../glossary.md#term-metal), [CUDA](../../glossary.md#term-cuda), or other native representation classes and does not choose a
 backend.
 
-A [buffer slot](../../glossary.md#buffer-slot--bufferslot) may [carry](../../glossary.md#term-carry) multiple representations only when an explicit [prepared schedule](../../glossary.md#prepared-schedule--preparedschedule) requires
+A [buffer slot](../../glossary.md#buffer-slot--bufferslot) may carry multiple representations only when an explicit [prepared schedule](../../glossary.md#prepared-schedule--preparedschedule) requires
 them; a pure single-backend run normally carries one. Representation creation and transfer are
 prepared work. A workspace slot is per-run backend-local scratch and normally has one physical
 representation for its declared use. [Host](../../glossary.md#term-host) staging and [device](../../glossary.md#term-device) scratch are separate workspace
@@ -92,7 +92,7 @@ release. Cleanup [releases](../../glossary.md#commit-release-distribution-log-an
 Before execution, cold [binding](../../glossary.md#term-binding) resolves the representations required by each [prepared executable](../../glossary.md#prepared-executable--preparedexecutable).
 Any dynamic compatibility check is explicit, checked, and confined to that boundary. The backend
 then creates a typed [bound invocation](../../glossary.md#bound-invocation--boundinvocation) or binding object with direct concrete references. The [hot
-path](../../glossary.md#term-hot-path) contains no map [lookup](../../glossary.md#term-lookup), reflection, string [dispatch](../../glossary.md#term-dispatch), [graph](../../glossary.md#graph) inspection, backend discovery,
+path](../../glossary.md#term-hot-path) contains no map [lookup](../../glossary.md#term-lookup), reflection, string dispatch, [graph](../../glossary.md#graph) inspection, backend discovery,
 [kernel](../../glossary.md#kernel) selection, global [registry](../../glossary.md#term-registry)/service lookup, or repeated unsafe cast. Public Runtime
 contracts expose no raw `Object`, unchecked generic [API](../../glossary.md#term-application-programming-interface-api), or switch over [concrete backend](../../glossary.md#concrete-backend) types.
 
@@ -121,21 +121,21 @@ and keeps the execution path predictable.
 - Runtime must maintain careful ownership transitions so failure cleanup does not close borrowed
   inputs or outputs already transferred to a result.<span data-glossary-navigation="true"> ([Runtime glossary](../../glossary.md#term-runtime); [ownership glossary](../../glossary.md#term-ownership-meanings); [borrowed glossary](../../glossary.md#ownership-borrowing-and-lease))</span>
 - Multiple explicit representations require later validity/residency state and prepared transfer
-  associations; a nominal carrier alone is not a coherence protocol.<span data-glossary-navigation="true"> ([residency glossary](../../glossary.md#residency); [nominal glossary](../../glossary.md#term-nominal); [carrier glossary](../../glossary.md#term-storage-carrier))</span>
+  associations; a nominal carrier alone is not a coherence protocol.<span data-glossary-navigation="true"> ([residency glossary](../../glossary.md#residency); [nominal glossary](../../glossary.md#term-nominal))</span>
 - Concrete backend implementations must test idempotent lifecycle behavior and partial-failure
   cleanup around their physical resources.<span data-glossary-navigation="true"> ([Concrete backend glossary](../../glossary.md#concrete-backend); [idempotent glossary](../../glossary.md#term-idempotent); [lifecycle glossary](../../glossary.md#lifecycle))</span>
 
 ### Migration, testing, and follow-up
 
-[Runtime](../../glossary.md#term-runtime) 0003 introduces only the minimal per-[run](../../glossary.md#term-run) representation/[lifecycle](../../glossary.md#lifecycle) [carrier](../../glossary.md#term-storage-carrier) and array-
+[Runtime](../../glossary.md#term-runtime) 0003 introduces only the minimal per-[run](../../glossary.md#term-run) representation/[lifecycle](../../glossary.md#lifecycle) carrier and array-
 indexed [`RunState`](../../glossary.md#run-state--runstate) foundation. Runtime 0004 defines typed cold-bound executable invocation. Later
 Runtime/[Prepare](../../glossary.md#prepare) tasks define full representation validity/[residency](../../glossary.md#residency), transfer, [publication](../../glossary.md#term-publication),
-[`RunResult`](../../glossary.md#run-result--runresult), and runner behavior. No automatic resource [pooling](../../glossary.md#term-pooling)/reuse/[aliasing](../../glossary.md#term-aliasing), distributed
+[`RunResult`](../../glossary.md#run-result--runresult), and runner behavior. No automatic resource pooling/reuse/[aliasing](../../glossary.md#term-aliasing), distributed
 sharding, hidden mutation/coherence, or multi-[device](../../glossary.md#term-device) scheduling is authorized.
 
 The decision changes no [module](../../glossary.md#term-module) [dependency direction](../../glossary.md#java-platform-and-build-tools). Runtime still depends only on existing
 inward modules; Prepare remains independent of concrete [backends](../../glossary.md#backend); Backend Contract remains a
-closed declarative [leaf](../../glossary.md#term-leaf); and concrete backends implement inward Runtime/Prepare contracts.
+closed declarative [leaf](../../glossary.md#term-dependency-leaf); and concrete backends implement inward Runtime/Prepare contracts.
 Architecture tests therefore need no update for this [ADR](../../glossary.md#term-architecture-decision-record-adr).
 
 ## Related documentation

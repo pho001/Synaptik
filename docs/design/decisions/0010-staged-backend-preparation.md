@@ -68,7 +68,7 @@ assignments to construct the [`PreparedExecutable`](../../glossary.md#prepared-e
 
 Finalization cannot change route choice or add undeclared shared requirements. Physical allocation
 and per-[run](../../glossary.md#term-run) slot binding remain outside this [handoff](../../glossary.md#term-handoff). The initial shared assignment gives each
-workspace declaration its own slot; reuse waits for a later proved [lifetime](../../glossary.md#term-lifetime)/interference [model](../../glossary.md#term-model).
+workspace declaration its own slot; reuse waits for a later proved [lifetime](../../glossary.md#term-lifetime)/interference model.
 Any unresolved fact needed for route selection or exact resource declaration fails closed unless
 a later explicit prepared contract supports it as run-dynamic without changing the route or slot
 plan.
@@ -92,7 +92,7 @@ slot contracts, so no [graph](../../glossary.md#graph), [planning](../../glossar
 - Route-specific workspace needs participate in memory [planning](../../glossary.md#term-planning) before executable construction.
 - [Backend](../../glossary.md#backend)-private plans remain [opaque](../../glossary.md#term-opaque) to shared code.
 - [Runtime](../../glossary.md#term-runtime) executes final prepared work without [`Operation`](../../glossary.md#operation), `CompiledNode`, or backend discovery.
-- Backend Contract remains a closed [identity](../../glossary.md#term-identity-meanings)/requirement [leaf](../../glossary.md#term-leaf) with no [prepare](../../glossary.md#prepare) service.
+- Backend Contract remains a closed [identity](../../glossary.md#term-identity-meanings)/requirement [leaf](../../glossary.md#term-dependency-leaf) with no [prepare](../../glossary.md#prepare) service.
 
 ### Negative and risks
 
@@ -111,7 +111,7 @@ consumer contracts. Later Runtime executable/access contracts then allow Prepare
 No [module](../../glossary.md#term-module) [dependency](../../glossary.md#term-dependency) rule changes: concrete [backends](../../glossary.md#backend) already may depend inward on [Model](../../glossary.md#term-model), Config,
 [Planning](../../glossary.md#term-planning), Runtime, Prepare, Backend Contract, and [Trace](../../glossary.md#trace), while Prepare remains independent of
 concrete backends. Architecture tests therefore need no update for this decision. Implementation
-tasks must add focused contract tests and [run](../../glossary.md#term-run) existing dependency [validation](../../glossary.md#term-validation) when their concrete
+tasks must add focused contract tests and run existing dependency [validation](../../glossary.md#term-validation) when their concrete
 [Gradle](../../glossary.md#term-gradle)/[API](../../glossary.md#term-application-programming-interface-api) changes require it.
 
 ## Related documentation

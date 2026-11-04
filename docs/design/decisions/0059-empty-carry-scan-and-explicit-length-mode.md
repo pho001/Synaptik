@@ -30,7 +30,7 @@ must not silently become a permanent smaller mathematical whitelist.
 
 ## Decision
 
-Use the existing [Scan](../../glossary.md#term-cumulative-scan) representation for a true empty [carry](../../glossary.md#term-carry) and make length mode explicit.
+Use the existing [Scan](../../glossary.md#general-differentiable-scan) representation for a true empty [carry](../../glossary.md#term-carry) and make length mode explicit.
 No new [operation](../../glossary.md#operation) kind, top-level type, package, [callback](../../glossary.md#term-callback), arbitrary while or executor.
 
 - ScanBody permits empty carry/nextCarry together; step sequences remain nonempty, and at least
@@ -57,10 +57,10 @@ No new [operation](../../glossary.md#operation) kind, top-level type, package, [
 ## Boundary and migration discipline
 
 This decision changes source representation, not permission for every consumer. A first source
-cutover must preserve independently [fail-closed](../../glossary.md#term-fail-closed) [Compiler](../../glossary.md#term-compiler) [inference](../../glossary.md#term-inference)/[AD](../../glossary.md#autograd), direct [Prepare](../../glossary.md#prepare), direct [CPU](../../glossary.md#term-cpu)
+cutover must preserve independently [fail-closed](../../glossary.md#term-fail-closed) [Compiler](../../glossary.md#term-compiler) [inference](../../glossary.md#term-inference-meanings)/[AD](../../glossary.md#autograd), direct [Prepare](../../glossary.md#prepare), direct [CPU](../../glossary.md#term-cpu)
 and cold/raw-[codec](../../glossary.md#term-codec) guards for newly representable topologies until each is actually qualified.
 Update every old sentinel-derived mode check to explicit lengthAware; do not accidentally execute
-a zero-ROW length [scan](../../glossary.md#term-cumulative-scan) as all-valid. Existing [homogeneous](../../glossary.md#term-homogeneous) nonempty sources stay accepted.
+a zero-ROW length [scan](../../glossary.md#general-differentiable-scan) as all-valid. Existing [homogeneous](../../glossary.md#term-homogeneous) nonempty sources stay accepted.
 
 The existing v1-v5 wire formats and constructor inventories stay bounded. V4 retains its old
 seven fields and nonempty-[carry](../../glossary.md#term-carry) domain; V5 retains opcode33/old tuple/roles/positive row carry.
@@ -69,14 +69,14 @@ carry-free or zero-ROW length topologies before mutation/large allocation, even 
 them. Opcode23/33 determines the existing mode; no [boolean](../../glossary.md#data-type--datatype) wire, V6, invented [opcode](../../glossary.md#term-opcode), [alias](../../glossary.md#aliasing-and-arena) or
 silent format expansion. Existing accepted file bytes remain unchanged.
 
-The normal Scan.apply overloads and result [carrier](../../glossary.md#term-storage-carrier) are reused. finalCarry can be empty; emission
+The normal Scan.apply overloads and result carrier are reused. finalCarry can be empty; emission
 ports remain [canonical](../../glossary.md#term-canonical-form). Fixed recurrent scans, ordinary .rnn, shared [runtime](../../glossary.md#term-runtime)/slot [ownership](../../glossary.md#term-ownership-meanings) and
 existing numerical algorithms remain unchanged. Generated/[cache](../../glossary.md#term-cache) [identity](../../glossary.md#term-identity-meanings) changes belong only to
 later actually changed consumer facts/bytes; the source flag is not an arbitrary global bump.
 
 ## Established precedent
 
-[JAX lax.scan](https://docs.jax.dev/en/latest/_autosummary/jax.lax.scan.html)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-cumulative-scan))</span> permits `None` as an
+[JAX lax.scan](https://docs.jax.dev/en/latest/_autosummary/jax.lax.scan.html)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#general-differentiable-scan))</span> permits `None` as an
 empty [carry](../../glossary.md#term-carry) pytree while requiring fixed carry structure/[shape](../../glossary.md#shape)/[dtype](../../glossary.md#data-type--datatype) and compiling a static-count
 body as a loop. This supports the boring representation choice; Synaptik retains its own explicit
 length/activity, source/cold and ordinary-rule contracts rather than copying a framework executor.

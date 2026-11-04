@@ -49,7 +49,7 @@ or scaler belong to the calling program. These [owners](../../glossary.md#term-o
 | Option | Benefit | Cost or reason rejected |
 |---|---|---|
 | Call `TrainingState` alone an exact [checkpoint](../../glossary.md#term-checkpoint) | Smallest [handoff](../../glossary.md#term-handoff) | Omits [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [buffers](../../glossary.md#term-buffer)/modes, next input, and external randomness. |
-| Put [opaque](../../glossary.md#term-opaque) caller data and a generic state [registry](../../glossary.md#term-registry) inside `TrainingState` | One container | Training cannot validate sampler, external [RNG](../../glossary.md#graph-rng-state--graphrngstate), scheduler, or scaler semantics; it invents [ownership](../../glossary.md#term-ownership-meanings). |
+| Put [opaque](../../glossary.md#term-opaque) caller data and a generic state [registry](../../glossary.md#term-registry) inside `TrainingState` | One container | Training cannot validate sampler, external RNG, scheduler, or scaler semantics; it invents [ownership](../../glossary.md#term-ownership-meanings). |
 | Keep participant states with their [owners](../../glossary.md#term-owner) and coordinate an explicit handoff | Each [owner](../../glossary.md#term-owner) validates its own domain | The caller must [capture](../../glossary.md#term-capture-meanings) progress and future joint installation needs a separate protocol. |
 
 The third option is selected. The table compares ownership and [validation](../../glossary.md#term-validation), not [codec](../../glossary.md#term-codec) formats.
@@ -62,7 +62,7 @@ input, and all state affecting that input restored for the same admitted computa
 records [capture](../../glossary.md#term-capture-meanings), detachedness, [validation](../../glossary.md#term-validation) authority, and unsupported cases. `TrainingState`
 alone is an exact restore of its documented session state, not an end-to-end recovery point.
 No new public Training [API](../../glossary.md#term-application-programming-interface-api) is needed for that bounded claim; the caller keeps its own
-typed next-input/progress, external [RNG](../../glossary.md#graph-rng-state--graphrngstate), and optional scheduler/scaler [handoff](../../glossary.md#term-handoff). No built-in
+typed next-input/progress, external RNG, and optional scheduler/scaler [handoff](../../glossary.md#term-handoff). No built-in
 scheduler, scaler, sampler, or generic state container is selected. The current claim excludes
 training-mode BatchNorm because its step-aligned running-[buffer](../../glossary.md#term-buffer) capture boundary is unproved.
 

@@ -24,7 +24,7 @@ and [contraction](../../glossary.md#contraction-dimension) families already perm
 routes cannot satisfy particular current [`FLOAT32`](../../glossary.md#term-float32) [subnormal](../../glossary.md#term-subnormal) or reduction results. A fresh [Metal](../../glossary.md#term-metal)
 [MATMUL](../../glossary.md#matrix-multiplication--matmul) probe also published [positive zero](../../glossary.md#nan-infinity-and-signed-zero) for the one-term product `+0.0f * -1.0f`, whose
 otherwise-permitted result is [negative zero](../../glossary.md#nan-infinity-and-signed-zero). Treating these differences as generic fast math would
-also admit term [loss](../../glossary.md#loss), unrelated [graph](../../glossary.md#graph) rewrites, gross special-value errors, and behavior that no
+also admit term loss, unrelated [graph](../../glossary.md#graph) rewrites, gross special-value errors, and behavior that no
 [operation](../../glossary.md#operation) contract authorizes.
 
 The [foundational numerical-profile contract](../../architecture/contracts/foundational-modules.md#numerical-profiles)
@@ -38,7 +38,7 @@ record explains why that bounded design was selected.
 - Make any wider result set explicit, opt-in, [graph](../../glossary.md#graph)-wide, and [operation](../../glossary.md#operation)-specific.
 - Bound denormals-are-zero (DAZ), flush-to-zero (FTZ), reassociation, and FMA permissions tightly
   enough to exclude term loss, arbitrary rewrites, tolerance acceptance, and gross special-value
-  errors.<span data-glossary-navigation="true"> ([denormals-are-zero glossary](../../glossary.md#subnormal-daz-ftz-overflow-and-underflow); [DAZ glossary](../../glossary.md#term-daz); [flush-to-zero glossary](../../glossary.md#subnormal-daz-ftz-overflow-and-underflow); [FTZ glossary](../../glossary.md#term-ftz); [reassociation glossary](../../glossary.md#term-reassociation); [FMA glossary](../../glossary.md#term-fused-multiply-add-fma); [loss glossary](../../glossary.md#loss); [tolerance glossary](../../glossary.md#term-tolerance))</span>
+  errors.<span data-glossary-navigation="true"> ([denormals-are-zero glossary](../../glossary.md#subnormal-daz-ftz-overflow-and-underflow); [DAZ glossary](../../glossary.md#term-daz); [flush-to-zero glossary](../../glossary.md#subnormal-daz-ftz-overflow-and-underflow); [FTZ glossary](../../glossary.md#term-ftz); [reassociation glossary](../../glossary.md#term-reassociation); [FMA glossary](../../glossary.md#term-fused-multiply-add-fma); [tolerance glossary](../../glossary.md#term-tolerance))</span>
 - Keep semantic authority in Model while Config declares only identity and Planning asks only
   profile-qualified capability questions.<span data-glossary-navigation="true"> ([Model glossary](../../glossary.md#term-model); [Planning glossary](../../glossary.md#term-planning))</span>
 - Select all execution behavior before the Runtime hot path and keep backend preparation
@@ -82,7 +82,7 @@ cell. Rejected.
 
 ### Per-[backend](../../glossary.md#backend) numerical modes
 
-Backend-specific semantics would make the same [graph](../../glossary.md#graph) request [mean](../../glossary.md#term-mean) different things depending on
+Backend-specific semantics would make the same [graph](../../glossary.md#graph) request mean different things depending on
 availability or [owner](../../glossary.md#term-owner) selection. Hardware and route capability must answer a [Model](../../glossary.md#term-model)-owned semantic
 question, not define it. Rejected.
 
@@ -144,7 +144,7 @@ Neither profile permits term dropping, reciprocal substitution, algebraic [ident
 arbitrary reduced [precision](../../glossary.md#term-precision), cross-node contraction, [tolerance](../../glossary.md#term-tolerance)-based acceptance, or a generic
 transcendental error budget. In particular, `maxFinite / maxFinite -> 0`,
 `+infinity / maxFinite -> NaN`, `RELU(NaN) -> +0`, and `TANH(NaN) -> +1` remain invalid. Movement,
-[`CONTIGUOUS`](../../glossary.md#term-contiguous), `CAST`, and selected `WHERE` values do not inherit DAZ/FTZ or NaN-[payload](../../glossary.md#artifact-envelope-and-atomic-publication) freedom from
+[`CONTIGUOUS`](../../glossary.md#term-contiguous), `CAST`, and selected `WHERE` values do not inherit DAZ/FTZ or NaN-[payload](../../glossary.md#term-nan-payload) freedom from
 neighboring arithmetic.
 
 The choice is graph-wide and cold. Config owns only the [immutable](../../glossary.md#term-immutable) declarative identity. [Engine](../../glossary.md#term-engine)
@@ -191,7 +191,7 @@ naming [Metal](../../glossary.md#term-metal) also preserves one semantic questio
 
 - Current strict behavior and existing [backend](../../glossary.md#backend) evidence remain valid.
 - Accelerator permission is auditable by operation family rather than inferred from hardware or a
-  performance objective.<span data-glossary-navigation="true"> ([Accelerator glossary](../../glossary.md#term-accelerator); [operation glossary](../../glossary.md#operation); [objective glossary](../../glossary.md#term-objective))</span>
+  performance objective.<span data-glossary-navigation="true"> ([Accelerator glossary](../../glossary.md#term-accelerator); [operation glossary](../../glossary.md#operation))</span>
 - A backend may incrementally support either profile and may use strict results under both.
 - Gross errors and semantic leakage into movement, selection, casting, classification, or other
   data types remain excluded.

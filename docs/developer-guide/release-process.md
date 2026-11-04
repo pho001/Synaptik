@@ -149,7 +149,7 @@ requalification and regenerated matched artifacts. Then:
 
 The [production ledger](../backend-guide/production-support.md) and
 [audit receipts](../planning/public-release-audit-2026-11-04.md#results) record acceptance only after
-these checks actually [run](../glossary.md#term-run). A successful packaging task, local archive, ad-hoc native [signature](../glossary.md#term-signature) or
+these checks actually run. A successful packaging task, local archive, ad-hoc native [signature](../glossary.md#term-signature) or
 earlier component gate is not a complete public production [release](../glossary.md#term-release). Original failed commands,
 successor failures and archived successful candidates keep their original status and [scope](../glossary.md#term-scope).
 

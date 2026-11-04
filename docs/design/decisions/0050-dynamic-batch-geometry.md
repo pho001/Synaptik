@@ -19,7 +19,7 @@ it is Complete, MAIN-accepted 2026-10-24 after final independent reviews and the
 integration gate passed. No automatic successor is authorized. ADR0050 was free when created.
 Bounded [qualification](../../glossary.md#term-qualification) amendment — 2026-10-26: the user's “pokracuj” authorizes Prepare0015's
 complete combined vertical, beginning with pre-Java support qualification. Its one-B/fixed-T/[features](../../glossary.md#term-feature)
-[F32](../../glossary.md#floating-point-precision-and-rounding)/[F64](../../glossary.md#floating-point-precision-and-rounding) length-[Scan](../../glossary.md#term-cumulative-scan) and bounded outer/control [target](../../glossary.md#term-target) passed independent pre-Java review and MAIN acceptance.
+[F32](../../glossary.md#floating-point-precision-and-rounding)/[F64](../../glossary.md#floating-point-precision-and-rounding) length-[Scan](../../glossary.md#general-differentiable-scan) and bounded outer/control [target](../../glossary.md#term-target) passed independent pre-Java review and MAIN acceptance.
 Implementation amendment — 2026-10-26: Prepare0015 implements this bounded capability through
 existing numeric recipes, including typed 34-[limb](../../glossary.md#exact-superaccumulator-and-limbs)/280-byte ordinary F64 reductions and explicit
 B for zero-feature Scan. Owning [validation](../../glossary.md#term-validation) and independent code/structural review passed; root validation and
@@ -91,7 +91,7 @@ scratch (zero when no output cells, retaining the declaration) avoids dynamic li
 static F64 domain-sized state and [F32](../../glossary.md#floating-point-precision-and-rounding) five-limb bytes remain unchanged. The
 [CPU owner](../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)<span data-glossary-navigation="true"> ([CPU glossary](../../glossary.md#term-cpu))</span>
 bounds the added [occurrence](../../glossary.md#term-occurrence) predicates and `ordinary-batch-typed-v1` [identity](../../glossary.md#term-identity-meanings); this does not qualify
-general F64 [MATMUL](../../glossary.md#matrix-multiplication--matmul) or change [Scan](../../glossary.md#term-cumulative-scan)'s sequential SUM. Real typed [rounding](../../glossary.md#term-rounding)/empty/compatibility evidence
+general F64 [MATMUL](../../glossary.md#matrix-multiplication--matmul) or change [Scan](../../glossary.md#general-differentiable-scan)'s sequential SUM. Real typed [rounding](../../glossary.md#term-rounding)/empty/compatibility evidence
 remains required, not inferred from static emitter support.
 
 ## Consequences
@@ -128,7 +128,7 @@ MAIN's native-enabled root gate passed and MAIN accepted the capability on 2026-
   and [Engine admission/publication](../../architecture/contracts/runtime-prepare-engine.md#public-reusable-prepared-execution)<span data-glossary-navigation="true"> ([Engine glossary](../../glossary.md#term-engine); [admission glossary](../../glossary.md#term-admission); [publication glossary](../../glossary.md#term-publication))</span>
 - [Compiler binding](../../architecture/contracts/compiler-autograd.md#accepted-symbolic-batch-metadata-binding)<span data-glossary-navigation="true"> ([Compiler glossary](../../glossary.md#term-compiler); [binding glossary](../../glossary.md#term-binding))</span>
   and [CPU recipes/qualification](../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract)<span data-glossary-navigation="true"> ([CPU glossary](../../glossary.md#term-cpu); [qualification glossary](../../glossary.md#term-qualification))</span>
-- [Scan gates](../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../glossary.md#term-cumulative-scan))</span>
+- [Scan gates](../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../glossary.md#general-differentiable-scan))</span>
   and [owned-Model gates](../../architecture/contracts/extensions-training.md#owned-tensor-models)<span data-glossary-navigation="true"> ([Model glossary](../../glossary.md#term-model))</span>
 - [Boundary explanation](../../architecture/runtime-prepare-backend-boundary.md#accepted-symbolic-batch-handoff)
   and [Prepare0012A](../../planning/modules/prepare/tasks/0012a-dynamic-batch-authority-cutover.md)
