@@ -8,7 +8,6 @@ import static io.github.pho001.synaptik.nn.module.ModelBuilderExecutionTest.same
 import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
-import io.github.pho001.synaptik.engine.PreparedExecution;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
@@ -244,28 +243,34 @@ final class RuntimeLengthScanModelTest {
         }
     }
 
-    static void assertTrainingRejected(Model<?, ?> model) throws Exception {
-        Object state = field(model, "execution");
-        Object engine = field(state, "engine"), cached = field(state, "inference"), frozen = field(state, "frozen");
-        var entries = model.stateDictionary().entries();
-        var stores = entries.stream().map(e -> e.value().hostStorage().orElseThrow()).toList();
+    private static TensorDescriptor squaredTargetDescriptor(Model<?, ?> model) throws Exception {
+        TensorDescriptor output = source(model).outputs().getFirst().descriptor();
+        return new TensorDescriptor(output.dataType(), output.shape(),
+                Optional.of(LayoutDescriptor.contiguous(output.shape())), false);
+    }
+
+    static void configureSquared(Model<?, ?> model) throws Exception {
+        Tensor target = TensorFactory.create(squaredTargetDescriptor(model));
+        model.configureTraining(List.of(target), (p, t) -> {
+            Tensor error = p.getFirst().sub(t.getFirst());
+            return error.mul(error).sum();
+        }, new Sgd(.01));
+    }
+
+    static void trainAndAssertUpdates(Model<?, ?> model, List<Tensor> batch) throws Exception {
+        var prediction = model.compute(batch).getFirst();
+        float expected = 0;
+        for (float lane : lanes(prediction)) expected += lane * lane;
+        Tensor target = TensorFactory.fromFlatArray(squaredTargetDescriptor(model),
+                Optional.empty(), new float[lanes(prediction).length]);
+        var entries = model.stateDictionary().entries().stream()
+                .filter(e -> e.kind() == StateKind.PARAMETER).toList();
         var before = entries.stream().map(e -> bytes(e.value())).toList();
-        AtomicInteger calls = new AtomicInteger();
-        assertThrows(UnsupportedOperationException.class, () -> model.configureTraining((TensorDescriptor) null,
-                (p, t) -> { calls.incrementAndGet(); throw new AssertionError(); }, null));
-        assertThrows(UnsupportedOperationException.class, () -> model.configureTraining((List<Tensor>) null,
-                (p, t) -> { calls.incrementAndGet(); throw new AssertionError(); }, null));
-        assertThrows(UnsupportedOperationException.class, () -> model.train((Tensor) null, null));
-        assertThrows(UnsupportedOperationException.class, () -> model.train((List<Tensor>) null, null));
-        assertEquals(0, calls.get()); assertSame(engine, field(state, "engine"));
-        assertSame(cached, field(state, "inference")); assertEquals(frozen, field(state, "frozen"));
-        assertNull(field(state, "nativeArena")); assertNull(field(state, "session"));
-        if (cached != null) assertFalse(((PreparedExecution) cached).isClosed());
-        for (int i = 0; i < entries.size(); i++) {
-            assertSame(stores.get(i), entries.get(i).value().hostStorage().orElseThrow());
-            assertArrayEquals(before.get(i), bytes(entries.get(i).value()));
-            assertTrue(entries.get(i).value().descriptor().requiresGrad());
-        }
+        var step = model.train(batch, List.of(target));
+        assertEquals(expected, step.objective().bytes().getFloat(), 2e-6f);
+        assertTrue(java.util.stream.IntStream.range(0, entries.size())
+                .anyMatch(i -> !Arrays.equals(before.get(i), bytes(entries.get(i).value()))));
+        assertTrue(entries.stream().allMatch(e -> e.value().hostStorage().orElseThrow().segment().isNative()));
     }
 
     @Test void f32RnnBuilderTrainsRealRecurrentWeightsAndReusesOneSession() throws Exception {
@@ -334,41 +339,81 @@ final class RuntimeLengthScanModelTest {
             try (var model = Model.builder().input(type, 3, 1, 3).rnnScan(2).finalHidden().buildWithLengths()) {
                 Tensor output = source(model).outputs().getFirst();
                 assertSame(output, output.provenance().orElseThrow().producer().output(1));
-                assertTrainingRejected(model);
+                assertNull(field(field(model, "execution"), "session"));
             }
         }
     }
 
-    @ParameterizedTest @ValueSource(strings = {"gru", "lstm", "rnn/gru", "gru/rnn"})
-    void trainingRejectsAllOverloadsBeforeSetupBeforeAfterComputeAndLoad(String kind) throws Exception {
+    @ParameterizedTest @ValueSource(strings = {"gru", "lstm", "rnn/gru", "gru/rnn", "rnn/gru/lstm"})
+    void configuredFixedAndMixedStacksTrainFreshBatchesAndReloadWithoutTrainingHistory(String kind) throws Exception {
         for (boolean head : List.of(false, true)) {
-            var builder = Model.builder().input(DataType.FLOAT32, 2, 1, 1);
+            var builder = Model.builder().input(DataType.FLOAT32, 2, 1, 1).seed(31);
             for (String family : kind.split("/")) scan(builder, family, 1);
             builder.finalHidden();
             if (head) builder.linear(1);
-            Path file = directory.resolve("training-guard");
+            Path file = directory.resolve("trained");
             try (var model = builder.buildWithLengths(); Engine borrowed = Engine.standard()) {
-                assertTrainingRejected(model);
-                model.withEngine(borrowed); model.save(file);
-                assertTrainingRejected(model);
-                Tensor x = values(false, new long[]{2, 1, 1}, .2f, -.1f), l = lengths(1);
-                var expected = model.compute(x, l);
-                assertTrainingRejected(model);
-                sameValues(expected, model.compute(x, l), 0);
-                try (var loaded = Model.loadGraph(file)) {
-                    assertTrainingRejected(loaded);
-                    sameValues(expected, loaded.compute(x, l), 0);
-                    assertTrainingRejected(loaded);
+                assertThrows(IllegalArgumentException.class, () -> model.configureTraining((TensorDescriptor) null, null, null));
+                assertThrows(IllegalStateException.class, () -> model.train((List<Tensor>) null, null));
+                assertNull(field(field(model, "execution"), "nativeArena"));
+                model.withEngine(borrowed);
+                Tensor x = values(false, new long[]{2, 1, 1}, .2f, -.1f);
+                model.compute(x, lengths(2));
+                configureSquared(model);
+                Object state = field(model, "execution"), session = field(state, "session");
+                Object prepared = field(session, "preparedExecution");
+                for (int length : new int[]{2, 1, 2}) {
+                    trainAndAssertUpdates(model, List.of(x, lengths(length)));
+                    assertSame(session, field(state, "session"));
+                    assertSame(prepared, field(session, "preparedExecution"));
                 }
-                model.train(); // Mode mutation must outrank unsupported training.
-                assertThrows(IllegalStateException.class, () -> model.train((Tensor) null, null));
-                assertNull(field(field(model, "execution"), "inference"));
+                model.save(file);
+                var expected = model.compute(x, lengths(1));
+                try (var loaded = Model.loadGraph(file)) {
+                    assertNull(field(field(loaded, "execution"), "session"));
+                    sameValues(expected, loaded.compute(x, lengths(1)), 0);
+                    configureSquared(loaded);
+                    trainAndAssertUpdates(loaded, List.of(x, lengths(2)));
+                    assertEquals(1, ((TrainingSession) field(field(loaded, "execution"), "session")).executions());
+                }
+                model.train(); // Live mode mutation invalidates both cached owners before batch validation.
+                assertThrows(IllegalStateException.class, () -> model.train((List<Tensor>) null, null));
+                assertNull(field(state, "inference"));
                 assertFalse(borrowed.isClosed());
             }
         }
     }
 
-    @Test void scanPresenceComesFromGraphDefinitionAndLoadProvenanceIncludingFinalCellOnly() throws Exception {
+    @Test void fixedObjectiveValidationPrecedesEngineAndNativeAdmissionWithoutImplicitLowConversion() throws Exception {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            try (var model = Model.builder().input(type, 2, 1, 1).gruScan(1).finalHidden().buildWithLengths()) {
+                var state = field(model, "execution");
+                var entries = model.stateDictionary().entries();
+                var stores = entries.stream().map(e -> e.value().hostStorage().orElseThrow()).toList();
+                assertThrows(NullPointerException.class, () -> model.configureTraining((List<Tensor>) null, null, null));
+                assertFalse((Boolean) field(state, "frozen"));
+                assertThrows(IllegalStateException.class, () -> model.train((List<Tensor>) null, null));
+                assertThrows(IllegalArgumentException.class, () -> model.configureTraining(List.of(),
+                        (p, t) -> p.getFirst(), new Sgd(.01)));
+                if (type != DataType.FLOAT32) {
+                    assertThrows(IllegalArgumentException.class, () -> model.configureTraining(List.of(),
+                            (p, t) -> p.getFirst().sum(), new Sgd(.01)));
+                }
+                Tensor external = values(false, new long[]{}, .25f);
+                assertThrows(IllegalArgumentException.class, () -> model.configureTraining(List.of(),
+                        (p, t) -> p.getFirst().cast(DataType.FLOAT32).sum().add(external), new Sgd(.01)));
+                assertNull(field(state, "engine"));
+                assertNull(field(state, "nativeArena"));
+                assertNull(field(state, "session"));
+                for (int i = 0; i < entries.size(); i++) {
+                    assertSame(stores.get(i), entries.get(i).value().hostStorage().orElseThrow());
+                    assertEquals(type, entries.get(i).value().descriptor().dataType());
+                }
+            }
+        }
+    }
+
+    @Test void finalCellOnlyAndDefinedSourcesTrainBeforeAndAfterLoad() throws Exception {
         Tensor x = input(2, 1, 1), l = TensorFactory.create(lengths(1).descriptor());
         Tensor h = input(1, 1), c = input(1, 1);
         Tensor w = values(true, new long[]{4, 1}, .2f, .3f, .4f, .5f);
@@ -380,15 +425,18 @@ final class RuntimeLengthScanModelTest {
                 new GraphCheckpoint.Leaf("w", GraphCheckpoint.Role.PARAMETER, w),
                 new GraphCheckpoint.Leaf("u", GraphCheckpoint.Role.PARAMETER, u),
                 new GraphCheckpoint.Leaf("b", GraphCheckpoint.Role.PARAMETER, b)))) {
-            assertTrue((Boolean) field(field(field(model, "execution"), "owned"), "containsScan"));
-            assertTrainingRejected(model); model.save(graphFile);
+            configureSquared(model);
+            trainAndAssertUpdates(model, List.of(values(false, new long[]{2, 1, 1}, .2f, .3f), lengths(2),
+                    values(false, new long[]{1, 1}, -.2f), values(false, new long[]{1, 1}, .7f)));
+            model.save(graphFile);
         }
         try (var loaded = Model.loadGraph(graphFile)) {
-            assertTrainingRejected(loaded);
             var fresh = List.of(values(false, new long[]{2, 1, 1}, .2f, .3f), lengths(0),
                     values(false, new long[]{1, 1}, -.2f), values(false, new long[]{1, 1}, .7f));
             assertEquals(.7f, loaded.compute(fresh).getFirst().bytes().getFloat());
-            assertTrainingRejected(loaded);
+            configureSquared(loaded);
+            trainAndAssertUpdates(loaded, List.of(values(false, new long[]{2, 1, 1}, .2f, .3f), lengths(2),
+                    values(false, new long[]{1, 1}, -.2f), values(false, new long[]{1, 1}, .7f)));
         }
         AtomicInteger callbacks = new AtomicInteger();
         try (var defined = Model.defineTensor(x.descriptor(), topology -> {
@@ -400,20 +448,21 @@ final class RuntimeLengthScanModelTest {
                         RecurrentDirection.FORWARD).finalHidden().sigmoid();
             };
         })) {
-            assertTrainingRejected(defined);
             Path file = directory.resolve("defined"); defined.save(file);
             var result = defined.compute(values(false, new long[]{2, 1, 1}, .2f, .3f));
-            assertTrainingRejected(defined); assertEquals(1, callbacks.get());
+            configureSquared(defined);
+            trainAndAssertUpdates(defined, List.of(values(false, new long[]{2, 1, 1}, .2f, .3f)));
+            assertEquals(1, callbacks.get());
             try (var loaded = Model.load(file)) {
-                assertTrainingRejected(loaded);
                 sameValues(result, loaded.compute(values(false, new long[]{2, 1, 1}, .2f, .3f)), 0);
-                assertTrainingRejected(loaded);
+                configureSquared(loaded);
+                trainAndAssertUpdates(loaded, List.of(values(false, new long[]{2, 1, 1}, .2f, .3f)));
             }
         }
     }
 
-    @Test void scanRejectionPreservesLifecyclePrecedenceAndAllDeclaredInputsStayOutOfConstants() throws Exception {
-        try (var model = Model.builder().input(DataType.FLOAT32, 2, 1, 1).rnnScan(1).buildWithLengths();
+    @Test void scanTrainingPreservesLifecyclePrecedenceAndDeclaredInputsStayOutOfConstants() throws Exception {
+        try (var model = Model.builder().input(DataType.FLOAT32, 2, 1, 1).gruScan(1).buildWithLengths();
                 Engine borrowed = Engine.standard()) {
             Object state = field(model, "execution");
             OwnedModelLifecycleTest.set(state, "busy", true);
@@ -458,7 +507,8 @@ final class RuntimeLengthScanModelTest {
             assertFalse((Boolean) field(field(model, "execution"), "frozen"));
             model.withEngine(borrowed);
             assertTrue(Float.isFinite(model.compute(values(false, new long[]{2, 1, 1}, .2f, .3f), lengths(1)).bytes().getFloat()));
-            assertTrainingRejected(model);
+            configureSquared(model);
+            trainAndAssertUpdates(model, List.of(values(false, new long[]{2, 1, 1}, .2f, .3f), lengths(1)));
         }
     }
 

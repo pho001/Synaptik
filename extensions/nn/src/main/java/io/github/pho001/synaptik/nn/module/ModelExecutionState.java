@@ -26,10 +26,10 @@ import java.util.function.BiFunction;
 
 /**
  * Exclusive high-level admission and cached public-owner composition for one owned Model.
- * Acquired general scans use the same fixed source and positional plans as ordinary algebra;
- * only fixed recurrent scans trigger the inference-only training guard. No batch reconstructs
- * source or body expressions. All ordinary operations hold one admission through synchronous
- * result closure. Close waits for admission and retains attempt-all cleanup failures.
+ * Acquired scans use the same fixed source and positional plans as ordinary algebra.
+ * Training delegates first-order closure and backend admission to the existing Compiler/Engine.
+ * No batch reconstructs source or body expressions. All ordinary operations hold one admission
+ * through synchronous result closure. Close waits for admission and retains cleanup failures.
  * Inherited Module mutation is caller-excluded.
  */
 final class ModelExecutionState {
@@ -206,17 +206,14 @@ final class ModelExecutionState {
 
     /**
      * Configures a single-output objective without changing Module mode.
-     * A live fixed-scan source rejects before boundary/argument checks or any setup effect.
      * @param signature non-null fully static target descriptor
      * @param builder non-null pure one-attempt objective construction
      * @param optimizer non-null Training-owned optimizer configuration
-     * @throws UnsupportedOperationException if the admitted live source contains a fixed scan
      */
     void configure(TensorDescriptor signature, BiFunction<Tensor, Tensor, Tensor> builder,
             Optimizer optimizer) {
         begin();
         try {
-            rejectScanTraining();
             singleBoundary();
             Objects.requireNonNull(signature, "targetSignature");
             Objects.requireNonNull(builder, "objectiveBuilder");
@@ -227,16 +224,14 @@ final class ModelExecutionState {
 
     /**
      * Configures one persistent TrainingSession using explicit target prototypes.
-     * A live fixed-scan source rejects before target validation, freeze, callback or native admission.
      * @param prototypes ordered provenance-free static target prototypes, disjoint from source
      * @param builder pure callback invoked once per admitted explicit setup attempt
      * @param optimizer non-null optimizer configuration
-     * @throws UnsupportedOperationException if the admitted live source contains a fixed scan
      */
     void configure(List<Tensor> prototypes,
             BiFunction<List<Tensor>, List<Tensor>, Tensor> builder, Optimizer optimizer) {
         begin();
-        try { rejectScanTraining(); configureOpen(prototypes, builder, optimizer); }
+        try { configureOpen(prototypes, builder, optimizer); }
         finally { end(); }
     }
 
@@ -328,30 +323,25 @@ final class ModelExecutionState {
 
     /**
      * Delegates one configured RESET_AND_STEP transaction.
-     * A live fixed-scan source rejects before configuration or batch inspection, retaining inference state.
      * @param inputs fresh batch in declared order
      * @param targetValues fresh targets in declared order
      * @return detached TrainingStep, retaining no batch storage
-     * @throws UnsupportedOperationException if the admitted live source contains a fixed scan
      */
     TrainingStep train(List<Tensor> inputs, List<Tensor> targetValues) {
         begin();
-        try { rejectScanTraining(); return trainOpen(inputs, targetValues); }
+        try { return trainOpen(inputs, targetValues); }
         finally { end(); }
     }
 
     /**
      * Checks the single boundary under admission before constructing the ordered value lists.
-     * A live fixed-scan source rejects before that boundary or configuration check.
      * @param input borrowed stored input
      * @param target borrowed stored target
      * @return detached Training transaction result
-     * @throws UnsupportedOperationException if the admitted live source contains a fixed scan
      */
     TrainingStep train(Tensor input, Tensor target) {
         begin();
         try {
-            rejectScanTraining();
             singleBoundary();
             if (session == null) throw new IllegalStateException("configureTraining is required");
             if (targets.size() != 1) throw new IllegalArgumentException("single target boundary required");
@@ -373,22 +363,6 @@ final class ModelExecutionState {
         List<Tensor> targetBatch = validateValues(targets, targetValues, true);
         return session.runValues(values(batch, targetBatch, trainingSlots, trainingFixed),
                 GradientMode.RESET_AND_STEP);
-    }
-
-    /**
-     * Rejects fixed-scan training after live-source validation, before arity or setup work.
-     * General scans and ordinary sources retain their existing argument and setup precedence.
-     * For a valid fixed-scan source, rejection changes no freeze status, cache, storage or gradient
-     * eligibility and invokes no callback or Engine setup. Invalid live guards retain their
-     * ordinary invalidation cleanup.
-     * @throws IllegalStateException if a fixed-scan source's live guards reject
-     * @throws UnsupportedOperationException if the acquired source contains a fixed scan
-     */
-    private void rejectScanTraining() {
-        if (owned.containsScan) {
-            validateSource();
-            throw new UnsupportedOperationException("runtime-length scan Models are inference-only");
-        }
     }
 
     /**

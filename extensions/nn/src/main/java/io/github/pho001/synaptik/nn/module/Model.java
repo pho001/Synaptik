@@ -34,13 +34,12 @@ import java.util.function.BiFunction;
  * <p>Generic Models are not thread-safe. Callers must coordinate forward construction with mode changes,
  * binding replacement, state loading, and other mutable Module operations when one consistent
  * view matters. {@link #builder()}, {@link #defineTensor} and {@link #graph} establish a private
- * static source for compute and, for supported sources without fixed recurrent scans, configured training;
- * save additionally requires checkpoint admission.
- * Builder composition reuses existing layers; selected default CNN/static recurrent DAGs persist
- * through Checkpoint v3 without layer recipes. Explicit fixed runtime-length scan Models support inference
- * through the same cached execution owners, but reject training before setup effects. General scans
- * use bounded cold acquisition and the same owners for qualified FLOAT32/FLOAT64 compute and
- * first-order training where the actual bodies and bindings qualify. Bounded all-valid bodies
+ * static source for compute and qualified first-order configured training; save additionally
+ * requires checkpoint admission. Builder composition reuses existing layers; selected
+ * CNN/static recurrent DAGs persist through Checkpoint v3 without layer recipes. Fixed and
+ * general recurrent sources use the existing cached Engine and Training owners when their
+ * actual forward and derivative graphs qualify. Fixed low working/publication boundaries
+ * remain distinct from general low operation-result rounding. Bounded all-valid bodies
  * persist through Checkpoint v4; the static homogeneous FLOAT32/FLOAT64 length-aware intersection
  * uses v5; maximum/average Pool3d occurrences select append-only v6, including inside otherwise
  * qualified bodies. Persistence is independent of execution qualification. All-valid scans execute every static time
@@ -180,10 +179,10 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * CNN/static recurrent compositions, cold fixed scans and bounded general-scan bodies.
      * Cold signatures and dtypes are independent of execution support. Canonical static homogeneous
      * FLOAT32/FLOAT64 general scans may compute and train when their actual bodies and bindings
-     * qualify through the existing cached owners. Fixed scans remain inference-only; bounded general
-     * bodies save/load through the smallest sufficient Checkpoint version (v4/v5, or v6 for Pool3d)
-     * without restoring objectives or optimizer state.
-     * Persistence does not itself grant backend support or fixed-scan backpropagation through time.
+     * qualify through the existing cached owners. Fixed recurrent sources use the same
+     * first-order training lifecycle without conversion into general-scan recipes. Bounded
+     * general bodies save/load through the smallest sufficient Checkpoint version (v4/v5, or
+     * v6 for Pool3d), without restoring objectives, optimizer state or backend eligibility.
      * @param inputSignature non-null fully static exact input descriptor
      * @param definition non-null one-shot definition; its adopted modules must not be mutated later
      * @return owned eval Model with private state and cold symbolic forward
@@ -363,7 +362,6 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * Selects an Engine on the same receiver before the first valid setup attempt.
      * Selected-Engine closure precedes Model closure/busy admission; freeze precedes candidate checks.
      * Invalid compute/configure arguments do not freeze; valid setup attempts do, including failure.
-     * Rejected fixed-scan training preserves the previous freeze status without attempting setup.
      * @param engine non-null open borrowed Engine; neither previous nor new selection is closed
      * @return this exact Model, with unchanged generic type, wrappers and working state
      * @throws UnsupportedOperationException if this Model has no owned tensor capability

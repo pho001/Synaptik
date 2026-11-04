@@ -59,9 +59,10 @@ import java.util.random.RandomGeneratorFactory;
  * dense views) or the existing proved scalar broadcast case. Low RNN keeps its fixed FLOAT32
  * working projections/aggregate/tanh and next-state narrowing, unlike explicit general Scan's
  * ordinary low operation-result rounding. It is not an unsupported-type fallback. All GRU/LSTM
- * recipes also remain fixed inference-only scans with their broader resolved read domain. Any fixed
- * occurrence, including mixed fixed/general stacks, rejects training before setup. No implicit
- * conversion, layout copy or backend fallback widens these occurrence-specific qualifications.
+ * recipes also remain fixed scans with their broader resolved read domain. Fixed and mixed
+ * fixed/general sources may configure first-order training through existing owners; low outputs
+ * need an explicit FLOAT32/FLOAT64 objective. No implicit recipe conversion or backend fallback
+ * widens occurrence-specific qualification.
  * {@link #finalHidden()} selects the
  * immediately preceding scan's existing final state, whereas {@link #lastTimeStep()} selects a
  * dense time index. Ordinary bias and activations remain dense and do not acquire automatic
@@ -352,7 +353,7 @@ public final class ModelBuilder {
      * Each row consumes its valid prefix, zero-pads the dense suffix, and returns zero final hidden
      * state for length zero. Geometry is checked at build; length values in [0,T] are checked at run.
      * FLOAT32/FLOAT64 uses general Scan and its canonical output layouts, ordinary first-order
-     * training and v5 persistence; low types retain fixed inference-only composition.
+     * training and v5 persistence; low types retain the distinct fixed numerical recipe.
      * @param hiddenSize positive hidden width; input at this step must be positive static TBF
      * @return this same builder; use buildWithLengths, not build, to finish a scan chain
      * @throws IllegalArgumentException if hiddenSize is not positive
@@ -369,7 +370,7 @@ public final class ModelBuilder {
     /**
      * Appends a biased FORWARD reset-after GRU scan, starting each batch from independent zero state.
      * Shares runtime lengths and exact T/B with every scan, returning dense [T,B,H]; padded
-     * transitions are skipped only within each scan. Scan-containing Models are inference-only.
+     * transitions are skipped only within each scan. First-order training remains backend-qualified.
      * Length zero leaves that row's dense output and final hidden state zero. Geometry is checked
      * at build; runtime lengths must lie in [0,T]. Existing initialization and step seeds apply.
      * @param hiddenSize positive hidden width; input at this step must be positive static TBF
@@ -388,7 +389,7 @@ public final class ModelBuilder {
     /**
      * Appends a biased FORWARD LSTM scan with independent zero hidden/cell state and dense [T,B,H].
      * All scans share runtime lengths with exact T/B. No state carries between batches; explicit
-     * states or finalCell require the advanced graph/list boundary. The Model is inference-only.
+     * states or finalCell require the advanced graph/list boundary. Training uses existing first-order owners.
      * Length zero leaves the row's output and final states zero. Geometry is checked at build;
      * runtime lengths must lie in [0,T]. Existing initialization and step seeds apply.
      * @param hiddenSize positive hidden width; input at this step must be positive static TBF
@@ -451,7 +452,7 @@ public final class ModelBuilder {
     }
 
     /**
-     * Builds a fresh private inference-only list Model declaring [values, validLengths] and one output.
+     * Builds a fresh private list Model declaring [values, validLengths] and one output.
      * Lengths have canonical non-gradient INT64[B] metadata, with runtime values in [0,T], including
      * zero. T/B are established at the first scan after any ordinary prefix; later scans must match.
      * No Engine, length-value read, dummy transition, caller callback retention or implicit mask is involved.
@@ -460,7 +461,7 @@ public final class ModelBuilder {
      * owns fresh private state. Exact descriptors include layout and gradient eligibility; the
      * lengths prototype is canonical contiguous, offset-zero and non-view. Saved Models use
      * Model.loadGraph and the same compute path. General length-aware RNN sources select v5;
-     * retained fixed-only sources keep the old version selection and training rejection.
+     * retained fixed-only sources keep their existing version selection and numerical recipe.
      * @return a non-null fresh owned eval Model with two ordered inputs and one chain result;
      *     caller closes it; compute returns detached values, while forward remains list-typed
      * @throws IllegalStateException if input or scan recipes are absent, or supplied storage is unavailable

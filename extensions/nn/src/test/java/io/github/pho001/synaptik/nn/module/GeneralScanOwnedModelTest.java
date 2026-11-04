@@ -61,7 +61,6 @@ final class GeneralScanOwnedModelTest {
                             List.of(parameter("a.weight", weight), parameter("b.weight", weight)))) {
                         Object state = field(model, "execution"); var source = source(model);
                         assertNull(field(state, "engine"));
-                        assertFalse((Boolean) field(field(state, "owned"), "containsScan"));
                         for (int i = 0; i < 2; i++) {
                             assertTrue(source.inputs().get(i).hostStorage().isEmpty());
                             assertEquals(List.of(sequence, initial).get(i).descriptor(), source.inputs().get(i).descriptor());
@@ -587,7 +586,7 @@ final class GeneralScanOwnedModelTest {
         }
     }
 
-    @Test void mixedFixedAndGeneralSourcesStillRejectEveryTrainingOverloadWithoutEffects() throws Exception {
+    @Test void mixedFixedAndGeneralSourcesShareOneConfiguredTrainingSession() throws Exception {
         Tensor sequence = TensorFactory.create(descriptor(DataType.FLOAT32, false, 3, 1, 1));
         Tensor initial = TensorFactory.create(descriptor(DataType.FLOAT32, false, 1, 1));
         Tensor weight = stored(descriptor(DataType.FLOAT32, true, 1, 1), .5);
@@ -597,11 +596,15 @@ final class GeneralScanOwnedModelTest {
         var general = pointwise(initial, sequence, weight, false);
         Tensor head = fixed.finalHidden().add(general.finalCarry().getFirst());
         try (var model = Model.graph(List.of(sequence, lengths, initial), List.of(head), List.of(parameter("weight", weight)))) {
-            RuntimeLengthScanModelTest.assertTrainingRejected(model);
             Tensor batch = stored(sequence.descriptor(), .1, .2, .3);
-            Tensor validLengths = TensorFactory.fromFlatArray(lengths.descriptor(), Optional.empty(), new long[]{3});
             Tensor start = stored(initial.descriptor(), 0);
-            model.compute(List.of(batch, validLengths, start)); RuntimeLengthScanModelTest.assertTrainingRejected(model);
+            RuntimeLengthScanModelTest.configureSquared(model);
+            var session = field(field(model, "execution"), "session");
+            for (int length : new int[]{3, 1, 2}) {
+                Tensor freshLengths = TensorFactory.fromFlatArray(lengths.descriptor(), Optional.empty(), new long[]{length});
+                RuntimeLengthScanModelTest.trainAndAssertUpdates(model, List.of(batch, freshLengths, start));
+                assertSame(session, field(field(model, "execution"), "session"));
+            }
         }
     }
 

@@ -5,7 +5,6 @@ import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint.Leaf;
 import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint.Role;
 import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint.Source;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
-import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -18,15 +17,13 @@ import java.util.Objects;
 /**
  * Cold acquisition and live identity guards for one privately owned ordinary Tensor source.
  * Constants belong only to the source; Module wrappers remain the sole parameter/buffer registry.
- * Fixed-scan presence is cached from immutable ordinary provenance for every acquisition route,
- * not inferred from input types or saved role metadata. General-scan acquisition delegates its
- * bounded cold body inventory to Checkpoint and Compiler, independently of execution support.
- * It does not widen the fixed-only training guard or add per-run provenance traversal.
+ * General-scan acquisition delegates its bounded cold body inventory to Checkpoint and Compiler,
+ * independently of execution support. Training and backend closure remain with the existing
+ * Compiler/Engine owners rather than a source-kind approximation.
  * Callers serialize all access through ModelExecutionState and exclude inherited Module mutation.
  */
 final class OwnedModelSource {
     final Source source;
-    final boolean containsScan;
     private final Module root;
     private final ModelForward<List<Tensor>, List<Tensor>> composition;
     private final StateDictionary dictionary;
@@ -57,7 +54,6 @@ final class OwnedModelSource {
         this.root = root;
         this.source = source;
         this.composition = composition;
-        containsScan = containsScan(source.outputs());
         dictionary = root.stateDictionary();
         parameters = root.parametersRecursively();
         buffers = root.buffersRecursively();
@@ -154,24 +150,6 @@ final class OwnedModelSource {
             }
         }
         return leaves;
-    }
-
-    /**
-     * Detects fixed scans once from ordinary provenance, including final-state-only roots and heads.
-     * @param outputs acquired ordered roots; their upstream provenance is immutable
-     * @return whether any reachable producer has a fixed recurrent-scan kind
-     */
-    private static boolean containsScan(List<Tensor> outputs) {
-        var visited = new IdentityHashMap<Tensor, Boolean>();
-        var pending = new ArrayDeque<Tensor>(outputs);
-        while (!pending.isEmpty()) {
-            Tensor tensor = pending.pop();
-            if (visited.put(tensor, true) != null || tensor.provenance().isEmpty()) continue;
-            var provenance = tensor.provenance().orElseThrow();
-            if (provenance.operation().kind() instanceof RecurrentScanKind) return true;
-            pending.addAll(provenance.inputs());
-        }
-        return false;
     }
 
     /**
