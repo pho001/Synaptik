@@ -377,6 +377,7 @@ final class ScanGradientRules {
 
     /**
      * Reuses finite route composition with the coordinate owner's canonical value/control routes.
+     * Producer work is iterative, preserving operand and sibling order at arbitrary body depth.
      * @param value exact canonical body root or operand
      * @param count complete formal declaration count
      * @param roles complete validated per-canonical-output coordinate facts
@@ -387,15 +388,27 @@ final class ScanGradientRules {
             IdentityHashMap<Tensor, Scan.ValueSemantics> roles, IdentityHashMap<Tensor, Route[]> cache) {
         Route[] known = cache.get(value);
         if (known != null) return known;
-        TensorProducer producer = value.provenance().orElseThrow().producer();
-        for (Tensor input : producer.inputs()) coordinateRoutes(input, count, roles, cache);
-        for (int port = 0; port < producer.outputCount(); port++) {
-            Route[] row = emptyRoutes(count);
-            for (int input : roles.get(producer.output(port)).directInputs()) {
-                Route[] operand = cache.get(producer.inputs().get(input));
-                for (int formal = 0; formal < count; formal++) row[formal] = row[formal].or(operand[formal]);
+        var pending = new ArrayDeque<RouteVisit>();
+        pending.addLast(new RouteVisit(value, false));
+        while (!pending.isEmpty()) {
+            RouteVisit visit = pending.removeLast();
+            if (!visit.complete() && cache.containsKey(visit.value())) continue;
+            TensorProducer producer = visit.value().provenance().orElseThrow().producer();
+            if (!visit.complete()) {
+                pending.addLast(new RouteVisit(visit.value(), true));
+                for (int i = producer.inputs().size() - 1; i >= 0; i--) {
+                    pending.addLast(new RouteVisit(producer.inputs().get(i), false));
+                }
+                continue;
             }
-            cache.put(producer.output(port), row);
+            for (int port = 0; port < producer.outputCount(); port++) {
+                Route[] row = emptyRoutes(count);
+                for (int input : roles.get(producer.output(port)).directInputs()) {
+                    Route[] operand = cache.get(producer.inputs().get(input));
+                    for (int formal = 0; formal < count; formal++) row[formal] = row[formal].or(operand[formal]);
+                }
+                cache.put(producer.output(port), row);
+            }
         }
         return cache.get(value);
     }
@@ -585,28 +598,54 @@ final class ScanGradientRules {
         }
     }
 
-    /** Computes ordinary D/ND/FC source paths without selecting or constructing a derivative. */
+    /**
+     * Computes ordinary D/ND/FC source paths in iterative producer postorder, without selecting
+     * or constructing a derivative. All siblings are cached in canonical output order.
+     * @param value exact source root or residual
+     * @param count complete formal declaration count
+     * @param cache identity-based route cache seeded by the exact formal positions
+     * @return complete positional source routes for the requested identity
+     */
     private static Route[] sourceRoutes(Tensor value, int count,
             IdentityHashMap<Tensor, Route[]> cache) {
         Route[] known = cache.get(value);
         if (known != null) return known;
-        TensorProducer p = value.provenance().orElseThrow(
-                () -> new IllegalArgumentException("undeclared scan lexical leaf")).producer();
-        for (Tensor operand : p.inputs()) sourceRoutes(operand, count, cache);
-        for (int output = 0; output < p.outputCount(); output++) {
-            Route[] row = emptyRoutes(count);
-            for (int input = 0; input < p.inputs().size(); input++) {
-                var decision = FirstOrderGradientCoverage.classify(p, output, input);
-                Route edge = Route.ordinary(decision);
-                Route[] dependencies = cache.get(p.inputs().get(input));
-                for (int formal = 0; formal < count; formal++) {
-                    row[formal] = row[formal].or(edge.then(dependencies[formal]));
+        var pending = new ArrayDeque<RouteVisit>();
+        pending.addLast(new RouteVisit(value, false));
+        while (!pending.isEmpty()) {
+            RouteVisit visit = pending.removeLast();
+            if (!visit.complete() && cache.containsKey(visit.value())) continue;
+            TensorProducer p = visit.value().provenance().orElseThrow(
+                    () -> new IllegalArgumentException("undeclared scan lexical leaf")).producer();
+            if (!visit.complete()) {
+                pending.addLast(new RouteVisit(visit.value(), true));
+                for (int i = p.inputs().size() - 1; i >= 0; i--) {
+                    pending.addLast(new RouteVisit(p.inputs().get(i), false));
                 }
+                continue;
             }
-            cache.put(p.output(output), row);
+            for (int output = 0; output < p.outputCount(); output++) {
+                Route[] row = emptyRoutes(count);
+                for (int input = 0; input < p.inputs().size(); input++) {
+                    var decision = FirstOrderGradientCoverage.classify(p, output, input);
+                    Route edge = Route.ordinary(decision);
+                    Route[] dependencies = cache.get(p.inputs().get(input));
+                    for (int formal = 0; formal < count; formal++) {
+                        row[formal] = row[formal].or(edge.then(dependencies[formal]));
+                    }
+                }
+                cache.put(p.output(output), row);
+            }
         }
         return cache.get(value);
     }
+
+    /**
+     * Source-identity entry/completion work for both ordinary and coordinate route composition.
+     * @param value canonical source root or operand
+     * @param complete whether ordered producer operands have completed
+     */
+    private record RouteVisit(Tensor value, boolean complete) {}
 
     private static Route[] emptyRoutes(int count) {
         Route[] routes = new Route[count];

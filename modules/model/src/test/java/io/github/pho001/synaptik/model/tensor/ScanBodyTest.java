@@ -62,6 +62,25 @@ class ScanBodyTest {
     }
 
     @Test
+    void deepBodyPreservesProducerPostorderSharedBranchesAndCanonicalSiblings() {
+        Tensor h = leaf(false, 2), x = leaf(false, 2);
+        var expected = new ArrayList<Tensor>();
+        expected.add(h);
+        Tensor deep = h;
+        for (int i = 0; i < 20_000; i++) {
+            deep = deep.neg();
+            expected.add(deep);
+        }
+        Tensor shared = deep.add(x);
+        TopKResult siblings = shared.topK(2, 0, true, true);
+        expected.addAll(List.of(shared, siblings.values(), siblings.indices()));
+        ScanBody body = body(h, x, List.of(), siblings.values(), deep, siblings.indices(), shared);
+        assertEquals(expected, body.retainedValues());
+        assertSame(siblings.values(), body.nextCarry().getFirst());
+        assertSame(deep, body.emissions().getFirst());
+    }
+
+    @Test
     void includesUnreferencedPreviousCarryButExcludesStepAndInvariantLeaves() {
         Tensor h = leaf(false, 2), x = leaf(false, 2), p = leaf(false, 2);
         ScanBody b = body(h, x, List.of(p), x, p, x);

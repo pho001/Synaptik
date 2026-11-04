@@ -29,6 +29,7 @@ import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -83,6 +84,7 @@ public final class ScanBody {
      * Snapshots and validates a complete pure step, including unused canonical siblings.
      * Unused declared formals are allowed. Retained values follow producer postorder, then ascending
      * sibling slots; carry leaves are pre-step residuals, while step/invariant leaves are excluded.
+     * Body depth is traversed iteratively; no depth cap or nested-scan expansion is introduced.
      *
      * @param carry non-null ordered non-null carried formals, possibly empty; each is a storage/provenance-free
      *     leaf, distinct by identity, with canonical static or unresolved bounded-symbolic geometry
@@ -269,6 +271,7 @@ public final class ScanBody {
 
     /**
      * Validates contained provenance and all canonical siblings in deterministic producer postorder.
+     * Uses explicit entry/completion work so lexical depth does not consume the Java call stack.
      * @param value exact root or operand being visited; must be storage-free
      * @param formals identity set of all declarations, including unused ones
      * @param seenValues identity set used to append each retained value once
@@ -280,35 +283,46 @@ public final class ScanBody {
      */
     private void visit(Tensor value, Set<Tensor> formals, Set<Tensor> seenValues,
             Set<TensorProducer> seenProducers, List<Tensor> retained, DynamicDimension batch) {
-        requireShape(value, batch);
-        if (formals.contains(value)) {
-            if (seenValues.add(value) && carry.contains(value)) {
-                retained.add(value);
-            }
-            return;
-        }
-        TensorProducer producer = value.provenance().orElseThrow(
-                () -> new IllegalArgumentException("undeclared scan body leaf")).producer();
-        if (producer.output(value.provenance().orElseThrow().outputIndex()) != value) {
-            throw new IllegalArgumentException("noncanonical body wrapper");
-        }
-        if (!seenProducers.add(producer)) {
-            return;
-        }
-        for (Tensor input : producer.inputs()) {
-            visit(input, formals, seenValues, seenProducers, retained, batch);
-        }
-        for (int i = 0; i < producer.outputCount(); i++) {
-            requireShape(producer.output(i), batch);
-        }
-        validateOrdinaryOutputs(producer, batch);
-        for (int i = 0; i < producer.outputCount(); i++) {
-            Tensor sibling = producer.output(i);
-            if (seenValues.add(sibling)) {
-                retained.add(sibling);
+        var pending = new ArrayDeque<BodyVisit>();
+        pending.addLast(new BodyVisit(value, false));
+        while (!pending.isEmpty()) {
+            BodyVisit visit = pending.removeLast();
+            Tensor current = visit.value();
+            if (!visit.complete()) {
+                requireShape(current, batch);
+                if (formals.contains(current)) {
+                    if (seenValues.add(current) && carry.contains(current)) retained.add(current);
+                    continue;
+                }
+                var provenance = current.provenance().orElseThrow(
+                        () -> new IllegalArgumentException("undeclared scan body leaf"));
+                TensorProducer producer = provenance.producer();
+                if (producer.output(provenance.outputIndex()) != current) {
+                    throw new IllegalArgumentException("noncanonical body wrapper");
+                }
+                if (!seenProducers.add(producer)) continue;
+                pending.addLast(new BodyVisit(current, true));
+                for (int i = producer.inputs().size() - 1; i >= 0; i--) {
+                    pending.addLast(new BodyVisit(producer.inputs().get(i), false));
+                }
+            } else {
+                TensorProducer producer = current.provenance().orElseThrow().producer();
+                for (int i = 0; i < producer.outputCount(); i++) requireShape(producer.output(i), batch);
+                validateOrdinaryOutputs(producer, batch);
+                for (int i = 0; i < producer.outputCount(); i++) {
+                    Tensor sibling = producer.output(i);
+                    if (seenValues.add(sibling)) retained.add(sibling);
+                }
             }
         }
     }
+
+    /**
+     * One lexical entry or producer-completion event, retaining the exact source identity.
+     * @param value canonical root/operand whose producer is being visited
+     * @param complete whether operands have already been visited in declaration order
+     */
+    private record BodyVisit(Tensor value, boolean complete) {}
 
     /**
      * Proves declared symbols and ordinary relations whose constructors defer symbolic equality.

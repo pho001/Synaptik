@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.compiler;
 
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
@@ -32,6 +33,8 @@ import java.util.function.LongUnaryOperator;
  * only when explicitly requested. Instances are immutable and safe to reuse across concurrent runs.
  * Reshape recipes require compile-time proof of contiguous source intent; no invocation performs
  * layout inference. Scope-local obligations and checked suffix counts are eager even for dead ports.
+ * Each numeric check retains its outer/scoped occurrence and semantic subject. Failed binding
+ * renders that association and actual B; successful binding performs no diagnostic rendering.
  */
 public final class BatchBindingPlan {
     private final List<GraphValue> values;
@@ -42,11 +45,11 @@ public final class BatchBindingPlan {
     private final List<LongFunction<long[]>> strides;
     private final boolean[] views;
     private final long[] offsets;
-    private final List<LongPredicate> obligations;
+    private final List<Obligation> obligations;
 
     private BatchBindingPlan(List<GraphValue> values, int[] inputs, int[] inputPosition,
             String symbol, List<List<LongUnaryOperator>> dimensions,
-            List<LongFunction<long[]>> strides, boolean[] views, long[] offsets, List<LongPredicate> obligations) {
+            List<LongFunction<long[]>> strides, boolean[] views, long[] offsets, List<Obligation> obligations) {
         this.values = values; this.inputs = inputs; this.inputPosition = inputPosition;
         this.symbol = symbol; this.dimensions = dimensions; this.strides = strides;
         this.views = views; this.offsets = offsets; this.obligations = obligations;
@@ -67,6 +70,8 @@ public final class BatchBindingPlan {
         Objects.requireNonNull(artifacts, "artifacts");
         var graph = artifacts.graph();
         Map<ValueId, Integer> positions = new HashMap<>();
+        Map<ValueId, NodeId> owners = new HashMap<>();
+        for (var node : graph.nodes()) for (ValueId output : node.outputs()) owners.put(output, node.id());
         for (int i = 0; i < graph.values().size(); i++) positions.put(graph.values().get(i).id(), i);
         int[] inputs = artifacts.constants().bindableInputs().stream()
                 .mapToInt(positions::get).toArray();
@@ -103,18 +108,24 @@ public final class BatchBindingPlan {
                     : !value.descriptor().shape().isFullyStatic();
             offsets[dimensions.size() - 1] = layout.isPresent() ? layout.orElseThrow().storageOffset() : 0;
         }
-        var obligations = new ArrayList<LongPredicate>();
+        var obligations = new ArrayList<Obligation>();
         for (var node : graph.nodes()) {
             var kind = node.operation().kind();
             if (kind == ScanKind.SCAN && node.scanBody().isPresent()) {
                 var body = node.scanBody().orElseThrow();
                 // Each visit owns this occurrence's complete lexical inventory. Never index a
                 // body obligation by bare ValueId/NodeId, which may equal IDs in another scope.
+                Map<ValueId, NodeId> localOwners = new HashMap<>();
+                for (var localNode : body.graph().nodes()) for (ValueId output : localNode.outputs()) {
+                    localOwners.put(output, localNode.id());
+                }
                 for (var local : body.graph().values()) {
-                    indexValidity(local.descriptor().shape(), symbol, obligations);
+                    indexValidity(local.descriptor().shape(), symbol, obligations,
+                            node.id(), localOwners.get(local.id()), local.id());
                 }
                 for (var constraint : CapturedGraphInference.inferAndValidate(body.graph()).constraints()) {
-                    obligations.add(GraphPredicateProof.bind(constraint.predicate(), symbol));
+                    obligations.add(new Obligation(GraphPredicateProof.bind(constraint.predicate(), symbol),
+                            node.id(), constraint.nodeId(), null, constraint.subject()));
                 }
                 for (var id : node.outputs()) {
                     int out = positions.get(id);
@@ -188,12 +199,19 @@ public final class BatchBindingPlan {
         }
         // Evaluate preindexed numeric validity even for non-input/dead declarations. This creates
         // no per-run Shape/descriptor and cannot defer a negative derived extent until publication.
-        for (var valueDimensions : dimensions) for (var extent : valueDimensions) {
-            obligations.add(batch -> extent.applyAsLong(batch) >= 0);
+        for (int i = 0; i < dimensions.size(); i++) {
+            GraphValue value = graph.values().get(i);
+            for (int axis = 0; axis < dimensions.get(i).size(); axis++) {
+                var extent = dimensions.get(i).get(axis);
+                obligations.add(new Obligation(batch -> extent.applyAsLong(batch) >= 0,
+                        owners.get(value.id()), null, value.id(), value.descriptor().shape().dimension(axis)));
+            }
         }
-        for (var value : graph.values()) indexValidity(value.descriptor().shape(), symbol, obligations);
+        for (var value : graph.values()) indexValidity(value.descriptor().shape(), symbol, obligations,
+                owners.get(value.id()), null, value.id());
         for (var constraint : artifacts.diagnostics().constraints()) {
-            obligations.add(GraphPredicateProof.bind(constraint.predicate(), symbol));
+            obligations.add(new Obligation(GraphPredicateProof.bind(constraint.predicate(), symbol),
+                    constraint.nodeId(), null, null, constraint.subject()));
         }
         return new BatchBindingPlan(graph.values(), inputs, inputPosition, symbol,
                 List.copyOf(dimensions), List.copyOf(strides), views, offsets, List.copyOf(obligations));
@@ -204,17 +222,65 @@ public final class BatchBindingPlan {
      * @param shape exact outer or scoped local declaration
      * @param symbol sole caller-owned name
      * @param obligations preparation-local ordered numeric checks, appended without deduplication
+     * @param occurrence owning outer producer, or null for an outer input
+     * @param scopedOccurrence local producer, or null for an outer value or local input
+     * @param value exact outer or scoped value ID
      * @throws IllegalArgumentException if any extent cannot be bound
      */
-    private static void indexValidity(Shape shape, String symbol, List<LongPredicate> obligations) {
+    private static void indexValidity(Shape shape, String symbol, List<Obligation> obligations,
+            NodeId occurrence, NodeId scopedOccurrence, ValueId value) {
         var count = count(shape, symbol);
-        obligations.add(batch -> count.applyAsLong(batch) >= 0);
+        obligations.add(new Obligation(batch -> count.applyAsLong(batch) >= 0,
+                occurrence, scopedOccurrence, value, shape));
+    }
+
+    /**
+     * One cold-indexed check with scope-qualified failure context; no subject is rendered on success.
+     * @param predicate checked numeric admission rule
+     * @param occurrence owning outer occurrence, or null for an input
+     * @param scopedOccurrence owning body occurrence, or null outside a body or for a local input
+     * @param value associated value, or null for a semantic predicate
+     * @param subject original constraint subject or exact geometry, rendered only on failure
+     */
+    private record Obligation(LongPredicate predicate, NodeId occurrence, NodeId scopedOccurrence,
+            ValueId value, Object subject) {
+        /**
+         * Checks one actual invocation, preserving the original exception category and cause.
+         * @param batch admitted caller-owned nonnegative B
+         * @throws IllegalArgumentException if the predicate is false or its extent is invalid
+         * @throws ArithmeticException if checked predicate/geometry arithmetic overflows
+         */
+        void validate(long batch) {
+            boolean satisfied;
+            try {
+                satisfied = predicate.test(batch);
+            } catch (IllegalArgumentException failure) {
+                throw new IllegalArgumentException(context(batch) + ": " + failure.getMessage(), failure);
+            } catch (ArithmeticException failure) {
+                var contextual = new ArithmeticException(context(batch) + ": " + failure.getMessage());
+                contextual.initCause(failure);
+                throw contextual;
+            }
+            if (!satisfied) throw new IllegalArgumentException(context(batch) + ": predicate is unsatisfied");
+        }
+
+        /**
+         * Renders only a failed obligation's cold association, never inspecting tensor values.
+         * @param batch actual invocation extent
+         * @return occurrence-qualified diagnostic including the original subject
+         */
+        private String context(long batch) {
+            return "actualB=" + batch + ", outer=" + occurrence + ", scoped=" + scopedOccurrence
+                    + ", value=" + value + ", subject=" + subject;
+        }
     }
 
     /**
      * Admits fully static actual descriptors in final compiled caller-input order.
      * Dynamic inputs require present, zero-offset canonical dense layouts; read views may qualify.
      * Every declared occurrence agrees on B, including otherwise unused input positions.
+     * Predicate and checked-geometry failures identify actual B, the owning outer/scoped
+     * occurrence and the retained semantic subject without rendering diagnostics on success.
      * @param actualInputs non-null ordered descriptors without nulls; membership is snapshotted
      * @return fresh immutable binding, retaining no tensor or storage
      * @throws NullPointerException if the list or a descriptor is null
@@ -258,9 +324,7 @@ public final class BatchBindingPlan {
                 }
             }
         }
-        for (LongPredicate obligation : obligations) if (!obligation.test(batch)) {
-            throw new IllegalArgumentException("bound graph predicate is unsatisfied");
-        }
+        for (Obligation obligation : obligations) obligation.validate(batch);
         return new Binding(this, batch, actual);
     }
 

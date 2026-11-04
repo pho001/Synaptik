@@ -213,40 +213,56 @@ final class SourceGraphReconstructionTest {
     }
 
     @Test
-    void staticCarryFreeAndZeroRowLengthScopesPreserveExactPerRoleTypes() {
+    void carryFreeAndZeroRowHeadersRejectColdBeforeAnyIdsButRemainOrdinarySources() {
         for (long time : List.of(0L, 3L)) for (long batch : List.of(0L, 1L, 3L))
             for (boolean reverse : List.of(false, true)) {
-                for (DataType type : List.of(DataType.INT32, DataType.INT64, DataType.FLOAT32, DataType.FLOAT64)) {
-                    Tensor x = formal(type, batch, 2);
-                    assertColdBodyRoundTrip(new ScanBody(List.of(), List.of(x), List.of(),
-                            List.of(), List.of(x, x.add(x), x)), time, reverse);
-                }
                 Tensor x = formal(DataType.FLOAT64, batch, 2);
                 Tensor old = formal(DataType.FLOAT32);
-                Tensor contribution = x.sum().cast(DataType.FLOAT32);
-                for (boolean carry : List.of(false, true)) {
+                Tensor initial = formal(DataType.FLOAT32);
+                Tensor sequence = formal(DataType.FLOAT64, time, batch, 2);
+                Tensor lengths = formal(DataType.INT64, batch);
+                Tensor early = initial.neg();
+                for (boolean carry : List.of(false, true)) for (boolean lengthAware : List.of(false, true)) {
+                    if (carry && !lengthAware) continue; // The retained all-valid cold header.
                     var body = new ScanBody(carry ? List.of(old) : List.of(), List.of(x), List.of(),
-                            carry ? List.of(old.add(contribution)) : List.of(), List.of(x, x));
-                    Tensor initial = formal(DataType.FLOAT32), sequence = formal(DataType.FLOAT64, time, batch, 2);
-                    Tensor lengths = formal(DataType.INT64, batch);
-                    var result = Scan.apply(carry ? List.of(initial) : List.of(), List.of(sequence), List.of(),
-                            lengths, 0, List.of(java.util.OptionalInt.of(0)), body, reverse);
-                    var roots = new ArrayList<>(result.finalCarry()); roots.addAll(result.outputs()); roots.addAll(result.residuals());
-                    assertRoundTrip(roots);
-                    var source = GraphCompilationPort.captureSource(roots);
-                    var rebuilt = GraphCompilationPort.reconstructSource(source.graph(), source.leaves());
-                    var producer = rebuilt.getFirst().provenance().orElseThrow().producer();
-                    assertEquals(0, ((ScanAttrs) producer.operation().attrs()).rowCarryCount());
-                    assertSame(lengths, producer.inputs().getLast());
-                    var freshBody = producer.scanBody().orElseThrow();
-                    assertEquals(DataType.FLOAT64, freshBody.step().getFirst().descriptor().dataType());
-                    if (carry) {
-                        assertEquals(Shape.scalar(), freshBody.carry().getFirst().descriptor().shape());
-                        assertEquals(DataType.FLOAT32, freshBody.carry().getFirst().descriptor().dataType());
+                            carry ? List.of(old.add(x.sum().cast(DataType.FLOAT32))) : List.of(),
+                            List.of(x, x));
+                    var scan = lengthAware
+                            ? Scan.apply(carry ? List.of(initial) : List.of(), List.of(sequence), List.of(),
+                                    lengths, 0, List.of(java.util.OptionalInt.of(0)), body, reverse)
+                            : Scan.apply(List.of(), List.of(sequence), List.of(), body, reverse);
+                    List<Tensor> roots = List.of(early, scan.outputs().getFirst());
+                    var raw = GraphCapture.capture(roots);
+                    assertDoesNotThrow(() -> CapturedGraphInference.inferAndValidate(raw));
+                    assertDoesNotThrow(() -> compile(roots, List.of(), false));
+                    var leaves = new ArrayList<Tensor>(List.of(initial, sequence));
+                    if (lengthAware) leaves.add(lengths);
+                    assertColdFailureWithoutIds(() -> GraphCompilationPort.captureSource(roots));
+                    for (var graph : List.of(raw, withOutputs(raw, List.of(raw.outputs().getFirst())))) {
+                        assertColdFailureWithoutIds(() -> SourceGraphReconstruction.preflight(graph));
+                        assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(graph, leaves));
+                        assertColdFailureWithoutIds(() -> new GraphCompilationPort.SourceCapture(graph, leaves));
                     }
-                    assertSame(freshBody.emissions().getFirst(), freshBody.emissions().getLast());
                 }
             }
+    }
+
+    @Test
+    void twentyThousandUnaryBodyConstructsCompilesColdRebuildsAndDifferentiates() {
+        Tensor h = ScanBodyInferenceTest.tensor(DataType.FLOAT64, true);
+        Tensor x = formal(DataType.FLOAT64);
+        Tensor next = h;
+        for (int i = 0; i < 20_000; i++) next = next.neg();
+        var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(next), List.of(next, h));
+        Tensor initial = ScanBodyInferenceTest.tensor(DataType.FLOAT64, true);
+        Tensor sequence = formal(DataType.FLOAT64, 1);
+        var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(), body, false);
+        var roots = List.of(scan.finalCarry().getFirst());
+        var source = GraphCompilationPort.captureSource(roots);
+        var rebuilt = GraphCompilationPort.reconstructSource(source.graph(), source.leaves());
+        assertEquals(source.graph(), GraphCompilationPort.captureSource(rebuilt).graph());
+        assertDoesNotThrow(() -> compile(roots, List.of(), false));
+        assertDoesNotThrow(() -> compile(roots, List.of(initial), true));
     }
 
     @Test

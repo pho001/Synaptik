@@ -20,6 +20,22 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 final class ScanGradientRulesTest {
+    @Test void deepLengthBodyPreservesSelectedRoutesAndOriginalRowCorrelation() {
+        Tensor h = tensor(DataType.FLOAT64, true, 2), x = tensor(DataType.FLOAT64, false, 2);
+        Tensor next = h;
+        for (int i = 0; i < 20_000; i++) next = next.neg();
+        var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(next), List.of());
+        Tensor initial = tensor(DataType.FLOAT64, true, 2);
+        var scan = Scan.apply(List.of(initial), List.of(tensor(DataType.FLOAT64, false, 1, 2)), List.of(),
+                tensor(DataType.INT64, false, 2), 1, List.of(OptionalInt.of(0)), body, false);
+        Tensor output = scan.finalCarry().getFirst();
+        assertTrue(ScanGradientRules.sameRow(initial, 0, output, 0,
+                new io.github.pho001.synaptik.model.shape.StaticDimension(2)));
+        assertDoesNotThrow(() -> GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD, List.of(output),
+                Optional.of(request(List.of(output), List.of(tensor(DataType.FLOAT64, false, 2)), List.of(initial))),
+                CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled()));
+    }
+
     @Test void nonzeroAndSharedOriginalSequenceRolesRejectAd() {
         for (var axis : List.of(OptionalInt.of(1), OptionalInt.empty())) {
             Tensor h = tensor(DataType.FLOAT64, true, 2, 2), x = tensor(DataType.FLOAT64, false, 2, 2);

@@ -461,6 +461,7 @@ final class ScanBodyInference {
 
     /**
      * Visits one local root in source producer postorder and ascending canonical sibling order.
+     * Explicit entry/completion events preserve depth-first encounter order without recursion.
      * @param value non-null root in the current body scope
      * @param producers local output-to-producer lookup
      * @param carry local carried-input set; other inputs do not need residual ports
@@ -470,14 +471,30 @@ final class ScanBodyInference {
      */
     private static void retain(ValueId value, Map<ValueId, CompiledNode> producers,
             Set<ValueId> carry, Set<ValueId> seen, Set<NodeId> visited, List<ValueId> retained) {
-        CompiledNode producer = producers.get(value);
-        if (producer == null) {
-            if (carry.contains(value) && seen.add(value)) retained.add(value);
-        } else if (visited.add(producer.id())) {
-            for (ValueId input : producer.inputs()) retain(input, producers, carry, seen, visited, retained);
-            for (ValueId output : producer.outputs()) if (seen.add(output)) retained.add(output);
+        var pending = new ArrayDeque<ResidualVisit>();
+        pending.addLast(new ResidualVisit(value, false));
+        while (!pending.isEmpty()) {
+            ResidualVisit visit = pending.removeLast();
+            CompiledNode producer = producers.get(visit.value());
+            if (producer == null) {
+                if (carry.contains(visit.value()) && seen.add(visit.value())) retained.add(visit.value());
+            } else if (visit.complete()) {
+                for (ValueId output : producer.outputs()) if (seen.add(output)) retained.add(output);
+            } else if (visited.add(producer.id())) {
+                pending.addLast(new ResidualVisit(visit.value(), true));
+                for (int i = producer.inputs().size() - 1; i >= 0; i--) {
+                    pending.addLast(new ResidualVisit(producer.inputs().get(i), false));
+                }
+            }
         }
     }
+
+    /**
+     * Scope-local postorder work; IDs are compared only inside their containing body.
+     * @param value root or operand local ID
+     * @param complete whether its producer's ordered operands have completed
+     */
+    private record ResidualVisit(ValueId value, boolean complete) {}
 
     /**
      * Refreshes demand from final outer publications and actual input edges, never sibling liveness.

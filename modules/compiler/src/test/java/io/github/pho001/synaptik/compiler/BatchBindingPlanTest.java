@@ -42,10 +42,63 @@ class BatchBindingPlanTest {
         var artifacts = compile(List.of(x.sum(), expanded)); var plan = BatchBindingPlan.prepare(artifacts);
         var actual = artifacts.constants().bindableInputBindings().stream().map(input -> input.tensorId().equals(x.id())
                 ? descriptor(Shape.of(0)) : scalar.descriptor()).toList();
-        assertThrows(IllegalArgumentException.class, () -> plan.bind(actual));
+        var failure = assertThrows(IllegalArgumentException.class, () -> plan.bind(actual));
+        var output = artifacts.publication().forwardBindings().get(1).valueId();
+        var owner = artifacts.graph().nodes().stream().filter(node -> node.outputs().contains(output)).findFirst().orElseThrow();
+        assertTrue(failure.getMessage().contains("actualB=0"));
+        assertTrue(failure.getMessage().contains("outer=" + owner.id()));
+        assertTrue(failure.getMessage().contains("value=" + output));
+        assertTrue(failure.getMessage().contains(expanded.descriptor().shape().dimension(0).toString()));
+        assertInstanceOf(IllegalArgumentException.class, failure.getCause());
         var valid = artifacts.constants().bindableInputBindings().stream().map(input -> input.tensorId().equals(x.id())
                 ? descriptor(Shape.of(2)) : scalar.descriptor()).toList();
         assertEquals(2, plan.bind(valid).batchSize());
+    }
+
+    @Test void failedOuterPredicateRetainsItsConstraintSubjectAndActualBatch() {
+        Tensor x = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32,
+                Shape.ofDimensions(B), Optional.empty(), false));
+        var artifacts = compile(List.of(x.argMax(0)));
+        var constraint = artifacts.diagnostics().constraints().getFirst();
+        var plan = BatchBindingPlan.prepare(artifacts);
+        var failure = assertThrows(IllegalArgumentException.class, () -> plan.bind(List.of(descriptor(Shape.of(0)))));
+        assertTrue(failure.getMessage().contains("actualB=0"));
+        assertTrue(failure.getMessage().contains("outer=" + constraint.nodeId()));
+        assertTrue(failure.getMessage().contains("subject=" + constraint.subject()));
+        assertEquals(2, plan.bind(List.of(descriptor(Shape.of(2)))).batchSize());
+    }
+
+    @Test void failedBodyPredicateDistinguishesContainingOccurrenceFromEqualLocalIds() {
+        Tensor h = TensorFactory.create(descriptor(Shape.scalar()));
+        Tensor x = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32,
+                Shape.ofDimensions(B), Optional.empty(), false));
+        var benign = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h.neg()), List.of());
+        // Independent templates must not share lexical identities.
+        Tensor otherH = TensorFactory.create(h.descriptor()), otherX = TensorFactory.create(x.descriptor());
+        var restricted = new ScanBody(List.of(otherH), List.of(otherX), List.of(), List.of(otherH), List.of(otherX.argMax(0)));
+        Tensor initial = TensorFactory.create(h.descriptor());
+        Tensor sequence = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32,
+                Shape.ofDimensions(new StaticDimension(1), B), Optional.empty(), false));
+        var a = Scan.apply(List.of(initial), List.of(sequence), List.of(), benign, false);
+        var b = Scan.apply(List.of(initial), List.of(sequence), List.of(), restricted, false);
+        var artifacts = compile(List.of(a.finalCarry().getFirst(), b.outputs().getFirst()));
+        var scans = artifacts.graph().nodes().stream().filter(node -> node.scanBody().isPresent()).toList();
+        var owner = scans.stream().filter(node -> !CapturedGraphInference.inferAndValidate(
+                node.scanBody().orElseThrow().graph()).constraints().isEmpty()).findFirst().orElseThrow();
+        var local = CapturedGraphInference.inferAndValidate(owner.scanBody().orElseThrow().graph()).constraints().getFirst();
+        assertTrue(scans.stream().filter(node -> node != owner).anyMatch(node ->
+                node.scanBody().orElseThrow().graph().nodes().stream().anyMatch(n -> n.id().equals(local.nodeId()))));
+        var plan = BatchBindingPlan.prepare(artifacts);
+        var actual = artifacts.constants().bindableInputBindings().stream().map(input ->
+                input.tensorId().equals(sequence.id()) ? descriptor(Shape.of(1, 0)) : initial.descriptor()).toList();
+        var failure = assertThrows(IllegalArgumentException.class, () -> plan.bind(actual));
+        assertTrue(failure.getMessage().contains("actualB=0"));
+        assertTrue(failure.getMessage().contains("outer=" + owner.id()));
+        assertTrue(failure.getMessage().contains("scoped=" + local.nodeId()));
+        assertTrue(failure.getMessage().contains("subject=" + local.subject()));
+        var valid = artifacts.constants().bindableInputBindings().stream().map(input ->
+                input.tensorId().equals(sequence.id()) ? descriptor(Shape.of(1, 3)) : initial.descriptor()).toList();
+        assertEquals(3, plan.bind(valid).batchSize());
     }
 
     @Test void validatesAllOccurrencesDenseReadViewsFlagsAndUnknownSymbols() {
