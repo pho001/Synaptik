@@ -72,6 +72,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  * while its validated physical bindings retain the full-gradient write span. Its selected
  * strategy is scalar with one range and no materialization; packed invocation bases never
  * become prepared or cached mutable state.
+ * Pool units authenticate their actual two- or three-dimensional IR and matching geometry
+ * independently of class projection. Selective low arithmetic may use projection 77 only when
+ * the shared generated-compatibility predicate qualifies that actual portable IR; legacy
+ * projections 55 and 56 remain exclusive to their original respective pool families.
  *
  * @param units non-null computation-oriented units in stable topological order; copied
  *     defensively, with no eight-unit ceiling for a direct long plan
@@ -1674,6 +1678,11 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             boolean parallel = executionStrategy.orchestration()
                     == ExecutionStrategy.Orchestration.PARALLEL;
             boolean vector = executionStrategy.compute() == ExecutionStrategy.Compute.VECTOR;
+            int schema = portablePlan.specialization().classIdentitySchema();
+            boolean selectiveLowSchema = schema == io.github.pho001.synaptik.backend.cpu.internal.cache
+                    .CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
+                    && io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization
+                            .requiresLowPrecisionArithmeticSchema(portablePlan.portableKernelIr());
             if (boundaryValues.isEmpty() || accessBindings.size() != boundaryValues.size()
                     || carrierPattern.size() != boundaryValues.size()
                     || generatedCarrierPattern.size() != boundaryValues.size()
@@ -1697,8 +1706,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     || pool2d != pool2dGeometry.isPresent()
                     || pool3d != pool3dGeometry.isPresent()
                     || attention != attentionGeometry.isPresent()
-                    || pool2d != (portablePlan.specialization().classIdentitySchema() == 55)
-                    || pool3d != (portablePlan.specialization().classIdentitySchema() == 56)
+                    || schema == 55 && !pool2d || pool2d && schema != 55 && !selectiveLowSchema
+                    || schema == 56 && !pool3d || pool3d && schema != 56 && !selectiveLowSchema
                     || matmul && (conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                         || pool2dGeometry.isPresent() || pool3dGeometry.isPresent())
                     || pool2d && (conv2dGeometry.isPresent() || conv3dGeometry.isPresent()

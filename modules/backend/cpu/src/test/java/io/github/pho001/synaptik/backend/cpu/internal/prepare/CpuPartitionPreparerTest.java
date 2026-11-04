@@ -668,6 +668,57 @@ public class CpuPartitionPreparerTest {
         }
     }
 
+    @Test void lowPoolingPreparesAndExecutesBothSpatialFamilies() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            int one = switch (type) {
+                case BFLOAT16 -> 0x3f80;
+                case FLOAT16 -> 0x3c00;
+                case FLOAT8_E4M3 -> 0x38;
+                case FLOAT8_E5M2 -> 0x3c;
+                default -> throw new AssertionError(type);
+            };
+            for (boolean spatial3d : List.of(false, true)) for (boolean average : List.of(false, true)) {
+                var context = spatial3d
+                        ? io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLoweringTest.context(
+                                average ? io.github.pho001.synaptik.model.operation.pooling.Pool3dKind.AVERAGE_POOL3D
+                                        : io.github.pho001.synaptik.model.operation.pooling.Pool3dKind.MAX_POOL3D,
+                                average ? new io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs(
+                                        2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false)
+                                        : new io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs(
+                                                2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false),
+                                type, Shape.of(1, 1, 2, 2, 2), Shape.of(1, 1, 1, 1, 1))
+                        : io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool2dLoweringTest.context(
+                                average ? io.github.pho001.synaptik.model.operation.pooling.Pool2dKind.AVERAGE_POOL2D
+                                        : io.github.pho001.synaptik.model.operation.pooling.Pool2dKind.MAX_POOL2D,
+                                average ? new io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs(
+                                        2, 2, 1, 1, 0, 0, 1, 1, false)
+                                        : new io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs(
+                                                2, 2, 1, 1, 0, 0, 1, 1, false),
+                                type, Shape.of(1, 1, 2, 2), Shape.of(1, 1, 1, 1));
+                var analysis = new CpuPartitionPreparer().analyze(context);
+                var unit = analysis.plan().units().getFirst();
+                try (var fixture = new io.github.pho001.synaptik.backend.cpu.internal.executable
+                        .CpuRecurrentScanExecutionTest.Fixture(analysis, 0, false, false, Map.of(),
+                                java.util.OptionalLong.empty())) {
+                    var input = fixture.storage.get(unit.boundaryValues().getFirst());
+                    var output = fixture.storage.get(unit.boundaryValues().getLast());
+                    for (int i = 0; i < (spatial3d ? 8 : 4); i++) {
+                        if (type.byteWidth() == Short.BYTES)
+                            input.setAtIndex(java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED, i, (short) one);
+                        else input.setAtIndex(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) one);
+                    }
+                    fixture.executable.bind(fixture.state).execute();
+                    int actual = type.byteWidth() == Short.BYTES
+                            ? Short.toUnsignedInt(output.getAtIndex(
+                                    java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED, 0))
+                            : Byte.toUnsignedInt(output.getAtIndex(java.lang.foreign.ValueLayout.JAVA_BYTE, 0));
+                    assertEquals(one, actual, type + " spatial3d=" + spatial3d + " average=" + average);
+                }
+            }
+        }
+    }
+
     private static CpuPartitionPreparationPlan analyzeWith(
             PrepareContext<CpuPartitionAnalysisInputs> base, List<CarrierAccess> carriers,
             PortableExecutionConfig config) {
