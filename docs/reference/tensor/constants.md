@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A **scalar** has rank zero: no coordinate axes, but one value.
+`full` repeats one value throughout a shape; `zeros` and `ones` use particular fill values.
+An **identity matrix** has ones where row and column indices are equal and zeros elsewhere;
+the rectangular form uses the same rule even when row and column counts differ.
+“Identity” here is a numeric pattern, not Tensor object identity.
+BFLOAT16 is a compact floating-point format; **ties-to-even rounding** resolves an exactly
+halfway conversion by choosing the encoding with an even retained low bit.
+These factory examples populate storage immediately, unlike operation expressions that only
+describe future arithmetic.
+
 <a id="complete-constant-creation-example"></a>
 ### Complete constant-creation example
 

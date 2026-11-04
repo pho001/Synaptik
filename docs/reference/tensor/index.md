@@ -5,6 +5,14 @@ A Tensor has stable identity and a logical descriptor (type, shape, optional lay
 
 [Reference goals](../index.md) · [Tensor source](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java) · [Generated Tensor Javadoc, build required](../../../modules/model/build/docs/javadoc/io/github/pho001/synaptik/model/tensor/Tensor.html) ([obtain it](../javadoc.md))
 
+**New to tensor terminology?** A tensor is an array with one coordinate per **axis**.
+Its **shape** lists the axis sizes; its **rank** counts them. Shape `[2, 3]` means two rows
+and three columns. A **descriptor** describes that array without containing its numbers.
+An **expression** records how a result should be calculated; **execution** performs the
+calculation. **Gradient eligibility** requests that selected derivatives may be needed; it
+does not itself establish derivative support. Start with [shapes](shapes.md) for coordinates
+and [layouts](layouts.md) for how coordinates map to storage.
+
 ## Foundations and creation
 
 | Question | Canonical topics |

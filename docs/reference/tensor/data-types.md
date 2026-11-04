@@ -2,6 +2,36 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** An element's numeric format determines which values fit and how they are encoded.
+Signed integer formats store whole numbers; floating-point formats store a sign, an exponent
+(scale), and a significand (precision). Fewer bits generally mean fewer representable values.
+FP8 means eight-bit floating point; E4M3 and E5M2 name different allocations of exponent and
+fraction bits, not interchangeable encodings. BOOL represents false or true.
+
+**Rounding** chooses a representable value when the exact result does not fit.
+**Ties-to-even** chooses the candidate whose retained least-significant bit is zero when two
+candidates are equally near. **Narrowing** converts to a less expressive format;
+**promotion** chooses the common type an operation uses, without itself converting stored data.
+An **accumulator** holds intermediate totals, which may use a wider format than the final output.
+NaN means “not a number”; infinity and signed zeros are separate floating-point representations.
+The detailed format and backend restrictions below still apply.
+
+**Reading numerical edge cases.** Floating overflow exceeds a format's finite range;
+underflow reaches its very small-magnitude range, potentially rounding to zero.
+A **subnormal** represents values closer to zero than the smallest normal value, with less
+relative precision. Denormals-are-zero (**DAZ**) treats such an input as signed zero at a permitted
+arithmetic site; flush-to-zero (**FTZ**) does so for a permitted result. These are restricted
+permissions below, not universal behavior or permission to change stored comparisons.
+A NaN **payload** is extra information in its bit pattern; a **quiet** NaN and a **signaling** NaN
+have different encodings. Preserving a numeric class is weaker than preserving every bit.
+**Two's complement** is the signed integer encoding in which fixed-width arithmetic can wrap
+modulo a power of two; that numeric wrapping differs from checked shape arithmetic throwing.
+
+**Fused multiply-add** combines a product and an addition with one final rounding instead of
+rounding the product separately. **Reassociation** changes the grouping of a sequence of
+operations. Mathematical equality alone does not authorize either transformation: the applicable
+operation's exact numerical rules and route restrictions still decide what is permitted.
+
 <a id="data-types"></a>
 ## Data types
 

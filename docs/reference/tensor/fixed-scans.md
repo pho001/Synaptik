@@ -2,6 +2,17 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A **scan** visits an ordered axis while carrying information from earlier
+visited positions. A cumulative sum returns every partial total, unlike a reduction that returns
+only the final total. **Inclusive** includes the current value; **exclusive** reports the total
+before it. A **recurrence** updates a state at each step.
+Recurrent neural network (**RNN**) cells, gated recurrent units (**GRUs**), and long short-term
+memory (**LSTM**) cells use different fixed state-update formulas. Their **hidden state** is the
+remembered numeric vector; an LSTM additionally has a cell state. A **gate** controls how much
+information passes through an update. **Time-major** places time on the first axis.
+The valid-length vector says how many steps belong to each batch row, not how much storage
+the rectangular input has.
+
 <a id="cumulative-scan-expressions"></a>
 ### Cumulative-scan expressions
 

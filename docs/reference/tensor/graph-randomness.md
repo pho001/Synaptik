@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** RNG means **random-number generator**. Its state identifies where sampling
+continues, rather than representing a sampled value itself. A **key** names a stream or domain;
+a **counter** names a logical sample position. Passing the returned next state expresses
+successive intervals; reusing the same state branches from the same interval.
+**Dropout** randomly suppresses values during training. **Inverted** dropout rescales kept values
+to preserve the ideal average over repeated draws. Its keep mask records the decisions needed
+again during gradient calculation, so backward work need not sample a new mask.
+These model concepts do not select a portable random-bit algorithm or promise identical samples
+across backend implementations.
+
 <a id="explicit-graph-rng-state"></a>
 ### Explicit graph RNG state
 

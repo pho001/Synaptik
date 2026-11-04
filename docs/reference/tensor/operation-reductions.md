@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A **reduction domain** is the group of positions combined into one result.
+SUM combines the whole group; a **cumulative scan** instead returns a partial result at every
+position. Softmax also preserves every position, but each probability depends on the complete
+normalization slice. A **loss** compares predictions with targets and may reduce those comparisons
+to one number. The kind names which meaning is requested; attributes record axes, correction,
+tie rules, or loss reduction. A **normalized axis** is an already checked non-negative position,
+not a caller's negative shorthand. See [reductions](reductions.md), [scans](fixed-scans.md),
+[normalization](normalization.md), and [losses](statistics-losses.md) for the input-aware APIs.
+
 <a id="aggregate-reduction-semantic-kinds-and-attributes"></a>
 ### Aggregate reduction semantic kinds and attributes
 

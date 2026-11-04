@@ -2,6 +2,13 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A storage **association** is a Tensor's current reference to a borrowed memory
+wrapper. Replacing that reference is not copying values, changing the descriptor, or freeing the
+previous memory. Multiple tensors can refer to the same wrapper, so changing one association does
+not change the others. **Atomic** replacement means another association access sees a complete
+old or new reference; it does not make all reads and writes to the underlying bytes atomic or
+thread-safe. **Liveness** asks whether the memory scope is still open at the instant checked.
+
 The matching `MemorySegment.ofArray(...)` overload creates a writable heap segment with an
 automatic scope. That scope keeps the primitive array reachable and permits access from any
 thread. The attached `MemorySegmentStorage` remains a borrowed, non-closing wrapper; no arena,

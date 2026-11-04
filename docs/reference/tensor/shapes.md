@@ -2,6 +2,17 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reading a shape.** A tensor is an array addressed by one coordinate per **axis**.
+Its **rank** is the number of axes; each axis has an **extent**, the number of positions on it.
+Shape `[2, 3]` has rank two, with two rows and three columns. Axis numbering starts at zero;
+axis `-1` addresses the last axis where an API accepts negative axes. A **singleton** has extent
+one. A symbolic extent such as `batch` names a size not yet supplied, rather than a negative size.
+
+**Broadcasting** lets compatible shapes participate in one operation by logically repeating
+singleton positions. Compare shapes from the right: each aligned pair must satisfy the applicable
+equality or singleton rule. The [local broadcasting rules below](#broadcasting) explain
+which symbolic relationships can be proved; broadcasting is not a promise to copy storage.
+
 <a id="shapes-and-dimensions"></a>
 ## Shapes and dimensions
 
@@ -162,6 +173,18 @@ paired with a non-singleton static size are rejected because local model code ca
 compatibility. Current package-private compiler verification does not broaden this local
 broadcasting rule: it retains a symbolic obligation only when an operation contract can already
 select one exact output descriptor.
+
+Read this shape-alignment diagram from left to right. The absent leading axis behaves as an
+extent-one axis; matching does not infer names such as “batch” or “feature.”
+
+```mermaid
+flowchart LR
+    accTitle: Broadcasting aligns shapes from the last axis
+    accDescr: Left shape 2 by 1 by 4 and right shape 3 by 4 align as 2 by 1 by 4 and 1 by 3 by 4. Singleton axes repeat logically to produce shape 2 by 3 by 4.
+    L["Left: 2 × 1 × 4"] --> A["Aligned pairs: 2:1, 1:3, 4:4"]
+    R["Right: 3 × 4; implicit leading 1"] --> A
+    A --> O["Result: 2 × 3 × 4"]
+```
 
 Shape broadcasting does not calculate strides, layouts, storage, materialization, or backend execution information.
 

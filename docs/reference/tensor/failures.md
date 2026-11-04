@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**How to read this summary.** Local validation checks descriptors and request parameters when
+an expression is constructed; it cannot check input values it never reads.
+A **deferred obligation** is a condition left for the stage that knows concrete sizes or values,
+not permission to ignore that condition. **Checked overflow** throws when an integer size
+calculation cannot be represented, unlike deliberate fixed-width wrapping in numeric operations.
+**Ownership** asks who must keep memory alive and who may release it; a borrowed association
+does not transfer that responsibility. For a shorter first explanation before the detailed
+failure inventory, use [shapes](shapes.md), [layouts](layouts.md), and
+[host-storage lifetimes](host-storage.md).
+
 <a id="failures-and-ownership-summary"></a>
 ## Failures and ownership summary
 

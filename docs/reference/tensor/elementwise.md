@@ -2,6 +2,23 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** **Unary** means one input; an **elementwise** function transforms each
+position without mixing it with neighboring positions. A **scalar** parameter supplies one
+same-typed value for all positions. A **clamp** limits values to a range.
+An **activation** is a numeric transform used between learned computations: ReLU keeps positive
+values and maps negative values to zero, while sigmoid smoothly maps real values toward the
+interval from zero to one. A floating **classification** instead returns a true/false tensor
+identifying finite values, NaNs, or infinities; it is not a machine-learning class prediction.
+The exact functions and exceptional-value rules remain in the tables below.
+
+For the function names below, a **reciprocal** is `1/x`; **exp** is the natural exponential
+with base `e`, approximately `2.71828`; and the natural **logarithm** is its inverse.
+Thus `exp(0) = 1` and `log(1) = 0` in exact mathematics. **Tanh** smoothly maps real inputs
+between negative one and one. The Gaussian error function **erf** is related to the probability
+of values falling within a centered normal distribution; GELU's `Phi` is the cumulative
+probability up to its argument for a mean-zero, unit-standard-deviation normal distribution.
+These explanations orient the reader; the formulas and special-value rules below remain exact.
+
 <a id="unary-numeric-transforms-and-floating-classifications"></a>
 ### Unary numeric transforms and floating classifications
 

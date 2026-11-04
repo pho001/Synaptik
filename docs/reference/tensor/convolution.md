@@ -2,6 +2,19 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Convolution here applies a small table of weights, the **kernel**, at successive
+spatial positions. At each output position it multiplies sampled input values by weights and sums
+the products; this is a **contraction** over kernel positions and input channels.
+A **channel** is one feature plane, and a **batch** holds independent examples.
+**Groups** divide channels into independent subsets, preventing connections across groups.
+An optional **bias** adds one value per output channel.
+
+Window **stride** is the distance between window starts, unlike a storage-layout stride.
+**Dilation** is the spacing between samples inside one kernel; **padding** extends the conceptual
+coordinate domain around the input. Kernel size counts samples, while effective kernel size counts
+the full span including dilation gaps. The existing Conv1d diagram below explains composition;
+its inserted height-one axis does not add a second varying spatial direction.
+
 <a id="grouped-ncw-conv1d-composition"></a>
 ### Grouped NCW Conv1d composition
 

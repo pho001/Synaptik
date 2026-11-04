@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A computation graph separates data from the operations using it:
+a **value** is one described input or result, and a **node** is one particular use of an operation.
+Two nodes may perform the same kind of calculation without being the same occurrence.
+**Topological order** puts each producer before nodes that consume its outputs.
+An **intermediate representation** is the structured form used to describe a program between
+source construction and execution. These graph records describe that structure; they are not
+an execution schedule or allocated tensor memory. **Publication** separately associates a
+selected graph result with the public Tensor that should receive it.
+
 <a id="graph-values-and-compiled-nodes"></a>
 ## Graph values and compiled nodes
 

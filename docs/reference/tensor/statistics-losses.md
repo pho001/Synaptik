@@ -2,6 +2,20 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A **statistic** summarizes a set of values. Batch mean and variance summarize
+the current input; **running statistics** summarize prior inputs and have explicit next values
+here, rather than being silently mutated. Variance averages squared deviations from the mean;
+the biased population form divides by the count, while the correction-one estimate divides by
+one less than that count. **Momentum** below is the weight of the new batch in that update,
+not an optimizer's momentum parameter.
+
+A **loss** measures disagreement with a target. Mean squared error measures squared numeric
+differences; categorical cross entropy measures disagreement over alternative classes.
+**Logits** are unrestricted class scores before probability normalization, not probabilities
+already summing to one. A dense target supplies a weight for each class; an index target names
+one class. The exact count, ignored-target, empty-domain, and supported-gradient rules below
+remain specific to each loss.
+
 <a id="batch-normalization-training-and-statistic-transition-expressions"></a>
 ### Batch-normalization training and statistic-transition expressions
 

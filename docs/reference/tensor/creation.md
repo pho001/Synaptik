@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Choose among three different actions: `create` names a described Tensor,
+`allocate` reserves storage for resolved geometry, and import copies supplied values into new
+storage. A **carrier** is the Java primitive array holding values or raw encoded bits.
+**Row-major** order visits the last axis fastest. **Dense-contiguous** geometry stores that
+sequence without gaps, starting at offset zero. A **leaf** is a Tensor without expression
+provenance; having stored values does not automatically make it a compiler constant.
+For coordinate, span, and offset terminology, start with [layouts](layouts.md).
+
 Construction remains package-private so `Tensor` keeps one validation path. Code outside
 `model.tensor` creates tensors through the public static `TensorFactory`: `create(descriptor)`
 creates an unlabeled storage-free tensor, while the complete overload also accepts optional label

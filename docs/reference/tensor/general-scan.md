@@ -2,6 +2,33 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** General Scan describes a repeated calculation with a fixed number of steps.
+The **body** is the expression template for one step. **Carry** is state passed to the next
+step; a **sequence** supplies the current time slice; an **invariant** supplies the same input
+at every step. An **emission** is a requested per-step output, stacked along a time axis.
+A **formal** is a declared placeholder; an **actual** is the Tensor supplied for that position.
+Declaring these roles does not execute a loop.
+
+A **residual** names an internal value that can be retained for later use, such as computing
+gradients. **Demand** describes which histories a downstream consumer actually needs, rather
+than requiring all internal values to be stored. ROW(axis) identifies a proved independent
+batch-row coordinate; SHARED has no such per-row coordinate. Equal axis sizes alone do not prove
+either role. The detailed source, compiler, and backend restrictions below remain separate.
+
+Read the cycle as the meaning of a step, not a callback API or a runtime schedule.
+
+```mermaid
+flowchart LR
+    accTitle: Scan distinguishes changing state from per-step and unchanged inputs
+    accDescr: One body takes previous carry, the current sequence slice, and invariants. It produces next carry for the next step and emissions for the stacked result.
+    C["Previous carry"] --> B["One step body"]
+    S["Current sequence slice"] --> B
+    I["Invariant inputs"] --> B
+    B --> N["Next carry"]
+    N --> C
+    B --> E["Emission at this time position"]
+```
+
 <a id="general-scan-source-construction"></a>
 ### General-scan source construction
 

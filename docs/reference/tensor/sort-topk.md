@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Sorting reorders values along an axis independently for each remaining
+coordinate. **Stable** means candidates equal under the ordering retain original index order.
+`argsort` returns those source positions rather than sorted values. **Top-K** selects only
+`k` value/index pairs; its “unsorted” option still returns a defined original-index ordering,
+not arbitrary or random order. A logical index is an axis coordinate, not a physical memory
+offset. NaNs and signed zeros need explicit ordering rules, so ordinary “ascending” intuition
+alone is insufficient. The matrix-kind section first distinguishes the name of an operation
+from the input-aware Tensor method that constructs an occurrence.
+
 <a id="matrix-multiplication-semantic-kind"></a>
 ### Matrix-multiplication semantic kind
 

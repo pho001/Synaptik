@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Indexing uses integer coordinates to relate input and output positions.
+**Gather** reads selected sources; **scatter** sends updates to selected destinations.
+The ND forms use coordinate tuples addressing several axes. **Functional** scatter produces
+a new result rather than mutating its base. **Composition** joins tensors: concat uses an
+existing axis, while stack creates one. Padding adds border positions and tiling repeats a
+complete pattern. These kind and attribute values describe the requests; the
+[gather](gather.md), [scatter](scatter.md), and [composition](composition.md) pages own the
+input-aware shape rules. A signature's input count counts tensors, not coordinates or elements.
+
 <a id="pad-and-tile-semantic-kinds-and-normalized-attributes"></a>
 ### Pad and tile semantic kinds and normalized attributes
 

@@ -2,6 +2,13 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A descriptor is a description of a value, not its data. **Data type** says how
+one element is represented, **shape** gives the axis sizes, and **layout** optionally maps
+coordinates to storage positions. A **gradient** describes how changing an input affects a
+selected result; `requiresGrad` requests eligibility for that calculation, not proof that the
+calculation is supported. A descriptor can therefore describe `[2, 3]` FLOAT32 data without
+allocating six numbers, and without yet choosing strides or an offset.
+
 <a id="tensor-descriptors"></a>
 ## Tensor descriptors
 

@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Geometry describes how logical positions are arranged, not the numerical
+values at those positions. **Contiguous** requests dense row-major placement; **reshape**
+regroups the same ordered elements; **expand** repeats compatible positions; **permutation**
+reorders axes. A **slice** selects a range, while slice update describes replacement in a new
+result. The operation kind names the request; a layout classifies resolved coordinate-to-storage
+mapping. Thus `CONTIGUOUS` is an operation request, not the same object as a `DENSE_CONTIGUOUS`
+layout classification. Read [layouts](layouts.md), [shape transforms](reshape-expand.md),
+[axis transforms](axis-transforms.md), and [slicing](slicing.md) for the corresponding reader models.
+
 <a id="contiguous-semantic-kind"></a>
 ### Contiguous semantic kind
 

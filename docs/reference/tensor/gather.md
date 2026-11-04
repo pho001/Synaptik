@@ -2,6 +2,26 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** **Select** fixes one coordinate and removes that axis. **Gather** lets an
+integer tensor supply many coordinates, potentially reusing the same source position.
+Gather Elements uses aligned per-position indices instead of inserting the full index shape.
+An **embedding** is the lookup-table case: each integer chooses a row of feature values.
+**One-hot encoding** turns each integer into a true/false row with one selected class position.
+These operations use integer positions, not Boolean masks; a mask expresses eligibility or choice
+rather than a coordinate. See [scatter](scatter.md) for the opposite direction, from updates
+toward indexed destinations.
+
+Read this conceptual gather from left to right: indices choose sources, and their order becomes
+result order. The arrows describe value meaning, not values computed during construction.
+
+```mermaid
+flowchart LR
+    accTitle: Gather reads source positions in index order
+    accDescr: Data has entries a, b, and c at indices zero, one, and two. Indices two, zero, and two request result c, a, and c, so one source position may be used more than once.
+    D["Data: a, b, c"] --> G["Gather at indices 2, 0, 2"]
+    G --> R["Result: c, a, c"]
+```
+
 <a id="scalar-select-expressions"></a>
 ### Scalar select expressions
 

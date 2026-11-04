@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** An axis is one coordinate direction, and rank counts those directions.
+**Permutation** reorders axes: exchanging rows and columns is a rank-two **transpose**.
+It does not sort element values. Inserting a singleton axis changes shape `[2, 3]` to,
+for example, `[2, 1, 3]` without adding logical elements; **squeeze** removes such an extent-one
+axis. These are different from [expand](reshape-expand.md#expand-expressions), which can repeat
+positions. A resolved logical view can describe reordered strides while still leaving the
+physical alias-or-copy decision to later stages.
+
 <a id="permute-and-transpose-expressions"></a>
 ### Permute and transpose expressions
 

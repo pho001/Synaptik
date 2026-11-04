@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** These **kinds** are typed names for calculations, not functions that evaluate
+data. **Binary** arithmetic consumes two logical inputs; **elementwise** means corresponding
+positions are combined. A comparison returns truth values, Boolean logic combines truth values,
+`WHERE` chooses between branch values, and a cast requests type conversion.
+**Attributes** hold fixed configuration such as a target data type; input shapes live in separate
+descriptors. Read [operation signatures](operation-foundation.md) for that separation and
+[arithmetic expressions](arithmetic.md) or [selection and casts](selection-casts.md) for the
+input-aware Tensor calls. Equal printed names in different families do not make kinds equal.
+
 <a id="binary-arithmetic-semantic-kinds"></a>
 ### Binary arithmetic semantic kinds
 

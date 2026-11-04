@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A sliding window is a neighborhood sampled at successive coordinate positions.
+**Unfold** exposes samples as windows or columns; **fold** adds their contributions back at
+destination coordinates. Overlap addition means fold is not generally a lossless inverse.
+Window stride measures movement between window starts, while dilation measures spacing within a
+window; neither is an element stride in storage. The attributes hold those geometric choices,
+not input values. Use the [window-transform reader model and overlap diagram](windows.md)
+to visualize the relationship before reading the exact kind/attribute pairings below.
+
 <a id="window-transform-semantic-kinds-and-attributes"></a>
 ### Window-transform semantic kinds and attributes
 

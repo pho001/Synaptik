@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** **Eager** initialization samples and stores data immediately, unlike a graph
+expression describing future sampling. A **distribution** specifies how draws are spread:
+normal (Gaussian) draws cluster around a mean with spread set by standard deviation;
+uniform draws use an equal-density interval before storage rounding; Bernoulli draws produce
+true with a specified probability and false otherwise.
+An **inclusive** bound may be emitted; an **exclusive** bound may not be emitted by a conforming
+source in its sampling format. Narrowing to the stored format can change that interval
+relationship, as the uniform example shows. A **seed** initializes generator state; reproducibility
+also depends on the generator implementation and the sequence of calls, not just that seed.
+
 <a id="complete-integer-range-example"></a>
 ### Complete integer-range example
 

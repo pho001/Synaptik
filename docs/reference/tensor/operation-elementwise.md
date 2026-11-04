@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** **Unary** operations have one input, and **elementwise** operations act at each
+logical position without mixing positions. A numeric transform returns a number; a floating
+classification returns a true/false answer such as “is this NaN?” A scalar operation uses one
+fixed typed parameter at every position. That parameter is an **attribute**, not another Tensor
+input. **First-class** means the operation is recorded directly under its own kind rather than
+as a stored chain of simpler operations. The [Tensor transform page](elementwise.md) explains
+the functions and input-aware construction rules; these kinds only name their meanings.
+
 <a id="unary-elementwise-semantic-kinds"></a>
 ### Unary elementwise semantic kinds
 

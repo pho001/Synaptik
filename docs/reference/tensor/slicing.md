@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A **slice** selects a coordinate range on chosen axes.
+**Half-open** means the start is included and the end is excluded; conceptual start `1`,
+end `6`, and step `2` select positions `1, 3, 5`. A negative step reverses traversal rather
+than making the selected extent negative. A negative axis counts from the final axis; a
+negative bound counts relative to the selected axis's extent. These are different roles.
+**Functional update** describes a new base-shaped result with a selected region replaced;
+it does not mutate the base. A **crop** extracts a region, and its **prefix** states how many
+positions precede that region on each axis. Layout **stride** measures storage-element spacing,
+whereas slice **step** measures logical-coordinate spacing.
+
 <a id="slice-expressions"></a>
 ### Slice expressions
 

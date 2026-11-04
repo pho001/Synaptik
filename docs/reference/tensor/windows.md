@@ -2,6 +2,25 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A **window** is a small set of neighboring coordinates sampled repeatedly
+across an input. **Unfold** exposes those samples as explicit window positions.
+**Fold** sends window contributions back to their source coordinates and adds overlaps;
+it does not generally undo unfold or divide by the overlap count.
+For images, **im2col** arranges sampled patches into columns, while **col2im** accumulates
+columns into image positions. NCHW means batch, channel, height, width; NCDHW adds depth before
+height. These describe logical axes, not a storage-allocation promise.
+
+Read this conceptual width-three example from extraction to overlap addition. The center
+element occurs in three windows, so folding unchanged windows counts it three times.
+
+```mermaid
+flowchart LR
+    accTitle: Overlapping windows repeat contributions when folded
+    accDescr: Unfolding the sequence a b c d e with size three and step one gives windows a b c, b c d, and c d e. Folding those unchanged windows sums overlaps to a, twice b, three times c, twice d, e.
+    I["a, b, c, d, e"] --> U["Unfold: abc; bcd; cde"]
+    U --> F["Fold by addition: a, 2b, 3c, 2d, e"]
+```
+
 <a id="window-transform-expressions"></a>
 ### Window-transform expressions
 

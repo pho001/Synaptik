@@ -2,6 +2,22 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** **Binary** means two inputs, not a binary number format.
+**Elementwise** arithmetic combines corresponding logical positions, with compatible
+[broadcasting](shapes.md#broadcasting) when shapes differ. For conceptual rows `[2, 4]`
+and `[1, 3]`, subtraction requests `[1, 1]`; it does not combine the row into one total.
+A comparison instead requests one true/false result per position, and Boolean logic combines
+those truth values. **Provenance** records which operation and ordered inputs describe a result;
+it is not a record of already calculated values. Numerical exceptions below describe eventual
+arithmetic, not work done while constructing these expressions.
+
+When reading gradient notes, automatic differentiation (**AD**) constructs derivatives from
+operation rules. A **cotangent** is an incoming sensitivity propagated backward from a selected
+result; reversing broadcast must add sensitivities from every repeated use back into the original
+input shape. **First-order** means derivatives of the original calculation, not derivatives of
+those derivatives. “Commutative” means exchanging operands leaves the mathematical result
+unchanged, but the recorded input order can still matter to provenance.
+
 <a id="binary-arithmetic-expressions"></a>
 ### Binary arithmetic expressions
 

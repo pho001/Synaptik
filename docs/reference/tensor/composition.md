@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Padding adds constant-filled border positions; tiling repeats a complete
+pattern. Neither is just a coordinate rename. For example, tiling conceptual `[a, b]` twice
+requests `[a, b, a, b]`, not `[a, a, b, b]`.
+**Concatenation** joins inputs along an existing axis; **stacking** adds a new axis to hold
+same-shaped inputs. Joining two `[2, 3]` tensors along axis zero therefore gives `[4, 3]` with
+concat, but `[2, 2, 3]` with stack. **Unstack** removes one axis by returning separate scalar
+selections. These examples describe intended values and shape relationships, not eager execution.
+
 <a id="pad-and-tile-expressions"></a>
 ### Pad and tile expressions
 

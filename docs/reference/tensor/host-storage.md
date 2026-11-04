@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** **Host** means memory visible to the Java-side program, as opposed to memory
+managed only by a device route. A storage wrapper describes an existing region; it does not own
+the region's lifetime. **Borrowed** means the caller must keep that region usable for as long as
+it is needed. An **arena** is a Java memory-lifetime owner; closing its scope can invalidate a
+segment even when a Tensor still refers to the wrapper. **Capacity** counts physically available
+elements, not necessarily the number of logical tensor positions. Repeated coordinates and gaps
+can make those counts differ; [layouts](layouts.md) explains that mapping.
+
 <a id="host-visible-storage"></a>
 ## Host-visible storage
 

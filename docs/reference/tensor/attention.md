@@ -2,6 +2,29 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Attention is a content-based weighted lookup. A **query** describes what is
+being sought; each **key** describes an available item, and its **value** carries the information
+to combine. A **dot product** multiplies matching components and adds the products into one
+score. **Softmax** converts eligible scores into non-negative relative weights; it is not a
+hard selection of one winner. A **mask** marks eligible positions, and **causal** attention
+excludes later key positions according to the exact positional rule below.
+Batch axes repeat this calculation independently; a head axis groups separate attention
+calculations rather than adding another sequence coordinate.
+
+Read the flow as the mathematical dependency of one query row, not an implementation schedule.
+The special-value and all-excluded-row rules below take precedence over the finite-row picture.
+
+```mermaid
+flowchart LR
+    accTitle: Attention separates scoring from value combination
+    accDescr: Queries and keys determine scores. Eligibility and scores determine weights. Weights combine value rows into output rows. Values are not inputs to the weight calculation.
+    Q["Query and keys"] --> S["Scaled dot-product scores"]
+    S --> W["Softmax over eligible keys"]
+    M["Explicit and causal eligibility"] --> W
+    W --> O["Weighted sum: one output row"]
+    V["Value rows"] --> O
+```
+
 <a id="scaled-dot-product-attention-expressions"></a>
 ### Scaled dot-product attention expressions
 

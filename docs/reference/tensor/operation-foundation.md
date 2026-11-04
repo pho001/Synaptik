@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** An operation description separates **kind** (“what calculation?”) from
+**attributes** (“which fixed parameters?”). Its **signature** checks which attribute class and
+how many input/output positions are allowed. **Arity** or **cardinality** here means that position
+count, not the number of array axes or elements. One input can itself be a million-element tensor.
+**Semantic** means the calculation's meaning, independent of the algorithm that will implement it.
+An operation value is reusable description; a producer or graph node identifies one particular
+occurrence with particular inputs. Validating a signature does not establish numerical validity,
+available derivatives, or backend support.
+
 <a id="operation-semantic-foundation"></a>
 ## Operation semantic foundation
 

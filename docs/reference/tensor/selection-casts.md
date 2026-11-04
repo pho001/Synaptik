@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** `where` requests a per-position choice: use the true-branch value when the
+corresponding Boolean condition is true, otherwise the false-branch value. This is not a
+Java `if` that conditionally constructs only one branch, nor selection by an integer coordinate.
+A **cast** requests conversion to another data type; it is not merely reinterpreting the same
+bytes under a new name. **Widening** moves to a more expressive representation; **narrowing**
+can round, overflow, or lose information under the specific conversion rules below.
+Shape broadcasting chooses corresponding positions; type promotion chooses the common branch
+type. Those are distinct decisions.
+
 <a id="conditional-selection-expression"></a>
 ### Conditional-selection expression
 
@@ -143,6 +152,13 @@ gradient routing, graph capture, ONNX mapping, backend support, or execution.
 
 <a id="cast-expressions"></a>
 ### Cast expressions
+
+For the conversion vocabulary, **truncate toward zero** removes the fractional part
+(`-2.9` becomes `-2`), while **saturate** limits an out-of-range result to the nearest allowed
+endpoint. Keeping the low bits instead wraps and can change the sign. **Direct rounding** rounds
+once into the requested format; **double rounding** goes through another format first and can
+choose a different final value. These are different conversion meanings, not interchangeable
+implementation shortcuts. The matrix and examples below specify which applies to each pair.
 
 `Tensor.cast(targetDataType)` records an explicit request to convert each logical input value to a
 target data type. The method accepts every ordered pair of current `DataType` values,

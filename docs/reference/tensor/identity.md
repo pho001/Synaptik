@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Identity answers “which particular object or occurrence?”, not “do these
+descriptions have equal fields?” Two tensors may have equal shapes and types without being the
+same tensor. A **producer** represents one use of an operation, while **provenance** connects
+each result to that producer and its numbered **output slot**. **Canonical wrapper** means the
+one Tensor object assigned to that slot, not a freshly recreated equivalent object.
+The existing multi-output diagram below shows why sibling results share one producer.
+None of these identity relationships proves that the results share physical storage.
+
 <a id="public-tensor-state"></a>
 ## Public Tensor state
 

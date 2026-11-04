@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A **mask** is a true/false tensor marking which positions participate.
+Masked reductions exclude false positions before arithmetic; multiplying all data by numeric
+zeros and ones is not equivalent when excluded values contain NaN or infinity.
+Boolean `all` asks whether every selected truth value is true; `any` asks whether at least one is.
+**Arg-min** and **arg-max** return the position of an extremum, not the extremum's value.
+A **tie policy** selects which position wins when several candidates are equal.
+Mask shapes align from the last axis; they do not automatically align with axes named “batch”
+or “time.”
+
 <a id="masked-sum-and-mean-expressions"></a>
 ### Masked sum and mean expressions
 

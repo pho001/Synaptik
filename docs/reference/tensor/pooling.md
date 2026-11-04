@@ -2,6 +2,16 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Pooling summarizes a moving neighborhood independently in each channel.
+Maximum pooling selects its greatest eligible sample; average pooling adds samples and divides
+by a count. Unlike convolution, pooling has no learned kernel weights and does not combine
+channels. Window **stride** moves the neighborhood between output positions; **dilation**
+spaces samples inside it. **Padding** describes positions outside the original domain, but its
+treatment differs by pooling family: maximum excludes them, while this average-pooling contract
+counts their positive-zero contributions. Floor and ceiling modes round the output-grid quotient
+down or up; they do not round input values. The existing Pool1d diagram shows its singleton-height
+composition, and the later numerical examples explain border windows.
+
 <a id="ncw-pool1d-composition"></a>
 ### NCW Pool1d composition
 

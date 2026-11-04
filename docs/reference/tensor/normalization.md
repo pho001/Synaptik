@@ -2,6 +2,28 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Normalization rescales related values using a shared quantity.
+Softmax turns scores, often called **logits**, into relative probabilities along one axis.
+Layer normalization subtracts a slice's mean and divides by the square root of its variance
+plus a stabilizing **epsilon** inside that square root. Root-mean-square (**RMS**) normalization
+uses the average of squares without subtracting the mean. Batch-normalization inference uses
+supplied per-channel mean and variance instead of calculating new statistics.
+These are distinct formulas, not different names for the same operation.
+**Affine** scale and bias mean multiplying by a parameter and then adding another.
+
+Read the paths below by first choosing which relationship you need. The picture compares
+mathematical roles; it does not claim identical supported types or execution routes.
+
+```mermaid
+flowchart LR
+    accTitle: Normalization families use different shared quantities
+    accDescr: Softmax uses exponentials and a slice sum for relative probabilities. Layer normalization uses a centered mean and variance. RMS normalization uses an uncentered mean square. Batch inference uses supplied channel statistics.
+    X["Related input values"] --> S["Softmax: relative probabilities"]
+    X --> L["Layer: center, divide by sqrt of variance plus epsilon"]
+    X --> R["RMS: divide by sqrt of mean square plus epsilon"]
+    X --> B["Batch inference: supplied channel statistics"]
+```
+
 <a id="softmax-expressions"></a>
 ### Softmax expressions
 

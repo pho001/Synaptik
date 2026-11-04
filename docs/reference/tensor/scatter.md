@@ -2,6 +2,28 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Gather reads from indexed sources; **scatter** sends updates to indexed
+destinations. Scatter is **functional** here: it describes a new result, not mutation of the
+base Tensor. **ND** means indexing across multiple dimensions: one coordinate **tuple**, such
+as `[row, column]`, can choose an element or the start of an untouched suffix slice.
+**Tuple depth** counts how many axes the tuple addresses. **Duplicate targets** occur when
+different updates address the same destination. Replacement requires uniqueness where specified;
+additive scatter instead combines every addressed update with the base.
+The exact shape and duplicate policies differ among Gather-ND, Scatter Add, Scatter Elements,
+and Scatter-ND, as detailed below.
+
+Read this conceptual Scatter Add as many updates flowing to destinations. It illustrates
+addition, not the replacement policy or a prescribed floating-point accumulation order.
+
+```mermaid
+flowchart LR
+    accTitle: Scatter Add combines repeated destinations
+    accDescr: Base values ten, twenty, thirty receive updates one and two at indices two and two. Both updates contribute to destination two, yielding ten, twenty, thirty-three in exact arithmetic.
+    B["Base: 10, 20, 30"] --> A["Add updates at destinations"]
+    U["Updates: 1, 2; indices: 2, 2"] --> A
+    A --> R["Result: 10, 20, 33"]
+```
+
 <a id="gather-nd-expressions"></a>
 ### Gather-ND expressions
 

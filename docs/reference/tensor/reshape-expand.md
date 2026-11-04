@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** These requests change different aspects of representation.
+`contiguous` requests dense row-major geometry: last-axis neighbors are adjacent, with no gaps
+between rows. **Reshape** regroups the same ordered element sequence under new coordinates,
+so `[2, 3]` can become `[3, 2]` but cannot gain another element.
+**Expand** logically repeats singleton positions or introduces leading repeated axes, such as
+`[1, 3]` becoming `[2, 3]`. That repetition can be described by zero strides.
+None of these expression constructors alone guarantees physical copying or shared memory;
+a logical **view** describes coordinates, while **materialization** actually produces stored data.
+
 <a id="contiguous-expressions"></a>
 ### Contiguous expressions
 

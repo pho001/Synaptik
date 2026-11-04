@@ -2,6 +2,15 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A vector is a rank-one array; a matrix is a rank-two array with rows and columns.
+Matrix multiplication combines each left row with each right column: multiply corresponding
+components, then sum them. That sum is a **dot product**, and the shared component axis is
+**contracted**, so it does not appear in the result. Earlier **batch** axes repeat independent
+matrix calculations. This is not elementwise multiplication, which never performs that sum.
+A **linear projection** uses weights to turn input features into output features; optional bias
+adds a separate value per output feature. The worked row/column example below shows the
+contraction numerically without implying construction-time evaluation.
+
 <a id="matrix-multiplication-expressions"></a>
 ### Matrix-multiplication expressions
 

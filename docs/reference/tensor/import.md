@@ -2,6 +2,14 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** Flat import receives one linear primitive array and an explicit description
+of its shape and type. Nested import receives arrays of arrays and infers the rectangular shape
+from their structure. **Rectangular** means corresponding axes have consistent lengths, rather
+than rows of varying length. **Row-major** flattening visits the last axis fastest.
+Import creates an independent copy; wrapping borrowed storage would instead retain an existing
+region. BOOL **normalization** here means converting all nonzero source bytes to canonical
+true byte `1`, not statistically rescaling numerical data.
+
 <a id="complete-flat-import-example"></a>
 ### Complete flat-import example
 

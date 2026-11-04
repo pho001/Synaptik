@@ -2,6 +2,26 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A **reduction** combines a group of input positions into one result.
+Reducing axis one of shape `[2, 3]` combines each row's three values independently.
+Removing that axis gives `[2]`; keeping it gives `[2, 1]`, which helps align the result for
+later broadcasting. A full reduction combines all axes into a scalar.
+This differs from elementwise arithmetic, which preserves a result at each corresponding position.
+**Reassociation** changes the grouping of additions or multiplications; floating-point rounding
+can make different groupings differ even when exact arithmetic would agree.
+
+Read these conceptual shape paths as two representations of the same two row totals, not an
+execution trace.
+
+```mermaid
+flowchart LR
+    accTitle: A reduction may remove or retain its axis
+    accDescr: A two-row three-column tensor reduces each row along axis one. Removing the axis gives shape two; retaining the axis gives shape two by one.
+    I["Input shape: 2 × 3"] --> R["SUM along axis 1: one total per row"]
+    R --> A["Remove axis: shape 2"]
+    R --> K["Keep axis: shape 2 × 1"]
+```
+
 <a id="numeric-aggregate-expressions"></a>
 ### Numeric aggregate expressions
 
@@ -312,6 +332,13 @@ and first provable aligned-mismatch failures occur before a Tensor identity is c
 
 <a id="multi-axis-and-statistical-reduction-expressions"></a>
 ### Multi-axis and statistical reduction expressions
+
+Here **mean** is the arithmetic average. **Variance** measures squared distance from that mean;
+**standard deviation** takes the square root, returning to the original units.
+**Correction** subtracts a specified count from the variance denominator; it is not an error
+repair or a rounding tolerance. L1 and L2 **norms** summarize magnitude by absolute values and
+squared values respectively. **Log-sum-exp** means the logarithm of a sum of exponentials.
+These names describe different aggregates, not interchangeable ways of reducing the same values.
 
 Twenty-six methods extend aggregate construction without changing full or single-axis overloads:
 

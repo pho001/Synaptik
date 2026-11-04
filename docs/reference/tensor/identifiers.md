@@ -2,6 +2,13 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
+**Reader model.** A typed identifier is a number labeled with what it identifies.
+`TensorId(7)`, `NodeId(7)`, and `ValueId(7)` are different kinds of names, not interchangeable
+references to the same entity. A node names a calculation occurrence; a value names data entering
+or leaving calculations. **Graph-local** means a name is interpreted only inside its owning
+graph, like a local variable inside its function. A public Tensor can participate in more than
+one graph without adopting one graph's local numbering.
+
 <a id="typed-identifiers"></a>
 ## Typed identifiers
 
