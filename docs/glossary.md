@@ -156,7 +156,7 @@ this vocabulary does not imply that a particular [synchronous](#term-synchronous
 
 A <a id="term-descriptor"></a>**descriptor** records properties needed to interpret something, rather than holding that thing's computed contents. A TensorDescriptor records a [tensor](#tensor)'s type, [shape](#shape), [layout](#layout) and [gradient](#term-gradient) eligibility; it does not supply tensor values. A Java method descriptor instead encodes [argument](#term-argument)/result types, and a native record describes its own wire-format fields.
 
-<a id="term-metadata"></a>**Metadata** is descriptive information about other data or work. Shape `[2, 3]` describes geometry; the six numerical [elements](#term-element) are [payload](#artifact-envelope-and-atomic-publication). Possessing metadata does not by itself allocate storage, establish [ownership](#term-ownership-meanings), prove execution capability or execute the described calculation. See [Tensor descriptor](#tensor-descriptor), [data types](#data-type--datatype), and [layout](#layout).
+<a id="term-metadata"></a>**Metadata** is descriptive information about other data or work. Shape `[2, 3]` describes geometry; the six numerical [elements](#term-element) are payload. Possessing metadata does not by itself allocate storage, establish [ownership](#term-ownership-meanings), prove execution capability or execute the described calculation. See [Tensor descriptor](#tensor-descriptor), [data types](#data-type--datatype), and [layout](#layout).
 
 <a id="term-binary-descriptor-and-metadata"></a>**Binary** can describe base-two encoding, a non-text file, an [operation](#operation) with two operands, or a
 two-category classification task. A Java binary class name is another naming convention, not an
@@ -239,7 +239,7 @@ In cost comparisons, <a id="term-structural-dominance-index-mappings-and-cost-do
 specified cost [dimension](#term-cost-dimension) and strictly better on at least one, under identical required semantics
 and domain. One [dispatch](#term-dispatch) with zero temporary bytes can dominate two dispatches with temporary
 storage on those dimensions; that does not establish a universal elapsed-time speedup.
-[Compiler](#term-compiler) <a id="term-control-flow-dominance-index-mappings-and-cost-dominance"></a>**control-flow dominance** is different: a [node](#node) lies on every relevant path to another
+[Compiler](#term-compiler) <a id="term-control-flow-dominance-index-mappings-and-cost-dominance"></a>**control-flow dominance** is different: a node lies on every relevant path to another
 node. See [compiler transformations](#compiler-transformations-and-dominance),
 [proof assumptions](#formal-proof-certificate-and-trusted-assumptions), and
 [benchmark vocabulary](#benchmark-measurement-vocabulary).
@@ -305,7 +305,7 @@ the underlying objects are [immutable](#term-immutable) nor that a [detached val
 
 A <a id="term-fork-meanings"></a>**fork** can mean a separate development line or a separate
 process; the qualifier matters. A [repository fork](#term-fork) is a development copy with its
-own history. A [JVM fork](#term-jvm-fork) is a fresh Java process with independent [runtime](#term-runtime) state.
+own history. A [JVM fork](#term-jvm-fork) is a fresh Java process with independent runtime state.
 Several timing [samples](#term-sample-machine-learning-and-hyperparameters) in one process are not several [JVM forks](#java-preview-incubator-modules-and-compiler-tiers), and creating a repository fork
 does not isolate benchmark runtime state.
 
@@ -480,7 +480,7 @@ A <a id="term-directed-acyclic-graph-dag"></a>**directed acyclic graph (DAG)** h
 
 ### Application binary interface and native bridge
 
-An <a id="term-application-binary-interface-abi"></a>**application binary interface (ABI)** specifies how compiled components call each other: [argument](#term-argument) [layout](#layout), integer widths, symbol names, return values, and related machine-level rules. A source-level method name match alone does not prove ABI compatibility.
+An <a id="term-application-binary-interface-abi"></a>**application binary interface (ABI)** specifies how compiled components call each other: [argument](#term-argument) layout, integer widths, symbol names, return values, and related machine-level rules. A source-level method name match alone does not prove ABI compatibility.
 
 A <a id="term-native-bridge"></a>**native bridge** connects Java to non-Java compiled code. <a id="term-jni"></a>**JNI** expands to Java Native Interface. <a id="term-ffm"></a>**FFM** expands to Foreign Function and Memory, Java’s facilities for foreign calls and memory access. A <a id="term-downcall"></a>**downcall** goes from Java to [native code](#native-numerical-library-and-instruction-architecture); an <a id="term-upcall"></a>**upcall** lets native code call Java. A <a id="term-symbol"></a>**symbol** is a named entry in a compiled library; a <a id="term-calling-convention"></a>**calling convention** specifies how values cross the call boundary.
 
@@ -490,9 +490,9 @@ In [BLAS](#term-blas) interface discussions, <a id="term-lp64"></a>**LP64** (lon
 
 <a id="term-bytecode"></a>**Bytecode** is the instruction format stored in a Java class file for the [Java virtual machine](#term-java-virtual-machine-jvm) to execute. <a id="term-machine-code"></a>**Machine code** is instructions for a particular processor. <a id="term-just-in-time-compilation-jit"></a>**Just-in-time compilation (JIT)** translates or optimizes executable code while a program runs, often using observed behavior.
 
-Generating a Java class during preparation and the [JVM](#java-platform-and-build-tools) later JIT-compiling that class are separate events. The Java <a id="term-class-file-api"></a>**Class-File API** constructs or reads class-file structures; a <a id="term-hidden-class"></a>**hidden class** is a JVM class defined for restricted [runtime](#term-runtime) use rather than normal name-based discovery. Saving generated class bytes does not save already-optimized JIT machine code. See [generated CPU kernels](#generated-cpu-computation-kernel).
+Generating a Java class during preparation and the [JVM](#java-platform-and-build-tools) later JIT-compiling that class are separate events. The Java <a id="term-class-file-api"></a>**Class-File API** constructs or reads class-file structures; a <a id="term-hidden-class"></a>**hidden class** is a JVM class defined for restricted runtime use rather than normal name-based discovery. Saving generated class bytes does not save already-optimized JIT machine code. See [generated CPU kernels](#generated-cpu-computation-kernel).
 
-An <a id="term-opcode"></a>**opcode** identifies an instruction; a <a id="term-bytecode-index-bci"></a>**bytecode index (BCI)** is its offset in a method. <a id="term-decompilation"></a>**Decompilation** reconstructs source-like text, not the original source. <a id="term-inlining"></a>**Inlining** incorporates a callee into its caller. <a id="term-on-stack-replacement-osr"></a>**On-stack replacement (OSR)** enters compiled code within an already-running loop. An <a id="term-nmethod"></a>**nmethod** is [HotSpot](#term-hotspot)’s installed compiled-method object; <a id="term-deoptimization"></a>**deoptimization** returns execution to a less specialized form. A <a id="term-nestmate"></a>**nestmate** can share permitted private access with its [host](#term-host); this is an access rule, not a memory [owner](#term-owner).
+An <a id="term-opcode"></a>**opcode** identifies an instruction; a <a id="term-bytecode-index-bci"></a>**bytecode index (BCI)** is its offset in a method. <a id="term-decompilation"></a>**Decompilation** reconstructs source-like text, not the original source. <a id="term-inlining"></a>**Inlining** incorporates a callee into its caller. <a id="term-on-stack-replacement-osr"></a>**On-stack replacement (OSR)** enters compiled code within an already-running loop. An <a id="term-nmethod"></a>**nmethod** is [HotSpot](#term-hotspot)’s installed compiled-method object; <a id="term-deoptimization"></a>**deoptimization** returns execution to a less specialized form. A <a id="term-nestmate"></a>**nestmate** can share permitted private access with its nest host; this is an access rule, not a memory [owner](#term-owner).
 
 ### SIMD
 
@@ -550,7 +550,7 @@ An <a id="term-error-envelope"></a>**error envelope** states permitted compariso
 
 ### Subnormal, DAZ, FTZ, overflow, and underflow
 
-A <a id="term-subnormal"></a>**subnormal** (also called denormal) is a representable [floating-point](#term-floating-point) value closer to zero than the format’s smallest normal magnitude, with reduced effective [precision](#term-precision). It is not automatically zero.
+A <a id="term-subnormal"></a>**subnormal** (also called denormal) is a nonzero representable [floating-point](#term-floating-point) value whose magnitude is below the format’s smallest positive normal magnitude, with reduced effective [precision](#term-precision). It is not automatically zero.
 
 <a id="term-daz"></a>**DAZ** means denormals-are-zero: a permitted arithmetic input site can treat a subnormal as same-[signed zero](#term-signed-zero). <a id="term-ftz"></a>**FTZ** means flush-to-zero: a permitted arithmetic result site can replace a subnormal result with zero according to the specified sign rule. These are narrowly scoped numerical freedoms, not blanket permission to change stored values; see [numerical semantics](#profile-free-numerical-semantics).
 
@@ -590,13 +590,13 @@ An <a id="term-architecture-decision-record-adr"></a>**architecture decision rec
 
 <a id="term-conformance"></a>**Conformance** means meeting a stated contract. <a id="term-qualification"></a>**Qualification** is bounded evidence that a particular implementation, [target](#term-target), or route meets the checks required for a stated use; it is not universal support. A <a id="term-fixture"></a>**fixture** is controlled setup/data used by a test. A <a id="term-mock"></a>**mock** is a substitute with arranged behavior and cannot prove that the real [backend](#backend) works. A <a id="term-regression"></a>**regression** is an unintended loss of behavior previously expected. A <a id="term-smoke-test"></a>**smoke test** checks a small important path, not exhaustive correctness. A <a id="term-test-oracle"></a>**test oracle** supplies the expected answer. <a id="term-junit"></a>**JUnit** is a Java testing framework. <a id="term-tck"></a>**TCK** means technology compatibility kit, a suite used to check a stated compatibility contract.
 
-<a id="term-differential-testing"></a>**Differential testing** compares implementations; a <a id="term-canary"></a>**canary** is a deliberate [guard](#term-guard) value used to detect unintended writes. A numerical oracle must provide an independently justified expected answer, not just a repeated [hash](#term-hash) of one implementation’s output.
+<a id="term-differential-testing"></a>**Differential testing** compares implementations; a <a id="term-canary"></a>**canary** is a deliberate sentinel value used to detect unintended writes. A numerical oracle must provide an independently justified expected answer, not just a repeated [hash](#term-hash) of one implementation’s output.
 
 ### Java platform and build tools
 
-The <a id="term-java-development-kit-jdk"></a>**Java Development Kit (JDK)** supplies Java development tools and [runtime](#term-runtime) components. The <a id="term-java-virtual-machine-jvm"></a>**Java virtual machine (JVM)** executes Java [bytecode](#term-bytecode). <a id="term-javadoc"></a>**Javadoc** is Java’s [API](#term-application-programming-interface-api)-documentation system. A <a id="term-toolchain"></a>**toolchain** is the selected set of [compiler](#term-compiler)/runtime tools used for a build; installing some Java version does not prove the build selected it.
+The <a id="term-java-development-kit-jdk"></a>**Java Development Kit (JDK)** supplies Java development tools and runtime components. The <a id="term-java-virtual-machine-jvm"></a>**Java virtual machine (JVM)** executes Java [bytecode](#term-bytecode). <a id="term-javadoc"></a>**Javadoc** is Java’s [API](#term-application-programming-interface-api)-documentation system. A <a id="term-toolchain"></a>**toolchain** is the selected set of [compiler](#term-compiler)/runtime tools used for a build; installing some Java version does not prove the build selected it.
 
-<a id="term-gradle"></a>**Gradle** and <a id="term-maven"></a>**Maven** automate builds and dependency handling. A <a id="term-dependency"></a>**dependency** is another component needed to [compile](#compile) or [run](#term-run); dependency direction says which component is allowed to rely on which. Maven’s <a id="term-pom"></a>**POM** (Project Object Model) describes a project. <a id="term-gav"></a>**GAV** means group, [artifact](#term-artifact), version: [coordinates](#axis-rank-scalar-vector-and-matrix) identifying a published component. A <a id="term-jar"></a>**JAR** (Java archive) packages Java classes and resources; “artifact” also has a broader [meaning](#artifact-manifest-and-source-provenance).
+<a id="term-gradle"></a>**Gradle** and <a id="term-maven"></a>**Maven** automate builds and dependency handling. A <a id="term-dependency"></a>**dependency** is another component needed to compile or run; dependency direction says which component is allowed to rely on which. Maven’s <a id="term-pom"></a>**POM** (Project Object Model) describes a project. <a id="term-gav"></a>**GAV** means group, [artifact](#term-artifact), version: coordinates identifying a published component. A <a id="term-jar"></a>**JAR** (Java archive) packages Java classes and resources; “artifact” also has a broader [meaning](#artifact-manifest-and-source-provenance).
 
 The <a id="term-java-platform-module-system-jpms"></a>**Java Platform Module System (JPMS)** gives Java [modules](#term-module) named dependency and export boundaries. A module is such a unit in module-system discussions, not a neural-network layer. The <a id="term-classpath"></a>**classpath** locates ordinary classes/resources; the <a id="term-module-path"></a>**module path** locates named modules. Build-tool project boundaries, Java modules, and [NN](#neural-network-module-parameter-buffer-and-forward-context) modules are distinct uses of “module”.
 
@@ -630,7 +630,7 @@ An <a id="term-occurrence"></a>**occurrence** is one position or use, even when 
 
 An <a id="term-identity-domain"></a>**identity domain** states where an identifier is meaningful. <a id="term-nominal"></a>**Nominal** identifier types keep different categories separate even if they contain the same number: a [node](#node) ID is not a value ID. A <a id="term-canonical-form"></a>**canonical form** is a chosen consistent representation; it does not automatically establish global [identity](#term-identity-meanings) or compatibility.
 
-<a id="term-immutable"></a>**Immutable** state cannot change after construction; <a id="term-mutable"></a>**mutable** state can. A membership [snapshot](#term-snapshot) can freeze a list’s membership while retaining references to objects with their own state and lifetimes. Freezing a list therefore does not automatically copy or freeze the memory referenced by its [elements](#term-element).
+<a id="term-immutable"></a>**Immutable** state cannot change after construction; <a id="term-mutable"></a>**mutable** state can. A membership [snapshot](#term-snapshot) can freeze a list’s membership while retaining references to objects with their own state and lifetimes. Freezing a list therefore does not automatically copy or freeze the memory referenced by its elements.
 
 ### Admission, preflight, and fail-closed validation
 
@@ -661,7 +661,7 @@ A <a id="term-transaction"></a>**transaction** groups work so incomplete changes
 
 ### Native packaging and platform vocabulary
 
-<a id="term-pod"></a>**POD** means plain old data: in a native boundary discussion, ordinary data fields without an implicit object [ownership](#term-ownership-meanings) protocol. The exact [layout](#layout) still belongs to the [ABI](#term-application-binary-interface-abi). <a id="term-arc"></a>**ARC** means automatic reference counting, a [compiler](#term-compiler)-managed ownership mechanism used by Objective-C. Objective-C is a programming language used by Apple frameworks; its reference counting does not automatically govern Java-owned resources. A retained reference keeps an object alive; [release](#term-release) gives up that claim. An autorelease pool groups temporary deferred [releases](#commit-release-distribution-log-and-seed-meanings) until the pool drains.
+<a id="term-pod"></a>**POD** means plain old data: in a native boundary discussion, ordinary data fields without an implicit object [ownership](#term-ownership-meanings) protocol. The exact layout still belongs to the [ABI](#term-application-binary-interface-abi). <a id="term-arc"></a>**ARC** means automatic reference counting, a [compiler](#term-compiler)-managed ownership mechanism used by Objective-C. Objective-C is a programming language used by Apple frameworks; its reference counting does not automatically govern Java-owned resources. A retained reference keeps an object alive; [release](#term-release) gives up that claim. An autorelease pool groups temporary deferred [releases](#commit-release-distribution-log-and-seed-meanings) until the pool drains.
 
 A <a id="term-dynamic-library"></a>**dynamic library** is compiled code loaded for use by a process. On Apple platforms, <a id="term-dylib"></a>**dylib** is its usual filename suffix and <a id="term-mach-o"></a>**Mach-O** (Mach Object) is the executable/object-file format. <a id="term-elf"></a>**ELF** means Executable and Linkable Format, common on Unix-like systems; <a id="term-pe"></a>**PE** means Portable Executable, used on Windows. <a id="term-aarch64"></a>**AArch64** (often called arm64) and <a id="term-x86-64"></a>**x86-64** name 64-bit processor instruction architectures, not interchangeable [binary](#term-binary-descriptor-and-metadata) formats.
 
@@ -726,7 +726,7 @@ An <a id="term-artifact-envelope"></a>**artifact envelope** is an outer containe
 
 A <a id="term-composition-root"></a>**composition root** is where selected concrete components are assembled with explicit dependencies and [ownership](#term-ownership-meanings). A <a id="term-service-locator"></a>**service locator** instead looks up an implementation when code asks for it. A <a id="term-registry"></a>**registry** stores associations for [lookup](#term-lookup). An interface or builder does not by itself authorize implicit discovery or a global service locator.
 
-A <a id="term-facade"></a>**facade** is a caller-facing entry point that composes narrower collaborations behind it. A <a id="term-dependency-leaf"></a>**dependency leaf** adds no further project dependencies in the [dependency](#term-dependency) [graph](#graph) being discussed; this is a code relationship, not a statement that it executes last.
+A <a id="term-facade"></a>**facade** is a caller-facing entry point that composes narrower collaborations behind it. A <a id="term-dependency-leaf"></a>**dependency leaf** adds no further project dependencies in the [dependency](#term-dependency) graph being discussed; this is a code relationship, not a statement that it executes last.
 
 A build <a id="term-plugin"></a>**plugin** adds or configures build behavior. A [Gradle](#term-gradle) <a id="term-convention-plugin"></a>**convention plugin** packages shared project build choices, such as [compiler](#term-compiler) options or test setup, so projects use one consistent configuration instead of copying it. It is unrelated to [runtime](#term-runtime) [backend](#backend) discovery.
 
@@ -734,7 +734,7 @@ A build <a id="term-plugin"></a>**plugin** adds or configures build behavior. A 
 
 A Java <a id="term-preview-feature"></a>**preview feature** is an [evaluation](#term-evaluation)-stage language/platform [feature](#term-software-feature) requiring explicit [activation](#term-activation). An <a id="term-incubator-module"></a>**incubator module** is an experimental [JDK](#term-java-development-kit-jdk) library [module](#term-module) requiring its module configuration; preview activation and incubator module inclusion are not interchangeable.
 
-<a id="term-hotspot"></a>**HotSpot** is a [JVM](#term-java-virtual-machine-jvm) implementation. Its [compiler](#term-compiler) names <a id="term-c1"></a>**C1** (client compiler) and <a id="term-c2"></a>**C2** (server compiler) refer to different [runtime](#term-runtime) [compilation](#compiler-engine-and-execution-stage-names) strategies: C1 generally compiles quickly with less optimization, while C2 generally spends more effort optimizing hot code. These are not Synaptik capability levels or arbitrary C1/C2 [dimension](#dimension) labels. A <a id="term-jvm-fork"></a>**JVM fork** is a fresh Java process with separate runtime state.
+<a id="term-hotspot"></a>**HotSpot** is a [JVM](#term-java-virtual-machine-jvm) implementation. Its [compiler](#term-compiler) names <a id="term-c1"></a>**C1** (client compiler) and <a id="term-c2"></a>**C2** (server compiler) refer to different JVM runtime compilation strategies: C1 generally compiles quickly with less optimization, while C2 generally spends more effort optimizing hot code. These are not Synaptik capability levels or arbitrary C1/C2 [dimension](#dimension) labels. A <a id="term-jvm-fork"></a>**JVM fork** is a fresh Java process with separate runtime state.
 
 A <a id="term-fat-jar"></a>**fat JAR** bundles [dependency](#term-dependency) contents into one [Java archive](#java-platform-and-build-tools). <a id="term-shading"></a>**Shading** rewrites or relocates packaged dependency contents, often to avoid name conflicts. Neither packaging technique proves compatibility or grants [distribution](#term-distribution) rights.
 
@@ -922,7 +922,7 @@ In a [scan](#general-differentiable-scan), the **body** is the repeated calculat
 
 ### Exact superaccumulator and limbs
 
-A superaccumulator stores an exact running sum in a sufficiently wide integer representation and rounds only when producing the final [floating-point](#term-floating-point) result. A limb is one machine-sized piece of a larger integer. [Guard](#term-guard) and sticky information record discarded digits needed to decide final [rounding](#term-rounding).
+A superaccumulator stores an exact running sum in a sufficiently wide integer representation and rounds only when producing the final [floating-point](#term-floating-point) result. A limb is one machine-sized piece of a larger integer. Guard-bit and sticky-bit information record discarded bits needed to decide final [rounding](#term-rounding).
 
 Example: The historical [CPU](#term-cpu) SUM implementation adds decoded values into long-sized limbs before one result conversion.
 
@@ -938,7 +938,7 @@ Adjacent source positions or equal [dimension](#dimension) sizes do not establis
 
 ### Control-flow graph
 
-A <a id="term-control-flow-graph-cfg"></a>**control-flow graph (CFG)** describes the possible instruction paths. A [graph](#graph) describing which blocks of instructions can execute next through branches and loops. A loop guard decides whether work proceeds; a latch is the end-of-iteration control that returns to the loop. Graph isomorphism compares connection structure after renaming [nodes](#node).
+A <a id="term-control-flow-graph-cfg"></a>**control-flow graph (CFG)** describes the possible instruction paths. A graph describing which blocks of instructions can execute next through branches and loops. A loop guard decides whether work proceeds; a latch is the end-of-iteration control that returns to the loop. Graph isomorphism compares connection structure after renaming nodes.
 
 Example: Two equivalent loops can place their [guard](#term-guard) branches differently and therefore have different control-flow graphs.
 
@@ -956,7 +956,7 @@ A fixed-point scale is explicit and fixed; a [floating-point](#term-floating-poi
 
 Range reduction transforms an input into a smaller interval where a function is easier to approximate, then reconstructs the original result. Polynomial approximations use sums of powers; rational approximations divide polynomials. A Taylor enclosure adds a justified error bound to a truncated expansion.
 
-Example: An exponential implementation reduces its [argument](#term-argument) using multiples of a logarithmic [constant](#term-constant), approximates the [residual](#scan-residual-port-and-history-demand), and restores the scale.
+Example: An exponential implementation reduces its [argument](#term-argument) using multiples of a logarithmic [constant](#term-constant), approximates the reduced argument, and restores the scale.
 
 Coefficient error, arithmetic [rounding](#term-rounding), approximation error, and reconstruction error are separate obligations.
 
@@ -1044,7 +1044,7 @@ A typed internal record or a small helper method is not automatically a new lang
 
 [Continuous integration](#term-continuous-integration-ci), or [CI](#adr-ci-and-qualification), runs automated checks for repository changes. A hosted runner is a provider-managed machine executing those jobs. An immutable pin selects an exact [dependency](#term-dependency) revision instead of a moving label. OpenID Connect, or OIDC, exchanges verifiable [identity](#term-identity-meanings) information. Git Large File Storage, or LFS, stores large-file content separately from ordinary Git objects.
 
-Example: A macOS runner that can [compile](#compile) [native code](#native-numerical-library-and-instruction-architecture) may still lack the [device](#term-device) access needed for real [Metal](#term-metal) execution.
+Example: A macOS runner that can compile [native code](#native-numerical-library-and-instruction-architecture) may still lack the [device](#term-device) access needed for real [Metal](#term-metal) execution.
 
 A compile-only job or skipped device test is not hardware [qualification](#term-qualification). Mentioned security [features](#term-software-feature) can be explicitly forbidden rather than enabled.
 
@@ -1169,7 +1169,7 @@ extent are structurally accepted. Expression construction records all these mean
 no value aggregation or selection, gradient work, [compiler](#term-compiler) [capture](#term-capture-meanings), [lowering](#lowering), or execution. The
 current [CPU portable route](#cpu-portable-route) separately supports exactly one fully static resolved-[layout](#layout)
 [occurrence](#term-occurrence) across [FLOAT64](#term-float64), FLOAT32, [BFLOAT16](#term-bfloat16), INT32, and INT64, returning logical INT64 axis
-[coordinates](#axis-rank-scalar-vector-and-matrix) through [scalar](#term-scalar) or complete-output-cell parallel-scalar execution. It supports legal
+[coordinates](#axis-rank-scalar-vector-and-matrix) through [scalar](#cpu-portable-execution-strategy) or complete-output-cell parallel-scalar execution. It supports legal
 array, [`MemorySegment`](#term-memorysegment), and mixed carriers and arbitrary legal non-negative layouts, while using
 zero workspace and [materialization](#materialization). See
 [Numeric aggregate expressions](reference/tensor/reductions.md#numeric-aggregate-expressions), [Aggregate
@@ -1214,7 +1214,7 @@ expressions](reference/tensor/reductions.md#binding-aware-sum-to-shape-expressio
 
 ### Multi-axis reduction
 
-A multi-axis reduction combines values along several [axes](#term-axis) at once. For [shape](#shape) `[2, 3, 4]`, summing axes zero and two [leaves](#term-leaf) three results, one for each position on axis one.
+A multi-axis reduction combines values along several [axes](#term-axis) at once. For [shape](#shape) `[2, 3, 4]`, summing axes zero and two leaves three results, one for each position on axis one.
 
 An implemented aggregate [occurrence](#term-occurrence) over a caller-ordered set of distinct normalized axes.
 `MultiAxisReductionAttrs` snapshots the ordered axes plus `keepDimensions`;
@@ -1518,7 +1518,7 @@ attributes](reference/tensor/operation-indexing.md#axis-scatter-semantic-kinds-r
 The current [CPU portable route](#cpu-portable-route) separately executes one fully static resolved-layout [occurrence](#term-occurrence).
 It validates all bounds before the `NONE` target-uniqueness pass and before writing. Numeric
 reductions preserve the target-group contract; only floating `MUL` receives declared per-range
-exact-product scratch. [Scalar](#term-scalar) and parallel-scalar ranges own disjoint output [coordinates](#axis-rank-scalar-vector-and-matrix). The
+exact-product scratch. [Scalar](#cpu-portable-execution-strategy) and parallel-scalar ranges own disjoint output [coordinates](#axis-rank-scalar-vector-and-matrix). The
 current [Metal](#term-metal) route separately admits only [canonical](#term-canonical-form) positive-rank
 [`FLOAT32`](#term-float32)/[`INT32`](#data-type--datatype)/`FLOAT32` `NONE` under the one [Model](#term-model) contract. It validates all resources,
 then every bound, then complete-coordinate uniqueness before tensor-data construction, [dispatch](#term-dispatch), or
@@ -1686,7 +1686,7 @@ complete candidate execution. The tool performs cache-first deduplication, bound
 [publication](#term-publication) while returning richer raw evidence separately. The supported [CPU](#term-cpu)-local adapter now
 supplies [opaque](#term-opaque) candidate/decision and exact prepared-recipe operations. [Engine](#term-engine) publicly joins
 these foundations for one eligible CPU or [Metal](#term-metal) [partition](#partition) and one representative input set. Metal
-is limited to the [singleton](#term-singleton) [FLOAT32](#term-float32) NEG case with both custom-[kernel](#kernel) and [MPSGraph](#term-mpsgraph) candidates;
+is limited to the singleton [FLOAT32](#term-float32) NEG case with both custom-[kernel](#kernel) and [MPSGraph](#term-mpsgraph) candidates;
 an MPSGraph-only plan is not tunable. Engine maps [occurrence](#term-occurrence) index 0, partition index 0, and [weight](#term-weight)
 1, authenticates the Phase-1 decision, and passes that exact decision unchanged to the selected
 backend's [complete-plan candidate](#complete-plan-candidate) production. It supplies no model extraction or
@@ -1702,7 +1702,7 @@ bounds, and cleanup. The result contains a decision-present [Prepare](#prepare) 
 plan record, and separate rich in-memory evidence.
 
 Tuning is optional for correctness and never runs in the [runtime](#term-runtime) [hot path](#term-hot-path). Running the same
-workflow over a representative model corpus may eventually pre-[seed](#term-seed) the same workload cache; this
+workflow over a representative model corpus may eventually prepopulate the same workload cache; this
 is not a separate platform-calibration subsystem. Public Engine composition now invokes both
 phases for the bounded single-[owner](#term-owner) [lifecycle](#lifecycle). Every Phase-2 candidate completes exact canonical-byte
 correctness before timing; each correctness, warmup, and timed action receives a fresh
@@ -1712,7 +1712,7 @@ graph/partition alternatives, and mixed backends remain planned. Config carries 
 inputs for both phases and performs no translation or execution itself.
 
 A **workload tuning cache** is the current explicit bounded file-backed reusable artifact keyed by
-backend-supplied canonical workload/target compatibility plus [objective](#term-objective) and sampling policy. Its
+backend-supplied canonical workload/target compatibility plus objective and sampling policy. Its
 versioned deterministic [binary](#term-binary-descriptor-and-metadata) entries contain opaque decision and winner identities and a compact
 minimum/median/maximum/count summary; [checksum](#term-checksum) and structure [validation](#term-validation) precede reuse, and changed
 state is published by same-directory atomic replacement. Raw [samples](#term-sample-machine-learning-and-hyperparameters) remain only in returned rich
@@ -1752,7 +1752,7 @@ This configuration records the caller’s explicit request to search for a faste
 
 The implemented [immutable](#term-immutable) Config-owned value that records one request for later [model](#term-model)-[autotuning](#autotuning--model-autotuning)
 composition. Possessing it means tuning was requested; it has no enabled flag, disabled sentinel,
-implicit default, or default [cache](#term-cache) location. Its seven ordered components contain an [objective](#term-objective),
+implicit default, or default [cache](#term-cache) location. Its seven ordered components contain an objective,
 Phase-1 bounded [sampling](#term-sampling-machine-learning-and-hyperparameters) budget,
 [`representative-profile identity`](#representative-profile-identity),
 [`fallback policy`](#model-autotuning-fallback-policy), explicit workload-cache path, independent
@@ -1791,7 +1791,7 @@ authenticated persistent hit. Rich per-call rows are immutable and retain correc
 raw [samples](#term-sample-machine-learning-and-hyperparameters); compact reusable cache records do not. Current [CPU](#term-cpu) and bounded [Metal](#term-metal) complete-plan
 evidence is session-scoped and measured. `SAFE_HEURISTIC_FALLBACK` identifies one fresh ordinary
 safe preparation through the already-selected [backend](#backend) and has empty evidence. The supported
-domain is one eligible CPU [partition](#partition) or the [singleton](#term-singleton) [FLOAT32](#term-float32) Metal NEG case described above,
+domain is one eligible CPU [partition](#partition) or the singleton [FLOAT32](#term-float32) Metal NEG case described above,
 not model extraction, broader graph/partition alternatives, mixed backends, or multi-[occurrence](#term-occurrence)
 tuning. Fallback never changes [backend ownership](#backend-ownership).
 
@@ -1924,7 +1924,7 @@ ordering, state, predicate and cast occurrences; strict comparisons; qualified w
 and folds; maximum [pooling](#term-pooling); and promoted [INT32](#data-type--datatype)/[INT64](#data-type--datatype) MATMUL. FLOAT32 image folds include
 output-owned overlap accumulation; FLOAT64/low image folds and FOLD_AXIS remain non-overlapping.
 It also admits qualified homogeneous
-FLOAT32/[BFLOAT16](#term-bfloat16)/[FLOAT16](#term-float16) arithmetic, [scalar](#term-scalar), reduction, scan, MATMUL, [MSE](#mean-squared-error--mse), [convolution](#term-channels-first-convolution-layers), pooling,
+FLOAT32/[BFLOAT16](#term-bfloat16)/[FLOAT16](#term-float16) arithmetic, [scalar](#term-scalar-immediate), reduction, scan, MATMUL, [MSE](#mean-squared-error--mse), [convolution](#term-channels-first-convolution-layers), pooling,
 [dropout](#dropout--inverted-dropout), [L1](#term-l1), ScatterAdd, and [singleton](#term-singleton)-[variance](#term-variance) [occurrence](#term-occurrence). Direct BFLOAT16/FLOAT16 mixed-low
 operations remain false except explicit CAST. Every [partition](#partition) containing BFLOAT16 or FLOAT16
 values selects the fixed custom program, including exact no-[gradient](#term-gradient) homogeneous raw-preserving
@@ -2000,10 +2000,10 @@ no preferred [`DeviceClass`](#device-class--deviceclass), the first eligible ide
 preference, the first eligible identity whose equal-ID availability [snapshot](#term-snapshot) reports that class
 wins; when none matches, the first eligible identity still wins. Provider order resolves ties, an
 empty matching snapshot is a preference nonmatch, and the exact identity reference from hard
-eligibility is returned. Empty hard eligibility fails internally before snapshot [elements](#term-element) are
+eligibility is returned. Empty hard eligibility fails internally before snapshot elements are
 read.
 
-This internal baseline is not a public planner [API](#term-application-programming-interface-api), numeric or cost-scoring [model](#term-model), [device](#term-device) choice,
+This internal baseline is not a public planner [API](#term-application-programming-interface-api), numeric or cost-scoring model, [device](#term-device) choice,
 or same-owner [partition](#partition). The broader planned [ownership](#term-ownership-meanings) workflow may assign [nodes](#node) or segments and
 use additional [backend](#backend)-neutral costs. Ownership always answers “where should this work [run](#term-run)?” It
 does not answer “which [kernel](#kernel) should run it?” The owning [concrete backend](#concrete-backend) makes that implementation
@@ -2056,7 +2056,7 @@ The rule that each [concrete backend](#concrete-backend) translates its assigned
 
 A route is one way to implement work inside an already selected [backend](#backend). A [CPU](#term-cpu) loop and an [OpenBLAS](#term-openblas) call can therefore be competing routes of the same CPU backend, not two independent backend [owners](#term-owner).
 
-A concrete implementation choice inside one backend, such as a CPU [scalar](#term-scalar) loop, [Vector API](#term-vector-api)
+A concrete implementation choice inside one backend, such as a CPU [scalar](#cpu-portable-execution-strategy) loop, [Vector API](#term-vector-api)
 routine, [generated CPU computation kernel](#generated-cpu-computation-kernel), OpenBLAS call, [MPSGraph](#term-mpsgraph) executable, custom [Metal](#term-metal)
 [kernel](#kernel), or [CUDA](#term-cuda) kernel. A route is selected during backend [prepare](#prepare) after [planning](#term-planning) has chosen the
 backend [owner](#term-owner). Routes and provider libraries are not separate backend [identities](#term-identity-meanings). CPU route
@@ -2072,7 +2072,7 @@ The paragraphs naming completed task numbers or schema increments explain how th
 
 The [bytecode](#term-bytecode)-first Java [Class-File API](#term-class-file-api) plus [Vector API](#term-vector-api) production baseline inside the single CPU
 [backend](#backend). It is the always-available semantic fallback for every operation [occurrence](#term-occurrence) it truthfully
-supports, although a [scalar](#term-scalar) reference remains available separately for [conformance](#term-conformance) and [fail-closed](#term-fail-closed)
+supports, although a [scalar](#cpu-portable-execution-strategy) reference remains available separately for [conformance](#term-conformance) and [fail-closed](#term-fail-closed)
 checking. [Metadata](#term-metadata)-only work may require no generated class. Task 0005A implemented the portable
 scalar proving [slice](#slice) and `internal.route.portable`; completed CPU 0005C added preferred-species
 [FLOAT64](#term-float64) [vector](#term-vector) compute and explicit CPU-private parallel orchestration. Completed CPU 0005E now
@@ -2261,7 +2261,7 @@ carriers. The proved body uses direct unaligned long access, store-before-load e
 placement, modular long multiplication, and descending element cursors for arbitrary legal
 complete-slice subranges. The same generated method retains the typed general-long fallback for
 every unproved geometry. The change adds no workspace, materialization, route, public term, or
-Runtime selection. Its accepted five-fork evidence closes only `C-SCAN-GENERAL`; four [residual](#scan-residual-port-and-history-demand)
+Runtime selection. Its accepted five-fork evidence closes only `C-SCAN-GENERAL`; four remaining
 diagnostic rows still prevent completion of the broader comparison.
 
 Completed CPU 0007A1K advances the current boundary to schema 39. It adds one completely guarded
@@ -2365,7 +2365,7 @@ Complete CPU 0008B generalizes complete CPU-owned partitions to one-through-eigh
 acyclic graphs. Analysis forms stable computation units, contracts ordinary pointwise pairs
 subject to hard structural budgets, and preserves materialized unit boundaries across [fan-out](#term-fan-out),
 publication, state/random, affine/specialized, and numerical-order barriers. A horizontal
-pointwise [contraction](#contraction-dimension) may emit multiple ordered stores. Its [liveness](#term-liveness) gate starts inputs at first
+pointwise contraction may emit multiple ordered stores. Its [liveness](#term-liveness) gate starts inputs at first
 use, starts results at definition, deduplicates same-instruction uses, and retires values after
 their final instruction or store use. Complete CPU 0008C adds CPU-private recognition without
 changing execution. Complete CPU 0008D enumerates at most 64 complete legal topologies across 256
@@ -2459,7 +2459,7 @@ static typed entry method for the specialization's exact ordered primitive-array
 `double[]`, `float[]`, [opaque](#term-opaque) `short[]` for either low format, `int[]`, `long[]`, and [canonical](#term-canonical-form)
 `byte[]` respectively when their family admits that type. The Class-File API and Java [Vector API](#term-vector-api)
 are CPU-internal implementation choices, not architecture invariants. The production kernel
-executes one admitted bounded [pointwise](#term-pointwise) chain with one generated [scalar](#term-scalar) or exactly eligible typed
+executes one admitted bounded [pointwise](#term-pointwise) chain with one generated [scalar](#cpu-portable-execution-strategy) or exactly eligible typed
 preferred-species [vector](#term-vector) body. Floating bodies may retain
 comparison/classification BOOL values as unit-private virtual [masks](#term-boolean-mask) through logical combination
 and floating WHERE; materialized masks remain scalar. It
@@ -2490,7 +2490,7 @@ primitive code inside the one existing artifact, while partial and unproved path
 bounded-loop and typed-fallback shapes. Schema 38 additionally admits the guarded fixed
 `[1024,1024]` axis-one exclusive reverse INT64 cumulative-product segment-cursor body. Its proved
 loop performs direct unaligned long access, store-before-load placement, modular multiplication,
-and cursor decrements for arbitrary complete-[slice](#slice) subranges; the typed [general scan](#general-differentiable-scan) body remains
+and cursor decrements for arbitrary complete-[slice](#slice) subranges; the typed [general cumulative-scan](#cumulative-scan) body remains
 in the same method as fallback. Schema 39 additionally admits the guarded raw-BFLOAT16 affine
 PERMUTE/SLICE cursor body. Its proved loop uses ordinal shifts and masks with direct typed
 segment-to-short-array access for arbitrary legal [half-open](#term-half-open-interval) ranges; the typed general-long affine
@@ -2502,7 +2502,7 @@ When analysis selects one FLOAT64 [contiguous](#term-contiguous) input copy, the
 dense segment at that original boundary position; FLOAT32 vector parity does not broaden this
 [materialization](#materialization) policy. The static entry retains the lowering-derived boundary count.
 An affine-copy class instead has exactly two typed carriers plus one cold-composed address table
-and primitive `start`/`end` bounds. It transfers one [payload](#artifact-envelope-and-atomic-publication) per pair with scalar instructions;
+and primitive `start`/`end` bounds. It transfers one payload per pair with scalar instructions;
 parallel orchestration remains outside the class, and no Shape, layout, mapping, or vector
 decision occurs in the generated loop.
 
@@ -2512,7 +2512,7 @@ decision occurs in the generated loop.
 
 The implemented [backend](#backend)-private [immutable](#term-immutable) description of facts that change one generated [CPU](#term-cpu)
 class. It includes the [canonical](#term-canonical-form) [lowering](#lowering) [fingerprint](#term-fingerprint) with typed [opcode](#term-opcode) sequence, exact
-[scalar](#term-scalar)-immediate and ordered clamp-bound bits, selected scalar-power realizations, generated
+[scalar](#term-scalar-immediate)-immediate and ordered clamp-bound bits, selected scalar-power realizations, generated
 scalar/[vector](#term-vector) compute form, exact preferred [FLOAT32](#term-float32), [FLOAT64](#term-float64), [INT32](#data-type--datatype), [INT64](#data-type--datatype), or [BOOL](#data-type--datatype) species bit
 size for vector compute, and the complete ordered boundary data-type/[carrier](#term-storage-carrier) pattern.
 There is no selectable numerical-mode field.
@@ -2539,7 +2539,7 @@ distinguish FLOAT32 from FLOAT64; no second [lane](#term-lane)-type field is ret
 The direct-versus-materialized input position and adjusted canonical consumer access form are also
 structural when present. Schema 18 additionally records stable SORT/ARGSORT/TOP_K family,
 represented type, direction and TOP_K output-order flags, ordered one- or two-output boundary
-roles, and the scratch-bearing entry [shape](#shape). Concrete axis, K, [layout](#layout) magnitudes, workspace
+roles, and the scratch-bearing entry shape. Concrete axis, K, [layout](#layout) magnitudes, workspace
 identity, and execution ranges remain cold.
 Schema 19 adds explicit-state random mapping facts, schema 20 adds cumulative-[scan](#term-cumulative-scan) kind, axis,
 mode, and typed-[rounding](#term-rounding) facts, schema 21 adds ordinary aggregate form, selected-axis, range, and
@@ -2568,7 +2568,7 @@ Schema 43 adds [SUM-to-Shape](#sum-to-shape), schema 44 arg-[extrema](#saturatio
 schema 46 advanced logarithmic/statistical/[norm](#term-norm) reduction, schema 47 stable [softmax](#softmax--log-softmax)/[log-softmax](#softmax--log-softmax),
 schema 48 trailing Layer/[RMS normalization](#rms-normalization), schema 49 batch-[normalization](#term-normalization) [inference](#term-inference) identity,
 range-form, ordered-type, exact-[epsilon](#epsilon), carrier/access, and direct-body compatibility facts, and
-schema 50 five-output batch-normalization training identity, raw [momentum](#term-momentum)/epsilon bits,
+schema 50 five-output batch-normalization training identity, raw [momentum](#batch-normalization--batch-normalization-inference-and-training)/epsilon bits,
 complete-[channel](#term-channel) ranges, three-pass arithmetic, exact-state shape, boundary map, and direct-body
 compatibility facts. Schema 51 adds direct grouped [NCHW](#term-nchw) [Conv2d](#convolution--conv2d) identity, optional intrinsic [bias](#term-bias),
 legal ADD and ADD-plus-RELU epilogues, complete-output-cell ranges, access/carrier structure, and
@@ -2622,7 +2622,7 @@ An [artifact](#term-artifact) store can save compatible generated class bytes fo
 The implemented package-private optional trusted-root mechanism for reusing deterministic
 generated class bytes. With no root, realization is entirely in memory. With a root, one
 current-[schema](#term-schema) envelope per key can supply bytes only when schema, structural key, complete
-compatibility [metadata](#term-metadata)—including [carrier](#term-storage-carrier)/[materialization](#materialization) structure—lengths, [checksum](#term-checksum), class [shape](#shape),
+compatibility [metadata](#term-metadata)—including [carrier](#term-storage-carrier)/[materialization](#materialization) structure—lengths, [checksum](#term-checksum), class shape,
 and entry [descriptor](#term-descriptor) verify. The envelope is bounded to 2 MiB, with metadata bounded to 64 KiB and
 class bytes bounded to 1 MiB. A structural key alone never establishes compatibility.
 
@@ -2660,8 +2660,8 @@ an optional cold [lowering](#lowering) [manifest](#term-manifest). The top-level
 an established one-unit plan.
 
 CPU analysis validates that [Planning](#term-planning) selected CPU [ownership](#term-ownership-meanings) and that the complete partition is
-acyclic in producer-before-consumer order. It selects established affine or specialized [seeds](#commit-release-distribution-log-and-seed-meanings),
-performs deterministic vertical and horizontal [contraction](#contraction-dimension) only for ordinary [pointwise](#term-pointwise) IR, and
+acyclic in producer-before-consumer order. It selects established affine or specialized initial units,
+performs deterministic vertical and horizontal contraction only for ordinary [pointwise](#term-pointwise) IR, and
 retains the complete split [topology](#term-topology) whenever a contraction is illegal,
 unsupported, or over budget. Every cross-unit or published value is one ordinary buffer keyed by
 its existing [`ValueId`](#logical-valueid-versus-physical-memory-slot); family-intrinsic workspaces use partition-unique final-unit IDs.
@@ -2689,7 +2689,7 @@ The plan also stores an immutable projection of boundary positions whose authori
 memory requirements have `graphOutput() == true`; [validation](#term-validation) uses that projection to recompute
 [`PUBLICATION`](#term-publication) versus `PARTITION_WRITE` instead of trusting the claimed decision role. These facts
 and CPU 0008E representation candidates do not participate in finalization selection, Runtime
-[dispatch](#term-dispatch), measurement, tuning, or cache state. A pair that one represented instruction would
+dispatch, measurement, tuning, or cache state. A pair that one represented instruction would
 consume together is retained as a typed `CO_CONSUMED_PAIR` rejection; its singles and eligible
 disjoint-consumer pairs remain candidates. [Schema](#term-schema) 53 introduced this affine-copy body; current
 compatibility also accounts for selective later changes through [CPU kernel specialization](#cpu-kernel-specialization).
@@ -2748,7 +2748,7 @@ An execution unit groups work that [CPU](#term-cpu) preparation handles together
 A [backend](#backend)-private computation-oriented group inside one CPU-owned planned
 partition. CPU analysis forms units and applies legal [fusion](#term-fusion) before declaring physical resources.
 One unit has one [canonical](#term-canonical-form) loop-oriented [kernel](#kernel) [intermediate representation](#term-intermediate-representation-ir) and one selected
-generated-Class-File, [metadata](#term-metadata)-only, or peer native realization. A [scalar](#term-scalar) reference realization
+generated-Class-File, [metadata](#term-metadata)-only, or peer native realization. A [scalar](#cpu-portable-execution-strategy) reference realization
 is reserved for [conformance](#term-conformance) and [fail-closed](#term-fail-closed) fallback, not Runtime [IR](#intermediate-representation-dag-and-ssa) interpretation. A partition
 may contain multiple units, but Runtime receives one partition-level [prepared executable](#prepared-executable--preparedexecutable) rather
 than one executable per graph [node](#node) or unit.
@@ -2761,7 +2761,7 @@ set. Cross-unit values are ordinary materialized graph-value [buffers](#term-buf
 CPU 0008D keeps those hard legality rules and enumerates bounded complete alternatives. The
 canonical maximally split topology is the correctness fallback; the exact CPU 0008B maximal-legal
 result is separately retained as the compatibility baseline. A checked structural score may
-select a strictly better comparable [fused](#specialization-and-fusion) topology, but it cannot make an illegal [contraction](#contraction-dimension)
+select a strictly better comparable [fused](#specialization-and-fusion) topology, but it cannot make an illegal contraction
 legal. Incomplete enumeration, uncertain arithmetic, and a tie involving the best alternative
 select canonical split.
 
@@ -2781,7 +2781,7 @@ indexing form, functional-scatter form, overlap-fold form, stable-ordering form,
 explicit-state-random form, cumulative-[scan](#term-cumulative-scan) form, and ordinary-aggregate form. The
 pointwise route-
 independent [canonical form](#term-canonical-form) records typed boundary and virtual values, one
-forty-eight-[opcode](#term-opcode) family-oriented pointwise vocabulary, exact typed [scalar](#term-scalar)-immediate and ordered
+forty-eight-[opcode](#term-opcode) family-oriented pointwise vocabulary, exact typed [scalar](#term-scalar-immediate)-immediate and ordered
 two-bound clamp bits, selected scalar-power realizations, ordered computation semantics,
 normalized access-plan form,
 a universal primitive `start`/`end` loop
@@ -2864,11 +2864,11 @@ Config policy.
 The fully static [scope](#term-scope) includes [scalars](#term-scalar), rank expansion, [singleton](#term-singleton) and multi-axis
 broadcast, zero extents, offset-[contiguous](#term-contiguous) and positive-strided layouts, zero-stride views, heap
 arrays, `MemorySegment`, and mixed carriers. Its ordered scalar regimes are dense [linear](#term-linear-meanings),
-scalar/all-zero stride, last-axis [bias](#term-bias), block/outer with a contiguous inner loop, and a complete
+scalar/all-zero stride, last-axis broadcast (`LAST_AXIS_BIAS`), block/outer with a contiguous inner loop, and a complete
 general positive-strided odometer fallback. The five regimes emit distinct state machines: one
 linear increment, a [constant](#term-constant) address, a final-axis counter/reset, a contiguous-inner plus outer
-[carry](#term-carry)/reset, or a full-axis odometer. Generated hot code uses primitive address/carry
-arithmetic without per-element cursor allocation, semantic [dispatch](#term-dispatch), division, or modulo.
+carry/reset, or a full-axis odometer. Generated hot code uses primitive address/carry
+arithmetic without per-element cursor allocation, semantic dispatch, division, or modulo.
 [Schema](#term-schema) 22 lets proved dense heap-array pointwise entries use integer loop/address locals after
 one-time bound and base [narrowing](#term-narrowing); unproved heap-array, segment, and general-layout forms keep the
 existing long address state. Schema 23 applies the same cold-proved integer-state boundary to
@@ -2876,7 +2876,7 @@ affine copies and all seven current movement families while preserving their uni
 bounds and typed general-long fallbacks.
 Completed CPU 0005J vectorizes direct contiguous runs and scalar broadcasts for exactly eligible
 [FLOAT32](#term-float32), [FLOAT64](#term-float64), [INT32](#data-type--datatype), [INT64](#data-type--datatype), or [canonical](#term-canonical-form)-[BOOL](#data-type--datatype) [IR](#term-intermediate-representation-ir) and admits narrowly virtual floating [masks](#term-boolean-mask)
-when every non-scalar boundary has a complete preferred-species [run](#term-run). It uses the scalar body for
+when every non-scalar boundary has a complete preferred-species run. It uses the scalar body for
 tails and selects scalar fallback for a general odometer, a too-short run, or any ineligible instruction.
 It implements no [gather](#gather) or masked tail. Completed CPU 0005D can replace one eligible FLOAT64
 input with canonical dense workspace access; FLOAT32 [vector](#term-vector) parity does not broaden that policy,
@@ -2932,12 +2932,12 @@ representations.
 
 A [CPU](#term-cpu) execution strategy combines two independent choices: process one [element](#term-element) or several [lanes](#term-lane) at a time, and use one thread or several workers. Here “[vector](#term-vector)” describes hardware-lane computation, not a [rank-one](#axis-rank-scalar-vector-and-matrix) [tensor](#tensor).
 
-One of exactly [`scalar`](#term-scalar), `vector`, `parallel-scalar`, or `parallel-vector`. Scalar/vector is the
-compute [axis](#term-axis) and single-thread/parallel is the orchestration axis. CPU analysis selects among all
+One of exactly [`scalar`](#cpu-portable-execution-strategy), `vector`, `parallel-scalar`, or `parallel-vector`. Scalar/vector is the
+compute choice and single-thread/parallel is the orchestration choice. CPU analysis selects among all
 four before shared assignment. It uses the exact Java 26 preferred [FLOAT64](#term-float64), [FLOAT32](#term-float32), [INT32](#data-type--datatype), [INT64](#data-type--datatype),
 or ByteVector species for an eligible lane type. All use unmasked complete vectors plus scalar
 tails and scalar fallback for general odometers or short runs. Proved dense [heap](#term-heap)-array vector
-loops compute one integer bound before vector iteration and then [run](#term-run) one [scalar tail](#term-scalar-tail). Generated
+loops compute one integer bound before vector iteration and then run one [scalar tail](#term-scalar-tail). Generated
 [kernels](#kernel) accept primitive `start` and `end`; worker orchestration remains outside generated code.
 
 The floating value set is the CPU 0005I twenty-one-[opcode](#term-opcode) set plus [binary](#term-binary-descriptor-and-metadata)/scalar [extrema](#saturation-pole-and-extremum), ordered
@@ -2974,7 +2974,7 @@ The implemented CPU-private caller-owned [lifetime](#term-lifetime) for a fixed 
 platform workers. Composition or tests create and close the group. A CPU finalizer verifies and
 borrows it for a parallel plan; the prepared executable and [bound invocation](#bound-invocation--boundinvocation) never close it. The
 group is not a public executor [facade](#term-facade), common pool, virtual-thread scheduler, [Runtime](#term-runtime) service,
-global [singleton](#term-singleton), or shared [`PreparedExecution`](#prepared-execution--preparedexecution) [lifecycle](#lifecycle).
+global singleton, or shared [`PreparedExecution`](#prepared-execution--preparedexecution) [lifecycle](#lifecycle).
 
 Multi-chunk submissions complete synchronously. Detected failure or close cancels unclaimed work,
 started work quiesces, and failure selection is deterministic by ascending range index. Joining
@@ -3037,7 +3037,7 @@ distinct [graph](#graph) input once in first-occurrence order. Window extraction
 accesses, occurrence mapping, one output store, and exact PAD or UNFOLD2D padding bits. Compact
 cold geometry owns concrete extents, layout offsets and [strides](#term-stride), normalized [axes](#term-axis), padding widths,
 repeats, segment prefixes, axis-window facts, [NCHW](#term-nchw) [spatial](#term-spatial-axes) geometry, signed [slice](#slice) starts/lengths/
-steps, and arbitrary-range initial state. Generated [scalar](#term-scalar) loops advance that state directly;
+steps, and arbitrary-range initial state. Generated [scalar](#cpu-portable-execution-strategy) loops advance that state directly;
 they retain no per-output-[element](#term-element) table and perform no per-element division or modulo. Parallel-scalar
 orchestration is permitted over disjoint output ranges, while [vector](#term-vector) preference falls back to
 scalar. PAD, CONCAT, UNFOLD_AXIS, UNFOLD2D, and canonical-[BOOL](#data-type--datatype) axis-zero STACK use bounded
@@ -3103,7 +3103,7 @@ FLOAT32, and BFLOAT16, and excludes every symmetric-[padding](#padding) or ceil-
 derived [spatial](#term-spatial-axes) coordinate is outside the unpadded output.
 
 FLOAT64/FLOAT32 use sequential same-format addition, BFLOAT16 rounds back to BFLOAT16 after every
-addition, and INT32/INT64 `FOLD_AXIS` use fixed-width modular addition. [Scalar](#term-scalar) and
+addition, and INT32/INT64 `FOLD_AXIS` use fixed-width modular addition. [Scalar](#cpu-portable-execution-strategy) and
 parallel-scalar ranges preserve identical per-output order; parallel ranges own disjoint output
 coordinates and use no atomics, partials, or merge. Arbitrary supported non-negative resolved
 layouts and [heap](#term-heap), native-order segment, or mixed carriers are admitted. Cold [binding](#term-binding) rejects
@@ -3140,12 +3140,12 @@ outputs preserve raw [FLOAT64](#term-float64)/[FLOAT32](#term-float32) NaN and [
 patterns, and [canonical](#term-canonical-form) BOOL bytes.
 
 Analysis declares one exact [run](#term-run)-owned workspace containing two axis-[extent](#term-extent) INT64 merge-index
-regions for each selected range. Parallel-[scalar](#term-scalar) ranges own complete disjoint slices and scratch
+regions for each selected range. Parallel-[scalar](#cpu-portable-execution-strategy) ranges own complete disjoint slices and scratch
 regions, so they neither split a slice nor share [mutable](#term-mutable) coordinates. Cold [binding](#term-binding) rejects every
 input/output and TOP_K output/output physical overlap before scratch mutation, output writes,
 generated calls, or worker submission. [Schema](#term-schema) 18 records structural family, represented type,
 direction/output order, boundary roles and carriers, output count, and scratch-bearing entry
-[shape](#shape); concrete axis, K, layout magnitudes, resources, and ranges remain cold.
+shape; concrete axis, K, layout magnitudes, resources, and ranges remain cold.
 
 This term describes CPU realization, not Model expression construction or a universal sorting
 contract. It adds no dynamic layouts, unstable/custom ordering, [vector](#term-vector) or native sorting,
@@ -3171,13 +3171,13 @@ execution-unit split makes the value a materialized boundary instead.
 
 <a id="term-benchmarking"></a>**Benchmarking** is observational execution of fixed reproducible [operation](#operation), operation-family,
 [model](#term-model), or end-to-end workloads to compare [commits](#commit-release-distribution-log-and-seed-meanings), models, or environments. A <a id="term-benchmark-report"></a>**benchmark report**
-is the rich [immutable](#term-immutable) evidence from one recorded [run](#term-run): workload and environment [identity](#term-identity-meanings), supplied
+is the rich [immutable](#term-immutable) evidence from one recorded run: workload and environment [identity](#term-identity-meanings), supplied
 configuration, [lifecycle](#lifecycle) boundary, [samples](#term-sample-machine-learning-and-hyperparameters) or [distributions](#commit-release-distribution-log-and-seed-meanings), and summary statistics. Benchmarking
 never selects or mutates production settings and never substitutes for correctness tests. The
 current report-only [CPU](#term-cpu) lifecycle harness and its [smoke](#term-smoke-test), baseline, and evidence profiles live in
-`tools/benchmarks`; CPU 0010M's hardened machine-local [scalar](#term-scalar) baseline and minimum future
+`tools/benchmarks`; CPU 0010M's hardened machine-local [scalar](#cpu-portable-execution-strategy) baseline and minimum future
 acceptance framework live under `modules/backend/cpu/evidence/cpu-0010m-defaults/`. The framework is not
-a [sealed](#term-sealed) [measurement protocol](#term-measurement-protocol). Those reports are explicitly ineligible to authorize a production
+a sealed [measurement protocol](#term-measurement-protocol). Those reports are explicitly ineligible to authorize a production
 route/default change because the public lifecycle
 does not expose actual selected-plan facts. A benchmark never applies the measured setting;
 operation-family, model, and broader end-to-end suites remain planned in the benchmark task list.
@@ -3303,7 +3303,7 @@ Broadcasting lets compatible [shapes](#shape) participate together as if size-on
 A shape rule that combines compatible inputs by aligning axes from the right and expanding static
 [singleton](#term-singleton) [dimensions](#dimension) as needed. In the implemented local shape [model](#term-model), equal dimensions remain
 equal and size `1` expands to the opposing dimension. Named dimensions are equal by [canonical](#term-canonical-form)
-[symbol](#term-symbol), exact expression dimensions are equal structurally, and constrained unknowns are equal
+[symbol](#dimension), exact expression dimensions are equal structurally, and constrained unknowns are equal
 only when the same unknown is reused. Other symbolic pairings remain unprovable locally.
 Broadcasting describes logical repetition; a resolved [layout](#layout) may represent that repetition with
 a zero [element stride](#element-stride). Directional [`Tensor.expand`](#reshape-and-expand-semantics) is a separate
@@ -3393,7 +3393,7 @@ sole [provenance](#provenance) reference.
 [Gradient](#term-gradient) eligibility survives only when it was already requested and both source and target are
 floating. That descriptor fact is not a gradient rule or [backend](#backend) differentiability promise.
 [Model](#term-model) defines all 81 ordered source/target conversions among its nine current types through the stateless
-`CastValueConversions` [scalar](#term-scalar) reference: same-type casts preserve [raw bits](#storage-mapping-contiguity-and-injectivity); floating and integral
+`CastValueConversions` [scalar](#cpu-portable-execution-strategy) reference: same-type casts preserve [raw bits](#storage-mapping-contiguity-and-injectivity); floating and integral
 sources round directly to floating targets with [round-to-nearest, ties-to-even](#floating-point-precision-and-rounding); lossy floating NaNs
 canonicalize while lossless [widening](#term-widening) left-aligns the complete [NaN](#term-nan) fraction; floating-to-integral
 conversion truncates and saturates; integral [narrowing](#term-narrowing) retains low bits; and numeric truthiness is
@@ -3466,7 +3466,7 @@ A typed, version-controlled, tested backend or [lifecycle](#lifecycle)-[owner](#
 complete valid tuning candidates from [target](#term-target) capabilities, workload facts, and a tuning budget.
 [Concrete backend](#concrete-backend) generators are colocated with their routes and own private configuration
 vocabulary. Shared tuning and [prepare](#prepare) orchestration sees candidates opaquely; it does not use a
-generic [parameter](#term-parameter) map, string [dispatch](#term-dispatch), reflective annotations, or a central knob [registry](#term-registry). The
+generic [parameter](#term-parameter) map, string dispatch, reflective annotations, or a central knob [registry](#term-registry). The
 first implemented internal generator is the [CPU](#term-cpu) exact/default [FLOAT32](#term-float32)/[FLOAT64](#term-float64) [OpenBLAS](#term-openblas) [MATMUL](#matrix-multiplication--matmul)
 [producer](#term-producer). It emits the complete portable alternative followed by every realizable copy-[mask](#term-boolean-mask) and
 fitting configured-thread combination. The shared exact-[partition](#partition) [opaque](#term-opaque) transport, generic
@@ -3475,7 +3475,7 @@ collaboration and [Engine](#term-engine)'s public bounded two-phase CPU composit
 occurrences and broader [Compiler](#term-compiler)/[Planning](#term-planning) candidate orchestration remain planned.
 
 [Metal](#term-metal) preparation has a second internal generator. It emits the custom
-[singleton](#term-singleton)-NEG [heuristic](#term-heuristic) first, followed by [MPSGraph](#term-mpsgraph), for an eligible singleton NEG. A partition
+singleton-NEG [heuristic](#term-heuristic) first, followed by [MPSGraph](#term-mpsgraph), for an eligible singleton NEG. A partition
 containing [BFLOAT16](#term-bfloat16) or [FLOAT16](#term-float16) values emits only `CUSTOM_PROGRAM`, including
 exact raw-preserving RESHAPE/PERMUTE/[CONTIGUOUS](#term-contiguous)/[SLICE](#slice)/CONCAT/TILE images. Other partitions retain
 their established exact candidate sets. Positive budgets return stable complete prefixes, and
@@ -3570,7 +3570,7 @@ Shared Prepare can preserve a caller's concrete generic types and transport the 
 cannot enumerate candidates, interpret compatibility, select a winner, apply a decision, or
 serialize either value through these roles. The handoff is cold point-in-time state, not part of
 the shared [`PrepareContext`](#prepare-context-preparecontext) shape, [`BackendPartitionAnalysis`](#backend-partition-analysis-backendpartitionanalysis), [graph preparation](#graph-preparation--graphpreparation), a tuning [cache](#term-cache), a
-measurement result, an executable, or [Runtime](#term-runtime) state. A [concrete backend](#concrete-backend) may [carry](#term-carry) the handoff
+measurement result, an executable, or [Runtime](#term-runtime) state. A [concrete backend](#concrete-backend) may carry the handoff
 inside its own opaque analysis-input value. The current [CPU](#term-cpu) [OpenBLAS](#term-openblas) and profile-free [Metal](#term-metal)
 batches and decisions implement the roles nominally; each backend alone validates and interprets
 them.
@@ -3623,18 +3623,18 @@ Neither artifacts nor their graph retain [Tensors](#tensor) or the separate [bor
 
 ### Compile constant plan
 
-The compile constant plan distinguishes inputs supplied on each [run](#term-run) from values fixed by [compilation](#compiler-engine-and-execution-stage-names). A repeated [scalar](#term-scalar) [constant](#term-constant) can be described without storing a dense array of copies.
+The compile constant plan distinguishes inputs supplied on each [run](#term-run) from values fixed by [compilation](#compiler-engine-and-execution-stage-names). A repeated [scalar](#typed-scalar-value--scalarvalue) [constant](#term-constant) can be described without storing a dense array of copies.
 
 The current [compiler](#term-compiler)-owned output-only classification of every final [graph](#graph) input as either a
 [bindable input](#bindable-input) or one exact
 [compile-time constant source](#compile-time-constant-source). `CompileConstantPlan` snapshots
-both ordered role lists while retaining exact [immutable](#term-immutable) [element](#term-element) references. Its
+both ordered role lists while retaining exact [immutable](#term-immutable) element references. Its
 `bindableInputBindings()` list contains one
 [`BindableInput(TensorId, ValueId)`](#bindable-input-binding) per caller-bindable input in final
 graph-input order. The existing `bindableInputs()` list is the immutable ordered `ValueId`
 projection of that typed [view](#term-view-meanings).
 `ConstantSource(ValueId, ScalarValue)` carries the exact input [identity](#term-identity-meanings) and exact typed scalar
-repeated at every logical [coordinate](#axis-rank-scalar-vector-and-matrix). It is not a [Tensor](#tensor), [Shape](#shape), dense [payload](#artifact-envelope-and-atomic-publication), storage object,
+repeated at every logical [coordinate](#axis-rank-scalar-vector-and-matrix). It is not a [Tensor](#tensor), [Shape](#shape), dense payload, storage object,
 [materialization](#materialization) instruction, [backend](#backend) value, or physical allocation.
 
 ### Compile diagnostics
@@ -3651,7 +3651,7 @@ public predicate language, binding [API](#term-application-programming-interface
 
 ### Compile-time constant source
 
-A compile-time constant source supplies a fixed value rather than a fresh caller input. It can remain a structural [graph](#graph) input while a separate [immutable](#term-immutable) description records its repeated [scalar](#term-scalar) value.
+A compile-time constant source supplies a fixed value rather than a fresh caller input. It can remain a structural [graph](#graph) input while a separate [immutable](#term-immutable) description records its repeated [scalar](#typed-scalar-value--scalarvalue) value.
 
 A current package-private [compiler](#term-compiler) classification for a fixed logical graph source. Structurally,
 the source remains an ordinary [`CompiledGraphModel`](#compiled-graph--compiledgraphmodel) input, satisfying the existing graph-closure
@@ -3663,7 +3663,7 @@ Initial facts enter only through explicit exact [Tensor](#tensor)-[identity](#te
 [descriptor](#term-descriptor), label, [layout](#layout), provenance absence, or [mutable](#term-mutable) [host storage](#host-storage). Folding may create a
 synthetic [constant](#term-constant) source deterministically. The current complete compiler entry transports the
 facts into `CompileConstantPlan`; future [prepare](#prepare)/[backend](#backend) work owns physical [materialization](#materialization). The current
-classification is not a public binding [API](#term-application-programming-interface-api), dense [payload](#artifact-envelope-and-atomic-publication), physical [buffer](#term-buffer), [runtime](#term-runtime) value, or
+classification is not a public binding [API](#term-application-programming-interface-api), dense payload, physical [buffer](#term-buffer), [runtime](#term-runtime) value, or
 executable constant.
 
 ### Compile mode / `CompileMode`
@@ -3730,7 +3730,7 @@ result type differs from the input type. A same-Shape or same-type row adds no r
 [operation](#operation).
 
 Cotangent normalization is not a second algebra or a special conversion policy. Its SUM and CAST
-occurrences enter the same combined [capture](#term-capture-meanings), [model](#term-model) [inference](#term-inference), [validation](#term-validation), numerical-semantics, and
+occurrences enter the same combined [capture](#term-capture-meanings), [model](#term-model) [inference](#term-inference-meanings), [validation](#term-validation), numerical-semantics, and
 exact optimization pipeline as forward expressions.
 
 ### Compiled graph / `CompiledGraphModel`
@@ -3792,7 +3792,7 @@ Inclusive reverse produces `[6, 5, 3]` from `1 + 2 + 3`, `2 + 3`, and `3`. Exclu
 produces `[5, 3, 0]` from `2 + 3`, `3`, and the empty reverse prefix. Reverse changes traversal
 direction, not output order.
 
-Public `Tensor.cumSum(axis)` selects inclusive [forward mode](#term-forward-mode), and the complete overload preserves
+Public `Tensor.cumSum(axis)` selects inclusive forward traversal, and the complete overload preserves
 explicit exclusive and reverse flags. Both validate numeric input, normalize one caller axis,
 retain exact [Shape](#shape)/type/[gradient](#term-gradient)-eligibility [metadata](#term-metadata) with unresolved [layout](#layout), and record exact
 one-input [provenance](#provenance) in a fresh unlabeled, storage-free [Tensor](#tensor). They calculate none of the example
@@ -3809,9 +3809,9 @@ infinity signs. Current package-private first-order [autograd](#autograd) suppor
 cumulative zero counts, and an opposite-direction cumulative sum rather than dividing by the
 original input. This is [compiler](#term-compiler) expression construction, not a forward algorithm or [backend](#backend)
 [rounding](#term-rounding) rule. The [CPU](#term-cpu) backend separately executes exactly one fully static, resolved-layout
-`CUM_SUM` or `CUM_PROD` [occurrence](#term-occurrence) across all six numeric types. Its [scalar](#term-scalar) or whole-[slice](#slice)
+`CUM_SUM` or `CUM_PROD` [occurrence](#term-occurrence) across all six numeric types. Its [scalar](#cpu-portable-execution-strategy) or whole-[slice](#slice)
 parallel-scalar realization retains sequential same-type accumulation and rounds [BFLOAT16](#term-bfloat16) or
-[FLOAT16](#term-float16) after each operation; this is not a NaN-[payload](#artifact-envelope-and-atomic-publication), cross-backend bitwise, [vector](#term-vector)-[scan](#term-cumulative-scan), or in-place promise.
+[FLOAT16](#term-float16) after each operation; this is not a NaN-[payload](#term-nan-payload), cross-backend bitwise, [vector](#term-vector)-[scan](#term-cumulative-scan), or in-place promise.
 See
 [Cumulative-scan semantic kinds and attributes](reference/tensor/operation-reductions.md#cumulative-scan-semantic-kinds-and-attributes).
 
@@ -3854,7 +3854,7 @@ in [NCW](#term-ncw) order: [batch](#term-batch-machine-learning-and-hyperparamet
 input `[N, C_in, W]` and [weight](#term-weight) `[C_out, C_in/groups, K_w]` at [axis](#term-axis) 2, producing
 `[N, C_in, 1, W]` and `[C_out, C_in/groups, 1, K_w]`; applies the ordinary grouped [Conv2d](#convolution--conv2d)
 operation with `Conv2dAttrs(1, stride, 0, padding, 1, dilation, groups)` and optional direct [bias](#term-bias);
-then squeezes axis 2. [Compiler](#term-compiler) [inference](#term-inference) and current [gradients](#term-gradient) consequently reuse the existing
+then squeezes axis 2. [Compiler](#term-compiler) [inference](#term-inference-meanings) and current [gradients](#term-gradient) consequently reuse the existing
 [rank](#term-rank)-edit and Conv2d [nodes](#node). There is no `CONV1D` or public/private `ConvNd`, and this [Model](#term-model)
 composition does not claim [backend](#backend) execution or performance. See
 [Grouped NCW Conv1d composition](reference/tensor/convolution.md#grouped-ncw-conv1d-composition).
@@ -3874,7 +3874,7 @@ applied on both sides of each [spatial axis](#spatial-axes-channels-and-window-s
 [provenance](#provenance) only. Package-private [compiler](#term-compiler) [capture](#term-capture-meanings) and grouped input, weight, and optional bias
 first-order formulas through public unfold/[matrix](#term-matrix-meanings)/fold expressions are current. The [CPU](#term-cpu) [backend](#backend)
 separately executes the fully static, resolved-[layout](#layout) [FLOAT64](#term-float64)/[FLOAT32](#term-float32)/[BFLOAT16](#term-bfloat16)/[FLOAT16](#term-float16) subset
-directly, including optional intrinsic bias, groups/depthwise geometry, [scalar](#term-scalar) or parallel-scalar
+directly, including optional intrinsic bias, groups/depthwise geometry, [scalar](#cpu-portable-execution-strategy) or parallel-scalar
 complete-output-cell ranges, and the bounded [fusion](#term-fusion)/materialized-suffix forms documented in the
 CPU backend guide. Other backend algorithms and execution forms remain planned. See
 [Tensor API](reference/tensor/convolution.md#grouped-nchw-conv2d-expressions).
@@ -3995,9 +3995,9 @@ generated-backward fact.
 
 ### Scalar-power realization
 
-Scalar-power realization chooses how to implement raising a value to one fixed [exponent](#term-exponent). It keeps the [graph](#graph)’s requested power [operation](#operation) distinct from the [CPU](#term-cpu)’s selected way of calculating it.
+Scalar-power realization chooses how to implement raising a value to one fixed exponent. It keeps the [graph](#graph)’s requested power [operation](#operation) distinct from the [CPU](#term-cpu)’s selected way of calculating it.
 
-The implemented CPU-[prepare](#prepare) choice that retains semantic [scalar](#term-scalar) `POW` in the [compiled graph](#compiled-graph--compiledgraphmodel) while
+The implemented CPU-[prepare](#prepare) choice that retains semantic [scalar](#term-scalar-immediate) `POW` in the [compiled graph](#compiled-graph--compiledgraphmodel) while
 selecting one exact/default realization from the exponent's exact [FLOAT32](#term-float32) or [FLOAT64](#term-float64) bits. Common
 route-independent CPU analysis owns exponent classification and the selected plan; emitters only
 consume it.
@@ -4032,18 +4032,18 @@ hashing include both type and bits.
 
 A typed scalar value is not a [rank-zero](#axis-rank-scalar-vector-and-matrix) [Tensor](#tensor): it has no [Shape](#shape), [identity](#term-identity-meanings), [layout](#layout),
 storage, [provenance](#provenance), or executable state. Its inspectors require the exact stored type and do not
-convert. [Scalar](#term-scalar)/clamp and [padding](#padding) attributes retain these values, while receiver-aware public
+convert. [Scalar](#term-scalar-immediate)/clamp and [padding](#padding) attributes retain these values, while receiver-aware public
 Tensor expression construction enforces exact value/input type equality. Existing primitive
 TensorFactory scalar/full methods remain separate [eager](#term-eager-evaluation) Tensor-construction APIs. See [exact typed
 scalar values](reference/tensor/data-types.md#exact-typed-scalar-values).
 
 ### Data-transfer object / DTO
 
-A value whose purpose is to [carry](#term-carry) structured data across a boundary without owning the behavior
+A value whose purpose is to carry structured data across a boundary without owning the behavior
 that produced it. Synaptik's implemented [Trace](#trace) [API](#term-application-programming-interface-api) uses typed DTO contracts for the event envelope
 and the bounded `BackendPreparationOutcome` and `BackendInvocationOutcome` facts so diagnostic
 [producers](#term-producer) and consumers can exchange explicit fields without importing [compiler](#term-compiler), [runtime](#term-runtime), or
-[backend](#backend) business objects. Broader [compile](#compile), [prepare](#prepare), [run](#term-run), and backend [lifecycle](#lifecycle) [payload](#artifact-envelope-and-atomic-publication) DTO
+[backend](#backend) business objects. Broader [compile](#compile), [prepare](#prepare), [run](#term-run), and backend [lifecycle](#lifecycle) [payload](#trace-payload--tracepayload) DTO
 families remain planned.
 
 ### Device class / `DeviceClass`
@@ -4090,7 +4090,7 @@ An ignore index is a specially chosen [target](#term-target) value that marks a 
 One exact [INT32](#data-type--datatype) or [INT64](#data-type--datatype) [`ScalarValue`](#typed-scalar-value--scalarvalue) whose type matches an [index target](#index-target). A matching target is
 ignored before bounds checking or logits [evaluation](#term-evaluation), contributes [positive zero](#nan-infinity-and-signed-zero), and is excluded
 from the categorical-loss `MEAN` denominator. The value is [operation](#operation) attributes [metadata](#term-metadata) rather
-than a [Tensor](#tensor) [producer](#term-producer) input; the public [API](#term-application-programming-interface-api) uses one required [scalar](#term-scalar) overload rather than a
+than a [Tensor](#tensor) [producer](#term-producer) input; the public [API](#term-application-programming-interface-api) uses one required [scalar](#typed-scalar-value--scalarvalue) overload rather than a
 public `Optional`.
 
 <a id="inference-session--inferencesession"></a>
@@ -4107,7 +4107,7 @@ wrapper. Stateful [TrainingSession](#training-session--trainingsession) is retai
 
 The size description for one [axis](#term-axis) of a [shape](#shape). A `StaticDimension` has a known
 non-negative `long` size; zero is valid and represents an empty [extent](#term-extent). A `DynamicDimension`
-names one extent with a [canonical](#term-canonical-form) non-blank [symbol](#term-symbol). An `ExpressionDimension` retains either an
+names one extent with a [canonical](#term-canonical-form) non-blank [symbol](#dimension). An `ExpressionDimension` retains either an
 exact [symbolic extent expression](#symbolic-extent-expression) or an [identity](#term-identity-meanings)-based constrained
 unknown.
 
@@ -4128,11 +4128,11 @@ code, routes and slot [identities](#term-identity-meanings) stay fixed; [mutable
 It is not a mandatory maximum-capacity bank or per-B full-preparation [cache](#term-cache).
 [Prepare0013](planning/modules/prepare/tasks/0013-ordinary-dynamic-batch-cpu-vertical.md#result)
 implements bounded ordinary [homogeneous](#term-homogeneous) [FLOAT32](#term-float32) [CPU](#term-cpu) forward and actual first-order backward,
-with [rank](#term-rank)-at-most-two boundaries plus qualified automatic-differentiation [views](#term-view-meanings), generated [scalar](#term-scalar),
+with [rank](#term-rank)-at-most-two boundaries plus qualified automatic-differentiation [views](#term-view-meanings), generated [scalar](#cpu-portable-execution-strategy),
 single-range execution and [operation](#operation)-qualified B=0. MAIN accepted the capability on 2026-10-24
 after final independent reviews and the native-enabled integration gate passed;
 the [bounded symbolic Scan direction](architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)
-has implemented Compiler0014 [inference](#term-inference)/actual first-order [AD](#autograd)/scoped binding, independently
+has implemented Compiler0014 [inference](#term-inference-meanings)/actual first-order [AD](#autograd)/scoped binding, independently
 reviewed and MAIN accepted after compatibility [validation](#term-validation), under completed Model0041 authority.
 Prepare0014 implements the bounded FLOAT32 [Scan](#general-differentiable-scan) CPU/Engine vertical, with final [qualification](#term-qualification)
 tracked in its [task](planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md). [NN](#neural-network-module-parameter-buffer-and-forward-context)/[TrainingSession](#training-session--trainingsession),
@@ -4142,7 +4142,7 @@ and [handoff example](architecture/runtime-prepare-backend-boundary.md#accepted-
 
 ### Symbolic Scan
 
-A symbolic Scan repeats a body over time while leaving the [batch](#term-batch-machine-learning-and-hyperparameters) size named rather than fixed. Time length and [feature](#term-software-feature) widths remain fixed in this source form; symbolic does not mean arbitrary [shapes](#shape) or arbitrary supported bodies.
+A symbolic Scan repeats a body over time while leaving the [batch](#term-batch-machine-learning-and-hyperparameters) size named rather than fixed. Time length and [feature](#term-feature) widths remain fixed in this source form; symbolic does not mean arbitrary [shapes](#shape) or arbitrary supported bodies.
 
 The all-valid [general Scan](#general-differentiable-scan) source form with one named batch B and fixed time/[features](#term-feature)/state
 widths. Symbolic templates have unresolved numeric [layouts](#layout); [binding](#term-binding) must supply [canonical](#term-canonical-form) actual
@@ -4150,7 +4150,7 @@ layouts for every final/emission/[residual port](#scan-residual-port-and-history
 [PURE](#term-pure)/[dtype](#data-type--datatype) source validity, selected ordinary-[VJP](#term-vector-jacobian-product-vjp) [Compiler](#term-compiler) [admission](#term-admission) and ordinary [CPU](#term-cpu) PURE
 composition are separate. Model0042 implements source construction only,
 independently reviewed and MAIN accepted 2026-10-25; static source remains available unchanged.
-Compiler0014's [inference](#term-inference)/actual first-order [AD](#autograd)/fresh all-port binding is independently reviewed
+Compiler0014's [inference](#term-inference-meanings)/actual first-order [AD](#autograd)/fresh all-port binding is independently reviewed
 and MAIN accepted after compatibility [validation](#term-validation). [Prepare](#prepare)/CPU/[Engine](#term-engine) now compose supported
 ordinary CPU PURE units for symbolic forward and selected first-order reverse with fixed
 time/features and ordinary guards; the initial [FLOAT32](#term-float32) layer is recorded in
@@ -4182,7 +4182,7 @@ Private backing never escapes or mutates; this is not a [Shape](#shape) interpre
 The current `resolve` call returns fresh geometry for ordinary and qualified [symbolic Scan](#symbolic-scan) runs;
 one preparation fixes resource [identities](#term-identity-meanings), not a run's mutable arrays or storage. The accepted future
 [Engine geometry memo](#engine-geometry-memo) may reuse exact-plan immutable facts/private backing,
-but mutable access/packed/address/[carry](#term-carry)/size working arrays remain isolated per invocation.
+but mutable access/packed/address/carry/size working arrays remain isolated per invocation.
 Sharing immutable geometry in a test does not itself authorize or implement [Engine](#term-engine) [memoization](#term-memoization).
 
 ### Engine geometry memo
@@ -4214,7 +4214,7 @@ distinct because later diagnostics and transformations need their graph context.
 Verification uses three outcomes. A proven predicate disappears, a disproven predicate rejects
 the graph in deterministic [node](#node)/rule/[axis](#term-axis) order, and an undecidable predicate is retained in the
 internal `ValidatedGraph`. Proof may use static values, structural [model](#term-model) equality, and conservative
-bounds already carried by symbolic expressions. It never assigns a value to a [symbol](#term-symbol), unifies
+bounds already carried by symbolic expressions. It never assigns a value to a [symbol](#dimension), unifies
 different symbols, or treats unavailable or overflowing [interval arithmetic](#interval-arithmetic-and-directed-rounding) as contradiction.
 
 This term is narrower than a **concrete [binding](#term-binding) constraint**. The current internal value provides
@@ -4226,7 +4226,7 @@ inference](reference/compiler/verification-scan.md#current-package-private-verif
 
 Accepting a binding-dependent `Tensor.expand` expression in Model does not itself create a
 deferred graph constraint. Model retains only the exact target Shape and the EXPAND occurrence.
-Current compiler [inference](#term-inference) translates each non-equal, non-static-source-[singleton](#term-singleton) unresolved
+Current compiler [inference](#term-inference-meanings) translates each non-equal, non-static-source-[singleton](#term-singleton) unresolved
 aligned pair to
 `AnyOf(DimensionEqual(source, 1), DimensionEqual(source, target))` in aligned-axis order.
 [Preflight](#term-preflight) admits the inverse `SUM_TO_SHAPE` only through the same predicate relationship. A
@@ -4312,7 +4312,7 @@ complete ordered output [descriptors](#term-descriptor) match. It never merges a
 
 This optional work is distinct from mandatory [graph canonicalization](#graph-canonicalization).
 The selected fold [matrix](#term-matrix-meanings) is limited to [BOOL](#data-type--datatype) logic, signed-integral [binary](#term-binary-descriptor-and-metadata) arithmetic/comparison,
-and same-typed signed-integral [scalar](#term-scalar) arithmetic over explicit splats. It does not evaluate
+and same-typed signed-integral [scalar](#term-scalar-immediate) arithmetic over explicit splats. It does not evaluate
 floating/[BFLOAT16](#term-bfloat16) facts, casts, unselected operations, or dense payloads; construct [autograd](#autograd);
 derive [publication](#term-publication) or [planning](#term-planning); allocate physical values; or expose a public compiler [API](#term-application-programming-interface-api). See
 [Compile API](reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization).
@@ -4370,7 +4370,7 @@ domain. A buffer is persistent module-owned state that an [optimizer](#term-opti
 future [running statistic](#term-running-statistic). A **forward context** is an [immutable](#term-immutable) [snapshot](#term-snapshot) of one module's local
 train/[eval mode](#inference-and-evaluation) for a concrete layer's typed forward method.
 
-Child [ownership](#term-ownership-meanings) is exclusive and permanent: a child has one parent and cannot be [detached](#detached-model-results),
+Child [ownership](#term-ownership-meanings) is exclusive and permanent: a child has one parent and cannot be detached,
 renamed, reparented, or shared. Module-tree discovery returns separate immutable snapshots for
 parameters and buffers. Each snapshot uses iterative depth-first traversal in deterministic
 declaration/child-registration order and relative, dot-separated paths such as
@@ -4455,7 +4455,7 @@ boundary, not NN, Training or [Engine](#term-engine). It offers a public [opaque
 a versioned, bounded single-file container with strict names, lengths, and [SHA-256](#term-sha-256) [integrity](#term-integrity)
 checks. It does not assign meaning to [payload](#artifact-envelope-and-atomic-publication) bytes. Saving this envelope forces its temporary
 file and uses one [atomic move](#term-atomic-move) for live visibility; Java NIO does not portably guarantee that the
-rename survives power [loss](#loss). A failed move can leave the target in a provider-dependent state.
+rename survives power loss. A failed move can leave the target in a provider-dependent state.
 NN's retained `nn.checkpoint` package, not generic Checkpoint, owns the old model readers.
 A package-private values-only **model artifact candidate** adds [canonical](#term-canonical-form) version-one [metadata](#term-metadata) and
 detached per-path payload bytes from one complete NN state snapshot through public Engine compute.
@@ -4481,7 +4481,7 @@ loaded trees. After complete preflight, internal raw-preserving [contiguous](#te
 unique [leaf](#term-leaf) outputs without rebinding NN state; this is not generic leaf-output Engine support.
 The retained aggregate payload ceiling counts schema and every path, including aliases, not
 transient Engine workspace or peak heap. See the [model checkpoint API](reference/checkpoint/models.md).
-A separately gated optional Training Checkpoint adapter would [coordinate](#axis-rank-scalar-vector-and-matrix) Training-owned state and
+A separately gated optional Training Checkpoint adapter would coordinate Training-owned state and
 caller-owned continuation data without making the model-only project depend on Training. A
 bounded caller-owned in-memory private-candidate restore is exercised by an [integration test](#term-integration-test);
 there is no built-in cross-owner [transaction](#term-transaction), durable training-[resume](#schema-serialization-and-checkpoint) [codec](#term-codec), model migration
@@ -4593,7 +4593,7 @@ gradient/update rule, compiler behavior, backend support, or execution.
 
 The current final `BatchNorm` module owns mandatory rank-one `scale` and `bias` parameters plus
 `runningMean` and `runningVariance` buffers for one fixed positive feature count, non-negative
-logical [channel](#term-channel) axis, exact floating type, and exact typed [momentum](#term-momentum) and epsilon. Supplied state is
+logical [channel](#term-channel) axis, exact floating type, and exact typed [momentum](#batch-normalization--batch-normalization-inference-and-training) and epsilon. Supplied state is
 retained exactly; initialized state is one scale, zero bias, zero running [mean](#term-mean), and one running
 [variance](#term-variance). `forward(input, context)` treats the explicit immutable context as authoritative.
 Evaluation constructs one Model [inference](#term-inference) expression and changes no buffer. Training constructs
@@ -4618,7 +4618,7 @@ and treats that exact context as authoritative even if the module's inherited mo
 Evaluation returns a fresh NN `DropoutForwardResult` containing the exact input and incoming state
 references without calling Model, allocating a Tensor, or advancing state. Training calls
 `Tensor.dropout` exactly once and returns a fresh NN result containing the exact Model output and
-next-state references. The NN [carrier](#term-storage-carrier) is distinct because Model `DropoutResult` promises public
+next-state references. The NN result wrapper is distinct because Model `DropoutResult` promises public
 slots from one producer, a condition that is false for evaluation bypass.
 
 This small declarative example summarizes the two branches for the same non-null `input` and
@@ -4703,7 +4703,7 @@ n = tanh(x_n + r * h_n)
 h1 = n + z * (h0 - n)
 ```
 
-The reset gate multiplies the already projected candidate [lane](#term-lane) `h_n`; update value one retains
+The reset gate multiplies the candidate hidden projection `h_n`; update value one retains
 `h0`, while update value zero selects `n`. The caller supplies `h0` and may pass the exact returned
 `h1` to a later call. As with the vanilla RNN cell, this describes one metadata-composition step,
 not numerical execution or an implicit sequence. `GruCell` extends `Module` directly, is not a
@@ -4974,7 +4974,7 @@ and optional `ScanActivityPlan`. Compiler scoped capture/inference, selected ord
 first-order AD and final body-bearing query/demand emission are implemented. Prepare validates
 scoped projection, binding and complete-graph demand. Current CPU general Scan composes every
 ordinary CPU-supported PURE unit with the same dtype, [layout](#layout) and attribute guards; the
-CPU0030–CPU0033 inventories are historical layers, not a current [finite](#term-finite) whitelist.
+CPU0030–CPU0033 inventories are historical layers, not a current finite whitelist.
 All-valid uses WholeTensor; length-aware execution proves ROW([axis](#term-axis)) and SHARED roles without
 restricting SHARED tensor [rank](#term-rank). Original length-AD carries/sequences and emissions stay ROW(0);
 intermediate ROW axes follow the proved [coordinate](#axis-rank-scalar-vector-and-matrix). Row-mixing requires materialized same-length
@@ -4989,7 +4989,7 @@ explains forward/[residual](#scan-residual-port-and-history-demand)/reverse rela
 
 ### Length-aware scan row role
 
-A row role states which [axis](#term-axis) identifies independent [batch](#term-batch-machine-learning-and-hyperparameters) members inside a length-aware [scan](#general-differentiable-scan). Equal axis sizes do not prove equal roles: a batch of four and a [feature](#term-feature) width of four still [mean](#term-mean) different [coordinates](#axis-rank-scalar-vector-and-matrix).
+A row role states which [axis](#term-axis) identifies independent [batch](#term-batch-machine-learning-and-hyperparameters) members inside a length-aware [scan](#general-differentiable-scan). Equal axis sizes do not prove equal roles: a batch of four and a [feature](#term-feature) width of four still mean different [coordinates](#axis-rank-scalar-vector-and-matrix).
 
 An explicit identified original batch coordinate: ROW(axis) can describe any completely proved
 intermediate axis/[rank](#term-rank); SHARED has no row coordinate. Retained sequence/header declarations are
@@ -5046,7 +5046,7 @@ from final outer publications and ordinary uses, not retained siblings or intern
 [Prepare](#prepare) revalidates demand against complete-[graph](#graph) use before analysis; direct contexts check
 locally visible uses and supplied logical obligations. Neither check proves physical history
 allocation or stores. Under the execution protocol, realized by CPU0030 for its qualified
-[pointwise](#term-pointwise) [slice](#slice), CPU0031 for its qualified [FLOAT32](#term-float32) broadcast/SUM/[layout](#layout) extension and CPU0032
+[pointwise](#term-pointwise) slice, CPU0031 for its qualified [FLOAT32](#term-float32) broadcast/SUM/[layout](#layout) extension and CPU0032
 for qualified [rank-two](#axis-rank-scalar-vector-and-matrix) [MATMUL](#matrix-multiplication--matmul), with the complete bounded [homogeneous](#term-homogeneous) [FLOAT64](#term-float64) counterpart implemented
 by CPU0033, only [publication](#term-publication)/downstream
 demand allocates/stores original-time history and creates a saved-site [fusion](#term-fusion) restriction;
@@ -5074,7 +5074,7 @@ explicit `rnnScan/gruScan/lstmScan` instead use shared [runtime](#term-runtime) 
 [TBF](#term-tbf) (time/[batch](#term-batch-machine-learning-and-hyperparameters)/[features](#term-feature)), FORWARD direction, [bias](#term-bias) and independent zero states. `buildWithLengths`
 returns the existing list-boundary Model with `[values, validLengths]` and one chain output.
 `compute(first,second)` is a positional convenience for any owned two-input/one-output Model, not
-length-role [inference](#term-inference), and needs no prior forward. `finalHidden` immediately after a [scan](#term-cumulative-scan) selects
+length-role [inference](#term-inference-meanings), and needs no prior forward. `finalHidden` immediately after a [scan](#term-fixed-recurrent-scan) selects
 its existing semantic `[B,H]` final-state port, including initial zero for a zero-length row.
 `lastTimeStep` instead selects dense time `T-1`. Ordinary steps do not inherit a [padding mask](#masks-padding-and-eager-evaluation);
 only each scan skips its own suffix. Every appended selector counts in step-[seed](#term-seed) derivation.
@@ -5143,7 +5143,7 @@ preserves each layer's ordinary guards and promotion, not a saved example-[batch
 A **descriptor-only skeleton** is the fully bound [evaluation](#term-evaluation)-mode `DeclarativeModel` returned
 by reconstruction. Its independent layers own direct numeric paths such as `0.weight` and
 `1.0.scale`, while parameter Tensors have static [schema](#term-schema) but no storage or [provenance](#provenance). One exact
-Tensor reference is used per alias group or [singleton](#term-singleton). Existing strict state load supplies the
+Tensor reference is used per alias group or singleton. Existing strict state load supplies the
 value references separately; a shallow StateDictionary is not a [detached value](#detached-model-results) [snapshot](#term-snapshot).
 
 A **parameter identity alias group** contains at least two distinct state paths bound to the
@@ -5190,7 +5190,7 @@ A [unary](#term-unary) [Tensor](#tensor) [module](#term-module) accepts one Tens
 
 A **unary Tensor module** is an implemented `UnaryTensorModule`: a `Module` whose complete public
 forward [signature](#term-signature) is one non-null Tensor to one non-null Tensor. The [nominal](#term-nominal) subtype preserves
-module [ownership](#term-ownership-meanings) and unary invocation together at [compile](#compile) time without a cast, reflection,
+module [ownership](#term-ownership-meanings) and unary invocation together at compile time without a cast, reflection,
 adapter, or generic `Module.forward(...)`. It defines no shared Shape, [data type](#data-type--datatype), freshness,
 numerical, mode, state-transition, [compiler](#term-compiler), [backend](#backend), or execution rule; each concrete child keeps
 its own contract. Current [`Linear`](#term-linear-meanings), `LayerNorm`, [`Embedding`](#embedding), `Conv1d`, [`Conv2d`](#convolution--conv2d), and [`Conv3d`](#conv3d--ncdhw)
@@ -5234,7 +5234,7 @@ work.
 
 ### Graph
 
-A directed [dataflow](#term-dataflow) [model](#term-model) of a computation. [Nodes](#node) represent computation occurrences, and [values](#graph-value) [carry](#term-carry) logical data from graph inputs or producing nodes to consuming nodes and graph outputs. A graph describes computation and data dependencies; it is not a [runtime](#term-runtime) schedule or a collection of physical [buffers](#term-buffer).
+A directed [dataflow](#term-dataflow) [model](#term-model) of a computation. [Nodes](#node) represent computation occurrences, and [values](#graph-value) carry logical data from graph inputs or producing nodes to consuming nodes and graph outputs. A graph describes computation and data dependencies; it is not a [runtime](#term-runtime) schedule or a collection of physical [buffers](#term-buffer).
 
 ### Graph value
 
@@ -5295,14 +5295,14 @@ optimization. `disabled()` creates a fresh false value that requests skipping op
 `standard()` creates a fresh true value that permits the compiler's standard optional pipeline.
 Direct construction retains either primitive value.
 
-False cannot disable [graph capture](#capture-graph-ports-and-reconstruction), ordering, [inference](#term-inference), validation, mandatory [canonical](#term-canonical-form)
+False cannot disable [graph capture](#capture-graph-ports-and-reconstruction), ordering, [inference](#term-inference-meanings), validation, mandatory [canonical](#term-canonical-form)
 representation, mode-required [autograd](#autograd), [publication](#term-publication) [binding](#term-binding), [backend](#backend)-neutral [planning](#term-planning),
-preparation, or execution. True does not freeze a pass list, pass order, internal graph [shape](#shape), or
+preparation, or execution. True does not freeze a pass list, pass order, internal graph shape, or
 implementation strategy and permits no approximate mathematics, changed numerical semantics,
 backend-specific [fusion](#term-fusion), preparation, or execution behavior. No current `CompileConfig` or public
 compiler entry point consumes this value. The current package-private `GraphCompiler` consumes it
 only to enable or skip the optional pipeline over the complete mode-selected graph; mandatory
-[graph canonicalization](#graph-canonicalization) and validation always [run](#term-run).
+[graph canonicalization](#graph-canonicalization) and validation always run.
 
 ### Graph canonicalization
 
@@ -5332,7 +5332,7 @@ decimal rendering and ordering have no semantic meaning.
 
 Each initializer creates a fresh zero-input, one-output `GraphRngKind.INITIAL_STATE` [producer](#term-producer) with
 exact `GraphRngStateAttrs(long key, long counter)`. Its private Tensor is `INT64 Shape[2]`, with
-[lane](#term-lane) zero carrying key bits and lane one counter bits, unresolved [layout](#layout), false [gradient](#term-gradient)
+lane zero carrying key bits and lane one counter bits, unresolved [layout](#layout), false [gradient](#term-gradient)
 eligibility, no label or storage, and [provenance](#provenance) output index zero. The lanes are an opaque state
 representation, not public numerical Tensor inputs. The wrapper exposes no public Tensor, words,
 storage mutation, generator, split, copy, or arbitrary-wrap [API](#term-application-programming-interface-api).
@@ -5378,12 +5378,12 @@ for `[T,B,...]` or `BATCH_MAJOR` for `[B,T,...]`. It neither transposes values n
 physical [layout](#layout). The values builder requires explicit order, side and counts,
 snapshots counts at the setter, and validates geometry at build time without padding values.
 `LongSequenceBatcher` instead copies ordered long-array rows into one fresh [INT64](#data-type--datatype) [heap](#term-heap) Tensor,
-padding to their maximum length without [truncation](#term-truncation-toward-zero). Neither construction path executes recurrence
+padding to their maximum length without truncation. Neither construction path executes recurrence
 or binds [runtime](#term-runtime) inputs. The separate opt-in `PaddedSequenceBatch.toScanLengthsTensor()` copies
 RIGHT/TIME_MAJOR counts into a fresh ordinary [canonical](#term-canonical-form) non-[gradient](#term-gradient) heap INT64 `[B]` [leaf](#term-leaf),
 including empty B; it never reads or repacks values. The application binds that [mutable](#term-mutable) export
 through existing [NN](#neural-network-module-parameter-buffer-and-forward-context)/[Engine](#term-engine) APIs. Logical axis order does not prove physical layout or execution
-support, and LEFT support does not extend the [scan](#term-cumulative-scan)'s right-padded valid-prefix semantics.
+support, and LEFT support does not extend the scan's right-padded valid-prefix semantics.
 See the [Data sequence batching API](reference/data/sequences.md#explicit-runtime-scan-lengths).
 
 ### Frozen whitespace tokenizer
@@ -5394,7 +5394,7 @@ An implemented Text mapping whose ordinary token IDs never grow or change after 
 `WhitespaceTokenizer.of` copies ordered distinct nonempty tokens without Java whitespace;
 ordinary IDs start at 2, [padding](#padding) (PAD) is 0 and unknown (UNK) is 1. Listed spellings such as
 "PAD" remain ordinary tokens. Encoding splits maximal runs using `Character.isWhitespace(int)`
-and preserves exact case, punctuation and [UTF-16](#term-utf-16) without [normalization](#term-normalization). Each absent [run](#term-run) emits
+and preserves exact case, punctuation and [UTF-16](#term-utf-16) without [normalization](#term-normalization). Each absent run emits
 one UNK. `TextSequenceBatcher` encodes rows and delegates padding and [host](#term-host) counts to Data;
 neither token IDs nor counts add masking, execution or [runtime](#term-runtime) length [binding](#term-binding). See the
 [Text API](reference/text/tokenization.md) and [host sequence metadata](#host-sequence-metadata).
@@ -5437,7 +5437,7 @@ A [convolution](#convolution--conv2d) [weight](#term-weight) kernel supplies coe
 window and need not have learned weights. These are different from the executable [backend](#backend)
 routine that implements the [operation](#operation).
 
-An executable kernel is a [concrete backend](#concrete-backend) implementation route for executing prepared work, such as a [scalar](#term-scalar) [CPU](#term-cpu)
+An executable kernel is a [concrete backend](#concrete-backend) implementation route for executing prepared work, such as a [scalar](#cpu-portable-execution-strategy) [CPU](#term-cpu)
 routine, an [OpenBLAS](#term-openblas) call, a [Metal](#term-metal) kernel, or a [CUDA](#term-cuda) kernel. [Planning](#term-planning) never selects executable
 kernels. The owning [backend](#backend) selects one during [prepare](#prepare). In [convolution](#term-channels-first-convolution-layers) documentation, <a id="term-weightkernel"></a>**[weight](#term-weight)
 kernel** instead means the logical `K_h` by `K_w` coefficient window stored in the weight [Tensor](#tensor);
@@ -5539,7 +5539,7 @@ captured original count through the still-open invocation, and then closes the t
 owner. Failure cleanup retains restoration as the primary failure and suppresses a later close
 failure. The coordinator controls only callers explicitly sharing that exact object; it does not
 control another handle, class loader, coordinator, or arbitrary [native code](#native-numerical-library-and-instruction-architecture). This is an internal
-composition primitive, not a [singleton](#term-singleton) or supported public [Engine](#term-engine)/Config/CPU [API](#term-application-programming-interface-api).
+composition primitive, not a singleton or supported public [Engine](#term-engine)/Config/CPU [API](#term-application-programming-interface-api).
 
 ### OpenBLAS library handle / `OpenBlasLibrary`
 
@@ -5586,7 +5586,7 @@ Equality preserves the scalar [data type](#data-type--datatype) and exact [repre
 distinct [NaN](#term-nan) payloads remain distinct, raw [BFLOAT16](#term-bfloat16) bits remain exact, and integral/[BOOL](#data-type--datatype) values
 retain their current [canonical](#term-canonical-form) representations.
 
-A logical splat has [constant](#term-constant) [payload](#artifact-envelope-and-atomic-publication) size even for a dynamic, scalar, or empty [Shape](#shape). It contains
+A logical splat has [constant](#term-constant) payload size even for a dynamic, scalar, or empty [Shape](#shape). It contains
 no Shape, Tensor, [host storage](#host-storage), array, memory segment, dense [element](#term-element) payload, physical [buffer](#term-buffer),
 [backend](#backend) value, or [runtime](#term-runtime) state. The compiler can fold only the explicitly selected BOOL and
 signed-integral [operation](#operation) [matrix](#term-matrix-meanings) over these facts. Floating/BFLOAT16 splats are representable but
@@ -5682,7 +5682,7 @@ of the same prepared [buffer](#term-buffer). Materialization is that transfer in
 Runtime [operation](#operation), allocation, transfer-route search, hidden coherence policy, or property decided
 by `LayoutDescriptor` alone.
 
-The current [CPU](#term-cpu) proving [slice](#slice) also retains [backend](#backend)-private external-read workspace candidates.
+The current [CPU](#term-cpu) proving slice also retains [backend](#backend)-private external-read workspace candidates.
 They cover eligible single copies and disjoint-consumer pairs across [FLOAT64](#term-float64), [FLOAT32](#term-float32), [INT32](#data-type--datatype),
 [INT64](#data-type--datatype), and [canonical](#term-canonical-form) [BOOL](#data-type--datatype). A compatible source is copied once for repeated or cross-unit uses; a
 pair consumed together by one represented instruction is rejected as `CO_CONSUMED_PAIR`.
@@ -5749,7 +5749,7 @@ concrete [backends](#backend) rather than this [Model](#term-model) contract. Th
 fully static resolved-[layout](#layout) [FLOAT64](#term-float64)/[FLOAT32](#term-float32)/[BFLOAT16](#term-bfloat16)/[FLOAT16](#term-float16) subset. It declares ordered data,
 mask, and output [buffers](#term-buffer) plus one per-range exact-state workspace; branches on the [canonical](#term-canonical-form) mask before
 loading data; keeps the exact selected count in invocation-local primitive state; and assigns
-complete output cells to [scalar](#term-scalar) or parallel-scalar ranges without mask [materialization](#materialization), partial
+complete output cells to [scalar](#cpu-portable-execution-strategy) or parallel-scalar ranges without mask [materialization](#materialization), partial
 state, or combination. Zero selections produce [positive zero](#nan-infinity-and-signed-zero) for [CPU](#term-cpu) SUM and the type-specific
 canonical [quiet NaN](#nan-infinity-and-signed-zero) for CPU MEAN. This CPU subset does not broaden the Model contract to dynamic
 layouts, [vector](#term-vector)/native execution, or a universal performance guarantee.
@@ -5863,7 +5863,7 @@ inputs start valid; newly created run-owned buffers start invalid. Zero, one, or
 of one logical buffer may be valid, and repeating a value is permitted. Workspaces are
 [backend](#backend)-local scratch and have no buffer validity.
 
-Validity query and mutation are [constant](#term-constant)-time array operations. Mutation records exactly the
+Validity query and mutation are constant-time array operations. Mutation records exactly the
 supplied fact and performs no storage inspection, copy, transfer, [kernel](#kernel) call, [ownership](#term-ownership-meanings) change,
 implicit invalidation, or coherence. Later transfer and execution work must update bits explicitly
 after successful physical actions. Validity is per-run [mutable](#term-mutable) state, not prepared recipe state,
@@ -5984,7 +5984,7 @@ storage. Current [Runtime](#term-runtime) defines the distinct [nominal](#term-n
 provides package-private shared-storage buffer and workspace implementations with explicit native
 [ownership](#term-ownership-meanings) and context [leases](#term-lease). Its prepared [elementwise](#term-elementwise) routes borrow caller input buffers and
 create fresh per-run initialized [constant](#term-constant) buffers and output buffers. [MPSGraph](#term-mpsgraph) and custom-program
-runs each own one native-address workspace; a custom-[singleton](#term-singleton) NEG run owns none. The persistent
+runs each own one native-address workspace; a custom-singleton NEG run owns none. The persistent
 `MetalProgramExecutableResource` owns the native executable for either a custom-program or an
 MPSGraph route; the custom-singleton pipeline has a separate [prepared resource](#prepared-resource--preparedresource). Neither resource
 is a runtime representation.
@@ -6015,7 +6015,7 @@ The implemented [backend](#backend)-private, non-owning direct access form selec
 [`PreparedExecutable`](#prepared-executable--preparedexecutable) cold-binds a physical [buffer](#term-buffer) representation. An explicitly prepared array
 form requires an observable primitive [heap](#term-heap) [carrier](#term-storage-carrier) matching the logical [data type](#data-type--datatype) and retains the
 carrier, its carrier-relative byte offset, exact byte size, and read-only state. A prepared segment
-form instead retains the exact selected [`MemorySegment`](#term-memorysegment) or [slice](#slice) with byte offset zero relative to
+form instead retains the exact selected [`MemorySegment`](#term-memorysegment) or slice with byte offset zero relative to
 that region, even when a matching heap array is observable.
 
 `Segment` describes exact-segment access, not native [provenance](#provenance). Genuine native and heap-backed
@@ -6027,7 +6027,7 @@ ordered invocation.
 
 ### `NoOperationAttrs`
 
-Some operations have no extra settings. This explicit [singleton](#term-singleton) means “there are no [operation](#operation) [parameters](#term-parameter)”, unlike a missing or accidentally null attributes object.
+Some operations have no extra settings. This explicit singleton means “there are no [operation](#operation) [parameters](#term-parameter)”, unlike a missing or accidentally null attributes object.
 
 The implemented [canonical](#term-canonical-form) [immutable](#term-immutable) attribute value for an operation kind that has no semantic parameters. It is a single-value enum whose only value is `NoOperationAttrs.INSTANCE`. The singleton makes “no parameters” explicit and non-null rather than representing absence with `null`, an empty map, or a newly allocated placeholder. See [`OperationAttrs`](#operationattrs).
 
@@ -6102,7 +6102,7 @@ The implemented [immutable](#term-immutable) [planning](#term-planning) question
 retains the exact backend-independent [`Operation`](#operation) reference and immutable ordered
 membership snapshots of the exact input and output
 [`TensorDescriptor`](#tensor-descriptor) references. Construction rejects null top-level or
-[element](#term-element) references, snapshots inputs before outputs, validates the final input and
+element references, snapshots inputs before outputs, validates the final input and
 output counts through the operation's [`OperationSignature`](#operation-signature), then rejects
 a null `scanBody` optional and a present body on any kind other than `ScanKind.SCAN`. The fourth
 component retains the exact optional immutable `CompiledScanBody`, including its local [graph](#graph),
@@ -6174,7 +6174,7 @@ reshape and expand. Layout-operation `PermutationAttrs` holds one complete norma
 output-to-input axis mapping, while `AxisTransformAttrs` holds one normalized non-negative
 insertion or removal position. `SliceAttrs` holds immutable ordered parallel lists of normalized
 inclusive starts, selected lengths, distinct axes, and signed non-zero steps. Each [slice](#slice) entry is
-an exact [finite](#term-finite) [coordinate](#axis-rank-scalar-vector-and-matrix) sequence rather than a stored raw or normalized exclusive end.
+an exact finite [coordinate](#axis-rank-scalar-vector-and-matrix) sequence rather than a stored raw or normalized exclusive end.
 `CropToShapeAttrs` holds exact target and per-axis prefix Shapes for target-relative `SLICE`
 extraction or `SLICE_UPDATE` placement; the Shapes may contain unresolved Dimensions and are
 retained without [binding](#term-binding).
@@ -6210,7 +6210,7 @@ An [operation](#operation) kind names the computation family, such as addition o
 The implemented open typed discriminator that supplies the “which computation” part of an
 [`Operation`](#operation). `name()` provides stable diagnostic text. `signatures()` returns the
 family-owned [immutable](#term-immutable) structural variants, and `signatureFor(attrs)` resolves one by exact
-attributes [runtime](#term-runtime) class. Equality belongs to the typed kind value, so equal name text from
+attributes runtime class. Equality belongs to the typed kind value, so equal name text from
 unrelated kind types does not create equivalence or a global string [registry](#term-registry). A kind [signature](#term-signature)
 describes attributes and [occurrence](#term-occurrence) counts, not [backend](#backend) support, cost, [fusion](#term-fusion), storage, execution
 behavior, or a [kernel](#kernel) route.
@@ -6234,7 +6234,7 @@ number of ordered values consumed or produced by one node, not Tensor [rank](#te
 count.
 
 A **fixed** cardinality has equal minimum and maximum values, such as exactly two inputs. A
-**bounded** cardinality allows a [finite](#term-finite) inclusive range. A **[variadic](#term-variadic)** input accepts a variable
+**bounded** cardinality allows a finite inclusive range. A **[variadic](#term-variadic)** input accepts a variable
 count; the current representation uses `Integer.MAX_VALUE` as the real inclusive upper bound of a
 Java list size, not as a sentinel. [Signatures](#term-signature) match attributes by exact class, [fail closed](#admission-preflight-and-fail-closed-validation) for
 missing or malformed family declarations, and contain no operand [inference](#term-inference), [graph](#graph)-wide rule,
@@ -6366,7 +6366,7 @@ variants and distinguish one-input ordinary forms from two-input masked forms. M
 axis-removing `SUM` and `MEAN` pair with `MaskedReductionAttrs`, whose sole component is the
 normalized reduction axis. Their semantic contract excludes false-position values, including NaN
 and [infinity](#term-infinity), before aggregation; a zero selected-count produces zero for sum and NaN for mean
-without a [payload](#artifact-envelope-and-atomic-publication) guarantee. The family stores no Tensor input, result descriptor, negative all-axis
+without a [payload](#term-nan-payload) guarantee. The family stores no Tensor input, result descriptor, negative all-axis
 sentinel, gradient rule, executable behavior, or backend support. Public `sum`, `prod`, reduction
 `min`, and reduction `max` separately own floating-or-integral eligibility, while `mean` owns
 floating-only eligibility and public `all` and `any` own exact BOOL eligibility and fixed false
@@ -6479,7 +6479,7 @@ position `i`. For input-axis labels `[rows, columns, channels]`, mapping `[1, 0,
 output-axis labels `[columns, rows, channels]`.
 
 The list size defines the permutation [rank](#term-rank). Every value must lie in `[0, rank)` and occur exactly
-once; an empty list is the [rank-zero](#axis-rank-scalar-vector-and-matrix) [scalar](#term-scalar) [identity](#term-identity-meanings). Construction validates [elements](#term-element) in index
+once; an empty list is the [rank-zero](#axis-rank-scalar-vector-and-matrix) [scalar](#term-scalar) [identity](#term-identity-meanings). Construction validates elements in index
 order before taking one [immutable](#term-immutable) [snapshot](#term-snapshot). The attributes do not know an eventual input [Tensor](#tensor)
 rank or construct a [Shape](#shape), [layout](#layout), storage [view](#view), [provenance](#provenance), [gradient](#term-gradient), or executable result by
 themselves. Public `Tensor.permute` validates that rank, normalizes each negative raw axis once,
@@ -6511,7 +6511,7 @@ The outer result and every membership list are immutable.
 Adjacency here means consecutive stored node positions, not a graph edge. Equal-owner independent
 nodes join when consecutive, while equal-owner graph-connected nodes remain separate when another
 owner lies between them. [Graph phase](#graph-phase), [fan-out](#term-fan-out), merges, repeated inputs, graph input/output values,
-and multiple outputs from one [producer](#term-producer) do not independently split a [run](#term-run). A zero-node pass-through
+and multiple outputs from one [producer](#term-producer) do not independently split a run. A zero-node pass-through
 graph has no partition. The generator is not public, and no current orchestration assembles its
 complete owner map. Current package-private logical-memory derivation consumes the graph plus an
 ordered complete partition list and produces public immutable per-value requirements, but public
@@ -6549,7 +6549,7 @@ A planning cost model estimates which eligible [backend](#backend) [owner](#term
 
 A <a id="term-planning-cost-model"></a>**planning cost model** is backend-neutral [compile](#compile)-time estimation used to compare eligible
 [`BackendId`](#backend-identity--backendid) owners. A <a id="term-planning-cost-profile"></a>**planning cost profile** is a possible compact [immutable](#term-immutable) input to that
-[model](#term-model). Planning may interpret [graph](#graph), [operation](#operation), data-type, [shape](#shape)/size, transfer, [materialization](#materialization),
+[model](#term-planning-cost-model). Planning may interpret [graph](#graph), [operation](#operation), data-type, [shape](#shape)/size, transfer, [materialization](#materialization),
 and boundary estimates, but it never interprets [backend route](#backend-route), [vector](#term-vector), thread, tile, chunk,
 kernel, workload-[cache](#term-cache), or other model-[autotuning](#autotuning--model-autotuning) values.
 
@@ -6595,7 +6595,7 @@ order and constant-map encounter order preserve the supplying containers' determ
 
 The [canonical](#term-canonical-form) record has five components: [DAG](#term-directed-acyclic-graph-dag), values, requirements, constants, and backend
 inputs. Its six-[argument](#term-argument) partition-and-node-list constructor constructs one DAG and preserves the
-former source call [shape](#shape). It does not promise [binary](#term-binary-descriptor-and-metadata) compatibility with the former record
+former source call shape. It does not promise [binary](#term-binary-descriptor-and-metadata) compatibility with the former record
 [descriptor](#term-descriptor), component reflection, equality, [hash code](#term-hash-code), or textual form.
 
 The projected nodes must match `PlannedPartition.nodeIds()` exactly and in order. Projected
@@ -6607,7 +6607,7 @@ node input or output.
 Every projected `TensorDescriptor` Shape is fully static. A constant key must be a projected
 graph input: the value is referenced as a partition-node input and its logical-memory requirement
 has no producing partition. The constant's exact [`ScalarValue`](#typed-scalar-value--scalarvalue) [data type](#data-type--datatype) must equal the projected
-descriptor's data type. The map carries logical splats only; it contains no dense [payload](#artifact-envelope-and-atomic-publication) or
+descriptor's data type. The map carries logical splats only; it contains no dense payload or
 physical [materialization](#materialization).
 
 General-[scan](#general-differentiable-scan) nodes retain their exact independently scoped compiled bodies and ordered roles.
@@ -6647,7 +6647,7 @@ policy.
 
 ### Opaque backend analysis roles
 
-[Opaque](#term-opaque) analysis roles let shared [Prepare](#prepare) [carry](#term-carry) [backend](#backend)-private plans without interpreting their fields. Typed envelopes preserve which collaboration the object belongs to, while the [concrete backend](#concrete-backend) retains the knowledge needed to use it.
+[Opaque](#term-opaque) analysis roles let shared [Prepare](#prepare) carry [backend](#backend)-private plans without interpreting their fields. Typed envelopes preserve which collaboration the object belongs to, while the [concrete backend](#concrete-backend) retains the knowledge needed to use it.
 
 The two implemented method-free marker interfaces that keep a concrete backend's analysis
 boundary typed while hiding private fields from shared Prepare.
@@ -6767,7 +6767,7 @@ unsupported CPU-private implementation under `.internal`; the package-private [E
 reaches it through `CpuBackendIntegration.partitionPreparation()` for fixed ordinary
 `Engine.standard()` and explicit advanced `AdvancedEngine.takeOwnership(...)` CPU-only
 composition. It resolves assigned resources and realizes the already-selected CPU preparation
-plan across its supported routes and [operation](#operation) families without reselecting a route or [widening](#term-widening)
+plan across its supported routes and [operation](#operation) families without reselecting a route or widening
 the analyzed [topology](#term-topology). Its finalization result contains no persistent prepared resources.
 
 ### Prepared partition / `PreparedPartition`
@@ -6843,7 +6843,7 @@ An [immutable](#term-immutable) Prepare composition value for a caller or [compi
 and requested publication without a producing or consuming graph node. It retains five components:
 the exact stable [Model](#term-model) `GraphValue`, exact [Planning](#term-planning) `LogicalMemoryRequirement`, [concrete backend](#concrete-backend)
 [owner](#term-owner), existing [Runtime](#term-runtime) `ByteSize size` recipe and positive power-of-two [byte alignment](#term-byte-alignment). The value
-does not retain caller [payload](#artifact-envelope-and-atomic-publication), source-role flags or another [scalar](#term-scalar) field.
+does not retain caller payload, source-role flags or another [scalar](#term-scalar) field.
 
 Shared [`graph preparation`](#graph-preparation--graphpreparation) authenticates disjoint caller/
 constant classification, exact references, complete unique coverage and [canonical](#term-canonical-form) graph-value order.
@@ -7018,11 +7018,11 @@ schedule traversal, or [publication](#term-publication). Transfer to an equivale
 
 ### Prepared publication / `PreparedPublication`
 
-A prepared publication names which physical representation will supply one result position. [Binding](#term-binding) finds that representation for a [run](#term-run); [publication](#term-publication) does not itself [mean](#term-mean) making a [detached](#detached-model-results) [host](#term-host) copy.
+A prepared publication names which physical representation will supply one result position. [Binding](#term-binding) finds that representation for a [run](#term-run); [publication](#term-publication) does not itself mean making a [detached](#detached-model-results) [host](#term-host) copy.
 
 The implemented [immutable](#term-immutable) [Runtime](#term-runtime) recipe that names one already-created [buffer](#term-buffer) representation as
 one ordered result position. It retains one exact [`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan) and three dense zero-based
-Runtime [coordinates](#axis-rank-scalar-vector-and-matrix): buffer position, representation position within that buffer for a run, and
+Runtime coordinates: buffer position, representation position within that buffer for a run, and
 result position. These positions are not `BufferSlot.value()`, [`TensorId`](#tensorid), [`ValueId`](#logical-valueid-versus-physical-memory-slot), [graph](#graph)
 membership, or [compiler](#term-compiler) publication roles. During current complete-[graph preparation](#graph-preparation--graphpreparation), the schedule
 assembler maps ordered logical publication values through their prepared buffer assignments into
@@ -7053,7 +7053,7 @@ The nested `Step` interface is [sealed](#term-sealed) and currently permits
 prefix and may occur only at index zero. [Publication](#term-publication) variants form a final suffix whose result
 indices are dense `0..N-1` in encounter order. Distinct positions may intentionally name the same
 exact representation. The other variants retain their exact recipes. All derive their plan from
-the retained recipe. The family has no ID, kind enum, generic [payload](#artifact-envelope-and-atomic-publication),
+the retained recipe. The family has no ID, kind enum, generic payload,
 visitor, [binding](#term-binding) method, or execution method. No `PreparedUnit` is present: occurrence position
 supplies order, while each variant supplies the stable recipe and exact-plan [invariant](#term-invariant).
 
@@ -7090,7 +7090,7 @@ A bound buffer transfer is a prepared copy attached to one [run](#term-run)’s 
 The implemented [Runtime](#term-runtime)-owned abstract validity [guard](#term-guard) for one [backend](#backend) transfer bound to one exact
 open [`RunState`](#run-state--runstate). Its backend subclass stores direct concrete source and
 destination representation fields established by `PreparedBufferTransfer.bind`. The shared base
-retains only that state and the dense [coordinates](#axis-rank-scalar-vector-and-matrix) needed for validity orchestration; it owns and
+retains only that state and the dense coordinates needed for validity orchestration; it owns and
 closes no state or representation.
 
 `execute()` makes an already-valid destination a no-op without requiring a valid source. For an
@@ -7203,7 +7203,7 @@ respectively, retain one normalized position in `AxisTransformAttrs`, and record
 receiver as their sole input. Conditional resolved view geometry still does not imply attached or
 aliased storage, a copy-free route, or execution.
 `Tensor.slice`, `Tensor.sliceByLength`, both `Tensor.sliceAxis` overloads, and `Tensor.flip` use
-`SliceKind.SLICE`, retain normalized [finite](#term-finite) start/length/signed-step sequences on distinct [axes](#term-axis) in
+`SliceKind.SLICE`, retain normalized finite start/length/signed-step sequences on distinct [axes](#term-axis) in
 `SliceAttrs`, and record exactly the receiver as their sole input. Each success has one
 identity-distinct producer, one output descriptor, and provenance output index zero, including
 identity, dynamic selected-[extent](#term-extent) length-defined extraction, and multi-axis flip.
@@ -7258,7 +7258,7 @@ A publication occurrence is one position in the requested result list. Requestin
 
 One ordered logical result role retained independently of the physical representation it selects.
 The ordinary [Engine](#term-engine) exposes a fresh `RunResult.Publication` object for every [occurrence](#term-occurrence): requested
-forward outputs first, then first-order [gradient](#term-gradient) [targets](#term-target). Forward occurrences [carry](#term-carry) the requested
+forward outputs first, then first-order [gradient](#term-gradient) [targets](#term-target). Forward occurrences carry the requested
 output [`TensorId`](#tensorid); gradient occurrences carry the requested target `TensorId`, [derivative](#term-derivative) order
 one, the target-list index, and the final gradient [descriptor](#term-descriptor).
 
@@ -7348,7 +7348,7 @@ ownership, retain or use it after result closure, or infer ownership or a longer
 alias [identity](#term-identity-meanings). The result is not [thread-safe](#term-thread-safe), so the caller must externally prevent access from
 racing result or retained-state activity or closure. This Runtime service-provider interface
 ([SPI](#term-service-provider-interface-spi)) does not make the [nominal](#term-nominal) representation [host](#term-host)-accessible, storage, or a [Tensor](#tensor) value and
-does not expose `RunState` or prepared [coordinates](#axis-rank-scalar-vector-and-matrix). [`PreparedExecutionRunner`](#prepared-execution-runner--preparedexecutionrunner) assembles this lease
+does not expose `RunState` or prepared coordinates. [`PreparedExecutionRunner`](#prepared-execution-runner--preparedexecutionrunner) assembles this lease
 after successful traversal.
 
 The ordinary [Engine](#term-engine) exposes a distinct final
@@ -7398,7 +7398,7 @@ backward execution, tuning, or cross-[backend](#backend) transfer. The no-limit 
 leaf storage remains caller-owned through [synchronous](#term-synchronous) completion, and no Tensor/provenance state
 or [cache](#term-cache) survives the call. Current support requires every [owner](#term-owner) and directed transfer in the
 non-empty, fully static, resolved-[layout](#layout) plan to be registered and supported. The aggregate limit
-covers returned canonical [payload](#artifact-envelope-and-atomic-publication) lengths only. Use
+covers returned canonical payload lengths only. Use
 `compile -> prepare -> run(explicit inputs) -> materialize` for ordinary repeated runs or selective
 publication copying; direct prepared-handle [ownership](#term-ownership-meanings) remains available at the lower level. See
 [Public API](reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
@@ -7445,7 +7445,7 @@ representation reference. Dense access indices are entry-list positions, not
 Each [buffer](#term-buffer) position contains one or more ordered bindings, and each workspace position contains
 one run-owned representation. Binding presence is structural [residency](#residency) until closure. One
 independent validity bit per buffer copy starts true for [`BORROWED`](#ownership-borrowing-and-lease) and false for `RUN_OWNED`;
-query and mutation are explicit [constant](#term-constant)-time operations with no physical [side effect](#term-side-effect). Workspaces
+query and mutation are explicit constant-time operations with no physical [side effect](#term-side-effect). Workspaces
 have no logical validity. Successful construction transfers cleanup responsibility for
 `RUN_OWNED` buffers and all workspaces; failed construction transfers nothing. Closing marks the
 state closed first, skips borrowed buffers, attempts owned resources once in deterministic reverse
@@ -7514,8 +7514,8 @@ terms combine, and addition order is not semantic. A **canonical symbolic produc
 positive constant coefficient and a non-empty immutable map from complete Dimension factors to
 positive exponents. It folds static factors, flattens nested products, combines repeated factors,
 and makes factor order non-semantic without distributing across sums. Zero and one use their
-ordinary identities, and checked coefficient or [exponent](#term-exponent) [overflow](#term-overflow) fails rather than wrapping.
-Floor and ceiling division retain explicit dividend and divisor [nodes](#node). A constrained unknown has
+ordinary identities, and checked coefficient or exponent [overflow](#term-overflow) fails rather than wrapping.
+Floor and ceiling division retain explicit dividend and divisor nodes. A constrained unknown has
 an inclusive non-negative minimum and an optional inclusive maximum Dimension. It deliberately
 uses object [identity](#term-reference-identity), so only reuse of the same unknown proves equality.
 
@@ -7531,7 +7531,7 @@ Scalar select fixes one [coordinate](#axis-rank-scalar-vector-and-matrix) on an 
 An implemented [backend](#backend)-independent scalar-index meaning represented by `SelectKind.SELECT` and
 `SelectAttrs(axis, index)`. The normalized zero-based `axis` identifies one existing source axis,
 and the normalized zero-based `index` fixes one coordinate on it. That axis is removed from the
-conceptual result. For source [Shape](#shape) `[2, 3, 4]`, axis `1` and index `2` therefore [mean](#term-mean) conceptual
+conceptual result. For source [Shape](#shape) `[2, 3, 4]`, axis `1` and index `2` therefore mean conceptual
 result Shape `[2, 4]`.
 
 The attributes reject negative axis and index values, checking the axis first, but store no input
@@ -7603,7 +7603,7 @@ adds `D` once. Positive-step bounds clamp to `[0, D]`; a negative-step start cla
 latter normalize to starts `[4]`, lengths `[5]`, steps `[-1]`.
 
 The separate `sliceByLength` request consumes already normalized non-negative starts plus explicit
-[finite](#term-finite) non-negative lengths. It proves non-negative first and final coordinates and every static
+finite non-negative lengths. It proves non-negative first and final coordinates and every static
 upper bound. If a selected Dimension is unresolved, only the upper-bound comparison is deferred;
 the selected result Dimension is still the requested static length and [Model](#term-model) retains no constraint
 object. A zero length selects no coordinate, checks no input bound, and stores canonical start
@@ -7642,7 +7642,7 @@ base [Shape](#shape) and values outside the mapped Cartesian region.
 
 A negative start adds one static base [extent](#term-extent) once. Static first/final coordinates must fit; an
 unresolved base [axis](#term-axis) accepts only a non-negative start and defers its upper-bound proof. Empty
-arrays [mean](#term-mean) explicit full-Shape replacement, while a selected zero update extent maps no
+arrays mean explicit full-Shape replacement, while a selected zero update extent maps no
 coordinates. The mapping is functional replacement, not mutation, addition, reduction, or an
 [operation](#operation)-specific backward kind.
 
@@ -7663,7 +7663,7 @@ target-relative crop expressions](reference/tensor/slicing.md#slice-update-and-t
 The current [CPU portable route](#cpu-portable-route) separately executes exactly one fully static, resolved-layout
 SLICE_UPDATE [occurrence](#term-occurrence) with either attribute form. Its output-domain pass has copy-base-then-
 replace semantics, preserves [represented bits](#term-represented-bits) for all seven types, accepts signed and non-unit
-[finite](#term-finite) steps including legal length-one `Long.MIN_VALUE`, handles [scalar](#term-scalar) and empty regions, and
+finite steps including legal length-one `Long.MIN_VALUE`, handles [scalar](#term-scalar) and empty regions, and
 supports arbitrary disjoint scalar or parallel-scalar ranges across [heap](#term-heap), segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
 one deduplicated boundary. [Schema](#term-schema) 15 introduced the [slice](#slice)-update family/[rank](#term-rank)/map structure;
@@ -7796,7 +7796,7 @@ The current [CPU portable route](#cpu-portable-route) executes only the explicit
 affine [occurrence](#term-occurrence) when Shapes and [layouts](#layout) are fully static and resolved. Complete leading-slice
 ranges use a three-pass exact-mean/population-[variance](#term-variance)/store algorithm and one disjoint existing
 exact-state workspace slice per simultaneous range. [BFLOAT16](#term-bfloat16)/[FLOAT32](#term-float32) results use FLOAT32 formula
-boundaries and [FLOAT64](#term-float64) results use FLOAT64; this is [CPU](#term-cpu)-private [finite](#term-finite)-[precision](#term-precision) behavior, not a
+boundaries and [FLOAT64](#term-float64) results use FLOAT64; this is [CPU](#term-cpu)-private finite-[precision](#term-precision) behavior, not a
 portable bitwise promise. Decomposed graphs, dynamic Shapes, [fusion](#term-fusion), [vector](#term-vector)/native execution, and
 [materialization](#materialization) are not recognized by this route.
 
@@ -7855,7 +7855,7 @@ For channel `c`, inference requests
 `((input - runningMean[c]) / sqrt(runningVariance[c] + epsilon)) * scale[c] + bias[c]`. A
 **running mean** or **running variance** is an explicit estimated per-channel statistic supplied
 to this occurrence. The variance is used directly: the [operation](#operation) performs no correction
-conversion, recomputation, clamp, [momentum](#term-momentum) update, or mutation. Construction also creates no
+conversion, recomputation, clamp, [momentum](#batch-normalization--batch-normalization-inference-and-training) update, or mutation. Construction also creates no
 training/[evaluation](#term-evaluation) mode, [saved statistic](#saved-statistic), auxiliary output, or hidden state.
 
 Current `Tensor.batchNormInference` constructs [metadata](#term-metadata) and [provenance](#provenance) only. Current
@@ -7885,8 +7885,8 @@ Current package-private compiler autograd routes normalized output to input/scal
 running mean to input/running mean, and next running variance to input/running variance. It
 retrieves the exact same-occurrence saved wrappers for formulas; saved slots are not independent
 [cotangent](#cotangent) roots. The current CPU portable route executes the explicit occurrence for fully static
-resolved layouts. [Scalar](#term-scalar) and parallel-scalar [half-open](#term-half-open-interval) ranges own complete channels and reuse one
-exact-state workspace [slice](#slice) per simultaneous range. The generated three-pass body computes an
+resolved layouts. [Scalar](#cpu-portable-execution-strategy) and parallel-scalar [half-open](#term-half-open-interval) ranges own complete channels and reuse one
+exact-state workspace slice per simultaneous range. The generated three-pass body computes an
 exact-sum mean, a corrected numerator, biased saved variance and separately divided unbiased
 running variance, the epsilon-adjusted saved inverse standard deviation, four statistic stores,
 then normalized affine output. It accepts ordered mixed floating types and heap/segment carriers;
@@ -8154,7 +8154,7 @@ Shape and one-input provenance. They do not inspect or classify stored values. T
 methods likewise create fresh floating
 one-input expressions. They retain the exact type and Shape, preserve gradient eligibility, and
 store exact matching typed scalar attributes without conversion or canonicalization; retained
-`double` overloads [mean](#term-mean) exact [FLOAT64](#term-float64), range clamp remains one first-class `CLAMP` operation, and
+`double` overloads mean exact [FLOAT64](#term-float64), range clamp remains one first-class `CLAMP` operation, and
 the one-bound conveniences create scalar MAX/MIN producers.
 Other expression families, gradient rules and objects, trainable
 role, [publication](#term-publication) behavior, [compiler](#term-compiler) integration, [device](#term-device) [buffers](#term-buffer), numerical execution, and
@@ -8278,9 +8278,9 @@ layouts are rejected because they require a separate scatter or [view](#term-vie
 
 #### How are nested Java arrays interpreted?
 
-The factory also accepts one [rank-two](#axis-rank-scalar-vector-and-matrix)-or-greater rectangular Java primitive-array [graph](#graph) through an
-`Object` [parameter](#term-parameter), which is necessary because arbitrary array [rank](#term-rank) has no [finite](#term-finite) Java overload
-family. [Runtime](#term-runtime) class metadata must prove an ultimate `double`, `float`, `short`, `int`, `long`, or
+The factory also accepts one [rank-two](#axis-rank-scalar-vector-and-matrix)-or-greater rectangular Java primitive-array graph through an
+`Object` [parameter](#term-parameter), which is necessary because arbitrary array [rank](#term-rank) has no finite Java overload
+family. Runtime class metadata must prove an ultimate `double`, `float`, `short`, `int`, `long`, or
 `byte` carrier, inferring `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, or `BOOL`, respectively;
 unlike descriptor-based flat import, it does not infer FLOAT16 or OFP8 from shared carriers.
 The factory validates every reachable subarray for non-null rectangular structure,
@@ -8321,7 +8321,7 @@ count above `Integer.MAX_VALUE` before allocation and does not evaluate an unuse
 the final emitted value.
 
 Prefix shaping is not part of the production factory. Package-private test-source fixtures may
-[prepare](#prepare) strict or cyclic exact-carrier arrays and delegate them to public flat import, but this
+prepare strict or cyclic exact-carrier arrays and delegate them to public flat import, but this
 mechanic is absent from production source, generated production [Javadoc](#term-javadoc), and the public product
 inventory.
 
@@ -8508,7 +8508,7 @@ Tiling repeats the whole input pattern. Tiling `[1, 2]` three times gives `[1, 2
 An implemented [backend](#backend)-independent complete-pattern repetition meaning represented by
 `TileKind.TILE` and `TileAttrs`. Entry `repeats[i]` is the strictly positive number of times the
 complete input pattern is requested along [normalized axis](#normalized-axis) position `i`; this differs from
-repeating each [scalar](#term-scalar) into one adjacent [run](#term-run). The ordered list is an [immutable](#term-immutable) [snapshot](#term-snapshot), and an
+repeating each [scalar](#term-scalar) into one adjacent run. The ordered list is an [immutable](#term-immutable) [snapshot](#term-snapshot), and an
 empty list is the [rank-zero](#axis-rank-scalar-vector-and-matrix) scalar [identity](#term-identity-meanings) [parameter](#term-parameter).
 
 For conceptual input `[[1, 2], [3, 4]]` and repeats `[2, 3]`, each complete row pattern occurs
@@ -8559,12 +8559,12 @@ reporting, the backend failure remains primary and receives a distinct acyclic o
 a suppressed failure without disabling tracing. Preparation reports `NOT_QUERIED` and the neutral
 selected route. Invocation reports the same [immutable](#term-immutable) facts and the exact
 mapped [native code](#native-numerical-library-and-instruction-architecture) when available. The outcome events contain only the bounded Trace [DTO](#data-transfer-object--dto) fields and
-no path, device/session [token](#term-token), handle/address, [Tensor](#tensor) or storage value, [scalar](#term-scalar), [shape](#shape), byte [extent](#term-extent),
+no path, device/session [token](#term-token), handle/address, [Tensor](#tensor) or storage value, [scalar](#term-scalar), [shape](#shape), byte extent,
 [fingerprint](#term-fingerprint), thread [identity](#term-identity-meanings), exception, free-form string, or map.
 
 ### Trace event envelope
 
-A trace event envelope supplies the common labels around one diagnostic [payload](#artifact-envelope-and-atomic-publication): [identity](#term-identity-meanings), [lifecycle](#lifecycle) phase, severity/detail level, and a clock reading. The payload supplies the particular fact being reported.
+A trace event envelope supplies the common labels around one diagnostic [payload](#trace-payload--tracepayload): [identity](#term-identity-meanings), [lifecycle](#lifecycle) phase, severity/detail level, and a clock reading. The payload supplies the particular fact being reported.
 
 The implemented generic `TraceEvent<T extends TracePayload>` record that carries one non-null
 [producer](#term-producer)-assigned [`TraceEventId`](#trace-event-identity--traceeventid), one non-null lifecycle
@@ -8599,8 +8599,8 @@ A trace payload is the typed body of an event. It reports facts using diagnostic
 The implemented open method-free marker for a typed diagnostic [DTO](#data-transfer-object--dto) carried by a
 [`TraceEvent`](#trace-event-envelope). Implementations are required to be [immutable](#term-immutable) and to
 describe [producer](#term-producer) facts in [trace](#trace)-owned terms, but the open marker cannot enforce those properties
-at [runtime](#term-runtime). `BackendPreparationOutcome` and `BackendInvocationOutcome` are the first concrete
-implementations; broader [compile](#compile), [prepare](#prepare), [run](#term-run), and backend [payload](#artifact-envelope-and-atomic-publication) families remain planned.
+at runtime. `BackendPreparationOutcome` and `BackendInvocationOutcome` are the first concrete
+implementations; broader [compile](#compile), [prepare](#prepare), [run](#term-run), and backend [payload](#trace-payload--tracepayload) families remain planned.
 
 ### Trace-local correlation identifier
 
@@ -8683,11 +8683,11 @@ thread, or process-wide uniqueness claim.
 [Backend](#backend) outcome payloads report whether preparation or invocation succeeded and the relevant diagnostic correlations. They are structured reports, not live resources or a general-purpose map of backend internals.
 
 The implemented [immutable](#term-immutable) `BackendPreparationOutcome` and `BackendInvocationOutcome` records.
-The preparation [payload](#artifact-envelope-and-atomic-publication) correlates a backend, [device](#term-device), and prepared unit with final outcome,
+The preparation [payload](#trace-payload--tracepayload) correlates a backend, [device](#term-device), and prepared unit with final outcome,
 neutral route, [cache](#term-cache) fact, and optional exact native status. The invocation
 payload additionally correlates one invocation and omits the cache component. Both implement
-[`TracePayload`](#trace-payload--tracepayload), retain immutable references, and [carry](#term-carry) no [producer](#term-producer) object, free-form text,
-generic map, exception, path, pointer, handle, [tensor](#tensor) value, [shape](#shape), or byte [extent](#term-extent).
+[`TracePayload`](#trace-payload--tracepayload), retain immutable references, and carry no [producer](#term-producer) object, free-form text,
+generic map, exception, path, pointer, handle, [tensor](#tensor) value, [shape](#shape), or byte extent.
 
 ### Trace native status / `TraceNativeStatus`
 
@@ -8716,7 +8716,7 @@ A trace phase states which [lifecycle](#lifecycle) stage produced a diagnostic f
 The implemented lifecycle classification with exactly `COMPILE`, `PREPARE`, and `RUN`.
 `COMPILE` covers [capture](#term-capture-meanings) through logical [planning](#term-planning), `PREPARE` covers backend preparation and
 executable-state construction, and `RUN` covers invocation and execution activity. Backend is a
-[producer](#term-producer) role and planned [payload](#artifact-envelope-and-atomic-publication) family, not a fourth phase; a backend fact uses the phase in
+[producer](#term-producer) role and planned [payload](#trace-payload--tracepayload) family, not a fourth phase; a backend fact uses the phase in
 which it occurs.
 
 ### Training graph
@@ -8774,7 +8774,7 @@ excluding captured parameters and the private [seed](#term-seed). Both reuse tha
 assigned optimizer/accumulation work, and [commit](#term-commit) only after complete [precommit](#term-precommit) [validation](#term-validation). Its update
 domain is non-empty, [finite](#term-finite) [`FLOAT64`](#term-float64), [`FLOAT32`](#term-float32), [`BFLOAT16`](#term-bfloat16), [`FLOAT16`](#term-float16), `FLOAT8_E4M3`, or
 `FLOAT8_E5M2` parameters with fully static dense offset-zero non-[view](#term-view-meanings) [layouts](#layout) and exact-capacity writable, shareable native [host
-storage](#host-storage). Each parameter's [snapshot](#term-snapshot) [payload](#artifact-envelope-and-atomic-publication) at its declared (logical) width and each optimizer
+storage](#host-storage). Each parameter's [snapshot](#term-snapshot) payload at its declared (logical) width and each optimizer
 payload at FLOAT32 width (or FLOAT64 width for FLOAT64 parameters) must independently fit in a
 Java byte array (at most `Integer.MAX_VALUE` bytes). An oversized payload is rejected during
 [capture](#term-capture-meanings) before that parameter's storage is inspected or its update [buffers](#term-buffer) are allocated.
@@ -8828,8 +8828,8 @@ momentum or Adam/AdamW's first moment. `momentumBytes()` remains an exact compat
 
 A typed [trace](#trace) [data-transfer object](#data-transfer-object--dto) ([DTO](#data-transfer-object--dto)) names diagnostic fields explicitly so readers and tools do not have to infer their types from strings. It carries reported facts, not execution authority.
 
-A typed data-transfer object used to [carry](#term-carry) one defined category of diagnostic facts. The current
-Trace [API](#term-application-programming-interface-api) implements the event envelope, open [payload](#artifact-envelope-and-atomic-publication) marker, and bounded
+A typed data-transfer object used to carry one defined category of diagnostic facts. The current
+Trace [API](#term-application-programming-interface-api) implements the event envelope, open [payload](#trace-payload--tracepayload) marker, and bounded
 `BackendPreparationOutcome` and `BackendInvocationOutcome` payloads. Broader [compile](#compile), [prepare](#prepare),
 [run](#term-run), and [backend](#backend) payload families remain planned. Typed fields preserve meaning and machine-
 readable types. They are preferred over a primary `Map<String,String>` [model](#term-model), while a typed
@@ -9086,11 +9086,11 @@ Kind names the computation, attributes provide its settings, and [operation](#op
 |---|---|---|
 | [`OperationKind`](#operationkind) | Which [backend](#backend)-independent computation is meant | Interface plus [binary](#term-binary-descriptor-and-metadata) arithmetic, binary comparison, [boolean](#data-type--datatype) logical, conditional selection, [unary](#term-unary) [elementwise](#term-elementwise), floating-classification, [scalar](#term-scalar) elementwise, cast, [aggregate reduction](#aggregate-reduction), [cumulative scan](#cumulative-scan), [softmax](#softmax--log-softmax), [layer normalization](#layer-normalization), [RMS normalization](#rms-normalization), [contiguous](#term-contiguous)-request, reshape/expand, [axis](#term-axis)-transform, [slice](#slice), pad, tile, [tensor](#tensor)-composition, scalar-select, axis-[gather](#gather), [gather-ND](#gather-nd), axis-scatter, [scatter-ND](#scatter-nd), and window-transform families implemented; other families planned |
 | [`OperationAttrs`](#operationattrs) | [Immutable](#term-immutable) typed [parameters](#term-parameter) that refine that meaning | Marker plus scalar-value, clamp-range, cast-[target](#term-target), ordinary single-/multi-axis and statistical-reduction, shared arg-[extrema](#saturation-pole-and-extremum), masked-reduction, cumulative-[scan](#term-cumulative-scan), softmax, layer-[normalization](#term-normalization), RMS-normalization, target-[shape](#shape), [permutation](#permutation), single-axis-transform, normalized slice and crop-to-Shape, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-[elements](#term-element), scatter-ND, and window-transform values implemented; other family-specific values planned |
-| `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented [canonical](#term-canonical-form) [singleton](#term-singleton) |
+| `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented [canonical](#term-canonical-form) singleton |
 | `OperationSignature` | Exact accepted attributes class plus inclusive [occurrence](#term-occurrence) input/output bounds | Implemented family-owned structural contract |
 | `Operation` | Immutable validated pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented [descriptor](#term-descriptor) with derived [signature](#term-signature) |
 
-A kind distinguishes computations, while attributes [carry](#term-carry) parameters within a computation family.
+A kind distinguishes computations, while attributes carry parameters within a computation family.
 `Operation` stores both as one value and validates exact family compatibility through the derived
 signature. None of these
 values identifies where computation occurs in a [graph](#graph); an implemented [node](#node) represents
@@ -9134,7 +9134,7 @@ The [compiled graph](#compiled-graph--compiledgraphmodel) container is implement
 
 ### Logical `ValueId` versus physical memory slot
 
-A ValueId names logical data; a [memory slot](#memory-slot) names a position in a [prepared resource](#prepared-resource--preparedresource) plan. Only [run](#term-run)-specific representations provide actual storage, so matching numbers across those categories cannot establish [aliasing](#term-aliasing).
+A ValueId names logical data; a [memory slot](#memory-slot) names a position in a [prepared memory plan](#prepared-memory-plan--preparedmemoryplan). Only [run](#term-run)-specific representations provide actual storage, so matching numbers across those categories cannot establish [aliasing](#term-aliasing).
 
 A `ValueId` names logical data in one [compiled graph](#compiled-graph--compiledgraphmodel). Current [`BufferSlot`](#buffer-slot--bufferslot) and [`WorkspaceSlot`](#workspace-slot--workspaceslot)
 instead name nominally separate plan-local positions without naming physical storage. Current
