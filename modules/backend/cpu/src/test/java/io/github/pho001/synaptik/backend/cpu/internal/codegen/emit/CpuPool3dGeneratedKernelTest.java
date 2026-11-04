@@ -18,6 +18,22 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuPool3dGeneratedKernelTest {
+    @Test
+    void averageDividesByLargeExactWindowWithSingletonStorage() throws Throwable {
+        var f = fixture(DataType.FLOAT32, CpuPool3dIr.Kind.AVERAGE,
+                CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY);
+        var layout = new CpuPool3dLowering.Layout(
+                new long[] {1, 1, 1, 1, 1}, 0, new long[] {1, 1, 1, 1, 1});
+        var geometry = new CpuPool3dLowering.Geometry(CpuPool3dIr.Kind.AVERAGE,
+                DataType.FLOAT32, layout, layout,
+                1, 1, 16777217, 1, 1, 1, 0, 0, 8388608, 1, 1, 1, 16777217, 1);
+        float[] input = {1f}, actual = {0f}, expected = {0f};
+        f.handle().invokeWithArguments(input, actual, geometry.pack(0, 0), 0L, 1L);
+        CpuPool3dReferenceKernel.evaluate(geometry, input, expected, 0, 1);
+        assertEquals(0x337fffff, Float.floatToRawIntBits(actual[0]));
+        assertEquals(0x337fffff, Float.floatToRawIntBits(expected[0]));
+    }
+
     @Test void fp8VolumetricWindowsPreserveSelectedBytesAndFixedDivisors() throws Throwable {
         for (var type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             for (var kind : CpuPool3dIr.Kind.values())

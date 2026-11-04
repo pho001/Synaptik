@@ -10,7 +10,11 @@ import java.lang.foreign.ValueLayout;
 import java.util.List;
 import java.util.Objects;
 
-/** Optimal clean-Java semantic oracle for the specialized direct attention row algorithm. */
+/**
+ * Clean-Java semantic oracle for the specialized direct attention row algorithm.
+ * FLOAT32 infinity-tie weights independently round the reciprocal of the exact integer count;
+ * decimal arithmetic belongs only to this evidence oracle, never generated execution.
+ */
 public final class CpuAttentionReferenceKernel {
   private CpuAttentionReferenceKernel() {}
 
@@ -93,7 +97,10 @@ public final class CpuAttentionReferenceKernel {
           float w =
               mode == 1
                   ? Float.NaN
-                  : mode == 2 && score == Float.POSITIVE_INFINITY ? 1f / positive : 0f;
+                  : mode == 2 && score == Float.POSITIVE_INFINITY
+                      ? java.math.BigDecimal.ONE.divide(java.math.BigDecimal.valueOf(positive),
+                          new java.math.MathContext(256, java.math.RoundingMode.HALF_EVEN)).floatValue()
+                      : 0f;
           scratch.set(ValueLayout.JAVA_FLOAT_UNALIGNED, j * 4, w);
         }
     if (g.outputCount() == 2)

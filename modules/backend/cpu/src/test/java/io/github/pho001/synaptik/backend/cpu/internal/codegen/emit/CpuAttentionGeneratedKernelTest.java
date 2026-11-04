@@ -21,6 +21,43 @@ import org.junit.jupiter.api.Test;
 
 class CpuAttentionGeneratedKernelTest {
   @Test
+  void positiveInfinityTiesPublishRoundedThirdsAndExcludeFiniteScores() throws Throwable {
+    var read = plan(CpuAccessPlan.AccessKind.READ);
+    var write = plan(CpuAccessPlan.AccessKind.WRITE);
+    var types = java.util.Collections.nCopies(5, DataType.FLOAT32);
+    var attention = new CpuAttentionIr(DataType.FLOAT32, DataType.FLOAT32,
+        DataType.FLOAT32, DataType.FLOAT32, false, false, 2, List.of(0, 1, 2),
+        types, List.of(read, read, read, write, write));
+    var ir = attention.encodedKernelIr();
+    var specialization = new CpuKernelSpecialization(
+        CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+        CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types,
+        java.util.Collections.nCopies(5, CarrierAccess.FLOAT_ARRAY),
+        0, -1, List.of(), true, CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA);
+    var generator = new CpuClassFileKernelGenerator();
+    var handle = generator.defineClassBytes(specialization, ir,
+        generator.generateClassBytes(specialization, ir)).entryPoint();
+    var geometry = new CpuAttentionLowering.Geometry(new long[0], 1, 4, 1, 1, 1, 16,
+        DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32,
+        1.0, List.of(0, 1, 2), 3, 2,
+        Optional.of(layout(1, 1)), Optional.of(layout(1, 1)), Optional.of(layout(1, 1)),
+        Optional.empty(), layout(1, 1), Optional.of(layout(4, 1)));
+    float[] output = {0f}, weights = new float[4];
+    try (Arena arena = Arena.ofConfined()) {
+      handle.invokeWithArguments(new float[] {1f},
+          new float[] {Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+              0f, Float.POSITIVE_INFINITY},
+          new float[] {3f, 3f, 100f, 3f}, output, weights,
+          arena.allocate(16, 8), geometry.pack(new long[5]), 0L, 1L);
+    }
+    assertEquals(0x3eaaaaab, Float.floatToRawIntBits(weights[0]));
+    assertEquals(0x3eaaaaab, Float.floatToRawIntBits(weights[1]));
+    assertEquals(0, Float.floatToRawIntBits(weights[2]));
+    assertEquals(0x3eaaaaab, Float.floatToRawIntBits(weights[3]));
+    assertEquals(3f, output[0]);
+  }
+
+  @Test
   void bfloatPublicationKeepsLongAddressesAcrossMaskModesAndOptionalWeights() throws Throwable {
     DataType type = DataType.BFLOAT16;
     for (boolean masked : List.of(false, true)) for (boolean causal : List.of(false, true))

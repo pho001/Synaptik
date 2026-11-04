@@ -10,12 +10,14 @@ import java.lang.foreign.ValueLayout;
 import java.util.Objects;
 
 /**
- * Optimal clean-Java scalar oracle for the Shape-polymorphic generated Pool2d boundary.
+ * Clean-Java scalar semantic oracle for the Shape-polymorphic generated Pool2d boundary.
  *
  * <p>The oracle follows the generated body's complete-output-cell loop and numerical dataflow for
  * max and fixed-divisor average pooling over exact heap-array or {@link MemorySegment} carriers.
  * It exists for semantic and generated-versus-direct evidence and is not a Runtime interpreter or
  * fallback execution route.
+ * FLOAT32 working averages use an independently evaluated exact integer denominator. Decimal
+ * arithmetic is confined to this evidence oracle, not the allocation-free generated hot body.
  */
 public final class CpuPool2dReferenceKernel {
     private CpuPool2dReferenceKernel() {}
@@ -154,7 +156,10 @@ public final class CpuPool2dReferenceKernel {
                     sum += v;
                 }
             }
-            float result = sum / (float) g.divisor();
+            float result = !Float.isFinite(sum) || sum == 0f ? sum
+                    : new java.math.BigDecimal((double) sum).divide(
+                            java.math.BigDecimal.valueOf(g.divisor()),
+                            new java.math.MathContext(256, java.math.RoundingMode.HALF_EVEN)).floatValue();
             if (result == 0.0f) result = allNegativeZero ? -0.0f : +0.0f;
             long represented = switch (g.dataType()) {
                 case FLOAT32 -> Float.floatToRawIntBits(result) & 0xffffffffL;

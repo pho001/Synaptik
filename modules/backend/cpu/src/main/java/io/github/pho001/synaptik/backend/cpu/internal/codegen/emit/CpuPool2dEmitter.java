@@ -20,6 +20,8 @@ import java.lang.constant.MethodTypeDesc;
  * Synaptik-owned numerical helper.
  * Low averages accumulate in FLOAT32 and narrow once. Maxima retain the original selected bits;
  * a first-contributor flag keeps E4M3's empty-window NaN identity out of nonempty comparisons.
+ * FLOAT32 working sums divide by the exact integer window cardinality with one binary32
+ * round-to-nearest-even, without first rounding the divisor to FLOAT32.
  *
  * <p>Controlled entries guard each full logical output ordinal using proved boundary ROW facts
  * before traversing a window or loading a primal. Inactive original rows store represented
@@ -289,10 +291,14 @@ public final class CpuPool2dEmitter {
                 .labelBinding(next);
         code.lload(kw).loadConstant(1L).ladd().lstore(kw).branch(Opcode.GOTO, ws).labelBinding(wd);
         code.lload(kh).loadConstant(1L).ladd().lstore(kh).branch(Opcode.GOTO, hs).labelBinding(hd);
-        loadValue(code, type, sum);
-        g(code, geometry, 26);
-        if (type == DataType.FLOAT64) code.l2d().ddiv().dstore(sum);
-        else code.l2f().fdiv().fstore(sum);
+        if (type == DataType.FLOAT64) {
+            code.dload(sum);
+            g(code, geometry, 26).l2d().ddiv().dstore(sum);
+        } else {
+            int divisor = code.allocateLocal(TypeKind.LONG);
+            g(code, geometry, 26).lstore(divisor);
+            CpuExactSumEmitter.emitFloatDivideByCount(code, sum, divisor);
+        }
         var store = code.newLabel();
         var positiveZero = code.newLabel();
         loadValue(code, type, sum);

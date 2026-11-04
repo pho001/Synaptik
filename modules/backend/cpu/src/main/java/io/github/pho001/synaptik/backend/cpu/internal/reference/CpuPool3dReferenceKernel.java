@@ -11,7 +11,11 @@ import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
 import java.util.Objects;
 
-/** Optimal clean-Java scalar oracle for the generated NCDHW Pool3d boundary. */
+/**
+ * Clean-Java scalar semantic oracle for the generated NCDHW Pool3d boundary.
+ * FLOAT32 working averages independently divide by the exact integer window cardinality.
+ * Decimal arithmetic is evidence-only and is not part of the generated hot body.
+ */
 public final class CpuPool3dReferenceKernel {
     private CpuPool3dReferenceKernel() {}
 
@@ -126,7 +130,10 @@ public final class CpuPool3dReferenceKernel {
                     }
                 }
             }
-            float result = sum / (float) g.divisor();
+            float result = !Float.isFinite(sum) || sum == 0f ? sum
+                    : new java.math.BigDecimal((double) sum).divide(
+                            java.math.BigDecimal.valueOf(g.divisor()),
+                            new java.math.MathContext(256, java.math.RoundingMode.HALF_EVEN)).floatValue();
             if (result == 0.0f) result = allNegativeZero ? -0.0f : +0.0f;
             long represented = switch (g.dataType()) {
                 case FLOAT32 -> Float.floatToRawIntBits(result) & 0xffffffffL;

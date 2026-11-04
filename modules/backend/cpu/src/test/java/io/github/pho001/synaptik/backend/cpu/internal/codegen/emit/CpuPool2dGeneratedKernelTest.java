@@ -17,6 +17,22 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuPool2dGeneratedKernelTest {
+    @Test
+    void averageDividesByLargeExactWindowWithSingletonStorage() throws Throwable {
+        var f = fixture(DataType.FLOAT32, CpuPool2dIr.Kind.AVERAGE, false,
+                CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY);
+        var layout = new CpuPool2dLowering.Layout(
+                new long[] {1, 1, 1, 1}, 0, new long[] {1, 1, 1, 1});
+        var geometry = new CpuPool2dLowering.Geometry(CpuPool2dIr.Kind.AVERAGE,
+                DataType.FLOAT32, layout, layout,
+                1, 16777217, 1, 1, 0, 8388608, 1, 1, 16777217, 1);
+        float[] input = {1f}, actual = {0f}, expected = {0f};
+        f.handle.invokeWithArguments(input, actual, geometry.pack(0, 0), 0L, 1L);
+        CpuPool2dReferenceKernel.evaluate(geometry, input, expected, 0, 1);
+        assertEquals(0x337fffff, Float.floatToRawIntBits(actual[0]));
+        assertEquals(0x337fffff, Float.floatToRawIntBits(expected[0]));
+    }
+
     @Test void fp8WindowsPreserveRawWinnersPaddingAndFinalAverageNarrowing() throws Throwable {
         for (var type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             for (var kind : CpuPool2dIr.Kind.values())

@@ -15,6 +15,8 @@ import java.lang.constant.MethodTypeDesc;
  *
  * <p>The emitted body consumes only cold-bound primitive geometry, direct carriers, and assigned
  * per-range scratch. It is not a semantic operation implementation or a fallback route.
+ * FLOAT32 positive-infinity tie weights divide one by the exact integer tie count with one
+ * binary32 round-to-nearest-even; low result storage is still narrowed only at publication.
  *
  * <p>Controlled entries decode ROW coordinates from actual attention geometry, never from its
  * rank-zero envelope access plan. Prefix/query coordinates may guard the complete score row;
@@ -270,7 +272,17 @@ public final class CpuAttentionEmitter {
         .labelBinding(divDone)
         .branch(Opcode.GOTO, classified);
     int classJ = mode + 1, classScore = classJ + 2, classWeight = classScore + valueWidth;
-    c.labelBinding(nonOrd).loadConstant(0L).lstore(classJ);
+    c.labelBinding(nonOrd);
+    int tieWeight = rt == DataType.FLOAT64 ? -1 : value(c, DataType.FLOAT32);
+    if (rt != DataType.FLOAT64) {
+      Label tieReady = c.newLabel();
+      c.loadConstant(0f).fstore(tieWeight);
+      c.iload(mode).loadConstant(2).branch(Opcode.IF_ICMPNE, tieReady);
+      c.loadConstant(1f).fstore(tieWeight);
+      CpuExactSumEmitter.emitFloatDivideByCount(c, tieWeight, positive);
+      c.labelBinding(tieReady);
+    }
+    c.loadConstant(0L).lstore(classJ);
     Label classLoop = c.newLabel(), classDone = c.newLabel();
     c.labelBinding(classLoop).lload(classJ);
     get(c, g, 8).lcmp().branch(Opcode.IFGE, classDone);
@@ -287,10 +299,10 @@ public final class CpuAttentionEmitter {
     posInf(c, rt);
     cmp(c, rt);
     c.branch(Opcode.IFNE, zeroWeight);
-    one(c, rt);
-    c.lload(positive);
-    if (rt == DataType.FLOAT64) c.l2d().ddiv();
-    else c.l2f().fdiv();
+    if (rt == DataType.FLOAT64) {
+      one(c, rt);
+      c.lload(positive).l2d().ddiv();
+    } else c.fload(tieWeight);
     c.branch(Opcode.GOTO, modeStore).labelBinding(zeroWeight);
     zero(c, rt);
     c.labelBinding(modeStore);
