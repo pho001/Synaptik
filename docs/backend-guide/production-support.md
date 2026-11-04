@@ -156,7 +156,9 @@ Catalog execution is not an independent numerical oracle for every row.
 Three configured policies with changed weights confirmed F16 native AUTO/PRIMITIVES/GRAPH and
 BF16 native AUTO/PRIMITIVES; BF16 GRAPH kept ordinary execution for that shape. Both FP8 types
 stayed ordinary CPU on M3 under all policies. Local descriptor diagnostics returned status 3 for
-FP8 and F64. No native FP8 execution, final affected-test gate, rebuilt-release acceptance,
+FP8 and F64. The final repository `test build` gate and Javadoc for CPU, Metal, Model,
+Compiler, Engine, NN, Training and Checkpoint passed with the configured native libraries.
+This is source qualification, not rebuilt-release acceptance. No native FP8 execution,
 unbounded geometry or performance qualification is claimed.
 
 ## Owned source and persistence boundaries
