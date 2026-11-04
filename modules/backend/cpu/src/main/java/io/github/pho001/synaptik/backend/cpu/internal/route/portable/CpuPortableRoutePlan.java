@@ -52,11 +52,14 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLower
  * @param batchBindings immutable ordered B-only access recipes; empty for static execution
  * @param batchMatmul optional actual-contraction recipe, only for ordinary batch MATMUL
  * @param batchAggregate optional exact-state recipe, only for ordinary batch SUM/MEAN
+ * @param ordinaryBatchGeometry optional family-owned numeric binding recipe for ordinary
+ *     low-precision symbolic execution; resolved once at the actual run batch
  */
 public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
         CpuKernelSpecialization specialization, List<CpuAccessPlan.BatchBinding> batchBindings,
         Optional<CpuMatmulLowering.BatchGeometry> batchMatmul,
-        Optional<CpuAggregateLowering.BatchGeometry> batchAggregate) {
+        Optional<CpuAggregateLowering.BatchGeometry> batchAggregate,
+        Optional<io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering.BatchUnitGeometry> ordinaryBatchGeometry) {
     /**
      * Retains the static portable route constructor and its unchanged generated identities.
      * @param portableKernelIr non-null immutable typed IR
@@ -66,7 +69,7 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
      *     disagrees with the specialization
      */
     public CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr, CpuKernelSpecialization specialization) {
-        this(portableKernelIr, specialization, List.of(), Optional.empty(), Optional.empty());
+        this(portableKernelIr, specialization, List.of(), Optional.empty(), Optional.empty(), Optional.empty());
     }
     /**
      * Validates one portable realization plan.
@@ -78,6 +81,8 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
      * @param batchBindings non-null immutable ordered B-only recipes, empty in static mode
      * @param batchMatmul non-null optional contraction recipe, exclusive with aggregate
      * @param batchAggregate non-null optional exact-state recipe, exclusive with MATMUL
+     * @param ordinaryBatchGeometry non-null optional generic symbolic recipe, exclusive with
+     *     legacy matrix/aggregate bindings and using the existing resolved family ABI
      * @throws NullPointerException if a required component or collection element is null
      * @throws IllegalArgumentException if the specialization does not match the canonical IR, or
      *     baked family facts, or a pointwise plan has an incompatible generated specialization
@@ -88,6 +93,18 @@ public record CpuPortableRoutePlan(CpuPortableKernelIr portableKernelIr,
         batchBindings = List.copyOf(batchBindings);
         batchMatmul = Objects.requireNonNull(batchMatmul, "batchMatmul");
         batchAggregate = Objects.requireNonNull(batchAggregate, "batchAggregate");
+        ordinaryBatchGeometry = Objects.requireNonNull(ordinaryBatchGeometry, "ordinaryBatchGeometry");
+        if (ordinaryBatchGeometry.isPresent()) {
+            var geometry = ordinaryBatchGeometry.orElseThrow();
+            if (specialization.ordinaryBatch() || !batchBindings.isEmpty()
+                    || batchMatmul.isPresent() || batchAggregate.isPresent()
+                    || !geometry.ir().structuralKey().equals(portableKernelIr.structuralKey())
+                    || !geometry.boundaryTypes().equals(specialization.boundaryDataTypes())
+                    || geometry.bindings().size() != specialization.carrierPattern().size()
+                    || specialization.carrierPattern().stream().anyMatch(carrier ->
+                            carrier != CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT))
+                throw new IllegalArgumentException("ordinary symbolic family recipe disagrees with specialization");
+        }
         if ((portableKernelIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxBackwardIr)
                 != specialization.softmaxBackwardIr().isPresent())
             throw new IllegalArgumentException("softmax backward route and specialization disagree");

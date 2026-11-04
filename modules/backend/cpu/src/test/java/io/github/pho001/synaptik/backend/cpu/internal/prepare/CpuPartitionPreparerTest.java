@@ -595,7 +595,7 @@ public class CpuPartitionPreparerTest {
                         .specialization().classIdentitySchema()));
     }
 
-    @Test void convolutionUnprovedLayoutsAndWidthsRemainScalarWhileLowNumericalTypesReject() {
+    @Test void convolutionUnprovedLayoutsWidthsAndLowTypesRemainScalar() {
         var vector = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1);
         var floatCarriers = List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
                 CarrierAccess.FLOAT_ARRAY);
@@ -628,14 +628,44 @@ public class CpuPartitionPreparerTest {
                         shortPlan.executionStrategy()),
                 () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                         stridedPlan.executionStrategy()),
-                () -> assertTrue(io.github.pho001.synaptik.backend.cpu
-                        .CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(
-                                new PrepareContext<>(bfloat.partition(), bfloat.nodes(),
-                                        bfloat.values(), bfloat.memoryRequirements(),
-                                        bfloat.constants(), new CpuPartitionAnalysisInputs(false,
-                                                List.of(CarrierAccess.MEMORY_SEGMENT,
-                                                        CarrierAccess.MEMORY_SEGMENT,
-                                                        CarrierAccess.MEMORY_SEGMENT), vector)))));
+                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        analyzeWith(bfloat, List.of(CarrierAccess.MEMORY_SEGMENT,
+                                CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT), vector)
+                                .executionStrategy()));
+    }
+
+    @Test void lowReductionsDeclareLogicalWidthsAndFloat32WorkingState() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            for (var kind : List.of(AggregateReductionKind.SUM, AggregateReductionKind.MEAN,
+                    AggregateReductionKind.PROD)) {
+                var analysis = new CpuPartitionPreparer().analyze(CpuAggregateLoweringTest.context(
+                        kind, type, Shape.of(65), NoOperationAttrs.INSTANCE, Shape.scalar()));
+                var plan = analysis.plan();
+                assertEquals(65L * type.byteWidth(), plan.bufferDeclarations().getFirst().byteSize(), type.toString());
+                assertEquals(type.byteWidth(), plan.bufferDeclarations().getLast().byteSize(), type.toString());
+                assertEquals(type.byteWidth(), plan.bufferDeclarations().getLast().byteAlignment(), type.toString());
+                long expectedSlice = kind == AggregateReductionKind.PROD ? 224 : 48;
+                assertEquals(expectedSlice, plan.workspaceDeclaration().orElseThrow().byteSize(),
+                        type + " " + kind);
+            }
+        }
+    }
+
+    @Test void lowScatterAdditionDeclaresWorkingCellsAndTouchedBytesBeforeAssignment() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            var context = CpuScatterLoweringTest.context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                    new ScatterElementsAttrs(0, ScatterReduction.ADD)), List.of(0, 1, 2),
+                    List.of(CpuScatterLoweringTest.desc(type, Shape.of(3)),
+                            CpuScatterLoweringTest.desc(DataType.INT64, Shape.of(5)),
+                            CpuScatterLoweringTest.desc(type, Shape.of(5))),
+                    CpuScatterLoweringTest.desc(type, Shape.of(3)));
+            var analysis = new CpuPartitionPreparer().analyze(context);
+            assertEquals(15, analysis.plan().workspaceDeclaration().orElseThrow().byteSize(), type.toString());
+            assertEquals(3L * type.byteWidth(), analysis.plan().bufferDeclarations().getLast().byteSize(),
+                    type.toString());
+        }
     }
 
     private static CpuPartitionPreparationPlan analyzeWith(

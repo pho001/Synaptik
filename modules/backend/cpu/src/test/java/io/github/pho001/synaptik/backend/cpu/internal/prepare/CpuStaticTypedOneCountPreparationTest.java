@@ -96,7 +96,6 @@ class CpuStaticTypedOneCountPreparationTest {
                 }:CarrierAccess.MEMORY_SEGMENT;
                 c=new PrepareContext<>(c.partition(),c.nodes(),c.values(),c.memoryRequirements(),c.constants(),
                         new CpuPartitionAnalysisInputs(false,List.of(carrier,heap?CarrierAccess.MEMORY_SEGMENT:arrayCarrier(type))));
-                if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(c)) continue;
                 var analysis=new CpuPartitionPreparer().analyze(c);var plan=analysis.plan();
                 assertEquals(2,analysis.requirements().size());
                 assertEquals(1,plan.units().size());

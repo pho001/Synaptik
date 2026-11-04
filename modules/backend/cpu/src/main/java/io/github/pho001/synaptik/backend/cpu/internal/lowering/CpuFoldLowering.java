@@ -89,7 +89,7 @@ public final class CpuFoldLowering {
         } else if (node.operation().kind() == WindowTransformKind.FOLD2D && node.operation().attrs() instanceof Fold2dAttrs a) {
             family = CpuFoldIr.Family.FOLD2D;
             if (inRank != 3 || outRank != 4 || !output.descriptor().shape().equals(a.outputShape())
-                    || type != DataType.FLOAT32 && type != DataType.FLOAT64)
+                    || !type.isFloating())
                 throw new IllegalArgumentException("Fold2d original shape/type disagrees");
             var w = a.window();
             long eh = Math.addExact(Math.multiplyExact(w.dilationHeight(),w.kernelHeight()-1),1);
@@ -104,7 +104,7 @@ public final class CpuFoldLowering {
                 && node.operation().attrs() instanceof Fold3dAttrs a) {
             family = CpuFoldIr.Family.FOLD3D;
             if (inRank != 3 || outRank != 5 || !output.descriptor().shape().equals(a.outputShape())
-                    || type != DataType.FLOAT32 && type != DataType.FLOAT64)
+                    || !type.isFloating())
                 throw new IllegalArgumentException("Fold3d original shape/type disagrees");
             long[] image = new long[5];
             for (int axis = 1; axis < 5; axis++) image[axis] = fixed(output, axis);
@@ -735,7 +735,7 @@ public final class CpuFoldLowering {
                     || family == CpuFoldIr.Family.FOLD3D
                     && (!(mapping instanceof SpatialGeometry) || input.extents.length != 3
                         || output.extents.length != 5
-                        || dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64)
+                        || !dataType.isFloating())
                     || kernelBroadcastInput && (family != CpuFoldIr.Family.FOLD2D
                         || dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64
                         || compactBinding(input).plan().regime() != CpuAccessPlan.Regime.DENSE_LINEAR

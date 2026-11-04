@@ -114,10 +114,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpatialWindowG
  * <p>The provider has a stable CPU ownership identity and advertises the bounded, fully static
  * pointwise matrix implemented by the portable route: Model-valid promoted numeric binary tuples,
  * including extrema and floating Tensor power; exact-typed scalar arithmetic and floating clamp;
- * canonical-BOOL logic; all nineteen same-typed floating unary semantics under the temporary
- * low-computation lock; floating classification, exact stored-value comparisons and Model-promoted
- * {@code WHERE}; and all 49 ordered {@code CAST} pairs among FLOAT64,
- * FLOAT32, BFLOAT16, FLOAT16, INT64, INT32, and BOOL. CAST capability validates the source,
+ * canonical-BOOL logic; all nineteen same-typed floating unary semantics;
+ * floating classification, exact stored-value comparisons and Model-promoted
+ * {@code WHERE}; and every ordered {@code CAST} pair among the supported floating,
+ * integral and BOOL types. CAST capability validates the source,
  * target attribute, output type, equal static Shape, and resolved non-negative layouts;
  * it cannot inspect carrier bytes, so canonical BOOL storage remains an execution precondition. Every
  * descriptor has a resolved layout, and results obey the
@@ -168,8 +168,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpatialWindowG
  * compatibility, and complete physical non-overlap.</p>
  *
  * <p>A distinct one-node ordinary aggregate matrix admits SUM and PROD for FLOAT64, FLOAT32,
- * INT32, and INT64; MEAN for FLOAT64 and FLOAT32; represented-value MIN and MAX additionally
- * retain BFLOAT16/FLOAT16; and ALL and ANY use canonical BOOL. Exact parameterless full,
+ * INT32, and INT64; low floating SUM, PROD, MEAN and represented-value MIN and MAX;
+ * and ALL and ANY use canonical BOOL. Exact parameterless full,
  * single-axis, and multi-axis attributes are supported with fully static Model-derived output
  * Shapes, resolved non-negative layouts, and an injective output. Lowering and binding retain
  * responsibility for canonical selected-axis membership, complete-domain traversal, exact
@@ -191,7 +191,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpatialWindowG
  * exceed the non-negative correction.</p>
  *
  * <p>A separate one-node stable-normalization matrix admits first-class SOFTMAX and LOG_SOFTMAX
- * under the current low-arithmetic lock. It requires identical Shape/type/gradient eligibility,
+ * for every floating type. It requires identical Shape/type/gradient eligibility,
  * resolved non-negative layouts, and an injective output. Empty selected axes publish nothing;
  * represented NaN and infinity inputs retain Model result classes rather than failing a
  * separate finite-input precondition.</p>
@@ -331,8 +331,8 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * the implemented matrix return {@code false} without defining conversion or fallback behavior.
      * Signed extraction and update steps describe logical coordinates, not physical storage
      * strides. Negative-step and empty extractions require canonical non-view storage.
-     * CPU's temporary BFLOAT16/FLOAT16 numerical lock is checked before every family proof;
-     * represented-value, storage, cast and control roles retain their existing predicates.
+     * Floating capability is independent of native acceleration; represented-value, storage,
+     * cast and control roles retain their exact structural predicates.
      *
      * @param query non-null immutable operation occurrence to validate structurally
      * @return {@code true} only for the exact implemented occurrence-local matrix; otherwise
@@ -342,8 +342,6 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     @Override
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
-        if (!io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
-                .permitsLowPrecisionUse(query)) return false;
         Object requestedKind = query.operation().kind();
         if (requestedKind != io.github.pho001.synaptik.model.operation.scan.ScanKind.SCAN
                 && java.util.stream.Stream.concat(query.inputs().stream(), query.outputs().stream())
@@ -617,8 +615,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         TensorDescriptor input = query.inputs().getFirst();
         DataType type = input.dataType();
         int rank = input.shape().rank();
-        if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
+        if (!type.isFloating()
                 || output.dataType() != type
                 || output.requiresGrad() != input.requiresGrad() || rank <= 0
                 || attrs.axis() < 0 || attrs.axis() >= rank
@@ -763,14 +760,10 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         TensorDescriptor input = query.inputs().getFirst();
         boolean bool = kind == AggregateReductionKind.ALL || kind == AggregateReductionKind.ANY;
         boolean mean = kind == AggregateReductionKind.MEAN;
-        boolean numeric = input.dataType() == DataType.FLOAT64 || input.dataType() == DataType.FLOAT32
-                || input.dataType() == DataType.BFLOAT16 || input.dataType() == DataType.FLOAT16
+        boolean numeric = input.dataType().isFloating()
                 || input.dataType() == DataType.INT32 || input.dataType() == DataType.INT64;
         if (bool != (input.dataType() == DataType.BOOL) || !bool && !numeric
-                || mean && input.dataType() != DataType.FLOAT64
-                    && input.dataType() != DataType.FLOAT32
-                    && input.dataType() != DataType.BFLOAT16
-                    && input.dataType() != DataType.FLOAT16
+                || mean && !input.dataType().isFloating()
                 || output.dataType() != input.dataType()) return false;
         Object attrs = query.operation().attrs(); int rank = input.shape().rank();
         if (attrs instanceof SumToShapeAttrs sumTo) {
@@ -814,8 +807,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         if (query.inputs().size() != 1) return false;
         TensorDescriptor input = query.inputs().getFirst();
         DataType type = input.dataType();
-        if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
+        if (!type.isFloating()
                 || output.dataType() != type
                 || output.requiresGrad() != input.requiresGrad()) return false;
         int rank = input.shape().rank();
@@ -852,8 +844,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 || query.inputs().size() != 2) return false;
         TensorDescriptor data = query.inputs().get(0), mask = query.inputs().get(1);
         DataType type = data.dataType();
-        if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
+        if (!type.isFloating()
                 || output.dataType() != type
                 || mask.dataType() != DataType.BOOL || mask.requiresGrad()
                 || output.requiresGrad() != data.requiresGrad()
@@ -876,8 +867,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                 || !(query.operation().attrs() instanceof ArgExtremaAttrs attrs)) return false;
         TensorDescriptor input = query.inputs().getFirst();
         DataType type = input.dataType();
-        if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16 && type != DataType.FLOAT16
+        if ((!type.isFloating()
                 && type != DataType.INT32 && type != DataType.INT64)
                 || output.dataType() != DataType.INT64 || output.requiresGrad()) return false;
         int rank = input.shape().rank();
@@ -919,9 +909,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         TensorDescriptor value = query.inputs().get(0), state = query.inputs().get(1);
         TensorDescriptor output = query.outputs().get(0), mask = query.outputs().get(1);
         TensorDescriptor next = query.outputs().get(2);
-        if ((value.dataType() != DataType.FLOAT64 && value.dataType() != DataType.FLOAT32
-                && value.dataType() != DataType.BFLOAT16
-                && value.dataType() != DataType.FLOAT16)
+        if (!value.dataType().isFloating()
                 || output.dataType() != value.dataType() || !output.shape().equals(value.shape())
                 || mask.dataType() != DataType.BOOL || !mask.shape().equals(value.shape())
                 || !stateDescriptor(state) || !stateDescriptor(next)) return false;
@@ -1130,8 +1118,6 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         } else return false;
         if (!windowFloating(input.dataType()) || output.dataType() != input.dataType()
                 || output.requiresGrad() != input.requiresGrad()
-                || input.requiresGrad() && input.dataType() != DataType.FLOAT32
-                    && input.dataType() != DataType.FLOAT64
                 || input.shape().rank() != 5
                 || output.shape().rank() != 5 || !injective(output.shape().toLongArray(),
                         output.layout().orElseThrow().strides())) return false;
@@ -1310,7 +1296,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                     && source[2] == Math.multiplyExact(columnsHeight, columnsWidth);
         }
         if (kind == WindowTransformKind.FOLD3D && attrs instanceof Fold3dAttrs fold) {
-            if (input.dataType() != DataType.FLOAT32 && input.dataType() != DataType.FLOAT64
+            if (!input.dataType().isFloating()
                     || !output.shape().equals(fold.outputShape())) return false;
             CpuSpatialWindowGeometry.of(result, fold.window()).requireColumns(result, source);
             return true;
@@ -1511,8 +1497,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     }
 
     private static boolean windowFloating(DataType type) {
-        return type == DataType.FLOAT64 || type == DataType.FLOAT32
-                || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+        return type.isFloating();
     }
 
     private static boolean injective(long[] extents, long[] strides) {
@@ -1669,28 +1654,28 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     }
 
     private static boolean floating(DataType type) {
-        return type == DataType.FLOAT64 || type == DataType.FLOAT32;
+        return type.isFloating();
     }
 
     /**
      * Reports the represented floating matrix admitted by direct CPU loss lowering.
      *
      * @param type non-null candidate tensor element type
-     * @return {@code true} for BFLOAT16, FLOAT16, FLOAT32, or FLOAT64; otherwise {@code false}
+     * @return {@code true} for every supported floating type; otherwise {@code false}
      */
     private static boolean lossFloating(DataType type) {
-        return type == DataType.FLOAT64 || type == DataType.FLOAT32
-                || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+        return type.isFloating();
     }
 
     private static boolean scalarMatchesResult(
             io.github.pho001.synaptik.model.datatype.ScalarValue scalar, DataType result) {
         return scalar.dataType() == result
-                || result == DataType.FLOAT16 && scalar.dataType() == DataType.FLOAT32;
+                || (result == DataType.FLOAT16 || result == DataType.FLOAT8_E4M3
+                    || result == DataType.FLOAT8_E5M2) && scalar.dataType() == DataType.FLOAT32;
     }
 
     private static boolean normalizationFloating(DataType type) {
-        return floating(type) || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+        return floating(type);
     }
 
     private static boolean supportedNumeric(DataType type) {
@@ -1698,7 +1683,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     }
 
     private static boolean pointwiseFloating(DataType type) {
-        return floating(type) || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+        return floating(type);
     }
 
     private static boolean supportedPointwiseNumeric(DataType type) {
@@ -1707,7 +1692,6 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
 
     /**
      * Checks Model numeric promotion without rewriting the ordered operand descriptors.
-     * The earlier low-arithmetic gate observes the original carriers, not this result type.
      * @param inputs ordered candidate numeric operands
      * @param output declared promoted result
      * @return whether both operands share a numeric category and the result is its Model promotion
@@ -1730,9 +1714,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     }
 
     private static boolean supportedCast(DataType type) {
-        return type == DataType.FLOAT64 || type == DataType.FLOAT32 || type == DataType.BFLOAT16
-                || type == DataType.FLOAT16 || type == DataType.INT64
-                || type == DataType.INT32 || type == DataType.BOOL;
+        return type.isFloating() || type.isIntegral() || type == DataType.BOOL;
     }
 
     private static boolean sameNumeric(java.util.List<TensorDescriptor> inputs,

@@ -116,7 +116,7 @@ public final class CpuBatchNormInferenceLowering {
         var boundaryIds = new ArrayList<>(uniqueIds); boundaryIds.add(outputId);
         List<DataType> semanticTypes = node.inputs().stream()
                 .map(id -> require(values, id).descriptor().dataType()).toList();
-        long epsilonBits = scalarBits(output.descriptor().dataType(), attrs.epsilon());
+        long epsilonBits = scalarBits(attrs.epsilon());
         var ir = new CpuBatchNormInferenceIr(semanticTypes, output.descriptor().dataType(),
                 epsilonBits, inputLayout.extents.length, axis, 1,
                 CpuBatchNormInferenceIr.RangeForm.CHANNEL_RANGE, map,
@@ -206,7 +206,7 @@ public final class CpuBatchNormInferenceLowering {
             }
         }
         var ir = new CpuBatchNormInferenceIr(operands.stream().map(v -> v.descriptor().dataType()).toList(),
-                result, scalarBits(result, attrs.epsilon()), input.shape().rank(), axis, 1, form, map,
+                result, scalarBits(attrs.epsilon()), input.shape().rank(), axis, 1, form, map,
                 bindings.subList(0, unique).stream().map(CpuAccessPlan.BatchBinding::plan).toList(),
                 bindings.getLast().plan());
         return new CpuPartitionLowering.LoweredPartition(new Geometry.BatchGeometry(ir, ids, types,
@@ -233,10 +233,7 @@ public final class CpuBatchNormInferenceLowering {
                         .mapToLong(Long::longValue).toArray());
     }
 
-    private static long scalarBits(DataType resultType, ScalarValue value) {
-        if (resultType == DataType.FLOAT16 && value.dataType() == DataType.FLOAT32) {
-            return Float.floatToFloat16(value.float32Value()) & 0xffffL;
-        }
+    private static long scalarBits(ScalarValue value) {
         return switch (value.dataType()) {
             case FLOAT64 -> Double.doubleToRawLongBits(value.float64Value());
             case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffff_ffffL;
@@ -305,8 +302,7 @@ public final class CpuBatchNormInferenceLowering {
     }
 
     private static boolean supported(DataType type) {
-        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
-                || type == DataType.FLOAT32 || type == DataType.FLOAT64;
+        return type.isFloating();
     }
 
     private static void validateInjective(Layout layout) {

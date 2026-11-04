@@ -60,7 +60,8 @@ class CpuCapabilityProviderTest {
         var provider = new CpuCapabilityProvider();
         var max = new MaxPool2dAttrs(3, 2, 2, 2, 2, 2, 2, 1, true);
         var average = new AveragePool2dAttrs(3, 2, 2, 2, 2, 2, 2, 1, true);
-        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3,
+                DataType.FLOAT8_E5M2, DataType.FLOAT32, DataType.FLOAT64)) {
             var input = descriptor(type, Shape.of(1, 2, 4, 5));
             var output = descriptor(type, Shape.of(1, 2, 3, 5));
             assertAll(type.toString(),
@@ -95,7 +96,8 @@ class CpuCapabilityProviderTest {
         var provider=new CpuCapabilityProvider();
         var max=new MaxPool3dAttrs(2,2,2,2,2,2,2,2,2,1,1,1,true);
         var average=new AveragePool3dAttrs(2,2,2,2,2,2,2,2,2,1,1,1,true);
-        for(DataType type:List.of(DataType.BFLOAT16,DataType.FLOAT32,DataType.FLOAT64)){
+        for(DataType type:List.of(DataType.BFLOAT16,DataType.FLOAT16,DataType.FLOAT8_E4M3,
+                DataType.FLOAT8_E5M2,DataType.FLOAT32,DataType.FLOAT64)){
             var input=descriptor(type,Shape.of(1,2,3,3,3));
             var output=descriptor(type,Shape.of(1,2,4,4,4));
             assertAll(()->io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(Pool3dKind.MAX_POOL3D,max,List.of(input),output)),
@@ -136,29 +138,28 @@ class CpuCapabilityProviderTest {
                         average,List.of(input),output)));
     }
 
-    @Test void pool3dGradientMetadataAdmitsBothWorkingTypesWithoutUnlockingLowTypes() {
+    @Test void pool3dGradientMetadataAdmitsEveryFloatingType() {
         var provider = new CpuCapabilityProvider();
         var max = new MaxPool3dAttrs(2,2,2,1,1,1,1,1,1,2,2,2,true);
         var average = new AveragePool3dAttrs(2,2,2,1,1,1,1,1,1,2,2,2,true);
         Shape shape = Shape.of(1,2,3,3,3);
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64,
-                DataType.BFLOAT16, DataType.FLOAT16)) {
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
             var input = new TensorDescriptor(type, shape,
                     Optional.of(LayoutDescriptor.contiguous(shape)), true);
             var output = new TensorDescriptor(type, shape,
                     Optional.of(LayoutDescriptor.contiguous(shape)), true);
-            boolean supported = type == DataType.FLOAT32 || type == DataType.FLOAT64;
-            assertEquals(supported, provider.supports(query(Pool3dKind.MAX_POOL3D, max,
+            assertTrue(provider.supports(query(Pool3dKind.MAX_POOL3D, max,
                     List.of(input), output)), type.toString());
-            assertEquals(supported, provider.supports(query(Pool3dKind.AVERAGE_POOL3D, average,
+            assertTrue(provider.supports(query(Pool3dKind.AVERAGE_POOL3D, average,
                     List.of(input), output)), type.toString());
         }
     }
 
     @Test void reportsExactlyStaticResolvedNumericMatmulOccurrences() {
         var provider = new CpuCapabilityProvider();
-        var numeric = List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64,
-                DataType.INT32, DataType.INT64);
+        var numeric = List.of(DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3,
+                DataType.FLOAT8_E5M2, DataType.FLOAT32, DataType.FLOAT64, DataType.INT32, DataType.INT64);
         for (DataType leftType : numeric) for (DataType rightType : numeric) {
             boolean sameCategory = leftType.isFloating() == rightType.isFloating();
             if (!sameCategory) continue;
@@ -211,8 +212,6 @@ class CpuCapabilityProviderTest {
                         descriptor(DataType.FLOAT32, outputShape)))),
                 () -> assertFalse(provider.supports(query(Conv2dKind.CONV2D, attrs,
                         List.of(input, weight), descriptor(DataType.FLOAT32, Shape.of(2, 6, 4, 5))))));
-        assertArrayEquals(new DataType[] {DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
-                DataType.INT32, DataType.INT64, DataType.BOOL, DataType.FLOAT16}, DataType.values());
     }
     @Test void reportsOnlyExactBatchNormalizationInferenceOccurrences() {
         var provider = new CpuCapabilityProvider();
@@ -274,7 +273,8 @@ class CpuCapabilityProviderTest {
     @Test void reportsShapePreservingSoftmaxIncludingEmptySlices() {
         var provider = new CpuCapabilityProvider();
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
-                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new SoftmaxAttrs(1),
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new SoftmaxAttrs(1),
                         List.of(descriptor(type, Shape.of(2, 3))),
                         descriptor(type, Shape.of(2, 3))));
         assertAll(() -> assertTrue(provider.supports(query(SoftmaxKind.SOFTMAX,
@@ -290,7 +290,8 @@ class CpuCapabilityProviderTest {
 
     @Test void reportsOnlyExactStaticAdvancedReductionMatrix() {
         var provider = new CpuCapabilityProvider(); Shape inputShape = Shape.of(2, 3, 4);
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.LOG_SUM_EXP,
                     AggregateReductionKind.L1_NORM, AggregateReductionKind.L2_NORM)) {
                 io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind,
@@ -333,7 +334,8 @@ class CpuCapabilityProviderTest {
 
     @Test void reportsOnlyExactDirectionalMaskedSumAndMeanMatrix() {
         var provider = new CpuCapabilityProvider();
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.SUM,
                     AggregateReductionKind.MEAN)) {
                 io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new MaskedReductionAttrs(1),
@@ -368,7 +370,7 @@ class CpuCapabilityProviderTest {
     @Test void reportsOnlyExactStaticResolvedArgExtremaMatrix() {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
-                DataType.INT32, DataType.INT64)) {
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2, DataType.INT32, DataType.INT64)) {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.ARG_MIN,
                     AggregateReductionKind.ARG_MAX)) {
                 for (ArgExtremaTiePolicy tie : ArgExtremaTiePolicy.values()) {
@@ -403,7 +405,7 @@ class CpuCapabilityProviderTest {
     @Test void reportsOnlyExactBoundSumToShapeMatrix() {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
-                DataType.INT32, DataType.INT64)) {
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2, DataType.INT32, DataType.INT64)) {
             io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(AggregateReductionKind.SUM,
                     new SumToShapeAttrs(Shape.of(3, 1)),
                     List.of(descriptor(type, Shape.of(2, 3, 4))),
@@ -432,11 +434,12 @@ class CpuCapabilityProviderTest {
     @Test void reportsClosedOrdinaryNumericalAggregateMatrix() {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
-                DataType.INT32, DataType.INT64)) for (AggregateReductionKind kind : List.of(
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2, DataType.INT32, DataType.INT64)) for (AggregateReductionKind kind : List.of(
                         AggregateReductionKind.SUM, AggregateReductionKind.PROD))
             io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new AxisReductionAttrs(1, false),
                     List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2))));
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(AggregateReductionKind.MEAN,
                     new MultiAxisReductionAttrs(List.of(1), false),
                     List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2))));
@@ -452,7 +455,7 @@ class CpuCapabilityProviderTest {
     @Test void reportsOnlyExactStaticResolvedCumulativeScanMatrix() {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
-                DataType.INT32, DataType.INT64)) for (CumulativeScanKind kind : CumulativeScanKind.values())
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2, DataType.INT32, DataType.INT64)) for (CumulativeScanKind kind : CumulativeScanKind.values())
             io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new CumulativeScanAttrs(1, true, true),
                     List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2, 3))));
         assertAll(() -> assertFalse(provider.supports(query(CumulativeScanKind.CUM_SUM,

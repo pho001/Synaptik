@@ -178,8 +178,8 @@ public enum CpuPointwiseOpcode {
 
     /**
      * Identifies numerical sites rather than exact represented-value operations.
-     * This is independent of selected power realization and of operand carrier: integral
-     * arithmetic remains available, while low floating operands are rejected during admission.
+     * This is independent of selected power realization and of operand carrier. Low floating
+     * numerical sites use FLOAT32 work and a final declared representation boundary.
      *
      * @return whether floating operands undergo numerical arithmetic
      */

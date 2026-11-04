@@ -283,7 +283,7 @@ public final class CpuAggregateLowering {
         var attrs = node.operation().attrs(); var form = reductionForm(attrs); boolean keep = keepDimensions(attrs);
         int[] axes = normalizedAxes(input.shape(),output.shape(),attrs).stream().mapToInt(Integer::intValue).toArray();
         var domain = batchCount(in,axes); long budget = batchDomainBudget(domain);
-        boolean floating = type == DataType.FLOAT32 || type == DataType.FLOAT64 || type == DataType.FLOAT16 || type == DataType.BFLOAT16;
+        boolean floating = type.isFloating();
         boolean exact = floating && (kind == CpuAggregateIr.Kind.SUM || kind == CpuAggregateIr.Kind.MEAN || kind == CpuAggregateIr.Kind.PROD)
                 && (form != CpuAggregateIr.Form.SUM_TO_SHAPE || axes.length != 0);
         int limbs = exact ? stateLimbCount(kind,type,budget) : 0;
@@ -607,9 +607,9 @@ public final class CpuAggregateLowering {
     }
 
     /**
-     * Rounds a nonnegative exact integer directly to the represented CPU SUM type. This mirrors
-     * the exact accumulator's final ties-to-even rounding, not long-to-float-to-low conversion.
-     * Integer results use modular bits; count/shape overflow is checked before this seam.
+     * Rounds a nonnegative exact integer through the SUM operation's working precision.
+     * Low floating outputs round first to FLOAT32 work and then once to their declared storage
+     * representation; integer results use modular bits. Count/shape overflow is checked first.
      * @param type non-null supported homogeneous numeric SUM type
      * @param count nonnegative checked contributor count, at most Long.MAX_VALUE
      * @return exact typed result bits, with positive zero for the empty domain
@@ -620,9 +620,22 @@ public final class CpuAggregateLowering {
         if (count < 0 || type == DataType.BOOL) throw new IllegalArgumentException("unsupported count");
         if (type == DataType.INT64) return new CpuKernelIr.ScalarImmediate(type, count);
         if (type == DataType.INT32) return new CpuKernelIr.ScalarImmediate(type, count & 0xffff_ffffL);
-        int fraction = type == DataType.FLOAT64 ? 52 : type == DataType.FLOAT32 ? 23
-                : type == DataType.FLOAT16 ? 10 : 7;
-        int bias = type == DataType.FLOAT64 ? 1023 : type == DataType.FLOAT16 ? 15 : 127;
+        if (type.byteWidth() < Float.BYTES) {
+            float working = count;
+            long bits = switch (type) {
+                case BFLOAT16 -> Short.toUnsignedLong(
+                        io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(working));
+                case FLOAT16 -> Short.toUnsignedLong(Float.floatToFloat16(working));
+                case FLOAT8_E4M3 -> Byte.toUnsignedInt(
+                        io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(working));
+                case FLOAT8_E5M2 -> Byte.toUnsignedInt(
+                        io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(working));
+                default -> throw new IllegalArgumentException("unsupported count type");
+            };
+            return new CpuKernelIr.ScalarImmediate(type, bits);
+        }
+        int fraction = type == DataType.FLOAT64 ? 52 : 23;
+        int bias = type == DataType.FLOAT64 ? 1023 : 127;
         if (count == 0) return new CpuKernelIr.ScalarImmediate(type, 0);
         int exponent = 63 - Long.numberOfLeadingZeros(count);
         int shift = Math.max(0, exponent - fraction);
@@ -632,7 +645,7 @@ public final class CpuAggregateLowering {
             if (remainder > halfway || remainder == halfway && (significant & 1) != 0) significant++;
             if (significant == 1L << (fraction + 1)) { significant >>>= 1; exponent++; }
         } else significant <<= fraction - exponent;
-        long bits = exponent > bias ? ((1L << (type == DataType.FLOAT64 ? 11 : type == DataType.FLOAT16 ? 5 : 8)) - 1) << fraction
+        long bits = exponent > bias ? ((1L << (type == DataType.FLOAT64 ? 11 : 8)) - 1) << fraction
                 : ((long) exponent + bias) << fraction | significant & ((1L << fraction) - 1);
         return new CpuKernelIr.ScalarImmediate(type, bits);
     }
@@ -648,6 +661,8 @@ public final class CpuAggregateLowering {
             case FLOAT32 -> ScalarValue.float32(1); case FLOAT64 -> ScalarValue.float64(1);
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x3f80);
             case FLOAT16 -> ScalarValue.float16Bits((short) 0x3c00);
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) 0x38);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) 0x3c);
             case INT32 -> ScalarValue.int32(1); case INT64 -> ScalarValue.int64(1);
             case BOOL -> null;
         };
@@ -765,8 +780,7 @@ public final class CpuAggregateLowering {
         boolean actualReduction = form != CpuAggregateIr.Form.SUM_TO_SHAPE || selected.length != 0;
         boolean exactFloating = actualReduction && (kind == CpuAggregateIr.Kind.SUM
                 || kind == CpuAggregateIr.Kind.MEAN || kind == CpuAggregateIr.Kind.PROD)
-                && (type == DataType.FLOAT64 || type == DataType.FLOAT32
-                    || type == DataType.BFLOAT16 || type == DataType.FLOAT16);
+                && type.isFloating();
         int stateLimbCount = exactFloating ? stateLimbCount(kind, type, domainCount) : 0;
         long scratchSliceBytes = exactFloating ? Math.addExact(
                 kind == CpuAggregateIr.Kind.PROD ? 24L : 8L,
@@ -793,19 +807,15 @@ public final class CpuAggregateLowering {
     }
 
     private static int stateLimbCount(CpuAggregateIr.Kind kind, DataType type, long domainCount) {
-        int precision = type == DataType.FLOAT64 ? 53 : type == DataType.FLOAT32 ? 24
-                : type == DataType.FLOAT16 ? 11 : 8;
+        int precision = type == DataType.FLOAT64 ? 53 : 24;
         if (kind == CpuAggregateIr.Kind.PROD) {
-            int maximumExponentMagnitude = type == DataType.FLOAT64 ? 1074
-                    : type == DataType.FLOAT32 ? 149 : type == DataType.FLOAT16 ? 24 : 133;
+            int maximumExponentMagnitude = type == DataType.FLOAT64 ? 1074 : 149;
             Math.multiplyExact((long) maximumExponentMagnitude, Math.max(1L, domainCount));
             long bits = Math.multiplyExact((long) precision, Math.max(1L, domainCount));
             return Math.toIntExact(Math.max(1L, Math.addExact(bits, 63L) / 64L));
         }
-        int emin = type == DataType.FLOAT64 ? -1074
-                : type == DataType.FLOAT32 ? -149 : type == DataType.FLOAT16 ? -24 : -133;
-        int emax = type == DataType.FLOAT64 ? 1023
-                : type == DataType.FLOAT16 ? 15 : 127;
+        int emin = type == DataType.FLOAT64 ? -1074 : -149;
+        int emax = type == DataType.FLOAT64 ? 1023 : 127;
         int cardinalityBits = domainCount <= 1 ? 0
                 : 64 - Long.numberOfLeadingZeros(domainCount - 1);
         long signedBits = Math.addExact((long) emax + 1L - emin,
@@ -1150,8 +1160,7 @@ public final class CpuAggregateLowering {
                     || selectedAxes.length != 0;
             boolean exactFloating = actualReduction && (kind == CpuAggregateIr.Kind.SUM
                     || kind == CpuAggregateIr.Kind.MEAN || kind == CpuAggregateIr.Kind.PROD)
-                    && (dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                        || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16);
+                    && dataType.isFloating();
             if (ordinaryBatch && (dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64
                     || kind != CpuAggregateIr.Kind.SUM && kind != CpuAggregateIr.Kind.MEAN)) {
                 throw new IllegalArgumentException("unsupported batch aggregate state");

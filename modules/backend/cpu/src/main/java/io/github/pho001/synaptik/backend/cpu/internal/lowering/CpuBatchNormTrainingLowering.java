@@ -90,8 +90,7 @@ public final class CpuBatchNormTrainingLowering {
             types.add(value.descriptor().dataType()); boundaryIds.add(id);
         }
         DataType result = require(values, node.outputs().getFirst()).descriptor().dataType();
-        DataType exact = result == DataType.BFLOAT16 || result == DataType.FLOAT16
-                ? DataType.FLOAT32 : result;
+        DataType exact = result.byteWidth() < Float.BYTES ? DataType.FLOAT32 : result;
         long slice = channels == 0 ? 0 : exactStateSliceBytes(exact, reduction);
         int limbs = slice == 0 ? 0 : Math.toIntExact(slice / Long.BYTES - 1);
         List<DataType> semanticTypes = node.inputs().stream()
@@ -100,8 +99,8 @@ public final class CpuBatchNormTrainingLowering {
                 .map(CpuAccessPlan.Binding::plan).toList();
         List<CpuAccessPlan> outputPlans = bindings.subList(uniqueIds.size(), bindings.size()).stream()
                 .map(CpuAccessPlan.Binding::plan).toList();
-        long momentumBits = bits(result, attrs.momentum());
-        long epsilonBits = bits(result, attrs.epsilon());
+        long momentumBits = bits(attrs.momentum());
+        long epsilonBits = bits(attrs.epsilon());
         var ir = new CpuBatchNormTrainingIr(semanticTypes, result, momentumBits,
                 epsilonBits, input.extents.length, axis, 1, 3, reduction,
                 limbs, slice, map, inputPlans, outputPlans);
@@ -188,7 +187,7 @@ public final class CpuBatchNormTrainingLowering {
         long slice = knownEmpty ? 0 : exactStateSliceBytes(exact, dynamicDomain ? Long.MAX_VALUE : rc);
         int limbs = slice == 0 ? 0 : Math.toIntExact(slice / Long.BYTES - 1);
         var ir = new CpuBatchNormTrainingIr(operands.stream().map(v -> v.descriptor().dataType()).toList(),
-                result, bits(result, attrs.momentum()), bits(result, attrs.epsilon()),
+                result, bits(attrs.momentum()), bits(attrs.epsilon()),
                 input.shape().rank(), axis, dynamicDomain ? 2 : 1, 3, dynamicDomain ? 0 : rc,
                 limbs, slice, map,
                 bindings.subList(0, unique).stream().map(CpuAccessPlan.BatchBinding::plan).toList(),
@@ -237,9 +236,7 @@ public final class CpuBatchNormTrainingLowering {
     }
     private static GraphValue require(Map<ValueId, GraphValue> values, ValueId id) {
         GraphValue v = values.get(id); if (v == null) throw new IllegalArgumentException("value is not projected: " + id); return v; }
-    private static long bits(DataType result, ScalarValue v) {
-        if (result == DataType.FLOAT16 && v.dataType() == DataType.FLOAT32)
-            return Float.floatToFloat16(v.float32Value()) & 0xffffL;
+    private static long bits(ScalarValue v) {
         return switch (v.dataType()) {
             case FLOAT64 -> Double.doubleToRawLongBits(v.float64Value());
             case FLOAT32 -> Float.floatToRawIntBits(v.float32Value()) & 0xffff_ffffL;

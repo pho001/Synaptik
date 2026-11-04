@@ -111,8 +111,7 @@ public final class CpuTrailingNormalizationLowering {
         spans.add(output.descriptor().layout().orElseThrow().referencedElementSpan());
         types.add(output.descriptor().dataType());
         var boundaryIds = new ArrayList<>(uniqueIds); boundaryIds.add(outputId);
-        DataType exactType = output.descriptor().dataType() == DataType.BFLOAT16
-                || output.descriptor().dataType() == DataType.FLOAT16
+        DataType exactType = output.descriptor().dataType().byteWidth() < Float.BYTES
                 ? DataType.FLOAT32 : output.descriptor().dataType();
         long scratch = kind == CpuTrailingNormalizationIr.Kind.LAYER && outputCount > 0
                 ? exactStateSliceBytes(exactType, normalizedCount) : 0;
@@ -121,7 +120,7 @@ public final class CpuTrailingNormalizationLowering {
                 .toList();
         var inputPlans = bindings.subList(0, uniqueIds.size()).stream()
                 .map(CpuAccessPlan.Binding::plan).toList();
-        long epsilonBits = epsilonBits(output.descriptor().dataType(), epsilon);
+        long epsilonBits = epsilonBits(epsilon);
         var ir = new CpuTrailingNormalizationIr(kind, form, semanticTypes,
                 output.descriptor().dataType(), epsilonBits, normalizedRank, 1,
                 kind == CpuTrailingNormalizationIr.Kind.LAYER ? 3 : 2, normalizedCount,
@@ -209,14 +208,14 @@ public final class CpuTrailingNormalizationLowering {
         long normalizedCount = elementCount(normalized.toLongArray());
         var iterations = batchProduct(write, 0, leadingRank);
         if (normalizedCount == 0) iterations = new BatchByteSize(0, 0, 1);
-        DataType exact = result == DataType.FLOAT16 || result == DataType.BFLOAT16 ? DataType.FLOAT32 : result;
+        DataType exact = result.byteWidth() < Float.BYTES ? DataType.FLOAT32 : result;
         long scratch = kind == CpuTrailingNormalizationIr.Kind.LAYER && normalizedCount != 0
                 && (iterations.constantBytes() != 0 || iterations.bytesPerBatch() != 0)
                 ? exactStateSliceBytes(exact, normalizedCount) : 0;
         int limbs = scratch == 0 ? 0 : Math.toIntExact(scratch / Long.BYTES - 1);
         var ir = new CpuTrailingNormalizationIr(kind, form,
                 operands.stream().map(v -> v.descriptor().dataType()).toList(), result,
-                epsilonBits(result, epsilon), normalized.rank(), 1,
+                epsilonBits(epsilon), normalized.rank(), 1,
                 kind == CpuTrailingNormalizationIr.Kind.LAYER ? 3 : 2, normalizedCount, limbs, scratch,
                 map, bindings.subList(0, bindings.size() - 1).stream().map(CpuAccessPlan.BatchBinding::plan).toList(),
                 write.plan());
@@ -254,9 +253,7 @@ public final class CpuTrailingNormalizationLowering {
                         .mapToLong(Long::longValue).toArray());
     }
 
-    private static long epsilonBits(DataType resultType, ScalarValue epsilon) {
-        if (resultType == DataType.FLOAT16 && epsilon.dataType() == DataType.FLOAT32)
-            return Float.floatToFloat16(epsilon.float32Value()) & 0xffffL;
+    private static long epsilonBits(ScalarValue epsilon) {
         return switch (epsilon.dataType()) {
             case FLOAT64 -> Double.doubleToRawLongBits(epsilon.float64Value());
             case FLOAT32 -> Float.floatToRawIntBits(epsilon.float32Value()) & 0xffff_ffffL;
@@ -324,8 +321,7 @@ public final class CpuTrailingNormalizationLowering {
         return result;
     }
     private static boolean supported(DataType type) {
-        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
-                || type == DataType.FLOAT32 || type == DataType.FLOAT64;
+        return type.isFloating();
     }
     private static void validateInjective(Layout layout) {
             if (!CpuOutputInjectivity.isInjective(layout.extents, layout.strides)) {

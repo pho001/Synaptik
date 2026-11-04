@@ -232,8 +232,7 @@ public record CpuDataMovementIr(DataType dataType, MovementPlan plan,
         }
         if (plan instanceof Unfold3dPlan && (inputAccesses.size() != 1
                 || inputAccesses.getFirst().iterationRank() != 5
-                || dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64
-                    && dataType != DataType.BFLOAT16 && dataType != DataType.FLOAT16)) {
+                || !dataType.isFloating())) {
             throw new IllegalArgumentException("unfold3d access ranks or type are inconsistent");
         }
         for (int boundary : plan.occurrenceToBoundary()) {

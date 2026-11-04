@@ -109,7 +109,6 @@ public class CpuStaticTypedOneCountFoldingTest {
      */
     private static void check(DataType type,Shape domain,OperationAttrs attrs,Shape output,int chain,long count,long cells) {
         var context=context(type,domain,attrs,output,chain,true);
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var lowered=new CpuPartitionLowering().lower(context);
         var ir=assertInstanceOf(CpuConstantWriteIr.class,lowered.portableKernelIr());
         assertEquals(oracle(type,count),ir.immediate().bits());
@@ -173,7 +172,7 @@ public class CpuStaticTypedOneCountFoldingTest {
     }; }
 
     /**
-     * Computes independent unbounded-integer quotient/remainder rounding without host cast chains.
+     * Computes unbounded-integer working rounding, then the low storage boundary when present.
      * @param type non-null supported numeric result type
      * @param count exact nonnegative contributor count
      * @return represented result bits, or same-width modular integral bits
@@ -181,6 +180,14 @@ public class CpuStaticTypedOneCountFoldingTest {
     private static long oracle(DataType type,long count) {
         if(type==DataType.INT64) return count;
         if(type==DataType.INT32) return BigInteger.valueOf(count).and(BigInteger.valueOf(0xffff_ffffL)).longValueExact();
+        if (type.byteWidth() < Float.BYTES) {
+            float working = Float.intBitsToFloat((int) oracle(DataType.FLOAT32, count));
+            return switch (type) {
+                case BFLOAT16 -> Short.toUnsignedLong(io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(working));
+                case FLOAT16 -> Short.toUnsignedLong(Float.floatToFloat16(working));
+                default -> throw new IllegalArgumentException("unsupported count oracle type");
+            };
+        }
         if(count==0) return 0;
         int fraction=type==DataType.FLOAT64?52:type==DataType.FLOAT32?23:type==DataType.FLOAT16?10:7;
         int bias=type==DataType.FLOAT64?1023:type==DataType.FLOAT16?15:127;

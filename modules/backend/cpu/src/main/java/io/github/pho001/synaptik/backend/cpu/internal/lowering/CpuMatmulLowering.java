@@ -499,16 +499,12 @@ public final class CpuMatmulLowering {
      * @param result non-null exact promoted output descriptor with an injective layout
      * @return immutable checked geometry
      * @throws NullPointerException if a descriptor is {@code null}
-     * @throws IllegalArgumentException if semantic or layout facts disagree, or either actual
-     *     numerical operand is BFLOAT16/FLOAT16, regardless of promotion or an empty domain
+     * @throws IllegalArgumentException if semantic, promotion or layout facts disagree
      * @throws ArithmeticException if a count or address calculation overflows
      */
     public Geometry lower(TensorDescriptor left, TensorDescriptor right, TensorDescriptor result) {
         Objects.requireNonNull(left, "left"); Objects.requireNonNull(right, "right");
         Objects.requireNonNull(result, "result");
-        if (left.dataType() == DataType.BFLOAT16 || left.dataType() == DataType.FLOAT16
-                || right.dataType() == DataType.BFLOAT16 || right.dataType() == DataType.FLOAT16)
-            throw new IllegalArgumentException("CPU low MATMUL numerical operands are temporarily unsupported");
         long[] a = extents(left), b = extents(right), c = extents(result);
         if (a.length == 2 && b.length == 2)
             validateRankTwo(left.shape(),right.shape(),result.shape());
@@ -679,8 +675,6 @@ public final class CpuMatmulLowering {
                         || matmulIr.batchGeometry() != null
                         || !boundaryTypes.equals(List.of(matmulIr.leftType(),
                                 matmulIr.rightType(), matmulIr.resultType()))
-                        || boundaryTypes.subList(0, 2).stream().anyMatch(type ->
-                                type == DataType.BFLOAT16 || type == DataType.FLOAT16)
                         || !matmulIr.inputAccesses().equals(List.of(
                                 bindings.get(0).plan(), bindings.get(1).plan()))
                         || !matmulIr.outputAccess().equals(bindings.get(2).plan())

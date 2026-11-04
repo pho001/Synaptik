@@ -19,7 +19,8 @@ import java.util.stream.Collectors;
  * @param occurrenceToBoundary three semantic input occurrences mapped to unique boundaries
  * @param boundaryTypes unique input types followed by the output type
  * @param boundaryAccesses structural accesses aligned with {@code boundaryTypes}
- * @param scratchSignature zero when absent, or the positive exact-product scratch format version
+ * @param scratchSignature zero when absent, one for exact-product state, or two for low ADD
+ *     FLOAT32 working cells followed by one touched byte per logical output
  */
 public record CpuScatterIr(Family family, ScatterReduction reduction,
         List<Integer> occurrenceToBoundary, List<DataType> boundaryTypes,
@@ -79,10 +80,12 @@ public record CpuScatterIr(Family family, ScatterReduction reduction,
             throw new IllegalArgumentException("SCATTER_ADD is fixed addition");
         }
         boolean floatingProduct = reduction == ScatterReduction.MUL
-                && (dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                    || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16);
-        if (scratchSignature < 0 || scratchSignature > 1
-                || scratchSignature > 0 && !floatingProduct) {
+                && dataType.isFloating();
+        boolean lowAddition = reduction == ScatterReduction.ADD && dataType.isFloating()
+                && dataType.byteWidth() < Float.BYTES;
+        if (scratchSignature < 0 || scratchSignature > 2
+                || scratchSignature == 1 && !floatingProduct
+                || scratchSignature == 2 && !lowAddition) {
             throw new IllegalArgumentException("scatter scratch signature is inconsistent");
         }
     }

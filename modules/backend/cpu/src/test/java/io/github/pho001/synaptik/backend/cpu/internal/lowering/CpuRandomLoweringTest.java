@@ -22,9 +22,6 @@ public class CpuRandomLoweringTest {
     @Test void lowersZeroInputInitializerAndFiveBoundaryDropoutExactly() {
         var initial = new CpuPartitionLowering().lower(initialContext(0x1234L, -7L));
         var dropout = new CpuPartitionLowering().lower(dropoutContext(DataType.FLOAT32, Shape.of(2, 3), .25d));
-        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
-            assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                    .assertLowUnsupported(dropoutContext(type, Shape.of(3), .2d)));
         assertAll(
                 () -> assertEquals(CpuRandomIr.Family.INITIAL_STATE,
                         ((CpuRandomIr) initial.portableKernelIr()).family()),

@@ -51,7 +51,7 @@ import jdk.incubator.vector.ByteVector;
  * Analysis then selects scalar or preferred-species vector compute and single-thread or bounded
  * parallel orchestration before shared resource assignment. Exact vector eligibility is
  * typed across floating, signed-integral, canonical-BOOL, and bounded dense floating-mask
- * boundaries while preserving unit-private masks; every BFLOAT16 pointwise topology, direct
+ * boundaries while preserving unit-private masks; every low floating pointwise topology, direct
  * power, and unsafe mask storage remain scalar. Any pointwise topology containing cross-type CAST is also scalar-only, while same-type
  * CAST retains its previous vector eligibility. Cross-type CAST adds no workspace,
  * materialization, or route and uses schema 60 only for its generated class identity. Analysis
@@ -65,7 +65,7 @@ import jdk.incubator.vector.ByteVector;
  * same-typed FLOAT32/FLOAT64 dense-layout subset with width stride and width dilation equal to one
  * and at least one statically in-bounds full-width block. Non-width stride and dilation remain
  * eligible. Array, native-order segment, and ordered mixed-carrier patterns may qualify. Conv2d
- * external epilogues, BFLOAT16, non-dense access, short or interior-free widths, and every other
+ * external epilogues, low floating types, non-dense access, short or interior-free widths, and every other
  * failed proof retain scalar or parallel-scalar compute. Conv1d composition remains scalar. Only
  * the admitted convolution vector realization uses class-identity schema 63; scalar Conv2d/Conv3d
  * artifacts retain their historical schema-52 class projection.
@@ -95,9 +95,9 @@ import jdk.incubator.vector.ByteVector;
  * That post-lowering decision uses only immutable storage, thread-configuration, and cost facts;
  * it retains the complete portable realization and performs no provider query or allocation.
  * An explicitly supplied oneDNN selector may instead compare a complete common contraction
- * decomposition with that selected portable/OpenBLAS peer. Only qualified homogeneous FLOAT32
- * MATMUL with K greater than one is eligible; convolution and external epilogues remain ordinary
- * common units. This cold comparison queries native descriptors and exact scratch requirements;
+ * decomposition with that selected portable/OpenBLAS peer. Only the oneDNN owner's independently
+ * qualified typed occurrences are eligible; low storage never changes ordinary CPU capability.
+ * This cold comparison queries native descriptors and exact scratch/staging requirements;
  * the Graph API may compile and close a temporary native kernel. No native handle escapes analysis,
  * no measurement occurs, and all selected native workspaces precede shared assignment. An explicit
  * OpenBLAS tuning decision freezes Phase-1 route selection and prevents this native comparison.
@@ -199,7 +199,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     @Override public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
-        requirePermittedSource(context);
         if (context.requiresBatchSize()) return analyzeOrdinaryBatch(context);
         var units = decomposer.decompose(context, lowering);
         if (!context.constants().isEmpty()
@@ -294,7 +293,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     ordinal.put(lowered.boundaryValues().get(read++),v.ordinal());
                 else if (v.kind() == CpuKernelIr.Value.Kind.OUTPUT) ordinal.put(lowered.boundaryValues().get(write++),v.ordinal());
                 var recipes = lowered.boundaryValues().stream().map(id -> ir.accesses().get(ordinal.get(id))).toList();
-                var route = new CpuPortableRoutePlan(ir,spec,recipes,Optional.empty(),Optional.empty());
+                var route = new CpuPortableRoutePlan(ir,spec,recipes,Optional.empty(),Optional.empty(),Optional.empty());
                 var outputIds = lowered.boundaryValues().subList(inputs,lowered.boundaryValues().size());
                 var dependencies = lowered.boundaryValues().subList(0,inputs).stream().map(producers::get)
                         .filter(Objects::nonNull).distinct().toList();
@@ -345,6 +344,45 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             for (var id : node.outputs()) if (carriers.get(id) != CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
                 throw new IllegalArgumentException("batch created outputs require segment carriers");
             var pattern = ids.stream().map(carriers::get).toList();
+            boolean lowPrecision = ids.stream().map(values::get).anyMatch(value ->
+                    value.descriptor().dataType().isFloating()
+                            && value.descriptor().dataType().byteWidth() < Float.BYTES);
+            if (lowPrecision) {
+                if (pattern.stream().anyMatch(carrier ->
+                        carrier != CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT))
+                    throw new IllegalArgumentException("low ordinary batch requires checked segments");
+                var local = decomposer.unitContext(context, List.of(node), context.backendInputs());
+                var lowered = new CpuPartitionLowering(layouts).lower(local);
+                var numeric = lowered.batchGeometry().orElseThrow(() ->
+                        new IllegalArgumentException("missing ordinary symbolic family geometry"));
+                var scratchBytes = numeric.scratchBytes();
+                boolean scratch = ordinaryScratchParameter(numeric.ir())
+                        || scratchBytes.constantBytes() != 0 || scratchBytes.bytesPerBatch() != 0;
+                var specialization = ordinarySpecialization(lowered.kernelIr(), numeric.ir(), numeric.matrixIr(),
+                        numeric.boundaryTypes(), pattern, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        0, -1, scratch, false, null, Optional.empty());
+                var route = new CpuPortableRoutePlan(numeric.ir(), specialization, List.of(),
+                        Optional.empty(), Optional.empty(), Optional.of(numeric));
+                int unitIndex = units.size();
+                var workspace = scratch ? Optional.of(new PreparationResourceRequirement.Workspace(
+                        unitIndex, scratchBytes, Math.max(Long.BYTES, scratchBytes.elementByteWidth())))
+                        : Optional.<PreparationResourceRequirement.Workspace>empty();
+                workspace.ifPresent(requirements::add);
+                var runtime = new CpuPartitionPreparationPlan.UnitRuntimeFacts(new long[0], Optional.empty(), workspace,
+                        scratch ? CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE
+                                : CpuPartitionPreparationPlan.WorkspaceUse.NONE,
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                var dependencies = node.inputs().stream().map(producers::get).filter(Objects::nonNull).distinct().toList();
+                units.add(new CpuPartitionPreparationPlan.ExecutionUnitPlan(route, numeric.boundaries(), List.of(),
+                        pattern, pattern, new long[0], 0, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        1, 1, 0, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), 1,
+                        "ordinary low symbolic: resolved family geometry", dependencies, List.of(position), runtime));
+                node.outputs().forEach(id -> producers.put(id, unitIndex));
+                continue;
+            }
             var route = CpuPartitionLowering.lowerOrdinaryBatch(node, values, layouts, sizes, pattern);
             int unitIndex = units.size();
             Optional<PreparationResourceRequirement.Workspace> workspace = route.batchAggregate()
@@ -450,7 +488,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     public CompletePlanCandidates completePlanCandidates(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
-        requirePermittedSource(context);
         var units = decomposer.decompose(context, lowering);
         if (directPartition(context, units)) {
             analyzeDirectPartition(context, units);
@@ -496,7 +533,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             SelectedCompletePlan selectedPlan) {
         Objects.requireNonNull(selectedPlan, "selectedPlan");
         Objects.requireNonNull(context, "context");
-        requirePermittedSource(context);
         var units = decomposer.decompose(context, lowering);
         if (directPartition(context, units)) throw new IllegalArgumentException(
                 "complete CPU plan selection is unavailable outside bounded topology/resource discovery");
@@ -958,7 +994,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             CpuPartitionLowering.LoweredPartition lowered, int workspaceRequirementId,
             boolean allowMaterialization, boolean controlled) {
         if (lowered.recurrentScan().isPresent()) return analyzeRecurrent(context, lowered, workspaceRequirementId);
-        CpuPartitionLowering.requirePermittedLowPrecisionUse(lowered.portableKernelIr());
         if (lowered.generalScan().isPresent()) return analyzeGeneralScan(context, lowered, workspaceRequirementId);
         var requestedCarriers = context.backendInputs().carrierPattern().isEmpty()
                 ? java.util.Collections.nCopies(lowered.boundaryValues().size(),
@@ -1431,6 +1466,13 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         || movement.plan() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr.StackPlan)
                     && movement.plan().occurrenceToBoundary().size() > 16
                     ? CpuKernelSpecialization.MOVEMENT_OPERAND_TABLE_SCHEMA
+                : CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(ir)
+                    ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
+                : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr loss
+                    && loss.kind() == io.github.pho001.synaptik.model.operation.loss.LossKind.MEAN_SQUARED_ERROR
+                    && loss.reduction() == io.github.pho001.synaptik.model.operation.loss.LossReduction.MEAN
+                    && loss.resultType() == DataType.FLOAT32
+                    ? CpuKernelSpecialization.FLOAT32_MSE_EXACT_COUNT_SCHEMA
                 : denseArrayAffine ? CpuKernelSpecialization.DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
                 : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr
                     ? CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
@@ -1497,41 +1539,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         }
         return boundaryPositions > 64;
     }
-    /** Authenticates source roles, including every nested body, before resource declarations. */
-    private static void requirePermittedSource(PrepareContext<CpuPartitionAnalysisInputs> context) {
-        requirePermittedSource(context.nodes(), context.values(), context.scanActivityPlans());
-    }
-
-    /**
-     * Checks each lexical body independently; local value IDs never resolve against outer values.
-     * @param nodes exact nodes in this lexical graph
-     * @param graphValues exact descriptors in the same graph
-     * @param activity activity annotations belonging only to this graph
-     * @throws IllegalArgumentException if any nested occurrence performs locked low arithmetic
-     */
-    private static void requirePermittedSource(
-            List<io.github.pho001.synaptik.model.graph.CompiledNode> nodes,
-            List<io.github.pho001.synaptik.model.graph.GraphValue> graphValues,
-            Map<io.github.pho001.synaptik.model.graph.NodeId,
-                    io.github.pho001.synaptik.planning.capability.ScanActivityPlan> activity) {
-        boolean lowValue = graphValues.stream().anyMatch(value ->
-                value.descriptor().dataType() == DataType.BFLOAT16
-                        || value.descriptor().dataType() == DataType.FLOAT16);
-        var values = new java.util.HashMap<ValueId, io.github.pho001.synaptik.model.tensor.TensorDescriptor>();
-        if (lowValue) for (var value : graphValues) values.put(value.id(), value.descriptor());
-        for (var node : nodes) {
-            if (lowValue) {
-                var query = new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(
-                        node.operation(), node.inputs().stream().map(values::get).toList(),
-                        node.outputs().stream().map(values::get).toList(), node.scanBody(),
-                        Optional.ofNullable(activity.get(node.id())));
-                if (!CpuPartitionLowering.permitsLowPrecisionUse(query))
-                    throw new IllegalArgumentException("CPU low numerical computation is temporarily unsupported");
-            }
-            node.scanBody().ifPresent(body ->
-                    requirePermittedSource(body.graph().nodes(), body.graph().values(), Map.of()));
-        }
-    }
 
 
     /**
@@ -1547,8 +1554,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             PrepareContext<CpuPartitionAnalysisInputs> context,
             CpuPartitionLowering.LoweredPartition lowered, int workspaceId) {
         var scan = lowered.recurrentScan().orElseThrow();
-        if (scan.geometry().dataType() != DataType.FLOAT32 && scan.geometry().dataType() != DataType.FLOAT64)
-            throw new IllegalArgumentException("CPU low recurrent computation is temporarily unsupported");
         var carriers = context.backendInputs().carrierPattern().isEmpty()
                 ? java.util.Collections.nCopies(scan.boundaryValues().size(),
                     CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
@@ -1717,7 +1722,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var local = composition.units().isEmpty() ? null
                 : io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanCompositionLowering
                         .bodyContext(query, CpuPartitionAnalysisInputs.DEFAULT);
-        if (local != null) requirePermittedSource(local);
         int alignment = Long.BYTES;
         for (var value : composition.values()) alignment = Math.max(alignment, value.descriptor().dataType().byteWidth());
         int roots = composition.activity().map(activity ->
@@ -1732,8 +1736,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         for (int ordinal = 0; ordinal < composition.units().size(); ordinal++) {
             var physical = composition.units().get(ordinal);
             var ordinary = scan.ordinaryUnits().get(ordinal);
-            CpuPartitionLowering.requirePermittedLowPrecisionUse(physical.ir());
-            CpuPartitionLowering.requirePermittedLowPrecisionUse(ordinary.portableKernelIr());
             var members = physical.memberNodeOrdinals().stream().map(local.nodes()::get).toList();
             var unitContext = decomposer.unitContext(local, members, CpuPartitionAnalysisInputs.DEFAULT);
             CpuKernelSpecialization helper;
@@ -1743,7 +1745,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             int scratchAlignment;
             if (ordinary.batchGeometry().isPresent()) {
                 var numeric = ordinary.batchGeometry().orElseThrow();
-                CpuPartitionLowering.requirePermittedLowPrecisionUse(numeric.ir());
                 scratchBytes = numeric.scratchBytes();
                 iterations = numeric.iterationCount();
                 scratchAlignment = Math.max(Long.BYTES, scratchBytes.elementByteWidth());
@@ -1775,7 +1776,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         unit.elementCount(), 0, 1);
                 resets = io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable.temporalResets(ordinary);
             }
-            CpuPartitionLowering.requirePermittedLowPrecisionUse(helper, ordinary.kernelIr());
             alignment = Math.max(alignment, scratchAlignment);
             cursor = alignCompositionBytes(cursor, Math.max(Long.BYTES, scratchAlignment));
             var scratchOffset = cursor;

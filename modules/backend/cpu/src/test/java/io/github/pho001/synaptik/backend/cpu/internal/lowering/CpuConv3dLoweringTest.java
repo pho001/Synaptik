@@ -19,11 +19,9 @@ import org.junit.jupiter.api.Test;
 
 public class CpuConv3dLoweringTest {
     @Test void derivesRankFiveGroupedZeroWorkspaceGeometry() {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         var lowered=new CpuPartitionLowering().lower(context(List.of(DataType.FLOAT32,DataType.BFLOAT16,DataType.FLOAT64),Shape.of(2,4,7,8,9),Shape.of(6,2,3,2,2),Shape.of(2,6,3,5,5),new Conv3dAttrs(2,2,2,1,1,1,2,1,1,2),null));
         var ir=(CpuConv3dIr)lowered.portableKernelIr();
         assertAll(()->assertEquals(DataType.FLOAT64,ir.resultType()),()->assertEquals(4,lowered.boundaryValues().size()),()->assertEquals(900,lowered.elementCount()),()->assertEquals(2,ir.groups()),()->assertTrue(lowered.virtualValues().isEmpty()),()->assertEquals(4,lowered.conv3dGeometry().orElseThrow().boundaries().size()),()->assertTrue(lowered.conv2dGeometry().isEmpty()));
-        });
     }
 
     public static PrepareContext<CpuPartitionAnalysisInputs> context(List<DataType> types,

@@ -199,8 +199,7 @@ public record CpuKernelIr(
     /**
      * Exact typed primitive bits retained for one scalar arithmetic instruction.
      *
-     * @param dataType non-null exact scalar type; lowering admits BFLOAT16, FLOAT64, FLOAT32,
-     *     INT32, or INT64
+     * @param dataType non-null exact floating or signed-integral scalar type
      * @param bits raw primitive bits in the low width of the selected type
      */
     public record ScalarImmediate(DataType dataType, long bits) {
@@ -218,7 +217,7 @@ public record CpuKernelIr(
      * Exact ordered typed primitive bounds retained by one first-class clamp instruction.
      *
      * @param lower non-null exact lower bound
-     * @param upper non-null exact upper bound of the same FLOAT16, BFLOAT16, FLOAT32, or FLOAT64 type
+     * @param upper non-null exact upper bound of the same floating type
      */
     public record ClampImmediate(ScalarImmediate lower, ScalarImmediate upper) {
         /**
@@ -232,10 +231,7 @@ public record CpuKernelIr(
             Objects.requireNonNull(lower, "lower");
             Objects.requireNonNull(upper, "upper");
             if (lower.dataType() != upper.dataType()
-                    || lower.dataType() != DataType.FLOAT16
-                    && lower.dataType() != DataType.FLOAT32
-                    && lower.dataType() != DataType.FLOAT64
-                    && lower.dataType() != DataType.BFLOAT16) {
+                    || !lower.dataType().isFloating()) {
                 throw new IllegalArgumentException("clamp bounds must have one floating data type");
             }
         }
@@ -352,12 +348,8 @@ public record CpuKernelIr(
         CpuPointwiseOpcode opcode = instruction.opcode();
         boolean sameCategory = inputs.stream().allMatch(
                 type -> type.category() == inputs.getFirst().category());
-        boolean numeric = inputs.stream().allMatch(type -> type == DataType.FLOAT64
-                || type == DataType.FLOAT32 || type == DataType.BFLOAT16
-                || type == DataType.FLOAT16 || type == DataType.INT32
-                || type == DataType.INT64);
-        boolean floating = output == DataType.FLOAT64 || output == DataType.FLOAT32
-                || output == DataType.BFLOAT16 || output == DataType.FLOAT16;
+        boolean numeric = inputs.stream().allMatch(type -> type.isFloating() || type.isIntegral());
+        boolean floating = output.isFloating();
         boolean valid = switch (opcode.family()) {
             case BINARY_ARITHMETIC -> numeric && sameCategory
                     && output == io.github.pho001.synaptik.model.datatype.DataTypePromotion
@@ -376,10 +368,7 @@ public record CpuKernelIr(
                     && instruction.clampImmediate().lower().dataType() == output;
             case UNARY -> output == inputs.getFirst()
                     && floating;
-            case CLASSIFICATION -> (inputs.getFirst() == DataType.FLOAT64
-                    || inputs.getFirst() == DataType.FLOAT32
-                    || inputs.getFirst() == DataType.BFLOAT16
-                    || inputs.getFirst() == DataType.FLOAT16) && output == DataType.BOOL;
+            case CLASSIFICATION -> inputs.getFirst().isFloating() && output == DataType.BOOL;
             case COMPARISON -> numeric && sameCategory && output == DataType.BOOL;
             case LOGICAL -> inputs.stream().allMatch(type -> type == DataType.BOOL)
                     && output == DataType.BOOL;
@@ -387,16 +376,9 @@ public record CpuKernelIr(
                     && inputs.get(1).isFloating() && inputs.get(2).isFloating()
                     && output == io.github.pho001.synaptik.model.datatype.DataTypePromotion
                             .promoteFloating(inputs.get(1), inputs.get(2));
-            case CAST -> (inputs.getFirst() == DataType.FLOAT64
-                    || inputs.getFirst() == DataType.FLOAT32
-                    || inputs.getFirst() == DataType.BFLOAT16
-                    || inputs.getFirst() == DataType.FLOAT16
-                    || inputs.getFirst() == DataType.INT32
-                    || inputs.getFirst() == DataType.INT64 || inputs.getFirst() == DataType.BOOL)
-                    && (output == DataType.FLOAT64 || output == DataType.FLOAT32
-                    || output == DataType.BFLOAT16 || output == DataType.FLOAT16
-                    || output == DataType.INT32 || output == DataType.INT64
-                    || output == DataType.BOOL);
+            case CAST -> (inputs.getFirst().isFloating() || inputs.getFirst().isIntegral()
+                    || inputs.getFirst() == DataType.BOOL)
+                    && (output.isFloating() || output.isIntegral() || output == DataType.BOOL);
         };
         if (!valid) throw new IllegalArgumentException("instruction data types do not match opcode");
     }
@@ -405,6 +387,17 @@ public record CpuKernelIr(
         ScalarImmediate immediate = instruction.scalarImmediate();
         long bits = immediate.bits();
         PowerRealization expected;
+        if (immediate.dataType() == DataType.FLOAT8_E4M3
+                || immediate.dataType() == DataType.FLOAT8_E5M2) {
+            bits &= 0xffL;
+            long one = immediate.dataType() == DataType.FLOAT8_E4M3 ? 0x38L : 0x3cL;
+            expected = bits == 0L || bits == 0x80L ? PowerRealization.POSITIVE_ONE
+                    : bits == one ? PowerRealization.IDENTITY
+                    : bits == 0x40L ? PowerRealization.SQUARE
+                    : bits == (one | 0x80L) ? PowerRealization.RECIPROCAL
+                    : PowerRealization.DIRECT;
+            return expected == instruction.powerRealization();
+        }
         if (immediate.dataType() == DataType.BFLOAT16) {
             bits &= 0xffffL;
             expected = bits == 0L || bits == 0x8000L ? PowerRealization.POSITIVE_ONE

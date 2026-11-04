@@ -1,7 +1,6 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
@@ -132,13 +131,9 @@ public class CpuAggregateLoweringTest {
                 () -> assertEquals(1, scalar.aggregateGeometry().orElseThrow().domainCount()));
     }
 
-    @Test void derivesNumericalStateAndRetainsExactLowExtremaWhileLowMeanRejects() {
+    @Test void derivesNumericalStateAndRetainsExactLowExtrema() {
         var sum = lower(AggregateReductionKind.SUM, DataType.FLOAT64, Shape.of(3),
                 NoOperationAttrs.INSTANCE, Shape.scalar());
-        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-            assertTrue(assertLowUnsupported(context(AggregateReductionKind.MEAN,
-                    type, Shape.of(65), NoOperationAttrs.INSTANCE, Shape.scalar())));
-        }
         var product = lower(AggregateReductionKind.PROD, DataType.FLOAT32, Shape.of(3),
                 NoOperationAttrs.INSTANCE, Shape.scalar());
         var integral = lower(AggregateReductionKind.PROD, DataType.INT64, Shape.of(3),

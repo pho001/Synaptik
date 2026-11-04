@@ -110,7 +110,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  * @param indexingGeometry non-null optional compact cold indexing geometry; present exactly for
  *     a gather or one-hot plan and mutually exclusive with materialization and workspace
  * @param scatterGeometry non-null optional functional-scatter geometry; floating multiplication
- *     may pair it with the exact declared product workspace
+ *     and low floating addition pair it with their exact declared per-range workspace
  * @param foldGeometry non-null optional zero-workspace overlap-fold geometry
  * @param orderingGeometry non-null optional stable ordering geometry; present exactly for one
  *     SORT, ARGSORT, or TOP_K plan and paired with exact per-range merge scratch
@@ -1098,7 +1098,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
     public enum WorkspaceUse {
         /** No workspace is declared. */ NONE,
         /** Contiguous pointwise input materialization. */ MATERIALIZATION,
-        /** Per-range exact floating scatter-product accumulator slices. */ SCATTER_PRODUCT,
+        /** Per-range scatter state: exact products or FLOAT32 low-ADD cells and touched bytes. */ SCATTER_PRODUCT,
         /** Per-range two-region stable ordering indices. */ ORDERING_INDICES,
         /** Per-range exact floating ordinary-aggregate or masked-reduction state. */
         AGGREGATE_EXACT_STATE,
@@ -1635,17 +1635,20 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                         || conv2dGeometry.isPresent() || conv3dGeometry.isPresent() || matmulGeometry.isPresent()
                         || pool2dGeometry.isPresent() || pool3dGeometry.isPresent() || attentionGeometry.isPresent())
                     throw new IllegalArgumentException("ordinary full-body row-region declarations disagree");
-            } else if (portablePlan.specialization().ordinaryBatch()) {
+            } else if (portablePlan.specialization().ordinaryBatch() || portablePlan.ordinaryBatchGeometry().isPresent()) {
                 var generated = portablePlan.kernelIr().values();
                 if (!accessBindings.isEmpty() || extents.length != 0 || elementCount != 0
                         || boundaryValues.size() != generated.size() || outputCount != 1
+                        || portablePlan.ordinaryBatchGeometry().isPresent()
+                            && !boundaryValues.equals(portablePlan.ordinaryBatchGeometry().orElseThrow().boundaries())
                         || selectedRangeCount != 1 || minimumElementsPerWorker != 1
                         || !executionStrategy.equals(ExecutionStrategy.SCALAR)
                         || vectorSpeciesBitSize != 0 || !carrierPattern.equals(generatedCarrierPattern)
                         || !carrierPattern.equals(portablePlan.specialization().carrierPattern())
                         || conv2dGeometry.isPresent() || conv3dGeometry.isPresent() || matmulGeometry.isPresent()
                         || pool2dGeometry.isPresent() || pool3dGeometry.isPresent() || attentionGeometry.isPresent()
-                        || runtimeFacts.workspaceDeclaration().isPresent() != portablePlan.batchAggregate().isPresent()) {
+                        || runtimeFacts.workspaceDeclaration().isPresent() != (portablePlan.ordinaryBatchGeometry().isPresent()
+                            ? portablePlan.specialization().scratchParameter() : portablePlan.batchAggregate().isPresent())) {
                     throw new IllegalArgumentException("ordinary batch unit declarations disagree");
                 }
             } else {
@@ -2015,6 +2018,11 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      */
     private static boolean unitAccessesAgree(ExecutionUnitPlan unit) {
         if (unit.runtimeFacts().generalScan().map(s -> s.ir().symbolic()).orElse(false)) return true;
+        if (unit.portablePlan() != null && unit.portablePlan().ordinaryBatchGeometry().isPresent()) {
+            var geometry = unit.portablePlan().ordinaryBatchGeometry().orElseThrow();
+            return geometry.boundaries().equals(unit.boundaryValues())
+                    && geometry.ir().structuralKey().equals(unit.portablePlan().kernelIr().structuralKey());
+        }
         if (unit.portablePlan() != null && unit.portablePlan().specialization().ordinaryBatch()) {
             var values = unit.portablePlan().kernelIr().values().stream()
                     .filter(v -> v.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
@@ -2252,9 +2260,11 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             throw new IllegalArgumentException("CPU representation plan facts disagree");
         }
         boolean ordinaryBatch = units.stream().anyMatch(u -> u.portablePlan() != null && (u.portablePlan().specialization().ordinaryBatch()
+                || u.portablePlan().ordinaryBatchGeometry().isPresent()
                 || u.runtimeFacts().generalScan().map(s -> s.ir().symbolic()).orElse(false)));
         if (ordinaryBatch && (route != Route.PORTABLE || units.stream().anyMatch(u -> u.portablePlan() == null
                 || !u.portablePlan().specialization().ordinaryBatch()
+                    && u.portablePlan().ordinaryBatchGeometry().isEmpty()
                     && !u.runtimeFacts().generalScan().map(s -> s.ir().symbolic()).orElse(false)) || !accessBindings.isEmpty()
                 || materialization.isPresent() || !materializations.isEmpty() || !fusionDecisions.isEmpty()
                 || openBlasPlan.isPresent() || openBlasTuningBatch.isPresent())) {
@@ -2399,10 +2409,12 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     long offset = projection.byteOffsets().get(position);
                     var tensor = position < projection.spec().inputs().size()
                             ? projection.spec().inputs().get(position) : projection.spec().output();
-                    long byteSize = tensor.byteSize();
-                    int alignment = tensor.dataType().byteWidth();
+                    boolean outputBoundary = position == projection.spec().inputs().size();
+                    var logicalType = outputBoundary ? projection.logicalOutputType() : tensor.dataType();
+                    long byteSize = outputBoundary ? projection.logicalOutputByteSize() : tensor.byteSize();
+                    int alignment = logicalType.byteWidth();
                     if (declaration.byteAlignment() < alignment || offset % alignment != 0
-                            || tensor.dataType() != unit.portablePlan().specialization()
+                            || logicalType != unit.portablePlan().specialization()
                                 .boundaryDataTypes().get(boundaryPosition)
                             || declaration.size().fixedByteSize().isEmpty()
                             || Math.addExact(offset, byteSize) > declaration.byteSize()

@@ -1,7 +1,6 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
@@ -297,16 +296,6 @@ class CpuPointwisePartitionLoweringTest {
                         power(ScalarValue.float32(-1.0f)).powerRealization()),
                 () -> assertEquals(CpuKernelIr.PowerRealization.DIRECT,
                         power(ScalarValue.float64(0.5d)).powerRealization()));
-        // Even identity and constant-write power plans retain their numerical provenance.
-        for (ScalarValue exponent : List.of(
-                ScalarValue.bfloat16Bits((short) 0x8000),
-                ScalarValue.bfloat16Bits((short) 0x3f80),
-                ScalarValue.bfloat16Bits((short) 0x4000),
-                ScalarValue.bfloat16Bits((short) 0xbf80),
-                ScalarValue.bfloat16Bits((short) 0x3f00))) {
-            assertTrue(assertLowUnsupported(singlePower(exponent, Shape.of(3),
-                    CpuPartitionAnalysisInputs.DEFAULT)));
-        }
     }
 
     @Test void directPowerForcesScalarComputeWhileSpecialPowerRetainsVectorEligibility() {
@@ -319,8 +308,6 @@ class CpuPointwisePartitionLoweringTest {
                 Shape.of(count), inputs)).plan();
         var square = new CpuPartitionPreparer().analyze(singlePower(ScalarValue.float64(2.0d),
                 Shape.of(count), inputs)).plan();
-        assertTrue(assertLowUnsupported(singlePower(
-                ScalarValue.bfloat16Bits((short) 0x4000), Shape.of(count), inputs)));
         assertAll(
                 () -> assertEquals("parallel-scalar", direct.executionStrategy().toString()),
                 () -> assertEquals(0, direct.vectorSpeciesBitSize()),

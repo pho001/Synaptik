@@ -58,7 +58,7 @@ class CpuSpatialWindowLoweringTest {
         }
     }
 
-    @Test void malformedGeometryAndLowArithmeticFailBeforeGeneration() {
+    @Test void malformedGeometryFailsBeforeGeneration() {
         Shape image = Shape.of(1, 2, 3, 4, 5), columns = Shape.of(1, 24, 12);
         var provider = new CpuCapabilityProvider();
         assertFalse(provider.supports(new OperationCapabilityQuery(
@@ -70,14 +70,6 @@ class CpuSpatialWindowLoweringTest {
                 new Operation(WindowTransformKind.FOLD3D, new Fold3dAttrs(image, WINDOW)),
                 List.of(CpuScatterLoweringTest.desc(DataType.FLOAT64, Shape.of(1, 24, 11))),
                 List.of(CpuScatterLoweringTest.desc(DataType.FLOAT64, image)))));
-        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-            var query = new OperationCapabilityQuery(
-                    new Operation(WindowTransformKind.FOLD3D, new Fold3dAttrs(image, WINDOW)),
-                    List.of(CpuScatterLoweringTest.desc(type, columns)),
-                    List.of(CpuScatterLoweringTest.desc(type, image)));
-            assertFalse(CpuPartitionLowering.permitsLowPrecisionUse(query));
-            assertFalse(provider.supports(query));
-        }
         assertThrows(ArithmeticException.class, () -> CpuSpatialWindowGeometry.of(
                 image.toLongArray(), new Window3dAttrs(Long.MAX_VALUE, 1, 1,
                         1, 1, 1, 0, 0, 0, 2, 1, 1, false)));

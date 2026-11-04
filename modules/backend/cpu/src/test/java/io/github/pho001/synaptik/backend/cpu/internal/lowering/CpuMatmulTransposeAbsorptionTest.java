@@ -84,7 +84,6 @@ public final class CpuMatmulTransposeAbsorptionTest {
                     if (!left && !right) continue;
                     var context = context(type, 2, k, 4, left, right, false, k != 0,
                             CpuPartitionAnalysisInputs.DEFAULT);
-                    if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
                     var analysis = new CpuPartitionPreparer().analyze(context);
                     assertEquals(1, analysis.plan().units().size(), type + " K=" + k);
                     var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());

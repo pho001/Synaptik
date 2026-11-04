@@ -102,9 +102,6 @@ public final class CpuMatmulLoweringTest {
     @Test void preparationThreadsExactRowAndTileWorkDomains() {
         var directVector=new CpuPartitionPreparer().analyze(vectorContext(DataType.FLOAT32,
                 Shape.of(2,63),Shape.of(63,128),Shape.of(2,128))).plan().units().getFirst();
-        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
-            assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                    .assertLowUnsupported(context(type, Shape.of(32,63), Shape.of(63,48), Shape.of(32,48))));
         var vectorTile=new CpuPartitionPreparer().analyze(vectorContext(DataType.FLOAT32,
                 Shape.of(32,127),Shape.of(127,256),Shape.of(32,256))).plan().units().getFirst();
         int lanes=jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.length();
@@ -177,7 +174,6 @@ public final class CpuMatmulLoweringTest {
             long work, int bits) {
         var base = context(type, Shape.of(m, k), Shape.of(k, n), Shape.of(m, n));
         var selected = vector ? withVectorPreference(base) : base;
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(selected)) return;
         var unit = new CpuPartitionPreparer().analyze(selected).plan().units().getFirst();
         var specialization = unit.portablePlan().specialization();
         assertAll(() -> assertEquals(form, specialization.matmulIr().orElseThrow().realization()),

@@ -85,7 +85,8 @@ public final class CpuAdvancedReductionLowering {
         if (statistics && domain.bytesPerBatch() == 0 && domain.constantBytes() <= correction)
             throw new IllegalArgumentException("statistical selected count must exceed correction");
         long budget = CpuAggregateLowering.batchDomainBudget(domain);
-        long scratch = kind == CpuAdvancedReductionIr.Kind.L1_NORM || statistics ? exactStateSliceBytes(type,budget) : 0;
+        DataType stateType = statistics && type.byteWidth() < Float.BYTES ? DataType.FLOAT32 : type;
+        long scratch = kind == CpuAdvancedReductionIr.Kind.L1_NORM || statistics ? exactStateSliceBytes(stateType,budget) : 0;
         int limbs = scratch == 0 ? 0 : Math.toIntExact(scratch/8-1);
         var ir = new CpuAdvancedReductionIr(kind,type,ordered,selected,keep,correction,1,
                 kind == CpuAdvancedReductionIr.Kind.LOG_SUM_EXP || statistics ? 2 : 1,budget,limbs,scratch,in.plan(),out.plan());
@@ -151,8 +152,10 @@ public final class CpuAdvancedReductionLowering {
         if (statistics && domainCount <= correction) throw new IllegalArgumentException(
                 "statistical selected-domain count must exceed correction");
         long outputCount = elementCount(outputLayout.extents);
+        DataType type = input.descriptor().dataType();
+        DataType stateType = statistics && type.byteWidth() < Float.BYTES ? DataType.FLOAT32 : type;
         long scratchSliceBytes = (kind == CpuAdvancedReductionIr.Kind.L1_NORM || statistics)
-                && outputCount > 0 ? exactStateSliceBytes(input.descriptor().dataType(), domainCount)
+                && outputCount > 0 ? exactStateSliceBytes(stateType, domainCount)
                 : 0;
         int stateLimbCount = scratchSliceBytes == 0 ? 0
                 : Math.toIntExact(scratchSliceBytes / Long.BYTES - 1);
@@ -179,9 +182,8 @@ public final class CpuAdvancedReductionLowering {
     }
 
     private static long exactStateSliceBytes(DataType type, long count) {
-        int emin = type == DataType.FLOAT64 ? -1074 : type == DataType.FLOAT32 ? -149
-                : type == DataType.FLOAT16 ? -24 : -133;
-        int emax = type == DataType.FLOAT64 ? 1023 : type == DataType.FLOAT16 ? 15 : 127;
+        int emin = type == DataType.FLOAT64 ? -1074 : -149;
+        int emax = type == DataType.FLOAT64 ? 1023 : 127;
         int countBits = count <= 1 ? 0 : 64 - Long.numberOfLeadingZeros(count - 1);
         long bits = Math.addExact((long) emax + 1 - emin, Math.addExact(countBits, 1));
         long limbs = Math.addExact(bits, 63) / 64;

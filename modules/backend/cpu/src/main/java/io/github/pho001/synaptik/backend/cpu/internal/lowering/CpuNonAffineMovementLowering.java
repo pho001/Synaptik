@@ -46,8 +46,8 @@ import java.util.Optional;
  * value once in first-occurrence order. Exact extents, layout offsets and strides, padding,
  * repeats, composition prefixes, and window facts remain in compact immutable {@link Geometry};
  * no prepared address or selector table is retained per output element. General-axis unfold
- * copies all seven represented types. NCHW/NCDHW window transforms copy FLOAT64, FLOAT32,
- * BFLOAT16, and FLOAT16 and retain exact configured padding bits; direct attributes use represented
+ * copies every represented type. NCHW/NCDHW window transforms copy all floating types,
+ * including the byte-backed OFP8 formats, and retain exact configured padding bits; direct attributes use represented
  * positive zero. Functional slice update normalizes either signed finite-coordinate or
  * target-relative attributes to rank-sized start, length, and step arrays. Its result-domain
  * mapping has the semantic effect of copying the base and replacing selected positions while
@@ -269,8 +269,7 @@ public final class CpuNonAffineMovementLowering {
                 && (attrs instanceof Window2dAttrs || attrs instanceof Unfold2dAttrs)) {
             requireUnary(occurrences, "UNFOLD2D");
             DataType type = output.descriptor().dataType();
-            if (type != DataType.FLOAT64 && type != DataType.FLOAT32
-                    && type != DataType.BFLOAT16 && type != DataType.FLOAT16) {
+            if (!type.isFloating()) {
                 throw new IllegalArgumentException("UNFOLD2D requires a floating represented type");
             }
             Window2dAttrs window;
@@ -319,8 +318,7 @@ public final class CpuNonAffineMovementLowering {
                 && (attrs instanceof Window3dAttrs || attrs instanceof Unfold3dAttrs)) {
             requireUnary(occurrences, "UNFOLD3D");
             DataType type = output.descriptor().dataType();
-            if (type != DataType.FLOAT32 && type != DataType.FLOAT64
-                    && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
+            if (!type.isFloating())
                 throw new IllegalArgumentException("UNFOLD3D requires a floating represented type");
             Window3dAttrs window;
             long bits = 0;
@@ -496,8 +494,7 @@ public final class CpuNonAffineMovementLowering {
         } else if (kind == WindowTransformKind.UNFOLD2D
                 && (attrs instanceof Window2dAttrs || attrs instanceof Unfold2dAttrs)) {
             if (map.size() != 1 || inputRank != 4 || rank != 3
-                    || type != DataType.FLOAT64 && type != DataType.FLOAT32
-                        && type != DataType.BFLOAT16 && type != DataType.FLOAT16) throw invalidBatch();
+                    || !type.isFloating()) throw invalidBatch();
             Window2dAttrs window;
             long bits;
             if (attrs instanceof Window2dAttrs direct) { window = direct; bits = 0; }
@@ -528,8 +525,7 @@ public final class CpuNonAffineMovementLowering {
         } else if (kind == WindowTransformKind.UNFOLD3D
                 && (attrs instanceof Window3dAttrs || attrs instanceof Unfold3dAttrs)) {
             if (map.size() != 1 || inputRank != 5 || rank != 3
-                    || type != DataType.FLOAT32 && type != DataType.FLOAT64
-                        && type != DataType.BFLOAT16 && type != DataType.FLOAT16) throw invalidBatch();
+                    || !type.isFloating()) throw invalidBatch();
             Window3dAttrs window;
             long bits = 0;
             if (attrs instanceof Window3dAttrs direct) window = direct;
@@ -641,6 +637,8 @@ public final class CpuNonAffineMovementLowering {
             case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffff_ffffL;
             case BFLOAT16 -> value.bfloat16Bits() & 0xffffL;
             case FLOAT16 -> value.float16Bits() & 0xffffL;
+            case FLOAT8_E4M3 -> Byte.toUnsignedInt(value.float8E4m3Bits());
+            case FLOAT8_E5M2 -> Byte.toUnsignedInt(value.float8E5m2Bits());
             case INT32 -> value.int32Value() & 0xffff_ffffL;
             case INT64 -> value.int64Value();
             case BOOL -> value.booleanValue() ? 1L : 0L;

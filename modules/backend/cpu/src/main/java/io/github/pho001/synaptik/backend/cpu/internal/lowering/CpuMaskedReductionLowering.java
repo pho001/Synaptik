@@ -193,7 +193,7 @@ public final class CpuMaskedReductionLowering {
     }
 
     private static int stateLimbCount(DataType type, long domainCount) {
-        int emin = type == DataType.FLOAT64 ? -1074 : type == DataType.FLOAT32 ? -149 : -133;
+        int emin = type == DataType.FLOAT64 ? -1074 : -149;
         int emax = type == DataType.FLOAT64 ? 1023 : 127;
         int cardinalityBits = domainCount <= 1 ? 0
                 : 64 - Long.numberOfLeadingZeros(domainCount - 1);
@@ -444,8 +444,7 @@ public final class CpuMaskedReductionLowering {
             Objects.requireNonNull(kind, "kind"); Objects.requireNonNull(dataType, "dataType");
             Objects.requireNonNull(data, "data"); Objects.requireNonNull(mask, "mask");
             Objects.requireNonNull(output, "output");
-            boolean floating = dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                    || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16;
+            boolean floating = dataType.isFloating();
             if (!floating || axis < 0 || axis >= data.extents.length
                     || mask.extents.length > data.extents.length
                     || !Arrays.equals(remove(data.extents, axis), output.extents)

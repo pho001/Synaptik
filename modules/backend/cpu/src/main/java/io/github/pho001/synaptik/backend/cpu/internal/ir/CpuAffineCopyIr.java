@@ -10,8 +10,8 @@ import java.util.Objects;
  *
  * <p>The mapping steps describe the validated static view chain for structural identity. Exact
  * source and result addresses are composed during cold lowering and supplied separately to the
- * generated invocation. The copy performs no conversion or arithmetic; BFLOAT16 elements are
- * opaque 16-bit payloads.</p>
+ * generated invocation. The copy performs no conversion or arithmetic; all low floating
+ * elements, including one-byte OFP8 values, are opaque represented payloads.</p>
  *
  * @param dataType non-null logical type whose represented bits are copied unchanged
  * @param sourceAccess non-null read access form for the composed source address domain

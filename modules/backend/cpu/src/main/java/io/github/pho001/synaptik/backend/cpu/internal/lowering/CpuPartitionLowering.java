@@ -80,216 +80,6 @@ import java.util.Optional;
  * proves its complete uses and convexity before accepting full-body work count one.</p>
  */
 public final class CpuPartitionLowering {
-    /**
-     * Checks CPU's temporary low-arithmetic admission without invoking capability or lowering.
-     * Exact represented-value operations, casts and storage/control remain available under
-     * their independently checked structural predicates.
-     *
-     * @param query non-null exact semantic occurrence
-     * @return whether no low floating operand occupies a numerical role
-     * @throws NullPointerException if the query is null
-     */
-    public static boolean permitsLowPrecisionUse(OperationCapabilityQuery query) {
-        Objects.requireNonNull(query, "query");
-        boolean lowOperand = false;
-        for (var input : query.inputs()) lowOperand |= low(input.dataType());
-        if (!lowOperand) return true;
-        var kind = query.operation().kind();
-        if (kind instanceof BinaryArithmeticKind || kind instanceof ScalarElementwiseKind
-                || kind instanceof UnaryElementwiseKind || kind instanceof FloatingClassificationKind
-                || kind instanceof BinaryComparisonKind || kind instanceof BooleanLogicalKind
-                || kind == WhereSelectionKind.WHERE || kind == CastKind.CAST)
-            return !opcode(kind).usesFloatingArithmetic();
-        if (kind instanceof AggregateReductionKind reduction) {
-            return switch (reduction) {
-                case MIN, MAX, ALL, ANY, ARG_MIN, ARG_MAX -> true;
-                default -> false;
-            };
-        }
-        if (kind instanceof Pool2dKind pool) return pool == Pool2dKind.MAX_POOL2D;
-        if (kind instanceof Pool3dKind pool) return pool == Pool3dKind.MAX_POOL3D;
-        if (query.operation().attrs() instanceof ScatterElementsAttrs scatter)
-            return scatter.reduction() != ScatterReduction.ADD && scatter.reduction() != ScatterReduction.MUL;
-        if (query.operation().attrs() instanceof ScatterNdAttrs scatter)
-            return scatter.reduction() != ScatterReduction.ADD && scatter.reduction() != ScatterReduction.MUL;
-        return !(kind == io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL
-                || kind instanceof io.github.pho001.synaptik.model.operation.convolution.Conv2dKind
-                || kind instanceof io.github.pho001.synaptik.model.operation.convolution.Conv3dKind
-                || kind instanceof io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind
-                || kind instanceof io.github.pho001.synaptik.model.operation.normalization.LayerNormKind
-                || kind instanceof io.github.pho001.synaptik.model.operation.normalization.RmsNormKind
-                || kind instanceof io.github.pho001.synaptik.model.operation.normalization.BatchNormKind
-                || kind instanceof io.github.pho001.synaptik.model.operation.loss.LossKind
-                || kind instanceof io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind
-                || kind instanceof io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind
-                || kind instanceof io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind
-                || kind == io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT
-                || kind == io.github.pho001.synaptik.model.operation.index.AxisScatterKind.SCATTER_ADD
-                || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD_AXIS
-                || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD2D
-                || kind == io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD3D);
-    }
-
-    private static boolean low(DataType type) {
-        return type == DataType.BFLOAT16 || type == DataType.FLOAT16;
-    }
-    /**
-     * Authenticates retained typed portable facts before resource or realization work.
-     * Low storage alone is not arithmetic; count-write is a SUM-derived physical family.
-     *
-     * @param ir non-null exact portable facts
-     * @throws NullPointerException if the facts are null
-     * @throws IllegalArgumentException if low floating arithmetic is requested
-     */
-    public static void requirePermittedLowPrecisionUse(CpuPortableKernelIr ir) {
-        Objects.requireNonNull(ir, "ir");
-        switch (ir) {
-            case CpuKernelIr kernel -> requirePermittedEnvelope(kernel);
-            case CpuAffineCopyIr ignored -> { }
-            case CpuDataMovementIr ignored -> { }
-            case CpuIndexingIr ignored -> { }
-            case CpuOrderingIr ignored -> { }
-            case CpuArgExtremaIr ignored -> { }
-            case CpuConstantWriteIr count -> requireNumericalType(count.immediate().dataType());
-            case CpuAggregateIr aggregate -> {
-                if (aggregate.kind() != CpuAggregateIr.Kind.MIN && aggregate.kind() != CpuAggregateIr.Kind.MAX)
-                    requireNumericalType(aggregate.dataType());
-            }
-            case CpuPool2dIr pool -> {
-                if (pool.kind() != CpuPool2dIr.Kind.MAX) requireNumericalType(pool.dataType());
-            }
-            case CpuPool3dIr pool -> {
-                if (pool.kind() != CpuPool3dIr.Kind.MAX) requireNumericalType(pool.dataType());
-            }
-            case CpuScatterIr scatter -> {
-                if (scatter.reduction() == ScatterReduction.ADD || scatter.reduction() == ScatterReduction.MUL)
-                    requireNumericalType(scatter.boundaryTypes().get(scatter.occurrenceToBoundary().getFirst()));
-            }
-            case CpuRandomIr random -> {
-                if (random.family() == CpuRandomIr.Family.DROPOUT) requireNumericalType(random.valueType());
-            }
-            case CpuAggregateFusionIr fusion -> {
-                requirePermittedLowPrecisionUse(fusion.aggregate());
-                fusion.producer().ifPresent(CpuPartitionLowering::requirePermittedLowPrecisionUse);
-                fusion.epilogue().ifPresent(CpuPartitionLowering::requirePermittedLowPrecisionUse);
-            }
-            case CpuGeneralScanIr scan -> {
-                requirePermittedLowPrecisionUse(scan.arithmetic());
-                scan.composition().ifPresent(composition -> composition.units().forEach(unit -> {
-                    requirePermittedLowPrecisionUse(unit.ir());
-                    requirePermittedEnvelope(unit.kernel());
-                }));
-            }
-            case CpuRowMapReductionIr row -> requirePermittedLowPrecisionUse(row.arithmetic());
-            case CpuFoldIr fold -> requireNumericalType(fold.dataType());
-            case CpuScanIr scan -> requireNumericalType(scan.dataType());
-            case CpuMaskedReductionIr reduction -> requireNumericalType(reduction.dataType());
-            case CpuAdvancedReductionIr reduction -> requireNumericalType(reduction.dataType());
-            case CpuSoftmaxIr softmax -> requireNumericalType(softmax.dataType());
-            case CpuSoftmaxBackwardIr softmax -> requirePermittedLowPrecisionUse(softmax.aggregate());
-            case CpuTrailingNormalizationIr normalization -> normalization.inputTypes().forEach(CpuPartitionLowering::requireNumericalType);
-            case CpuBatchNormInferenceIr normalization -> normalization.inputTypes().forEach(CpuPartitionLowering::requireNumericalType);
-            case CpuBatchNormTrainingIr normalization -> normalization.inputTypes().forEach(CpuPartitionLowering::requireNumericalType);
-            case CpuConv2dIr convolution -> convolution.inputTypes().forEach(CpuPartitionLowering::requireNumericalType);
-            case CpuConv3dIr convolution -> convolution.inputTypes().forEach(CpuPartitionLowering::requireNumericalType);
-            case CpuAttentionIr attention -> {
-                requireNumericalType(attention.queryType());
-                requireNumericalType(attention.keyType());
-                requireNumericalType(attention.valueType());
-            }
-            case CpuLossIr loss -> {
-                requireNumericalType(loss.predictionType());
-                requireNumericalType(loss.targetType());
-            }
-        }
-    }
-
-    /**
-     * Authenticates the current envelope and the typed facts consumed by generated emission,
-     * before cache lookup, fresh generation or direct definition.
-     *
-     * @param specialization non-null exact generated specialization
-     * @param ir non-null actual represented envelope
-     * @throws NullPointerException if either argument is null
-     * @throws IllegalArgumentException if typed MATMUL disagrees or low arithmetic is requested
-     */
-    public static void requirePermittedLowPrecisionUse(CpuKernelSpecialization specialization, CpuKernelIr ir) {
-        Objects.requireNonNull(specialization, "specialization");
-        Objects.requireNonNull(ir, "ir");
-        if (specialization.matmulIr().isPresent()) {
-            var matrix = specialization.matmulIr().orElseThrow();
-            String matrixKey = matrix.structuralKey();
-            if (!matrixKey.equals(ir.structuralKey())
-                    || !matrixKey.equals(specialization.loweringFingerprint().hex()))
-                throw new IllegalArgumentException("typed MATMUL facts disagree with represented envelope");
-            requireNumericalType(matrix.leftType());
-            requireNumericalType(matrix.rightType());
-        }
-        specialization.generalScanIr().ifPresent(CpuPartitionLowering::requirePermittedLowPrecisionUse);
-        specialization.rowMapReductionIr().ifPresent(CpuPartitionLowering::requirePermittedLowPrecisionUse);
-        specialization.aggregateFusionIr().ifPresent(CpuPartitionLowering::requirePermittedLowPrecisionUse);
-        for (int ordinal = 0; ordinal < specialization.compositionUnits().size(); ordinal++) {
-            var helper = specialization.compositionUnits().get(ordinal).specialization();
-            var physical = specialization.generalScanIr().orElseThrow().composition()
-                    .orElseThrow().units().get(ordinal);
-            requirePermittedLowPrecisionUse(physical.ir());
-            requirePermittedLowPrecisionUse(helper, physical.kernel());
-        }
-        requirePermittedEnvelope(ir);
-    }
-
-    private static void requirePermittedEnvelope(CpuKernelIr ir) {
-        for (var instruction : ir.instructions()) if (instruction.opcode().usesFloatingArithmetic())
-            for (int input : instruction.inputs()) requireNumericalType(ir.values().get(input).dataType());
-        if (!ir.instructions().isEmpty() || ir.values().stream().noneMatch(v -> low(v.dataType()))) return;
-        String family = ir.familyIdentity();
-        boolean numerical;
-        if (family.startsWith("aggregate:")) {
-            var kind = CpuAggregateIr.encodedKind(ir);
-            numerical = kind != CpuAggregateIr.Kind.MIN && kind != CpuAggregateIr.Kind.MAX;
-        } else if (family.startsWith("pool2d:")) numerical = CpuPool2dIr.encodedKind(ir) != CpuPool2dIr.Kind.MAX;
-        else if (family.startsWith("pool3d:")) numerical = CpuPool3dIr.encodedKind(ir) != CpuPool3dIr.Kind.MAX;
-        else if (family.startsWith("scatter:")) {
-            var reduction = CpuScatterIr.encodedReduction(ir);
-            numerical = reduction == ScatterReduction.ADD || reduction == ScatterReduction.MUL;
-        } else if (family.startsWith("random:")) numerical = CpuRandomIr.encodedFamily(ir) == CpuRandomIr.Family.DROPOUT;
-        else numerical = family.startsWith("constant-write-v1:") || family.startsWith("matmul:")
-                || family.startsWith("conv2d:") || family.startsWith("conv3d:")
-                || family.startsWith("fold:") || family.startsWith("scan:")
-                || family.startsWith("masked-reduction:") || family.startsWith("advanced-reduction:")
-                || family.startsWith("softmax:") || family.startsWith("softmax-backward:")
-                || family.startsWith("trailing-normalization:") || family.startsWith("batch-normalization-")
-                || family.startsWith("attention:") || family.startsWith("loss:");
-        if (numerical) throw lowArithmetic();
-    }
-
-    private static void requireNumericalType(DataType type) {
-        if (low(type)) throw lowArithmetic();
-    }
-
-    private static IllegalArgumentException lowArithmetic() {
-        return new IllegalArgumentException("CPU BFLOAT16/FLOAT16 numerical computation is temporarily unsupported");
-    }
-
-    /**
-     * Rejects source operations that use BFLOAT16 or FLOAT16 in unsupported numerical roles.
-     * Layout-only and other admitted low-precision uses remain eligible for lowering.
-     * @param context non-null source projection with complete value descriptors and scan plans
-     * @throws IllegalArgumentException if an operation requires unsupported low-precision arithmetic
-     */
-    static void requirePermittedSource(PrepareContext<? extends BackendAnalysisInputs> context) {
-        boolean lowValue = false;
-        for (var value : context.values()) lowValue |= low(value.descriptor().dataType());
-        if (!lowValue) return;
-        var values = indexValues(context.values());
-        for (var node : context.nodes()) {
-            var query = new OperationCapabilityQuery(node.operation(),
-                    node.inputs().stream().map(id -> require(values, id).descriptor()).toList(),
-                    node.outputs().stream().map(id -> require(values, id).descriptor()).toList(), node.scanBody(),
-                    Optional.ofNullable(context.scanActivityPlans().get(node.id())));
-            if (!permitsLowPrecisionUse(query)) throw lowArithmetic();
-        }
-    }
 
     /**
      * Checks original ordinary semantics and the sole named batch without sampling geometry.
@@ -326,7 +116,6 @@ public final class CpuPartitionLowering {
                     throw new IllegalArgumentException("ordinary canonical descriptor mismatch");
             }
         }
-        requirePermittedSource(context);
         return batch;
     }
 
@@ -598,13 +387,13 @@ public final class CpuPartitionLowering {
                 io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                 ids.stream().map(id -> values.get(id).descriptor().dataType()).toList(), carriers, 0, -1, List.of(), aggregate.isPresent(),
                 matrix.isPresent() ? 54 : type != resultType ? 60 : 52, matrixIr, Optional.empty(), true,typed);
-        return new io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan(ir, specialization, bindings, matrix, aggregate);
+        return new io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan(ir, specialization, bindings, matrix, aggregate, Optional.empty());
     }
 
     /**
-     * Qualifies the retained ordinary F32 domain or the bounded additive F32/F64 outer closure
-     * and non-gradient [B] floating-to-INT64 control CAST. Answers depend on the occurrence only,
-     * never on Scan/AD origin. F64 MATMUL and arbitrary rank-three algebra remain closed.
+     * Qualifies the retained ordinary geometry with floating low-precision parity and the
+     * bounded typed outer closure. Answers depend on the occurrence only, never on Scan/AD
+     * origin. Existing rank, coordinate, attribute and layout proofs remain mandatory.
      * @param query non-null complete semantic occurrence
      * @return whether exact shapes, attributes, types and symbolic dimensions qualify
      */
@@ -624,13 +413,26 @@ public final class CpuPartitionLowering {
             var input = query.inputs().getFirst(); var output = query.outputs().getFirst();
             Object kind = query.operation().kind(), attrs = query.operation().attrs();
             DataType type = input.dataType();
-            boolean control = typed && kind == CastKind.CAST && type != output.dataType();
-            if (typed && type != DataType.FLOAT32 && type != DataType.FLOAT64) return false;
+            boolean lowParity = java.util.stream.Stream.concat(query.inputs().stream(), query.outputs().stream())
+                    .anyMatch(d -> d.dataType().isFloating() && d.dataType().byteWidth() < Float.BYTES);
+            if (lowParity) {
+                var described = io.github.pho001.synaptik.model.tensor.ScanBody.describeOrdinary(
+                        query.operation(), query.inputs(), query.outputs().size());
+                for (int port = 0; port < described.size(); port++) {
+                    var expected = described.get(port); var declared = query.outputs().get(port);
+                    if (expected.dataType() != declared.dataType()
+                            || !expected.shape().equals(declared.shape())
+                            || expected.requiresGrad() != declared.requiresGrad()) return false;
+                }
+            }
+            boolean control = typed && kind == CastKind.CAST && output.dataType() == DataType.INT64
+                    && type != output.dataType();
+            if (typed && !type.isFloating()) return false;
             if (control && (query.inputs().size() != 1 || input.requiresGrad() || output.requiresGrad()
                     || input.shape().rank() != 1 || !(input.shape().dimension(0) instanceof io.github.pho001.synaptik.model.shape.DynamicDimension)
                     || output.dataType() != DataType.INT64 || !input.shape().equals(output.shape())
                     || !(attrs instanceof io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs c) || c.targetDataType() != DataType.INT64)) return false;
-            if (typed && !control && output.dataType() != type) return false;
+            if (typed && !control && !lowParity && output.dataType() != type) return false;
             boolean rowOneStack = java.util.stream.Stream.concat(query.inputs().stream(),query.outputs().stream())
                     .anyMatch(d -> d.shape().rank() == 3 && d.shape().dimension(2) instanceof io.github.pho001.synaptik.model.shape.DynamicDimension);
             if (typed && rowOneStack && kind != io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind.EXPAND
@@ -638,11 +440,13 @@ public final class CpuPartitionLowering {
                     && !(kind instanceof io.github.pho001.synaptik.model.operation.layout.AxisTransformKind)
                     && kind != io.github.pho001.synaptik.model.operation.layout.ContiguousKind.CONTIGUOUS && kind != CastKind.CAST)
                 return false;
-            if (output.requiresGrad() != (!control && query.inputs().stream().anyMatch(TensorDescriptor::requiresGrad))) return false;
+            if (!lowParity && output.requiresGrad() != (!control && query.inputs().stream().anyMatch(TensorDescriptor::requiresGrad))) return false;
             var all = new ArrayList<TensorDescriptor>(); all.addAll(query.inputs()); all.addAll(query.outputs());
             var symbols = new java.util.HashSet<String>();
             for (var d : all) {
-                if (d.dataType() != (typed ? control && d == output ? DataType.INT64 : type : DataType.FLOAT32) || d.shape().rank() > 3) return false;
+                if ((!lowParity && d.dataType() != (typed ? control && d == output ? DataType.INT64 : type : DataType.FLOAT32)
+                        || lowParity && !d.dataType().isFloating() && !(control && d == output))
+                        || d.shape().rank() > 3) return false;
                 if (!d.shape().isFullyStatic() && d.shape().rank() == 3
                         && !(d.shape().dimension(1) instanceof io.github.pho001.synaptik.model.shape.DynamicDimension)
                         && !(typed && d.shape().dimension(2) instanceof io.github.pho001.synaptik.model.shape.DynamicDimension)
@@ -689,7 +493,8 @@ public final class CpuPartitionLowering {
             if (kind == io.github.pho001.synaptik.model.operation.layout.ContiguousKind.CONTIGUOUS) return attrs == io.github.pho001.synaptik.model.operation.NoOperationAttrs.INSTANCE && input.shape().equals(output.shape());
             if (kind == io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind.CAST
                     && attrs instanceof io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs c)
-                return c.targetDataType() == type && input.shape().equals(output.shape());
+                return (lowParity ? c.targetDataType() == output.dataType() : c.targetDataType() == type)
+                        && input.shape().equals(output.shape());
             if (kind == io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind.RESHAPE
                     && attrs instanceof io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs t) {
                 return t.targetShape().equals(output.shape()) && input.shape().dimensions().stream()
@@ -885,7 +690,6 @@ public final class CpuPartitionLowering {
      */
     public LoweredPartition lower(PrepareContext<? extends BackendAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
-        requirePermittedSource(context);
         List<CompiledNode> nodes = context.partitionDag().nodes();
         boolean symbolic = context.requiresBatchSize();
         if (!context.partition().owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)) {
@@ -1247,7 +1051,6 @@ public final class CpuPartitionLowering {
         for (int port = 0; port < materialized.size(); port++)
             stores.add(new CpuKernelIr.Store(ordinals.get(materialized.get(port)), port));
         var ir = new CpuKernelIr(irValues, instructions, new CpuKernelIr.Loop("start", "end"), stores);
-        requirePermittedLowPrecisionUse(ir);
         return new LoweredPartition(new BatchPointwiseGeometry(ir, boundaries, types, bindings,
                 virtual, batchElements(iteration)));
     }
@@ -1625,6 +1428,8 @@ public final class CpuPartitionLowering {
             case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffff_ffffL;
             case BFLOAT16 -> Short.toUnsignedLong(value.bfloat16Bits());
             case FLOAT16 -> Short.toUnsignedLong(value.float16Bits());
+            case FLOAT8_E4M3 -> Byte.toUnsignedInt(value.float8E4m3Bits());
+            case FLOAT8_E5M2 -> Byte.toUnsignedInt(value.float8E5m2Bits());
             case INT32 -> value.int32Value() & 0xffff_ffffL;
             case INT64 -> value.int64Value();
             default -> throw new IllegalArgumentException("unsupported scalar immediate type");
@@ -1653,6 +1458,8 @@ public final class CpuPartitionLowering {
             case FLOAT32 -> Float.floatToRawIntBits(value.float32Value()) & 0xffff_ffffL;
             case BFLOAT16 -> Short.toUnsignedLong(value.bfloat16Bits());
             case FLOAT16 -> Short.toUnsignedLong(value.float16Bits());
+            case FLOAT8_E4M3 -> Byte.toUnsignedInt(value.float8E4m3Bits());
+            case FLOAT8_E5M2 -> Byte.toUnsignedInt(value.float8E5m2Bits());
             case INT32 -> value.int32Value() & 0xffff_ffffL;
             case INT64 -> value.int64Value();
             default -> throw new IllegalArgumentException("unsupported scalar immediate type");
@@ -1751,8 +1558,8 @@ public final class CpuPartitionLowering {
     private record Normalized(CpuAccessPlan plan, CpuAccessPlan.Binding binding) { }
 
     /**
-     * Family-owned numeric invocation geometry for an ordinary Scan helper.
-     * Binding resolves numeric coefficients, never a semantic graph or generated class.
+     * Family-owned numeric invocation geometry for an ordinary symbolic unit or Scan helper.
+     * Binding resolves the actual batch's coefficients, never a semantic graph or generated class.
      */
     public interface BatchUnitGeometry {
         /** Supplies the batch-independent generated representation, without a semantic graph.

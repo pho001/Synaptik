@@ -32,7 +32,7 @@ import java.util.Optional;
  * Lowers one static resolved-layout or canonical single-named-B functional scatter occurrence.
  * This analysis owner revalidates the current Model signature and derives unique boundaries,
  * compact cold coordinate geometry, structural generated identity, and the exact optional
- * floating-product scratch slice. It does not read values, allocate Runtime resources, or choose
+ * floating-product or low-ADD FLOAT32/touched-byte scratch slice. It does not read values, allocate Runtime resources, or choose
  * a native or fallback route.
  */
 public final class CpuScatterLowering {
@@ -120,14 +120,14 @@ public final class CpuScatterLowering {
         long outputCount = elementCount(layouts.getLast().extents());
         long updateCount = elementCount(layouts.get(occurrenceMap.get(2)).extents());
         boolean floatingMul = reduction == ScatterReduction.MUL
-                && (types.getFirst() == DataType.FLOAT64 || types.getFirst() == DataType.FLOAT32
-                    || types.getFirst() == DataType.BFLOAT16
-                    || types.getFirst() == DataType.FLOAT16)
+                && types.getFirst().isFloating()
                 && outputCount != 0 && updateCount != 0;
+        boolean lowAdd = lowAddition(types.getFirst(), reduction) && outputCount != 0 && updateCount != 0;
         long maximumUpdates = maximumUpdates(family, layouts, occurrenceMap, axis, batch);
-        long sliceBytes = floatingMul ? scratchSliceBytes(types.getFirst(), maximumUpdates) : 0;
+        long sliceBytes = floatingMul ? scratchSliceBytes(types.getFirst(), maximumUpdates)
+                : lowAdd ? Math.multiplyExact(5L, outputCount) : 0;
         var ir = new CpuScatterIr(family, reduction, occurrenceMap, types,
-                bindings.stream().map(CpuAccessPlan.Binding::plan).toList(), floatingMul ? 1 : 0);
+                bindings.stream().map(CpuAccessPlan.Binding::plan).toList(), floatingMul ? 1 : lowAdd ? 2 : 0);
         var geometry = new Geometry(family, reduction, occurrenceMap, layouts, types, axis, batch,
                 tuple, maximumUpdates, sliceBytes);
         return new CpuPartitionLowering.LoweredPartition(ir, boundaryIds, bindings, spans, types,
@@ -208,15 +208,21 @@ public final class CpuScatterLowering {
                 && nonemptyCapacity(batchCount(accesses.getLast(), 0, accesses.getLast().plan().iterationRank()))
                 && nonemptyCapacity(batchCount(accesses.get(map.get(2)), 0,
                         accesses.get(map.get(2)).plan().iterationRank()));
+        boolean lowAdd = lowAddition(data.dataType(), reduction)
+                && nonemptyCapacity(batchCount(accesses.getLast(), 0, accesses.getLast().plan().iterationRank()))
+                && nonemptyCapacity(batchCount(accesses.get(map.get(2)), 0,
+                        accesses.get(map.get(2)).plan().iterationRank()));
         var ir = new CpuScatterIr(family, reduction, map, types,
-                accesses.stream().map(CpuAccessPlan.BatchBinding::plan).toList(), floatingMul ? 1 : 0);
+                accesses.stream().map(CpuAccessPlan.BatchBinding::plan).toList(), floatingMul ? 1 : lowAdd ? 2 : 0);
         return new CpuPartitionLowering.LoweredPartition(
                 new Geometry.BatchGeometry(ir, ids, types, accesses, axis, batch, tuple));
     }
 
     private static boolean floating(DataType type) {
-        return type == DataType.FLOAT64 || type == DataType.FLOAT32
-                || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+        return type.isFloating();
+    }
+    private static boolean lowAddition(DataType type, ScatterReduction reduction) {
+        return reduction == ScatterReduction.ADD && type.isFloating() && type.byteWidth() < Float.BYTES;
     }
     private static IllegalArgumentException invalidBatch() {
         return new IllegalArgumentException("inconsistent symbolic scatter geometry");
@@ -247,8 +253,7 @@ public final class CpuScatterLowering {
     }
 
     private static long scratchSliceBytes(DataType type, long maximumUpdates) {
-        int precision = type == DataType.FLOAT64 ? 53 : type == DataType.FLOAT32 ? 24
-                : type == DataType.FLOAT16 ? 11 : 8;
+        int precision = type == DataType.FLOAT64 ? 53 : 24;
         long factorCount = Math.addExact(maximumUpdates, 1);
         Math.multiplyExact(factorCount, maximumExponentMagnitude(type));
         long bits = Math.multiplyExact((long) precision, factorCount);
@@ -257,8 +262,7 @@ public final class CpuScatterLowering {
     }
 
     private static long maximumExponentMagnitude(DataType type) {
-        return type == DataType.FLOAT64 ? 1074 : type == DataType.FLOAT32 ? 149
-                : type == DataType.FLOAT16 ? 24 : 133;
+        return type == DataType.FLOAT64 ? 1074 : 149;
     }
 
     private static GraphValue require(Map<ValueId, GraphValue> values, ValueId id) {
@@ -313,7 +317,7 @@ public final class CpuScatterLowering {
      * @param batchDimensions non-negative shared scatter-ND batch count
      * @param tupleDepth positive scatter-ND tuple depth, or zero for axis families
      * @param maximumUpdatesPerTarget checked maximum target-group update count
-     * @param scratchSliceBytes exact aligned per-range scratch bytes, or zero when absent
+     * @param scratchSliceBytes exact per-range scratch bytes, or zero when absent
      */
     public record Geometry(CpuScatterIr.Family family, ScatterReduction reduction,
             List<Integer> occurrenceToBoundary, List<Layout> boundaries,
@@ -374,18 +378,21 @@ public final class CpuScatterLowering {
                 };
             }
             /**
-             * @return affine exact-product scratch capacity; limb rounding is finalized at bind
+             * @return affine low-ADD working capacity or exact-product scratch capacity
              */
             @Override public BatchByteSize scratchBytes() {
+                if (ir.scratchSignature() == 2) {
+                    var count = iterationCount();
+                    return new BatchByteSize(Math.multiplyExact(5L, count.constantBytes()),
+                            Math.multiplyExact(5L, count.bytesPerBatch()), 1);
+                }
                 if (ir.reduction() != ScatterReduction.MUL || !floating(boundaryTypes.getFirst())
                         || !nonemptyCapacity(iterationCount())) return new BatchByteSize(0, 0, 1);
                 var updates = bindings.get(ir.occurrenceToBoundary().get(2));
                 if (!nonemptyCapacity(batchCount(updates, 0, updates.plan().iterationRank())))
                     return new BatchByteSize(0, 0, 1);
                 var maximum = maximumUpdatesCapacity();
-                int precision = boundaryTypes.getFirst() == DataType.FLOAT64 ? 53
-                        : boundaryTypes.getFirst() == DataType.FLOAT32 ? 24
-                        : boundaryTypes.getFirst() == DataType.FLOAT16 ? 11 : 8;
+                int precision = boundaryTypes.getFirst() == DataType.FLOAT64 ? 53 : 24;
                 long constantBits = Math.multiplyExact(precision, Math.addExact(maximum.constantBytes(), 1));
                 long factorBits = Math.multiplyExact(precision, maximum.bytesPerBatch());
                 return new BatchByteSize(Math.addExact(24, Math.multiplyExact(8,
@@ -412,7 +419,9 @@ public final class CpuScatterLowering {
                 long maximum = maximumUpdates(ir.family(), layouts, ir.occurrenceToBoundary(), axis, batchDimensions);
                 long scratch = ir.reduction() == ScatterReduction.MUL && floating(boundaryTypes.getFirst())
                         && outputCount != 0 && updateCount != 0
-                        ? CpuScatterLowering.scratchSliceBytes(boundaryTypes.getFirst(), maximum) : 0;
+                        ? CpuScatterLowering.scratchSliceBytes(boundaryTypes.getFirst(), maximum)
+                        : lowAddition(boundaryTypes.getFirst(), ir.reduction()) && outputCount != 0 && updateCount != 0
+                            ? Math.multiplyExact(5L, outputCount) : 0;
                 var geometry = new Geometry(ir.family(), ir.reduction(), ir.occurrenceToBoundary(),
                         layouts, boundaryTypes, axis, batchDimensions, tupleDepth, maximum, scratch);
                 return new CpuPartitionLowering.LoweredPartition(ir, boundaries, access,
@@ -495,12 +504,14 @@ public final class CpuScatterLowering {
             long expectedMaximum = maximumUpdates(family, boundaries, occurrenceToBoundary,
                     axis, batchDimensions);
             boolean floatingProduct = reduction == ScatterReduction.MUL
-                    && (dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                        || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16)
+                    && dataType.isFloating()
                     && elementCount(boundaries.getLast().extents) != 0
                     && elementCount(boundaries.get(updateBoundary).extents) != 0;
             long expectedSlice = floatingProduct
-                    ? CpuScatterLowering.scratchSliceBytes(dataType, expectedMaximum) : 0;
+                    ? CpuScatterLowering.scratchSliceBytes(dataType, expectedMaximum)
+                    : lowAddition(dataType, reduction) && elementCount(boundaries.getLast().extents) != 0
+                        && elementCount(boundaries.get(updateBoundary).extents) != 0
+                            ? Math.multiplyExact(5L, elementCount(boundaries.getLast().extents)) : 0;
             if (maximumUpdatesPerTarget != expectedMaximum || scratchSliceBytes != expectedSlice) {
                 throw new IllegalArgumentException("scatter geometry scratch facts disagree");
             }
