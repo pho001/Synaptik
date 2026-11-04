@@ -557,6 +557,16 @@ abstract class OrdinaryConstruction<V> {
      */
     abstract V prod(V input, int axis, boolean keep);
     /**
+     * Selects the represented maximum along one ordinary reduction axis.
+     *
+     * @param input non-null floating operand
+     * @param axis canonical non-negative reduction axis
+     * @param keep whether the reduced axis retains its singleton extent
+     * @return the canonical MAX result, including its ordinary NaN and empty-domain semantics
+     * @throws IllegalArgumentException if the existing ordinary guards reject the request
+     */
+    abstract V max(V input, int axis, boolean keep);
+    /**
      * Constructs the ordinary sumToShape operation synchronously on the selected route.
      *
      * @param input non-null direct operand
@@ -1326,6 +1336,7 @@ abstract class OrdinaryConstruction<V> {
         @Override Tensor sum(Tensor a, int[] axes, boolean keep) { return completed(a.sum(axes, keep)); }
         @Override Tensor mean(Tensor a, int[] axes, boolean keep) { return completed(a.mean(axes, keep)); }
         @Override Tensor prod(Tensor a, int axis, boolean keep) { return completed(a.prod(axis, keep)); }
+        @Override Tensor max(Tensor a, int axis, boolean keep) { return completed(a.max(axis, keep)); }
         @Override Tensor sumToShape(Tensor a, Shape shape) { return completed(a.sumToShape(shape)); }
         @Override Tensor cumSum(Tensor a, int axis, boolean exclusive, boolean reverse) {
             return completed(a.cumSum(axis, exclusive, reverse));
@@ -1489,6 +1500,7 @@ abstract class OrdinaryConstruction<V> {
         @Override Value sum(Value a, int[] axes, boolean keep) { return emit(AggregateReductionKind.SUM, new MultiAxisReductionAttrs(integers(axes), keep), List.of(a)); }
         @Override Value mean(Value a, int[] axes, boolean keep) { return emit(AggregateReductionKind.MEAN, new MultiAxisReductionAttrs(integers(axes), keep), List.of(a)); }
         @Override Value prod(Value a, int axis, boolean keep) { return emit(AggregateReductionKind.PROD, new AxisReductionAttrs(axis, keep), List.of(a)); }
+        @Override Value max(Value a, int axis, boolean keep) { return emit(AggregateReductionKind.MAX, new AxisReductionAttrs(axis, keep), List.of(a)); }
         @Override Value sumToShape(Value a, Shape shape) { return emit(AggregateReductionKind.SUM, new SumToShapeAttrs(shape), List.of(a)); }
         @Override Value cumSum(Value a, int axis, boolean exclusive, boolean reverse) { return emit(CumulativeScanKind.CUM_SUM, new CumulativeScanAttrs(axis, exclusive, reverse), List.of(a)); }
         @Override Value cumProd(Value a, int axis, boolean exclusive, boolean reverse) { return emit(CumulativeScanKind.CUM_PROD, new CumulativeScanAttrs(axis, exclusive, reverse), List.of(a)); }

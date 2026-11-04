@@ -98,6 +98,44 @@ final class LossGradientRulesTest {
                 () -> preflight(zeroLoss, zeroLogits));
     }
 
+    @Test
+    void denseCategoricalEmptySamplesAndClassesRetainBothSelectedDescriptors() {
+        for (DataType dataType : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16,
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            for (LossReduction reduction : LossReduction.values()) {
+                Tensor logits = tensor(dataType, Shape.of(0, 0), true);
+                Tensor target = tensor(dataType, Shape.of(0, 0), true);
+                Tensor loss = logits.categoricalCrossEntropyWithLogits(target, 1, reduction);
+                Tensor objective = mseObjective(loss, reduction);
+                for (Tensor selected : List.of(logits, target)) {
+                    Tensor derivative = gradient(objective, selected);
+                    assertEquals(selected.descriptor().shape(), derivative.descriptor().shape());
+                    assertEquals(selected.descriptor().dataType(), derivative.descriptor().dataType());
+                    assertCompiles(objective, selected);
+                }
+            }
+        }
+    }
+
+    @Test
+    void lowCategoricalSelectedRolesRetainOriginalTypesWithNonfinalClassAxis() {
+        for (DataType dataType : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            Tensor logits = tensor(dataType, Shape.of(2, 3, 4), true);
+            Tensor target = tensor(dataType, Shape.of(2, 3, 4), true);
+            for (LossReduction reduction : LossReduction.values()) {
+                Tensor objective = mseObjective(
+                        logits.categoricalCrossEntropyWithLogits(target, 1, reduction), reduction);
+                for (Tensor selected : List.of(logits, target)) {
+                    Tensor derivative = gradient(objective, selected);
+                    assertEquals(selected.descriptor().shape(), derivative.descriptor().shape());
+                    assertEquals(dataType, derivative.descriptor().dataType());
+                    assertCompiles(objective, selected);
+                }
+            }
+        }
+    }
+
     private static Tensor mseObjective(Tensor loss, LossReduction reduction) {
         return reduction == LossReduction.NONE ? loss.sum() : loss;
     }

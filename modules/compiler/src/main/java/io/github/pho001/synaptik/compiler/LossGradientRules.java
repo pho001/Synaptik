@@ -18,9 +18,13 @@ import java.util.function.Function;
  * Builds mean-squared-error and categorical-cross-entropy first-order formulas.
  *
  * <p>Reduction cotangents are restored by expanding logical typed ones and reducing them rather
- * than converting a host element count. Dense targets retain their exact mass. Index targets are
- * non-differentiable, are sanitized only to make one-hot construction total for ignored rows, and
- * use an exact integral ignore predicate before exceptional logits can enter arithmetic.</p>
+ * than converting a host element count. Categorical formulas use their loss-specific max-shifted
+ * exponentials, not first-class softmax's distinct mixed-infinity semantics. Their ordinary
+ * arithmetic works in FLOAT32 unless the loss result is FLOAT64, with final input normalization.
+ * Dense targets retain their exact mass; all-zero rows exclude logits before probability
+ * arithmetic. Index targets are non-differentiable, are sanitized only to make one-hot
+ * construction total for ignored rows, and use an exact integral ignore predicate before
+ * exceptional logits can enter arithmetic.</p>
  *
  * <p>Descriptor access preserves original source roles without resolving primal values.
  * Real construction uses Tensor references directly; checked metadata construction retains
@@ -98,6 +102,8 @@ final class LossGradientRules<V> {
 
     /**
      * Builds logits and selected dense-target cotangents while retaining the target's exact mass.
+     * The target derivative retains the loss's maximum-addition rounding site and excludes only
+     * exact zero targets with nonfinite log-probabilities; finite zero-target derivatives remain.
      *
      * @param producer non-null exact original dense categorical-loss occurrence
      * @param gradient non-null accumulated output cotangent
@@ -112,25 +118,40 @@ final class LossGradientRules<V> {
             Function<V, V> primal) {
         V logitsInput = producer.inputs().get(0);
         V targetInput = producer.inputs().get(1);
-        DataType resultType = ops.descriptor(producer.output(0)).dataType();
-        V logits = cast(primal.apply(logitsInput), resultType);
-        V target = cast(primal.apply(targetInput), resultType);
+        DataType workingType = ops.descriptor(producer.output(0)).dataType() == DataType.FLOAT64
+                ? DataType.FLOAT64 : DataType.FLOAT32;
+        V logits = cast(primal.apply(logitsInput), workingType);
+        V target = cast(primal.apply(targetInput), workingType);
         DenseCategoricalCrossEntropyWithLogitsAttrs attrs =
                 (DenseCategoricalCrossEntropyWithLogitsAttrs) producer.operation().attrs();
         Shape sampleShape = removeAxis(ops.descriptor(logits).shape(), attrs.axis());
         V restored = ops.expandDims(restore(
-                        gradient, sampleShape, attrs.reduction()), attrs.axis());
+                        cast(gradient, workingType), sampleShape, attrs.reduction()), attrs.axis());
         V[] result = ops.array(2);
         if (selectedInputs[0]) {
+            V zeroTarget = ops.equalTo(target, ops.zeroLike(target));
+            V membership = ops.sum(
+                    ops.where(zeroTarget, ops.zeroLike(target), ops.oneLike(target)),
+                    attrs.axis(), true);
+            V emptyRow = ops.equalTo(membership, ops.zeroLike(membership));
+            V safeLogits = ops.where(emptyRow, ops.zeroLike(logits), logits);
+            V probabilities = categoricalProbabilities(safeLogits, attrs.axis());
             V targetMass = ops.sum(target, attrs.axis(), true);
+            V safeScale = ops.where(emptyRow, ops.zeroLike(restored), restored);
+            V raw = ops.mul(ops.sub(ops.mul(probabilities, targetMass), target), safeScale);
             result[0] = normalize(
-                    ops.mul(ops.sub(ops.mul(ops.softmax(logits, attrs.axis()), targetMass), target), restored),
-                    logitsInput);
+                    ops.where(emptyRow, ops.zeroLike(raw), raw), logitsInput);
         }
         if (selectedInputs[1]) {
-            V logProbabilities = ops.logSoftmax(logits, attrs.axis());
-            V raw = ops.mul(ops.neg(logProbabilities), restored);
-            V excluded = ops.logicalAnd(ops.equalTo(target, ops.zeroLike(target)), ops.logicalNot(ops.isFinite(logProbabilities)));
+            V maximum = ops.max(logits, attrs.axis(), true);
+            V exponentials = ops.exp(ops.sub(logits, maximum));
+            V logNormalizer = ops.add(maximum, ops.log(ops.sum(exponentials, attrs.axis(), true)));
+            V logProbabilities = ops.sub(logits, logNormalizer);
+            V excluded = ops.logicalAnd(ops.equalTo(target, ops.zeroLike(target)),
+                    ops.logicalNot(ops.isFinite(logProbabilities)));
+            V safeLogProbabilities = ops.where(excluded, ops.zeroLike(logProbabilities), logProbabilities);
+            V safeScale = ops.where(excluded, ops.zeroLike(restored), restored);
+            V raw = ops.mul(ops.neg(safeLogProbabilities), safeScale);
             result[1] = normalize(
                     ops.where(excluded, ops.zeroLike(raw), raw),
                     targetInput);
@@ -153,7 +174,9 @@ final class LossGradientRules<V> {
             V gradient,
             boolean[] selectedInputs,
             Function<V, V> primal) {
-        V logits = primal.apply(producer.inputs().get(0));
+        DataType workingType = ops.descriptor(producer.output(0)).dataType() == DataType.FLOAT64
+                ? DataType.FLOAT64 : DataType.FLOAT32;
+        V logits = cast(primal.apply(producer.inputs().get(0)), workingType);
         V target = primal.apply(producer.inputs().get(1));
         IndexCategoricalCrossEntropyWithLogitsAttrs attrs =
                 (IndexCategoricalCrossEntropyWithLogitsAttrs) producer.operation().attrs();
@@ -176,25 +199,47 @@ final class LossGradientRules<V> {
             V delta = ops.sub(target, ignore);
             ignored = ops.equalTo(delta, ops.sub(delta, delta));
             V active = ops.where(ignored, ops.expand(ops.zeroBase(ops.descriptor(logits).dataType()), sampleShape), ops.expand(ops.oneBase(ops.descriptor(logits).dataType()), sampleShape));
-            scale = ops.descriptor(gradient).shape().equals(sampleShape)
-                    ? gradient
-                    : ops.expand(gradient, sampleShape);
+            V workingGradient = cast(gradient, workingType);
+            scale = ops.descriptor(workingGradient).shape().equals(sampleShape)
+                    ? workingGradient
+                    : ops.expand(workingGradient, sampleShape);
             if (attrs.reduction() == LossReduction.MEAN) {
                 scale = ops.div(scale, ops.sum(active));
             }
         } else {
-            scale = restore(gradient, sampleShape, attrs.reduction());
+            scale = restore(cast(gradient, workingType), sampleShape, attrs.reduction());
         }
         scale = ops.expandDims(scale, attrs.axis());
-        V raw = ops.mul(ops.sub(ops.softmax(logits, attrs.axis()), hot), scale);
-        V contribution = ignored == null
+        V ignoredRow = ignored == null ? null : ops.expandDims(ignored, attrs.axis());
+        V safeLogits = ignoredRow == null
+                ? logits : ops.where(ignoredRow, ops.zeroLike(logits), logits);
+        if (ignoredRow != null) {
+            scale = ops.where(ignoredRow, ops.zeroLike(scale), scale);
+        }
+        V raw = ops.mul(ops.sub(categoricalProbabilities(safeLogits, attrs.axis()), hot), scale);
+        V contribution = ignoredRow == null
                 ? raw
-                : ops.where(ops.expandDims(ignored, attrs.axis()), ops.zeroLike(logits), raw);
+                : ops.where(ignoredRow, ops.zeroLike(logits), raw);
         V[] result = ops.array(2);
         if (selectedInputs[0]) {
             result[0] = normalize(contribution, producer.inputs().get(0));
         }
         return result;
+    }
+
+    /**
+     * Builds probabilities from the categorical loss's max-shifted exponential slice.
+     * Callers apply exact target/ignore eligibility to logits before invoking this formula.
+     * Unlike ordinary softmax, mixed-infinity slices always retain this shifted formula.
+     *
+     * @param logits non-null logits in the loss's FLOAT32 or FLOAT64 working type
+     * @param axis normalized class axis
+     * @return shifted exponentials divided by their all-contributors-once class sum
+     */
+    private V categoricalProbabilities(V logits, int axis) {
+        V maximum = ops.max(logits, axis, true);
+        V exponentials = ops.exp(ops.sub(logits, maximum));
+        return ops.div(exponentials, ops.sum(exponentials, axis, true));
     }
 
     /**
