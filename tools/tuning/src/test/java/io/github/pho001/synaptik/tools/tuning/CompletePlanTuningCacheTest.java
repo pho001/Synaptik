@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -12,6 +13,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -287,6 +289,71 @@ class CompletePlanTuningCacheTest {
                         });
         assertThrows(IOException.class, () -> moveFailure.publish(cache, replacement));
         assertAtomicFailureState(cache, prior);
+    }
+
+    @Test
+    void primaryPublicationFailuresRetainIdentityAndSuppressCleanupFailure() throws Exception {
+        for (boolean failBeforeMove : List.of(true, false)) {
+            for (Throwable primary : List.of(
+                    new IOException("publication"), new IllegalStateException("publication"),
+                    new AssertionError("publication"))) {
+                Path target = directory.resolve("primary.bin");
+                byte[] prior = CompletePlanTuningTest.bytes("prior");
+                Files.write(target, prior);
+                Path[] temporaryPath = new Path[1];
+                var file = new ModelPlanCacheFile(
+                        (temporary, ignored) -> {
+                            temporaryPath[0] = temporary;
+                            Files.delete(temporary);
+                            Files.createDirectory(temporary);
+                            Files.write(temporary.resolve("blocker"), new byte[] {1});
+                            if (failBeforeMove) throwPublicationFailure(primary);
+                        },
+                        (temporary, ignored) -> { throwPublicationFailure(primary); });
+                var cacheKey = key("key");
+                var value = entry(cacheKey, "decision");
+                try {
+                    Throwable thrown = assertThrows(primary.getClass(),
+                            () -> file.publish(target, Map.of(cacheKey, value)));
+                    assertSame(primary, thrown);
+                    assertEquals(1, thrown.getSuppressed().length);
+                    assertTrue(thrown.getSuppressed()[0] instanceof DirectoryNotEmptyException);
+                    assertArrayEquals(prior, Files.readAllBytes(target));
+                } finally {
+                    Files.delete(temporaryPath[0].resolve("blocker"));
+                    Files.delete(temporaryPath[0]);
+                }
+            }
+        }
+    }
+
+    @Test
+    void standaloneTemporaryCleanupFailureIsReported() throws Exception {
+        Path target = directory.resolve("cleanup.bin");
+        Path[] temporaryPath = new Path[1];
+        var file = new ModelPlanCacheFile((temporary, ignored) -> {}, (temporary, destination) -> {
+            Files.move(temporary, destination);
+            temporaryPath[0] = Files.createDirectory(temporary);
+            Files.write(temporary.resolve("blocker"), new byte[] {1});
+        });
+        var cacheKey = key("key");
+        var value = entry(cacheKey, "decision");
+        try {
+            var failure = assertThrows(DirectoryNotEmptyException.class,
+                    () -> file.publish(target, Map.of(cacheKey, value)));
+            assertEquals(0, failure.getSuppressed().length);
+            assertArrayEquals(value.encodedDecision(),
+                    new ModelPlanCacheFile().load(target).get(cacheKey).encodedDecision());
+        } finally {
+            Files.delete(temporaryPath[0].resolve("blocker"));
+            Files.delete(temporaryPath[0]);
+        }
+    }
+
+    private static void throwPublicationFailure(Throwable failure) throws IOException {
+        if (failure instanceof IOException checked) throw checked;
+        if (failure instanceof RuntimeException unchecked) throw unchecked;
+        throw (Error) failure;
     }
 
     private static CompletePlanTuningTest.Backend persistentBackend() {

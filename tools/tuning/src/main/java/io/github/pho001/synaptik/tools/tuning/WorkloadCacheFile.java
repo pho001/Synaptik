@@ -4,8 +4,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -263,6 +263,8 @@ final class WorkloadCacheFile {
 
     /**
      * Loads and validates the complete cache, or returns an empty map when the file is absent.
+     * Size, bounded reads, and the trailing-byte probe use the same opened file, so atomic path
+     * replacement does not mix snapshots. In-place modification may still be rejected.
      *
      * @param path non-null explicit cache path
      * @return an immutable map of validated compact entries; never {@code null}
@@ -272,15 +274,13 @@ final class WorkloadCacheFile {
      */
     Map<Key, Entry> load(Path path) throws IOException {
         Objects.requireNonNull(path, "path");
-        if (!Files.exists(path)) {
-            return Map.of();
-        }
-        long size = Files.size(path);
-        if (size < HEADER_BYTES + CHECKSUM_BYTES || size > MAX_FILE_BYTES) {
-            throw new IOException("workload cache size is invalid");
-        }
-        byte[] complete = new byte[Math.toIntExact(size)];
+        byte[] complete;
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
+            long size = channel.size();
+            if (size < HEADER_BYTES + CHECKSUM_BYTES || size > MAX_FILE_BYTES) {
+                throw new IOException("workload cache size is invalid");
+            }
+            complete = new byte[Math.toIntExact(size)];
             ByteBuffer bounded = ByteBuffer.wrap(complete);
             while (bounded.hasRemaining()) {
                 if (channel.read(bounded) < 0) {
@@ -291,6 +291,8 @@ final class WorkloadCacheFile {
             if (channel.read(extra) >= 0) {
                 throw new IOException("workload cache grew while loading");
             }
+        } catch (NoSuchFileException exception) {
+            return Map.of();
         }
         try {
             return parse(complete).asMap();
@@ -444,6 +446,8 @@ final class WorkloadCacheFile {
 
     /**
      * Deterministically encodes and atomically replaces one cache file.
+     * A publication failure retains its identity; distinct temporary-cleanup failures are
+     * suppressed on it. Cleanup failure alone is reported directly. No non-atomic fallback is used.
      *
      * @param target non-null explicit cache path whose parent directory already exists
      * @param entries non-null complete entry map; keys and values must be non-null and agree
@@ -461,6 +465,7 @@ final class WorkloadCacheFile {
         }
         Path temporary = parent.resolve("." + absoluteTarget.getFileName()
                 + "." + UUID.randomUUID() + ".tmp");
+        Throwable failure = null;
         try {
             try (FileChannel channel = FileChannel.open(
                     temporary, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
@@ -473,10 +478,20 @@ final class WorkloadCacheFile {
             beforeMove.run(temporary, absoluteTarget);
             mover.move(temporary, absoluteTarget);
             forceDirectory(parent);
-        } catch (AtomicMoveNotSupportedException exception) {
+        } catch (IOException | RuntimeException | Error exception) {
+            failure = exception;
             throw exception;
         } finally {
-            Files.deleteIfExists(temporary);
+            try {
+                Files.deleteIfExists(temporary);
+            } catch (IOException | RuntimeException | Error cleanupFailure) {
+                if (failure == null) {
+                    throw cleanupFailure;
+                }
+                if (cleanupFailure != failure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
+            }
         }
     }
 

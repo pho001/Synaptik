@@ -50,7 +50,9 @@ public final class CompletePlanTuning {
      * this method preflights exactly {@code N * (1 + W + S)} complete executions before the first
      * correctness callback. Correctness capture/comparison for all candidates precedes every
      * warmup and timed sample. Selection minimizes the integer-middle median elapsed nanoseconds
-     * and preserves encounter order on ties.
+     * and preserves encounter order on ties. Samples use wrapping end-minus-start subtraction:
+     * signed counter rollover is valid, while a negative delta (including an interval of at
+     * least 2^63 nanoseconds) is rejected.
      *
      * @param request non-null immutable request
      * @param backend non-null backend-owned candidate and codec collaboration
@@ -257,7 +259,7 @@ public final class CompletePlanTuning {
                 long start = clock.nanoTime();
                 measurement.execute(batch, candidate);
                 long end = clock.nanoTime();
-                long elapsed = Math.subtractExact(end, start);
+                long elapsed = end - start;
                 if (elapsed < 0) {
                     throw new IllegalStateException("monotonic clock moved backwards");
                 }

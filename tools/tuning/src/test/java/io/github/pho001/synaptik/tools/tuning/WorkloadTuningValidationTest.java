@@ -272,7 +272,7 @@ class WorkloadTuningValidationTest {
     }
 
     @Test
-    void weightAndElapsedArithmeticOverflowBeforePublication() {
+    void weightArithmeticOverflowBeforePublication() {
         var batch = new WorkloadTuningTest.Batch("overflow");
         WorkloadTuningTest.Backend.compatibilities.put("overflow",
                 WorkloadTuningTest.scopeSession());
@@ -288,15 +288,47 @@ class WorkloadTuningValidationTest {
         assertThrows(ArithmeticException.class, () -> WorkloadTuning.tune(
                 overflowWeights, backend, measurement, WorkloadTuningTest.clock(0, 1)));
         assertEquals(0, backend.candidatesCalls);
+    }
 
-        Path elapsedCache = directory.resolve("elapsed-overflow.bin");
-        assertThrows(ArithmeticException.class, () -> WorkloadTuning.tune(
-                WorkloadTuningTest.request(
-                        elapsedCache, batch, WorkloadTuningTest.scopePersistent(), 0, 0, 1),
-                backend,
-                measurement,
-                WorkloadTuningTest.clock(Long.MIN_VALUE, Long.MAX_VALUE)));
-        assertFalse(Files.exists(elapsedCache));
+    @Test
+    void acceptsWrappingClockAndNonnegativeDurationBoundaries() throws Exception {
+        long[][] intervals = {
+            {Long.MAX_VALUE, Long.MIN_VALUE, 1},
+            {42, 42, 0},
+            {0, Long.MAX_VALUE, Long.MAX_VALUE}
+        };
+        for (long[] interval : intervals) {
+            var batch = new WorkloadTuningTest.Batch("duration");
+            var backend = new WorkloadTuningTest.Backend(Map.of(
+                    batch.id(), List.of(new WorkloadTuningTest.Candidate("only"))));
+            var result = WorkloadTuning.tune(
+                    WorkloadTuningTest.request(directory.resolve("duration.bin"), batch,
+                            WorkloadTuningTest.scopeSession(), 0, 0, 1),
+                    backend, new WorkloadTuningTest.CountingMeasurement(),
+                    WorkloadTuningTest.clock(interval[0], interval[1]));
+            var evidence = result.evidence().workloads().getFirst().candidates().getFirst();
+            assertEquals(List.of(interval[2]), evidence.elapsedSamplesNanos());
+            assertEquals(interval[2], evidence.summary().medianNanos());
+            assertEquals("only", backend.accept(batch, result.selectedHandoffs().getFirst()
+                    .selectedDecision().orElseThrow()));
+        }
+    }
+
+    @Test
+    void rejectsNegativeClockDeltasWithoutPublication() {
+        long[][] intervals = {{10, 9}, {Long.MIN_VALUE, Long.MAX_VALUE}, {0, Long.MIN_VALUE}};
+        for (long[] interval : intervals) {
+            Path cache = directory.resolve("negative-duration.bin");
+            var batch = new WorkloadTuningTest.Batch("negative-duration");
+            var backend = new WorkloadTuningTest.Backend(Map.of(
+                    batch.id(), List.of(new WorkloadTuningTest.Candidate("only"))));
+            assertThrows(IllegalStateException.class, () -> WorkloadTuning.tune(
+                    WorkloadTuningTest.request(cache, batch,
+                            WorkloadTuningTest.scopePersistent(), 0, 0, 1),
+                    backend, new WorkloadTuningTest.CountingMeasurement(),
+                    WorkloadTuningTest.clock(interval[0], interval[1])));
+            assertFalse(Files.exists(cache));
+        }
     }
 
     @Test

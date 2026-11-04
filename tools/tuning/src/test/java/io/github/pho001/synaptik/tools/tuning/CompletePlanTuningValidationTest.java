@@ -478,20 +478,44 @@ class CompletePlanTuningValidationTest {
     }
 
     @Test
-    void rejectsMonotonicClockReversalWithoutSelectingDecision() {
-        CompletePlanTuningTest.Backend backend = sessionBackend();
+    void acceptsWrappingClockAndNonnegativeDurationBoundaries() throws Exception {
+        long[][] intervals = {
+            {Long.MAX_VALUE, Long.MIN_VALUE, 1},
+            {42, 42, 0},
+            {0, Long.MAX_VALUE, Long.MAX_VALUE}
+        };
+        for (long[] interval : intervals) {
+            var result = CompletePlanTuning.tune(
+                    CompletePlanTuningTest.request(directory.resolve("unused"), 2, 0, 1, 4),
+                    sessionBackend(),
+                    new CompletePlanTuningTest.Correctness(new ArrayList<>()),
+                    (batch, candidate) -> {},
+                    CompletePlanTuningTest.clock(
+                            interval[0], interval[1], 0, Long.MAX_VALUE));
+            var evidence = result.evidence().candidates().getFirst();
+            assertEquals(List.of(interval[2]), evidence.elapsedSamplesNanos());
+            assertEquals(interval[2], evidence.summary().medianNanos());
+            assertEquals(new CompletePlanTuningTest.Decision("a"),
+                    result.selectedHandoff().selectedDecision().orElseThrow());
+        }
+    }
 
-        assertThrows(
-                IllegalStateException.class,
-                () ->
-                        CompletePlanTuning.tune(
-                                CompletePlanTuningTest.request(
-                                        directory.resolve("unused"), 2, 0, 1, 4),
-                                backend,
-                                new CompletePlanTuningTest.Correctness(new ArrayList<>()),
-                                (batch, candidate) -> {},
-                                CompletePlanTuningTest.clock(10, 9)));
-        assertEquals(0, backend.selectedCalls);
+    @Test
+    void rejectsMonotonicClockReversalWithoutSelectingDecision() {
+        long[][] intervals = {{10, 9}, {Long.MIN_VALUE, Long.MAX_VALUE}, {0, Long.MIN_VALUE}};
+        for (long[] interval : intervals) {
+            CompletePlanTuningTest.Backend backend = sessionBackend();
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> CompletePlanTuning.tune(
+                            CompletePlanTuningTest.request(
+                                    directory.resolve("unused"), 2, 0, 1, 4),
+                            backend,
+                            new CompletePlanTuningTest.Correctness(new ArrayList<>()),
+                            (batch, candidate) -> {},
+                            CompletePlanTuningTest.clock(interval[0], interval[1])));
+            assertEquals(0, backend.selectedCalls);
+        }
     }
 
     @Test

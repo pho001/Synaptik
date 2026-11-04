@@ -42,6 +42,8 @@ public final class WorkloadTuning {
      * path. Measurement is deduplicated by compatibility, but each distinct input batch receives a
      * decision authenticated by the backend codec for that exact batch. All such authentication
      * finishes before result or cache publication.
+     * Samples use wrapping end-minus-start clock subtraction: signed counter rollover is valid,
+     * while a negative delta (including an interval of at least 2^63 nanoseconds) is rejected.
      *
      * @param request non-null immutable validated request; the transaction does not mutate it
      * @param backend non-null typed backend-owned collaboration retained only for this call
@@ -58,8 +60,7 @@ public final class WorkloadTuning {
      * @throws IllegalStateException if the monotonic clock moves backwards, a freshly encoded
      *     decision does not round trip equally for its source batch, or the selected configuration
      *     cannot be decoded compatibly for another batch with the same compatibility identity
-     * @throws ArithmeticException if checked weight, invocation-count, or elapsed-time arithmetic
-     *     overflows
+     * @throws ArithmeticException if checked weight or invocation-count arithmetic overflows
      * @throws IOException if cache loading, validation, encoding, or atomic publication fails
      * @throws Exception if complete candidate execution reports another checked failure; every
      *     failure leaves prior cache state unpublished by this invocation
@@ -274,10 +275,11 @@ public final class WorkloadTuning {
                 long start = clock.nanoTime();
                 measurement.execute(group.batch, candidate);
                 long end = clock.nanoTime();
-                if (end < start) {
+                long elapsed = end - start;
+                if (elapsed < 0) {
                     throw new IllegalStateException("monotonic clock moved backwards");
                 }
-                samples[sample] = Math.subtractExact(end, start);
+                samples[sample] = elapsed;
             }
             WorkloadTuningResult.SampleSummary summary = summarize(samples);
             List<Long> raw = Arrays.stream(samples).boxed().toList();

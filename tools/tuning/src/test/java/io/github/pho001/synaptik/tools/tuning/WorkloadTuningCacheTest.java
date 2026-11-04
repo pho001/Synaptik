@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -407,6 +408,69 @@ class WorkloadTuningCacheTest {
         assertAll(
                 () -> assertArrayEquals(prior, Files.readAllBytes(target)),
                 this::assertNoTemporaryFiles);
+    }
+
+    @Test
+    void primaryPublicationFailuresRetainIdentityAndSuppressCleanupFailure() throws Exception {
+        for (boolean failBeforeMove : List.of(true, false)) {
+            for (Throwable primary : List.of(
+                    new IOException("publication"), new IllegalStateException("publication"),
+                    new AssertionError("publication"))) {
+                Path target = directory.resolve("primary.bin");
+                byte[] prior = WorkloadTuningTest.bytes("prior");
+                Files.write(target, prior);
+                Path[] temporaryPath = new Path[1];
+                var file = new WorkloadCacheFile(
+                        (temporary, ignored) -> {
+                            temporaryPath[0] = temporary;
+                            Files.delete(temporary);
+                            Files.createDirectory(temporary);
+                            Files.write(temporary.resolve("blocker"), new byte[] {1});
+                            if (failBeforeMove) throwPublicationFailure(primary);
+                        },
+                        (temporary, ignored) -> { throwPublicationFailure(primary); });
+                var value = entry("key", "decision", 2);
+                try {
+                    Throwable thrown = assertThrows(primary.getClass(),
+                            () -> file.publish(target, Map.of(value.key(), value)));
+                    assertSame(primary, thrown);
+                    assertEquals(1, thrown.getSuppressed().length);
+                    assertTrue(thrown.getSuppressed()[0] instanceof DirectoryNotEmptyException);
+                    assertArrayEquals(prior, Files.readAllBytes(target));
+                } finally {
+                    Files.delete(temporaryPath[0].resolve("blocker"));
+                    Files.delete(temporaryPath[0]);
+                }
+            }
+        }
+    }
+
+    @Test
+    void standaloneTemporaryCleanupFailureIsReported() throws Exception {
+        Path target = directory.resolve("cleanup.bin");
+        Path[] temporaryPath = new Path[1];
+        var file = new WorkloadCacheFile((temporary, ignored) -> {}, (temporary, destination) -> {
+            Files.move(temporary, destination);
+            temporaryPath[0] = Files.createDirectory(temporary);
+            Files.write(temporary.resolve("blocker"), new byte[] {1});
+        });
+        var value = entry("key", "decision", 2);
+        try {
+            var failure = assertThrows(DirectoryNotEmptyException.class,
+                    () -> file.publish(target, Map.of(value.key(), value)));
+            assertEquals(0, failure.getSuppressed().length);
+            assertArrayEquals(value.encodedDecision(),
+                    new WorkloadCacheFile().load(target).get(value.key()).encodedDecision());
+        } finally {
+            Files.delete(temporaryPath[0].resolve("blocker"));
+            Files.delete(temporaryPath[0]);
+        }
+    }
+
+    private static void throwPublicationFailure(Throwable failure) throws IOException {
+        if (failure instanceof IOException checked) throw checked;
+        if (failure instanceof RuntimeException unchecked) throw unchecked;
+        throw (Error) failure;
     }
 
     private void assertNoTemporaryFiles() throws IOException {

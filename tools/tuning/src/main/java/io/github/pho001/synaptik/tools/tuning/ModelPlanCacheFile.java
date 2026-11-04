@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -289,17 +290,25 @@ final class ModelPlanCacheFile {
         this.mover = Objects.requireNonNull(mover, "mover");
     }
 
+    /**
+     * Loads a fully validated bounded snapshot from one opened channel, returning an empty map
+     * only when the file is absent. Atomic path replacement cannot mix size and content versions;
+     * in-place changes may still be rejected.
+     *
+     * @param path non-null explicit cache path
+     * @return immutable validated entries; never null
+     * @throws NullPointerException if path is null
+     * @throws IOException if reading or any size, checksum, schema, or structural validation fails
+     */
     Map<Key, Entry> load(Path path) throws IOException {
         Objects.requireNonNull(path, "path");
-        if (!Files.exists(path)) {
-            return Map.of();
-        }
-        long size = Files.size(path);
-        if (size < MAGIC.length + 8L + CHECKSUM_BYTES || size > MAX_FILE_BYTES) {
-            throw new IOException("model-plan cache size is invalid");
-        }
-        byte[] bytes = new byte[Math.toIntExact(size)];
+        byte[] bytes;
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
+            long size = channel.size();
+            if (size < MAGIC.length + 8L + CHECKSUM_BYTES || size > MAX_FILE_BYTES) {
+                throw new IOException("model-plan cache size is invalid");
+            }
+            bytes = new byte[Math.toIntExact(size)];
             ByteBuffer bounded = ByteBuffer.wrap(bytes);
             while (bounded.hasRemaining()) {
                 if (channel.read(bounded) < 0) {
@@ -309,6 +318,8 @@ final class ModelPlanCacheFile {
             if (channel.read(ByteBuffer.allocate(1)) >= 0) {
                 throw new IOException("model-plan cache grew while loading");
             }
+        } catch (NoSuchFileException exception) {
+            return Map.of();
         }
         try {
             return parse(bytes).asMap();
@@ -463,6 +474,16 @@ final class ModelPlanCacheFile {
         return in.getLong();
     }
 
+    /**
+     * Publishes deterministic bytes by forced temporary-file write and atomic replacement only.
+     * A primary failure retains its identity and suppresses distinct cleanup failures; standalone
+     * temporary-cleanup failure is reported directly.
+     *
+     * @param path non-null explicit cache path
+     * @param entries non-null complete map of agreeing non-null keys and entries
+     * @throws NullPointerException if a required argument, key, or entry is null
+     * @throws IOException if encoding, writing, forcing, atomic replacement, or cleanup fails
+     */
     void publish(Path path, Map<Key, Entry> entries) throws IOException {
         Objects.requireNonNull(path, "path");
         Objects.requireNonNull(entries, "entries");
@@ -487,6 +508,7 @@ final class ModelPlanCacheFile {
         }
         Path temporary =
                 parent.resolve("." + target.getFileName() + "." + UUID.randomUUID() + ".tmp");
+        Throwable failure = null;
         try {
             try (FileChannel channel = FileChannel.open(temporary, StandardOpenOption.CREATE_NEW,
                     StandardOpenOption.WRITE)) {
@@ -499,8 +521,20 @@ final class ModelPlanCacheFile {
             beforeMove.run(temporary, target);
             mover.move(temporary, target);
             forceDirectory(parent);
+        } catch (IOException | RuntimeException | Error exception) {
+            failure = exception;
+            throw exception;
         } finally {
-            Files.deleteIfExists(temporary);
+            try {
+                Files.deleteIfExists(temporary);
+            } catch (IOException | RuntimeException | Error cleanupFailure) {
+                if (failure == null) {
+                    throw cleanupFailure;
+                }
+                if (cleanupFailure != failure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
+            }
         }
     }
 
