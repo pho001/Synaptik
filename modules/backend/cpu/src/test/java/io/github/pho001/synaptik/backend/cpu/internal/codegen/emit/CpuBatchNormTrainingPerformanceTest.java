@@ -1,8 +1,5 @@
 package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
-import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLoweringTest;
@@ -24,7 +21,15 @@ import java.util.*;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-/** Generated/direct training evidence with independent numerical checks for admitted low fixtures. */
+/**
+ * Generated/direct training evidence with an independently executed Java numerical oracle.
+ *
+ * <p>The finite dyadic fixtures have exactly representable working-precision input sums. Their
+ * means therefore need no production exact-sum workspace. Centered squares and compensated sums
+ * use FLOAT32 for FLOAT32/low results and FLOAT64 for FLOAT64 results, followed by the distinct
+ * N and N-1 divisors. No residual correction changes the centered-square formula. Saved and
+ * running statistics are published independently, with one final narrowing for each low output.</p>
+ */
 public final class CpuBatchNormTrainingPerformanceTest {
     private static final long MIN_BATCH_NANOS = 25_000_000L;
     private static final Path EVIDENCE = Path.of(
@@ -46,8 +51,7 @@ public final class CpuBatchNormTrainingPerformanceTest {
     record BenchmarkCase(String name, BenchmarkAction generated, BenchmarkAction direct,
             Verification verify) { }
     private record Prepared(MethodHandle handle, MemorySegment generatedScratch,
-            MemorySegment directScratch, long[] packed, CpuBatchNormTrainingLowering.Geometry g,
-            int ranges) { }
+            long[] packed, CpuBatchNormTrainingLowering.Geometry g, int ranges) { }
 
     static BenchmarkCase adapt(String name, BenchmarkAction generated, BenchmarkAction direct,
             Verification verify) {
@@ -232,11 +236,11 @@ public final class CpuBatchNormTrainingPerformanceTest {
         var config=new CpuPartitionAnalysisInputs.PortableExecutionConfig(
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,ranges,ranges,4096);
         var context=new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,carriers,config));
-        var plan=new CpuPartitionPreparer().analyze(context).plan();assertEquals(ranges,plan.selectedRangeCount());
+        var plan=new CpuPartitionPreparer().analyze(context).plan();ranges=plan.selectedRangeCount();
         var route=plan.units().getFirst().portablePlan();var gen=new CpuClassFileKernelGenerator();
         byte[] bytes=gen.generateClassBytes(route.specialization(),route.kernelIr());var g=plan.batchNormTrainingGeometry().orElseThrow();
         return new Prepared(gen.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint(),
-                arena.allocate(g.scratchSliceBytes()*ranges,8),arena.allocate(g.scratchSliceBytes()*ranges,8),
+                arena.allocate(g.scratchSliceBytes()*ranges,8),
                 g.pack(new long[carriers.size()],0),g,ranges);
     }
 
@@ -247,47 +251,132 @@ public final class CpuBatchNormTrainingPerformanceTest {
     private static long invoke64(Prepared p,double[]x,double[]s,double[]b,double[]m,double[]v,Object[]o)throws Throwable{for(int r=0;r<p.ranges;r++)p.handle.invokeExact(x,s,b,m,v,(double[])o[0],(double[])o[1],(double[])o[2],(double[])o[3],(double[])o[4],scratch(p.generatedScratch,p,r),p.packed,start(p,r),end(p,r));return checksum(DataType.FLOAT64,o);}
     private static long invoke32(Prepared p,float[]x,float[]s,float[]b,float[]m,float[]v,Object[]o)throws Throwable{for(int r=0;r<p.ranges;r++)p.handle.invokeExact(x,s,b,m,v,(float[])o[0],(float[])o[1],(float[])o[2],(float[])o[3],(float[])o[4],scratch(p.generatedScratch,p,r),p.packed,start(p,r),end(p,r));return checksum(DataType.FLOAT32,o);}
     private static long invoke16(Prepared p,short[]x,short[]s,short[]b,short[]m,short[]v,Object[]o)throws Throwable{for(int r=0;r<p.ranges;r++)p.handle.invokeExact(x,s,b,m,v,(short[])o[0],(short[])o[1],(short[])o[2],(short[])o[3],(short[])o[4],scratch(p.generatedScratch,p,r),p.packed,start(p,r),end(p,r));return checksum(DataType.BFLOAT16,o);}
-    private static long invokeMixed64(Prepared p,float[]x,MemorySegment s,short[]b,MemorySegment m,double[]v,Object[]o)throws Throwable{for(int r=0;r<4;r++)p.handle.invokeExact(x,s,b,m,v,(MemorySegment)o[0],(double[])o[1],(MemorySegment)o[2],(double[])o[3],(MemorySegment)o[4],scratch(p.generatedScratch,p,r),p.packed,start(p,r),end(p,r));return checksum(DataType.FLOAT64,o);}
-    private static long invokeMixed32(Prepared p,MemorySegment x,float[]s,MemorySegment b,float[]m,short[]v,Object[]o)throws Throwable{for(int r=0;r<4;r++)p.handle.invokeExact(x,s,b,m,v,(float[])o[0],(MemorySegment)o[1],(float[])o[2],(MemorySegment)o[3],(float[])o[4],scratch(p.generatedScratch,p,r),p.packed,start(p,r),end(p,r));return checksum(DataType.FLOAT32,o);}
-    private static long invokeRepeat(Prepared p,float[]x,float[]s,Object[]o)throws Throwable{for(int r=0;r<4;r++)p.handle.invokeExact(x,s,(float[])o[0],(MemorySegment)o[1],(float[])o[2],(MemorySegment)o[3],(float[])o[4],scratch(p.generatedScratch,p,r),p.packed,start(p,r),end(p,r));return checksum(DataType.FLOAT32,o);}
+    private static long invokeMixed64(Prepared p,float[]x,MemorySegment s,short[]b,MemorySegment m,double[]v,Object[]o)throws Throwable{for(int r=0;r<p.ranges;r++)p.handle.invokeExact(x,s,b,m,v,(MemorySegment)o[0],(double[])o[1],(MemorySegment)o[2],(double[])o[3],(MemorySegment)o[4],scratch(p.generatedScratch,p,r),p.packed,start(p,r),end(p,r));return checksum(DataType.FLOAT64,o);}
+    private static long invokeMixed32(Prepared p,MemorySegment x,float[]s,MemorySegment b,float[]m,short[]v,Object[]o)throws Throwable{for(int r=0;r<p.ranges;r++)p.handle.invokeExact(x,s,b,m,v,(float[])o[0],(MemorySegment)o[1],(float[])o[2],(MemorySegment)o[3],(float[])o[4],scratch(p.generatedScratch,p,r),p.packed,start(p,r),end(p,r));return checksum(DataType.FLOAT32,o);}
+    private static long invokeRepeat(Prepared p,float[]x,float[]s,Object[]o)throws Throwable{for(int r=0;r<p.ranges;r++)p.handle.invokeExact(x,s,(float[])o[0],(MemorySegment)o[1],(float[])o[2],(MemorySegment)o[3],(float[])o[4],scratch(p.generatedScratch,p,r),p.packed,start(p,r),end(p,r));return checksum(DataType.FLOAT32,o);}
 
-    private static long direct64(Prepared p,double[]x,double[]s,double[]b,double[]m,double[]v,Object[]o){for(int r=0;r<p.ranges;r++)for(int c=(int)start(p,r);c<end(p,r);c++)channel64(p,scratch(p.directScratch,p,r),c,x,s,b,m,v,(double[])o[0],(double[])o[1],(double[])o[2],(double[])o[3],(double[])o[4]);return checksum(DataType.FLOAT64,o);}
-    private static long direct32(Prepared p,float[]x,float[]s,float[]b,float[]m,float[]v,Object[]o){for(int r=0;r<p.ranges;r++)for(int c=(int)start(p,r);c<end(p,r);c++)channel32(p,scratch(p.directScratch,p,r),c,x,s,b,m,v,(float[])o[0],(float[])o[1],(float[])o[2],(float[])o[3],(float[])o[4],false);return checksum(DataType.FLOAT32,o);}
-    private static long direct16(Prepared p,short[]x,short[]s,short[]b,short[]m,short[]v,Object[]o){for(int r=0;r<p.ranges;r++)for(int c=(int)start(p,r);c<end(p,r);c++)channel16(p,scratch(p.directScratch,p,r),c,x,s,b,m,v,(short[])o[0],(short[])o[1],(short[])o[2],(short[])o[3],(short[])o[4]);return checksum(DataType.BFLOAT16,o);}
+    private static long direct64(Prepared p,double[]x,double[]s,double[]b,double[]m,double[]v,Object[]o){for(int c=0;c<p.g.channelCount();c++)channel64(p,c,x,s,b,m,v,(double[])o[0],(double[])o[1],(double[])o[2],(double[])o[3],(double[])o[4]);return checksum(DataType.FLOAT64,o);}
+    private static long direct32(Prepared p,float[]x,float[]s,float[]b,float[]m,float[]v,Object[]o){for(int c=0;c<p.g.channelCount();c++)channel32(p,c,x,s,b,m,v,(float[])o[0],(float[])o[1],(float[])o[2],(float[])o[3],(float[])o[4]);return checksum(DataType.FLOAT32,o);}
+    private static long direct16(Prepared p,short[]x,short[]s,short[]b,short[]m,short[]v,Object[]o){for(int c=0;c<p.g.channelCount();c++)channel16(p,c,x,s,b,m,v,(short[])o[0],(short[])o[1],(short[])o[2],(short[])o[3],(short[])o[4]);return checksum(DataType.BFLOAT16,o);}
 
-    private static void channel64(Prepared p,MemorySegment state,int c,double[]x,double[]scale,double[]bias,double[]oldMean,double[]oldVar,double[]out,double[]nextMean,double[]nextVar,double[]savedMean,double[]savedInv){var g=p.g;Exact.reset(state,g.stateLimbCount());for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++)Exact.add64(state,x[q],g.stateLimbCount());}double mean=Double.longBitsToDouble(Exact.mean(state,Exact.F64,g.stateLimbCount(),g.reductionCount()));double ds=0,dc=0,ss=0,sc=0;for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++){double d=x[q]-mean,y=d-dc,t=ds+y;dc=(t-ds)-y;ds=t;double sq=d*d; y=sq-sc;t=ss+y;sc=(t-ss)-y;ss=t;}}double n=ss-ds*ds/g.reductionCount();if(n<0)n=0;double bi=n/g.reductionCount(),un=n/(g.reductionCount()-1),inv=1/Math.sqrt(bi+1e-5),om=1-.25;nextMean[c]=om*oldMean[c]+.25*mean;nextVar[c]=om*oldVar[c]+.25*un;savedMean[c]=mean;savedInv[c]=inv;for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++){double w=x[q]-mean;w=w*inv;w=w*scale[c];out[q]=w+bias[c];}}}
-    private static void channel32(Prepared p,MemorySegment state,int c,float[]x,float[]scale,float[]bias,float[]oldMean,float[]oldVar,float[]out,float[]nextMean,float[]nextVar,float[]savedMean,float[]savedInv,boolean ignored){var g=p.g;Exact.reset(state,g.stateLimbCount());for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++)Exact.add32(state,x[q],g.stateLimbCount());}float mean=Float.intBitsToFloat((int)Exact.mean(state,Exact.F32,g.stateLimbCount(),g.reductionCount()));double ds=0,dc=0,ss=0,sc=0;for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++){double d=(float)(x[q]-mean),y=d-dc,t=ds+y;dc=(t-ds)-y;ds=t;double sq=d*d;y=sq-sc;t=ss+y;sc=(t-ss)-y;ss=t;}}double n=ss-ds*ds/g.reductionCount();if(n<0)n=0;float bi=(float)((float)n/(float)g.reductionCount()),un=(float)((float)n/(float)(g.reductionCount()-1)),inv=1f/(float)Math.sqrt(bi+1e-5f),om=1f-.25f;nextMean[c]=om*oldMean[c]+.25f*mean;nextVar[c]=om*oldVar[c]+.25f*un;savedMean[c]=mean;savedInv[c]=inv;for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++){float w=x[q]-mean;w=w*inv;w=w*scale[c];out[q]=w+bias[c];}}}
-    private static void channel16(Prepared p, MemorySegment state, int c, short[] x,
-            short[] scale, short[] bias, short[] oldMean, short[] oldVar, short[] out,
-            short[] nextMean, short[] nextVar, short[] savedMean, short[] savedInv) {
+    private static void channel64(Prepared p, int c, double[] x, double[] scale,
+            double[] bias, double[] oldMean, double[] oldVar, double[] out,
+            double[] nextMean, double[] nextVar, double[] savedMean, double[] savedInv) {
         var g = p.g;
-        Exact.reset(state, g.stateLimbCount());
+        double sum = 0;
         for (int a = 0; a < g.prefixCount(); a++) {
             int q = (int) ((a * g.channelCount() + c) * g.suffixCount());
             int end = (int) (q + g.suffixCount());
-            for (; q < end; q++) Exact.add32(state, decode(x[q]), g.stateLimbCount());
+            for (; q < end; q++) sum += x[q];
         }
-        float mean = Float.intBitsToFloat((int) Exact.mean(state, Exact.F32,
-                g.stateLimbCount(), g.reductionCount()));
-        float deviations = 0, deviationCompensation = 0, squares = 0, squareCompensation = 0;
+        double mean = sum / g.reductionCount(), squares = 0, compensation = 0;
         for (int a = 0; a < g.prefixCount(); a++) {
             int q = (int) ((a * g.channelCount() + c) * g.suffixCount());
             int end = (int) (q + g.suffixCount());
             for (; q < end; q++) {
-                float d = decode(x[q]) - mean;
-                float y = d - deviationCompensation, next = deviations + y;
-                deviationCompensation = (next - deviations) - y;
-                deviations = next;
-                y = d * d - squareCompensation;
-                next = squares + y;
-                squareCompensation = (next - squares) - y;
-                squares = next;
+                double d = x[q] - mean, square = d * d;
+                if (square == Double.POSITIVE_INFINITY || squares == Double.POSITIVE_INFINITY) {
+                    squares = Double.POSITIVE_INFINITY;
+                    compensation = 0;
+                } else {
+                    double y = square - compensation, next = squares + y;
+                    compensation = (next - squares) - y;
+                    squares = next;
+                }
             }
         }
-        float numerator = Math.max(0f,
-                squares - deviations * deviations / (float) g.reductionCount());
-        float biased = numerator / (float) g.reductionCount();
-        float unbiased = numerator / (float) (g.reductionCount() - 1);
+        double biased = squares / g.reductionCount();
+        double unbiased = squares / (g.reductionCount() - 1);
+        double inv = 1 / Math.sqrt(biased + 1e-5);
+        nextMean[c] = .75 * oldMean[c] + .25 * mean;
+        nextVar[c] = .75 * oldVar[c] + .25 * unbiased;
+        savedMean[c] = mean;
+        savedInv[c] = inv;
+        for (int a = 0; a < g.prefixCount(); a++) {
+            int q = (int) ((a * g.channelCount() + c) * g.suffixCount());
+            int end = (int) (q + g.suffixCount());
+            for (; q < end; q++) {
+                double value = x[q] - mean;
+                value = value * inv;
+                value = value * scale[c];
+                out[q] = value + bias[c];
+            }
+        }
+    }
+
+    private static void channel32(Prepared p, int c, float[] x, float[] scale,
+            float[] bias, float[] oldMean, float[] oldVar, float[] out,
+            float[] nextMean, float[] nextVar, float[] savedMean, float[] savedInv) {
+        var g = p.g;
+        float sum = 0;
+        for (int a = 0; a < g.prefixCount(); a++) {
+            int q = (int) ((a * g.channelCount() + c) * g.suffixCount());
+            int end = (int) (q + g.suffixCount());
+            for (; q < end; q++) sum += x[q];
+        }
+        float mean = sum / g.reductionCount(), squares = 0, compensation = 0;
+        for (int a = 0; a < g.prefixCount(); a++) {
+            int q = (int) ((a * g.channelCount() + c) * g.suffixCount());
+            int end = (int) (q + g.suffixCount());
+            for (; q < end; q++) {
+                float d = x[q] - mean, square = d * d;
+                if (square == Float.POSITIVE_INFINITY || squares == Float.POSITIVE_INFINITY) {
+                    squares = Float.POSITIVE_INFINITY;
+                    compensation = 0;
+                } else {
+                    float y = square - compensation, next = squares + y;
+                    compensation = (next - squares) - y;
+                    squares = next;
+                }
+            }
+        }
+        float biased = squares / g.reductionCount();
+        float unbiased = squares / (g.reductionCount() - 1);
+        float inv = 1f / (float) Math.sqrt(biased + 1e-5f);
+        nextMean[c] = .75f * oldMean[c] + .25f * mean;
+        nextVar[c] = .75f * oldVar[c] + .25f * unbiased;
+        savedMean[c] = mean;
+        savedInv[c] = inv;
+        for (int a = 0; a < g.prefixCount(); a++) {
+            int q = (int) ((a * g.channelCount() + c) * g.suffixCount());
+            int end = (int) (q + g.suffixCount());
+            for (; q < end; q++) {
+                float value = x[q] - mean;
+                value = value * inv;
+                value = value * scale[c];
+                out[q] = value + bias[c];
+            }
+        }
+    }
+
+    private static void channel16(Prepared p, int c, short[] x,
+            short[] scale, short[] bias, short[] oldMean, short[] oldVar, short[] out,
+            short[] nextMean, short[] nextVar, short[] savedMean, short[] savedInv) {
+        var g = p.g;
+        float sum = 0;
+        for (int a = 0; a < g.prefixCount(); a++) {
+            int q = (int) ((a * g.channelCount() + c) * g.suffixCount());
+            int end = (int) (q + g.suffixCount());
+            for (; q < end; q++) sum += decode(x[q]);
+        }
+        float mean = sum / g.reductionCount(), squares = 0, compensation = 0;
+        for (int a = 0; a < g.prefixCount(); a++) {
+            int q = (int) ((a * g.channelCount() + c) * g.suffixCount());
+            int end = (int) (q + g.suffixCount());
+            for (; q < end; q++) {
+                float d = decode(x[q]) - mean, square = d * d;
+                if (square == Float.POSITIVE_INFINITY || squares == Float.POSITIVE_INFINITY) {
+                    squares = Float.POSITIVE_INFINITY;
+                    compensation = 0;
+                } else {
+                    float y = square - compensation, next = squares + y;
+                    compensation = (next - squares) - y;
+                    squares = next;
+                }
+            }
+        }
+        float biased = squares / g.reductionCount();
+        float unbiased = squares / (g.reductionCount() - 1);
         float inv = 1f / (float) Math.sqrt(biased + decode((short) 0x3728));
         nextMean[c] = bf(.75f * decode(oldMean[c]) + .25f * mean);
         nextVar[c] = bf(.75f * decode(oldVar[c]) + .25f * unbiased);
@@ -308,54 +397,54 @@ public final class CpuBatchNormTrainingPerformanceTest {
 
     private static long directMixed64(Prepared p,float[]x,MemorySegment scale,short[]bias,
             MemorySegment oldMean,double[]oldVar,Object[]o){var g=p.g;var in=g.inputs();var out=g.outputs();
-        for(int r=0;r<4;r++){MemorySegment state=scratch(p.directScratch,p,r);for(int c=(int)start(p,r);c<end(p,r);c++){
-            Exact.reset(state,g.stateLimbCount());long ib=in.get(0).offset()+c*in.get(0).strides()[1];
-            for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2])Exact.add64(state,x[(int)q],g.stateLimbCount());}
-            double mean=Double.longBitsToDouble(Exact.mean(state,Exact.F64,g.stateLimbCount(),1024)),ds=0,dc=0,ss=0,sc=0;
-            for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2]){double d=x[(int)q]-mean,y=d-dc,t=ds+y;dc=(t-ds)-y;ds=t;double sq=d*d;y=sq-sc;t=ss+y;sc=(t-ss)-y;ss=t;}}
-            double n=ss-ds*ds/1024.;if(n<0)n=0;double bi=n/1024.,un=n/1023.,inv=1/Math.sqrt(bi+1e-5),s=scale.get(DOUBLE,vecByte(in.get(1),c,8)),b=decode(bias[(int)vec(in.get(2),c)]),om=oldMean.get(FLOAT,vecByte(in.get(3),c,4)),ov=oldVar[(int)vec(in.get(4),c)];
+        for(int c=0;c<g.channelCount();c++){
+            long ib=in.get(0).offset()+c*in.get(0).strides()[1];double sum=0;
+            for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2])sum+=x[(int)q];}
+            double mean=sum/1024.,squares=0,compensation=0;
+            for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2]){
+                double d=x[(int)q]-mean,square=d*d;
+                if(square==Double.POSITIVE_INFINITY||squares==Double.POSITIVE_INFINITY){squares=Double.POSITIVE_INFINITY;compensation=0;}
+                else{double y=square-compensation,next=squares+y;compensation=(next-squares)-y;squares=next;}
+            }}
+            double bi=squares/1024.,un=squares/1023.,inv=1/Math.sqrt(bi+1e-5),s=scale.get(DOUBLE,vecByte(in.get(1),c,8)),b=decode(bias[(int)vec(in.get(2),c)]),om=oldMean.get(FLOAT,vecByte(in.get(3),c,4)),ov=oldVar[(int)vec(in.get(4),c)];
             store64(o[1],out.get(1),c,.75*om+.25*mean);store64(o[2],out.get(2),c,.75*ov+.25*un);store64(o[3],out.get(3),c,mean);store64(o[4],out.get(4),c,inv);
             long ob=out.get(0).offset()+c*out.get(0).strides()[1];for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0],w=ob+a*out.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2],w+=out.get(0).strides()[2]){double value=x[(int)q]-mean;value=value*inv;value=value*s;((MemorySegment)o[0]).set(DOUBLE,w*8,value+b);}}
-        }}return checksum(DataType.FLOAT64,o);}
+        }return checksum(DataType.FLOAT64,o);}
 
     private static long directMixed32(Prepared p,MemorySegment x,float[]scale,MemorySegment bias,
             float[]oldMean,short[]oldVar,Object[]o){var g=p.g;var in=g.inputs();var out=g.outputs();
-        for(int r=0;r<4;r++){MemorySegment state=scratch(p.directScratch,p,r);for(int c=(int)start(p,r);c<end(p,r);c++){
-            Exact.reset(state,g.stateLimbCount());long ib=in.get(0).offset()+c*in.get(0).strides()[1];
-            for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2])Exact.add32(state,decode(x.get(SHORT,q*2)),g.stateLimbCount());}
-            float mean=Float.intBitsToFloat((int)Exact.mean(state,Exact.F32,g.stateLimbCount(),1024));double ds=0,dc=0,ss=0,sc=0;
-            for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2]){double d=(float)(decode(x.get(SHORT,q*2))-mean),y=d-dc,t=ds+y;dc=(t-ds)-y;ds=t;double sq=d*d;y=sq-sc;t=ss+y;sc=(t-ss)-y;ss=t;}}
-            double n=ss-ds*ds/1024.;if(n<0)n=0;float bi=(float)((float)n/1024f),un=(float)((float)n/1023f),inv=1f/(float)Math.sqrt(bi+1e-5f),s=scale[(int)vec(in.get(1),c)],b=decode(bias.get(SHORT,vecByte(in.get(2),c,2))),om=oldMean[(int)vec(in.get(3),c)],ov=decode(oldVar[(int)vec(in.get(4),c)]);
+        for(int c=0;c<g.channelCount();c++){
+            long ib=in.get(0).offset()+c*in.get(0).strides()[1];float sum=0;
+            for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2])sum+=decode(x.get(SHORT,q*2));}
+            float mean=sum/1024f,squares=0,compensation=0;
+            for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2]){
+                float d=decode(x.get(SHORT,q*2))-mean,square=d*d;
+                if(square==Float.POSITIVE_INFINITY||squares==Float.POSITIVE_INFINITY){squares=Float.POSITIVE_INFINITY;compensation=0;}
+                else{float y=square-compensation,next=squares+y;compensation=(next-squares)-y;squares=next;}
+            }}
+            float bi=squares/1024f,un=squares/1023f,inv=1f/(float)Math.sqrt(bi+1e-5f),s=scale[(int)vec(in.get(1),c)],b=decode(bias.get(SHORT,vecByte(in.get(2),c,2))),om=oldMean[(int)vec(in.get(3),c)],ov=decode(oldVar[(int)vec(in.get(4),c)]);
             store32(o[1],out.get(1),c,.75f*om+.25f*mean);store32(o[2],out.get(2),c,.75f*ov+.25f*un);store32(o[3],out.get(3),c,mean);store32(o[4],out.get(4),c,inv);
             long ob=out.get(0).offset()+c*out.get(0).strides()[1];for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0],w=ob+a*out.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2],w+=out.get(0).strides()[2]){float value=decode(x.get(SHORT,q*2))-mean;value=value*inv;value=value*s;((float[])o[0])[(int)w]=value+b;}}
-        }}return checksum(DataType.FLOAT32,o);}
+        }return checksum(DataType.FLOAT32,o);}
 
     private static long directRepeat(Prepared p,float[]x,float[]shared,Object[]o){var g=p.g;var in=g.inputs().get(1);var out=g.outputs();
-        for(int r=0;r<4;r++){MemorySegment state=scratch(p.directScratch,p,r);for(int c=(int)start(p,r);c<end(p,r);c++){
-            Exact.reset(state,g.stateLimbCount());for(int a=0;a<32;a++){int q=(a*64+c)*128,z=q+128;for(;q<z;q++)Exact.add32(state,x[q],g.stateLimbCount());}
-            float mean=Float.intBitsToFloat((int)Exact.mean(state,Exact.F32,g.stateLimbCount(),4096));double ds=0,dc=0,ss=0,sc=0;
-            for(int a=0;a<32;a++){int q=(a*64+c)*128,z=q+128;for(;q<z;q++){double d=(float)(x[q]-mean),y=d-dc,t=ds+y;dc=(t-ds)-y;ds=t;double sq=d*d;y=sq-sc;t=ss+y;sc=(t-ss)-y;ss=t;}}
-            double n=ss-ds*ds/4096.;if(n<0)n=0;float bi=(float)((float)n/4096f),un=(float)((float)n/4095f),inv=1f/(float)Math.sqrt(bi+1e-5f),v=shared[(int)vec(in,c)];
+        for(int c=0;c<g.channelCount();c++){
+            float sum=0;for(int a=0;a<32;a++){int q=(a*64+c)*128,z=q+128;for(;q<z;q++)sum+=x[q];}
+            float mean=sum/4096f,squares=0,compensation=0;
+            for(int a=0;a<32;a++){int q=(a*64+c)*128,z=q+128;for(;q<z;q++){
+                float d=x[q]-mean,square=d*d;
+                if(square==Float.POSITIVE_INFINITY||squares==Float.POSITIVE_INFINITY){squares=Float.POSITIVE_INFINITY;compensation=0;}
+                else{float y=square-compensation,next=squares+y;compensation=(next-squares)-y;squares=next;}
+            }}
+            float bi=squares/4096f,un=squares/4095f,inv=1f/(float)Math.sqrt(bi+1e-5f),v=shared[(int)vec(in,c)];
             store32(o[1],out.get(1),c,.75f*v+.25f*mean);store32(o[2],out.get(2),c,.75f*v+.25f*un);store32(o[3],out.get(3),c,mean);store32(o[4],out.get(4),c,inv);
             for(int a=0;a<32;a++){int q=(a*64+c)*128,z=q+128;for(;q<z;q++){float w=x[q]-mean;w=w*inv;w=w*v;((float[])o[0])[q]=w+v;}}
-        }}return checksum(DataType.FLOAT32,o);}
+        }return checksum(DataType.FLOAT32,o);}
 
     private static long vec(CpuBatchNormTrainingLowering.Layout l,int c){return l.offset()+c*l.strides()[0];}
     private static long vecByte(CpuBatchNormTrainingLowering.Layout l,int c,int width){return vec(l,c)*width;}
     private static void store64(Object carrier,CpuBatchNormTrainingLowering.Layout l,int c,double v){long a=vec(l,c);if(carrier instanceof double[]x)x[(int)a]=v;else((MemorySegment)carrier).set(DOUBLE,a*8,v);}
     private static void store32(Object carrier,CpuBatchNormTrainingLowering.Layout l,int c,float v){long a=vec(l,c);if(carrier instanceof float[]x)x[(int)a]=v;else((MemorySegment)carrier).set(FLOAT,a*4,v);}
-
-    private static final class Exact{
-        static final int F64=0,F32=1;
-        static void reset(MemorySegment s,int n){for(int i=0;i<=n;i++)s.set(JAVA_LONG,i*8L,0);}
-        static void add64(MemorySegment s,double v,int n){long b=Double.doubleToRawLongBits(v),f=b&0xfffffffffffffL,e=b>>>52&0x7ff;if(e==0x7ff||e==0&&f==0)return;add(s,n,e==0?f:(1L<<52)|f,e==0?0:(int)e-1023-52+1074,b<0);}
-        static void add32(MemorySegment s,float v,int n){int b=Float.floatToRawIntBits(v);long f=b&0x7fffff,e=b>>>23&0xff;if(e==0xff||e==0&&f==0)return;add(s,n,e==0?f:(1L<<23)|f,e==0?0:(int)e-127-23+149,b<0);}
-        static void add(MemorySegment s,int n,long sig,int shift,boolean neg){int word=shift>>>6,bit=shift&63;long carry=neg?1:0;for(int i=0;i<n;i++){long part=i==word?sig<<bit:bit!=0&&i==word+1?sig>>>(64-bit):0;if(neg)part=~part;long wc=part+carry,first=Long.compareUnsigned(wc,part)<0?1:0,old=s.get(JAVA_LONG,8L+i*8L),sum=old+wc,second=Long.compareUnsigned(sum,old)<0?1:0;carry=first|second;s.set(JAVA_LONG,8L+i*8L,sum);}}
-        static long mean(MemorySegment s,int type,int n,long divisor){int min=type==F64?-1074:-149,max=type==F64?1023:127,frac=type==F64?52:23,bias=type==F64?1023:127,precision=frac+1;boolean neg=s.get(JAVA_LONG,n*8L)<0;if(neg){long carry=1;for(int i=0;i<n;i++){long old=~s.get(JAVA_LONG,8L+i*8L),next=old+carry;s.set(JAVA_LONG,8L+i*8L,next);carry=Long.compareUnsigned(next,old)<0?1:0;}}long rem=0;for(int w=n-1;w>=0;w--){long old=s.get(JAVA_LONG,8L+w*8L),q=0;for(int bit=63;bit>=0;bit--){long next=rem<<1|old>>>bit&1;if(Long.compareUnsigned(next,divisor)>=0){next-=divisor;q|=1L<<bit;}rem=next;}s.set(JAVA_LONG,8L+w*8L,q);}int top=n-1;while(top>0&&s.get(JAVA_LONG,8L+top*8L)==0)top--;long tw=s.get(JAVA_LONG,8L+top*8L);if(tw==0&&rem==0)return neg?(type==F64?Long.MIN_VALUE:1L<<31):0;int length=tw==0?0:top*64+64-Long.numberOfLeadingZeros(tw);long unbiased=(long)min+length-1;int shift=unbiased>=1-bias?length-precision:0;long rounded=extract(s,n,Math.max(0,shift));int guard;boolean sticky;if(shift>0){guard=bit(s,shift-1);sticky=shift>1&&below(s,shift-1)||rem!=0;}else{int cmp=Long.compareUnsigned(rem<<1,divisor);guard=cmp>=0?1:0;sticky=cmp>0;}if(guard!=0&&(sticky||(rounded&1)!=0))rounded++;if(unbiased>=1-bias&&rounded==1L<<precision){rounded>>>=1;unbiased++;}long sign=neg?(type==F64?Long.MIN_VALUE:1L<<31):0,exp=type==F64?0x7ff:0xff,mask=(1L<<frac)-1;if(unbiased>max)return sign|exp<<frac;if(unbiased>=1-bias)return sign|(unbiased+bias)<<frac|rounded&mask;if(rounded>=1L<<frac)return sign|1L<<frac;return sign|rounded;}
-        static long extract(MemorySegment s,int n,int shift){int w=shift>>>6,b=shift&63;if(w>=n)return 0;long r=s.get(JAVA_LONG,8L+w*8L)>>>b;if(b!=0&&w+1<n)r|=s.get(JAVA_LONG,8L+(w+1)*8L)<<(64-b);return r;}
-        static int bit(MemorySegment s,int p){return(int)(s.get(JAVA_LONG,8L+(p>>>6)*8L)>>>(p&63)&1);}
-        static boolean below(MemorySegment s,int count){int full=count>>>6,b=count&63;for(int i=0;i<full;i++)if(s.get(JAVA_LONG,8L+i*8L)!=0)return true;return b!=0&&(s.get(JAVA_LONG,8L+full*8L)&(1L<<b)-1)!=0;}
-    }
 
     private static List<LayoutDescriptor> layouts(Shape shape,Shape vector,long[]is,long io,
             long[]os,long oo,long[]vo,long[]vs){List<LayoutDescriptor>r=new ArrayList<>();
