@@ -153,8 +153,9 @@ public final class CpuOneDnnPrimitives {
                     requireHandle(executionDescriptors[index], "execution memory descriptor");
                     long bytes = (long) api.mdSize.invokeExact(executionDescriptors[index]);
                     if (bytes < 0) throw new IllegalArgumentException("oneDNN requires a static memory descriptor");
-                    if (!(spec instanceof CpuOneDnnKernelSpec.Contraction) && bytes > tensors[index].byteSize()) {
-                        throw new IllegalArgumentException("oneDNN descriptor exceeds exact common tensor span");
+                    if (bytes > tensors[index].byteSize()) {
+                        throw new CpuOneDnnCompiler.UnsupportedRealizationException(
+                                "descriptor exceeds exact common tensor span");
                     }
                     requiredBytes[index] = Math.max(bytes, tensors[index].byteSize());
                 }
@@ -270,17 +271,17 @@ public final class CpuOneDnnPrimitives {
                 && (unary.algorithm() == CpuOneDnnKernelSpec.UnaryAlgorithm.ABS
                         || unary.algorithm() == CpuOneDnnKernelSpec.UnaryAlgorithm.EXP)
                 && !implementation.equals("jit:asimd")) {
-            throw new IllegalArgumentException("unqualified oneDNN elementary implementation: " + implementation);
+            throw new CpuOneDnnCompiler.UnsupportedRealizationException("unqualified elementary implementation: " + implementation);
         }
         if (spec instanceof CpuOneDnnKernelSpec.Binary binary
                 && (binary.algorithm() == CpuOneDnnKernelSpec.BinaryAlgorithm.MIN
                         || binary.algorithm() == CpuOneDnnKernelSpec.BinaryAlgorithm.MAX)
                 && !(implementation.equals("jit:uni")
                         && System.getProperty("os.arch").equals("aarch64"))) {
-            throw new IllegalArgumentException("unqualified oneDNN stored-extrema implementation: " + implementation);
+            throw new CpuOneDnnCompiler.UnsupportedRealizationException("unqualified stored-extrema implementation: " + implementation);
         }
         if (spec instanceof CpuOneDnnKernelSpec.Pooling && !implementation.equals("simple_nchw:any")) {
-            throw new IllegalArgumentException("unqualified oneDNN padded-average implementation: " + implementation);
+            throw new CpuOneDnnCompiler.UnsupportedRealizationException("unqualified padded-average implementation: " + implementation);
         }
     }
 

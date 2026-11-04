@@ -201,7 +201,7 @@ public final class CpuOneDnnSelector {
             CpuOneDnnRoutePlan.Api api) {
         try {
             return Optional.of(CpuOneDnnCompiler.describe(library, spec, api));
-        } catch (CpuOneDnnGraph.UnsupportedGraphException unsupported) {
+        } catch (CpuOneDnnCompiler.UnsupportedRealizationException unsupported) {
             return Optional.empty();
         } catch (CpuOneDnnLibrary.NativeStatusException failure) {
             if (failure.status() == 2 || failure.status() == 3) return Optional.empty();

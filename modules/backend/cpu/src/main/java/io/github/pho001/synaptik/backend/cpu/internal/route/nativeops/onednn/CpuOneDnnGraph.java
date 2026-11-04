@@ -32,11 +32,6 @@ public final class CpuOneDnnGraph {
 
     private CpuOneDnnGraph() { }
 
-    /** A cold rejection, distinct from a native API failure and never an execution fallback. */
-    public static final class UnsupportedGraphException extends IllegalArgumentException {
-        private UnsupportedGraphException(String message) { super("oneDNN Graph candidate: " + message); }
-    }
-
     /**
      * Compiles exactly one supported native partition and queries exact user scratch.
      * Every acquired handle and ABI allocation is scoped transactionally; partial failure closes
@@ -47,7 +42,7 @@ public final class CpuOneDnnGraph {
      * @param spec non-null immutable common numeric recipe; no tensor contents are read or retained
      * @return non-null caller-owned kernel; issued workspaces retain it until their own close
      * @throws NullPointerException if either argument is null
-     * @throws UnsupportedGraphException if partition coverage, ports or external layouts cannot
+     * @throws CpuOneDnnCompiler.UnsupportedRealizationException if partition coverage, ports or external layouts cannot
      *     represent the exact recipe as one native block
      * @throws IllegalArgumentException if descriptors are invalid or unsupported
      * @throws IllegalStateException if the library is closed or native compilation/cleanup fails
@@ -324,8 +319,8 @@ public final class CpuOneDnnGraph {
         return opCount;
     }
 
-    private static UnsupportedGraphException unsupported(String message) {
-        return new UnsupportedGraphException(message);
+    private static CpuOneDnnCompiler.UnsupportedRealizationException unsupported(String message) {
+        return new CpuOneDnnCompiler.UnsupportedRealizationException(message);
     }
 
     private static MemorySegment logical(Arena arena, long id, CpuOneDnnKernelSpec.Tensor tensor,

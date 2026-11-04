@@ -2397,10 +2397,13 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     }
                     var declaration = bufferDeclarations.get(declarationPosition);
                     long offset = projection.byteOffsets().get(position);
-                    long byteSize = position < projection.spec().inputs().size()
-                            ? projection.spec().inputs().get(position).byteSize()
-                            : projection.spec().output().byteSize();
-                    if (declaration.byteAlignment() < Float.BYTES || offset % Float.BYTES != 0
+                    var tensor = position < projection.spec().inputs().size()
+                            ? projection.spec().inputs().get(position) : projection.spec().output();
+                    long byteSize = tensor.byteSize();
+                    int alignment = tensor.dataType().byteWidth();
+                    if (declaration.byteAlignment() < alignment || offset % alignment != 0
+                            || tensor.dataType() != unit.portablePlan().specialization()
+                                .boundaryDataTypes().get(boundaryPosition)
                             || declaration.size().fixedByteSize().isEmpty()
                             || Math.addExact(offset, byteSize) > declaration.byteSize()
                             || unit.carrierPattern().get(boundaryPosition)

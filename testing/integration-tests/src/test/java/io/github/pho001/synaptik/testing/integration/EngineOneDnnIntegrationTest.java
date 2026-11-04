@@ -277,6 +277,45 @@ final class EngineOneDnnIntegrationTest {
         }
     }
 
+    @ParameterizedTest
+    @EnumSource(OneDnnApi.class)
+    void publicPredicatesPublishCanonicalBytesAndPreserveUnorderedRules(OneDnnApi api) {
+        int count = 65535;
+        float[] pattern = {-0f, 0f, Float.NaN, Float.NEGATIVE_INFINITY,
+                Float.POSITIVE_INFINITY, -1f, 1f};
+        float[] left = new float[count], right = new float[count];
+        for (int index = 0; index < count; index++) {
+            left[index] = pattern[index % pattern.length];
+            right[index] = pattern[(index + 3) % pattern.length];
+        }
+        Tensor a = tensor(Shape.of(count), false, left);
+        Tensor b = tensor(Shape.of(count), false, right);
+        List<Tensor> expressions = List.of(a.lessOrEqual(b), a.greaterThan(b), a.notEqualTo(b));
+        try (Engine engine = configured(api)) {
+            for (int operation = 0; operation < expressions.size(); operation++) {
+                var graph = engine.compile(List.of(expressions.get(operation)));
+                List<Tensor> inputs = graph.inputs().stream().map(metadata ->
+                        metadata.tensorId().equals(a.id()) ? a : b).toList();
+                try (var prepared = engine.prepare(graph);
+                        var result = engine.run(prepared, inputs)) {
+                    var value = result.materialize(result.publications().getFirst(), count);
+                    assertEquals(DataType.BOOL, value.dataType());
+                    var bytes = value.bytes();
+                    assertEquals(count, bytes.remaining());
+                    for (int index = 0; index < count; index++) {
+                        boolean expected = switch (operation) {
+                            case 0 -> left[index] <= right[index];
+                            case 1 -> left[index] > right[index];
+                            default -> left[index] != right[index];
+                        };
+                        assertEquals((byte) (expected ? 1 : 0), bytes.get(index),
+                                "canonical predicate at logical lane " + index);
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Runs one public forward recipe and detaches its publication before closing all owners.
      * @param engine borrowed open Engine

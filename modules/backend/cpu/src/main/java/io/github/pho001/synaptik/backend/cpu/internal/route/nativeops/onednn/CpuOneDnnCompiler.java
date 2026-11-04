@@ -7,6 +7,19 @@ import java.util.Objects;
 public final class CpuOneDnnCompiler {
     private CpuOneDnnCompiler() { }
 
+    /** Expected cold native-candidate rejection, never an invocation failure or fallback. */
+    public static final class UnsupportedRealizationException extends IllegalArgumentException {
+        /**
+         * Identifies why native representation or implementation qualification failed.
+         *
+         * @param message non-null rejection reason
+         * @throws NullPointerException if message is null
+         */
+        UnsupportedRealizationException(String message) {
+            super("oneDNN candidate: " + Objects.requireNonNull(message, "message"));
+        }
+    }
+
     /**
      * Admits typed literal operations structurally, before native implementation qualification.
      * Opaque convolution, contraction bias and activation remain diagnostic only. Each pipeline
@@ -20,7 +33,8 @@ public final class CpuOneDnnCompiler {
         Objects.requireNonNull(spec, "spec");
         if (spec instanceof CpuOneDnnKernelSpec.Pipeline pipeline) {
             for (var input : pipeline.inputs()) if (input.dataType() != DataType.FLOAT32) return false;
-            return pipeline.steps().stream().allMatch(step -> qualified(step.spec()));
+            for (var step : pipeline.steps()) if (!qualified(step.spec())) return false;
+            return true;
         }
         for (var input : spec.inputs()) if (input.dataType() != DataType.FLOAT32) return false;
         boolean predicate = spec instanceof CpuOneDnnKernelSpec.Binary binary
@@ -30,12 +44,33 @@ public final class CpuOneDnnCompiler {
                 };
         if (spec.output().dataType() != (predicate ? DataType.BOOL : DataType.FLOAT32)) return false;
         if (spec instanceof CpuOneDnnKernelSpec.Contraction contraction) {
-            return contraction.operation() == CpuOneDnnKernelSpec.Operation.MATMUL
-                    && contraction.bias() == CpuOneDnnKernelSpec.Bias.NONE
-                    && contraction.activation() == CpuOneDnnKernelSpec.Activation.NONE
-                    && contraction.inputs().getFirst().dimensions().getLast() > 1;
+            if (contraction.operation() != CpuOneDnnKernelSpec.Operation.MATMUL
+                    || contraction.bias() != CpuOneDnnKernelSpec.Bias.NONE
+                    || contraction.activation() != CpuOneDnnKernelSpec.Activation.NONE
+                    || contraction.inputs().getFirst().dimensions().getLast() <= 1
+                    || !densePermutation(contraction.output())) return false;
+            for (var input : contraction.inputs()) if (!densePermutation(input)) return false;
+            return true;
         }
         if (spec instanceof CpuOneDnnKernelSpec.Pooling pooling) return qualifiedPooling(pooling);
+        return true;
+    }
+
+    private static boolean densePermutation(CpuOneDnnKernelSpec.Tensor tensor) {
+        int axes = 0;
+        for (long extent : tensor.dimensions()) if (extent > 1) axes++;
+        long expectedStride = 1;
+        for (int visited = 0; visited < axes; visited++) {
+            int matching = -1;
+            for (int axis = 0; axis < tensor.dimensions().size(); axis++) {
+                if (tensor.dimensions().get(axis) > 1 && tensor.strides().get(axis) == expectedStride) {
+                    if (matching >= 0) return false;
+                    matching = axis;
+                }
+            }
+            if (matching < 0) return false;
+            expectedStride = Math.multiplyExact(expectedStride, tensor.dimensions().get(matching));
+        }
         return true;
     }
 
@@ -124,15 +159,15 @@ public final class CpuOneDnnCompiler {
         } else if (spec instanceof CpuOneDnnKernelSpec.Unary unary
                 && (unary.algorithm() == CpuOneDnnKernelSpec.UnaryAlgorithm.ABS
                         || unary.algorithm() == CpuOneDnnKernelSpec.UnaryAlgorithm.EXP)) {
-            throw new IllegalArgumentException("Graph does not expose the selected elementary implementation");
+            throw new UnsupportedRealizationException("Graph does not expose the selected elementary implementation");
         } else if (spec instanceof CpuOneDnnKernelSpec.Binary binary) {
             switch (binary.algorithm()) {
-                case MIN, MAX -> throw new IllegalArgumentException("Graph does not expose the selected extrema implementation");
-                case LT, LE, EQ, NE -> throw new IllegalArgumentException("Graph 3.14 has no exact predicate operation");
+                case MIN, MAX -> throw new UnsupportedRealizationException("Graph does not expose the selected extrema implementation");
+                case LT, LE, EQ, NE -> throw new UnsupportedRealizationException("Graph 3.14 has no exact predicate operation");
                 default -> { }
             }
         } else if (spec instanceof CpuOneDnnKernelSpec.Pooling) {
-            throw new IllegalArgumentException("Graph padded-average implementation is not qualified");
+            throw new UnsupportedRealizationException("Graph padded-average implementation is not qualified");
         }
     }
 }
