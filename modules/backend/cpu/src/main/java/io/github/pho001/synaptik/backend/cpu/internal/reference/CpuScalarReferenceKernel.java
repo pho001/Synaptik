@@ -601,6 +601,8 @@ public final class CpuScalarReferenceKernel {
 
     /**
      * Independently evaluates a complete cumulative scan using logical coordinates.
+     * Low scans keep FLOAT32 working state and narrow each published prefix independently;
+     * a rounded prefix never replaces the accumulator used by subsequent contributors.
      * @param ir non-null scan semantics
      * @param geometry non-null matching layouts and slice geometry
      * @param arguments non-null exact two-element input/output carrier list; read but not retained
@@ -628,7 +630,9 @@ public final class CpuScalarReferenceKernel {
                 Object value = load(arguments.get(0), ir.dataType(),
                         scanAddress(geometry.input(), coordinates));
                 if (!geometry.exclusive()) accumulator = scanApply(ir.kind(), ir.dataType(), accumulator, value);
-                store(arguments.get(1), ir.dataType(), scanAddress(geometry.output(), coordinates), accumulator);
+                Object represented = lowType(ir.dataType())
+                        ? lowBits(ir.dataType(), (float) accumulator) : accumulator;
+                store(arguments.get(1), ir.dataType(), scanAddress(geometry.output(), coordinates), represented);
                 if (geometry.exclusive()) accumulator = scanApply(ir.kind(), ir.dataType(), accumulator, value);
             }
         }

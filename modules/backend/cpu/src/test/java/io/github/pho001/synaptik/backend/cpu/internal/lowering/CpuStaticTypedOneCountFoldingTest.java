@@ -26,14 +26,33 @@ public class CpuStaticTypedOneCountFoldingTest {
                 (1L<<32)+3,(1L<<53)-1,1L<<53,(1L<<53)+1,(1L<<53)+3,Long.MAX_VALUE};
         for (var type : types()) for (long count : counts)
             assertEquals(oracle(type,count), CpuAggregateLowering.countImmediate(type,count).bits(), type+":"+count);
-        assertEquals(16_908_288f, BFloat16Bits.toFloat((short) CpuAggregateLowering.countImmediate(DataType.BFLOAT16,16_842_753).bits()));
-        assertEquals(16_777_216f, BFloat16Bits.toFloat(BFloat16Bits.fromFloat((float)16_842_753)));
         var random = new Random(48);
         for (int i=0;i<2000;i++) for (var type: types()) {
             long count=random.nextLong() & Long.MAX_VALUE;
             assertEquals(oracle(type,count), CpuAggregateLowering.countImmediate(type,count).bits(), type+":"+count);
         }
         assertThrows(IllegalArgumentException.class,()->CpuAggregateLowering.countImmediate(DataType.INT64,-1));
+    }
+
+    /** Distinguishes the SUM working boundary from a direct integer-to-low cast at a double-rounding tie. */
+    @Test void bfloatCountRoundsThroughFloatWorkingPrecisionBeforeFinalNarrowing() {
+        long count = 16_842_753;
+        int workingBits = (int) oracle(DataType.FLOAT32, count);
+        float working = Float.intBitsToFloat(workingBits);
+        assertEquals(16_842_752f, working);
+        short expected = BFloat16Bits.fromFloat(working);
+        assertEquals(oracle(DataType.BFLOAT16, count),
+                CpuAggregateLowering.countImmediate(DataType.BFLOAT16, count).bits());
+        assertEquals(Short.toUnsignedLong(expected),
+                CpuAggregateLowering.countImmediate(DataType.BFLOAT16, count).bits());
+        short directCast = io.github.pho001.synaptik.model.operation.elementwise.cast.CastValueConversions
+                .convert(ScalarValue.int64(count), DataType.BFLOAT16).bfloat16Bits();
+        assertNotEquals(directCast, expected, "direct casts must not erase the SUM FLOAT32 working boundary");
+        assertEquals(16_777_216f, BFloat16Bits.toFloat(expected));
+        assertEquals(16_908_288f, BFloat16Bits.toFloat(directCast));
+        assertEquals(Short.toUnsignedLong(directCast),
+                CpuAggregateLowering.countImmediate(DataType.BFLOAT16, count + 1).bits(),
+                "the next FLOAT32 working value crosses the low rounding midpoint");
     }
 
     /** Distinguishes selected-empty, output-empty and no-axis domains across admitted forms. */
@@ -189,8 +208,8 @@ public class CpuStaticTypedOneCountFoldingTest {
             };
         }
         if(count==0) return 0;
-        int fraction=type==DataType.FLOAT64?52:type==DataType.FLOAT32?23:type==DataType.FLOAT16?10:7;
-        int bias=type==DataType.FLOAT64?1023:type==DataType.FLOAT16?15:127;
+        int fraction=type==DataType.FLOAT64?52:23;
+        int bias=type==DataType.FLOAT64?1023:127;
         var exact=BigInteger.valueOf(count);int exponent=exact.bitLength()-1;
         int shift=exponent-fraction;
         BigInteger rounded;
@@ -201,7 +220,7 @@ public class CpuStaticTypedOneCountFoldingTest {
             rounded=qr[0].add(cmp>0||cmp==0&&qr[0].testBit(0)?BigInteger.ONE:BigInteger.ZERO);
         }
         if(rounded.bitLength()>fraction+1) { rounded=rounded.shiftRight(1);exponent++; }
-        if(exponent>bias) return ((1L<<(type==DataType.FLOAT16?5:type==DataType.FLOAT64?11:8))-1)<<fraction;
+        if(exponent>bias) return ((1L<<(type==DataType.FLOAT64?11:8))-1)<<fraction;
         return ((long)(exponent+bias)<<fraction)|rounded.clearBit(fraction).longValueExact();
     }
 }

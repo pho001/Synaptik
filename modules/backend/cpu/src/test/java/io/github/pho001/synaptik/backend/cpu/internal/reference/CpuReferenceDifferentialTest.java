@@ -101,6 +101,7 @@ class CpuReferenceDifferentialTest {
 
     @Test void independentScanReferenceCoversKindsModesTypesAndSlices() {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2,
                 DataType.INT32, DataType.INT64))
             for (var kind : io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind.values())
                 for (boolean exclusive : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
@@ -111,8 +112,59 @@ class CpuReferenceDifferentialTest {
                     CpuScalarReferenceKernel.execute((CpuScanIr) lowered.portableKernelIr(),
                             lowered.scanGeometry().orElseThrow(),
                             List.of(argument(type, input, true), argument(type, output, false)));
-                    assertNotNull(output);
+                    int[] expected = new int[6];
+                    for (int row = 0; row < 2; row++) {
+                        int accumulator = kind == io.github.pho001.synaptik.model.operation.scan
+                                .CumulativeScanKind.CUM_SUM ? 0 : 1;
+                        for (int step = 0; step < 3; step++) {
+                            int index = row * 3 + (reverse ? 2 - step : step);
+                            if (exclusive) expected[index] = accumulator;
+                            accumulator = kind == io.github.pho001.synaptik.model.operation.scan
+                                    .CumulativeScanKind.CUM_SUM
+                                    ? accumulator + index + 1 : accumulator * (index + 1);
+                            if (!exclusive) expected[index] = accumulator;
+                        }
+                    }
+                    assertRepresentedEquals(represented(type, expected), output,
+                            type + "/" + kind + "/" + exclusive + "/" + reverse);
                 }
+    }
+
+    /** Published low prefixes round once without feeding storage rounding back into working state. */
+    @Test void lowScanReferenceNarrowsPrefixesWithoutReplacingFloatWorkingState() {
+        assertScanPrefixes(DataType.BFLOAT16, false,
+                new short[]{0x3f80, 0x3b80, 0x3b80}, new short[]{0x3f80, 0x3f80, 0x3f81});
+        assertScanPrefixes(DataType.FLOAT16, false,
+                new short[]{0x3c00, 0x1000, 0x1000}, new short[]{0x3c00, 0x3c00, 0x3c01});
+        assertScanPrefixes(DataType.FLOAT8_E4M3, false,
+                new byte[]{0x38, 0x18, 0x18}, new byte[]{0x38, 0x38, 0x39});
+        assertScanPrefixes(DataType.FLOAT8_E5M2, false,
+                new byte[]{0x3c, 0x30, 0x30}, new byte[]{0x3c, 0x3c, 0x3d});
+        assertScanPrefixes(DataType.FLOAT16, true,
+                new short[]{0x7bff, 0x4000, 0}, new short[]{0x7bff, 0x7c00, 0});
+        assertScanPrefixes(DataType.FLOAT8_E4M3, true,
+                new byte[]{0x7e, 0x40, 0}, new byte[]{0x7e, 0x7f, 0});
+        assertScanPrefixes(DataType.FLOAT8_E5M2, true,
+                new byte[]{0x7b, 0x40, 0}, new byte[]{0x7b, 0x7c, 0});
+    }
+
+    /**
+     * Checks exact low scan prefix encodings against a hand-derived working-state vector.
+     * @param type non-null low floating storage type
+     * @param product whether to multiply rather than add contributors
+     * @param input non-null exact three-element primitive input carrier
+     * @param expected non-null exact three-element primitive prefix carrier
+     */
+    private static void assertScanPrefixes(DataType type, boolean product, Object input, Object expected) {
+        var kind = product ? io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind.CUM_PROD
+                : io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind.CUM_SUM;
+        var lowered = new CpuPartitionLowering().lower(CpuScanLoweringTest.context(
+                kind, type, Shape.of(3), 0, false, false));
+        Object output = represented(type, 0, 0, 0);
+        CpuScalarReferenceKernel.execute((CpuScanIr) lowered.portableKernelIr(),
+                lowered.scanGeometry().orElseThrow(),
+                List.of(argument(type, input, true), argument(type, output, false)));
+        assertRepresentedEquals(expected, output, type + "/" + kind);
     }
 
     @Test void independentRandomReferenceMatchesExactVectorsMaskScalingAndState() {
@@ -401,7 +453,8 @@ class CpuReferenceDifferentialTest {
             case FLOAT32 -> { float[] result = new float[values.length];
                 for (int i = 0; i < values.length; i++) result[i] = values[i]; yield result; }
             case BFLOAT16 -> { short[] result = new short[values.length];
-                for (int i = 0; i < values.length; i++) result[i] = (short) (0x3f00 + values[i]);
+                for (int i = 0; i < values.length; i++) result[i] =
+                        io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(values[i]);
                 yield result; }
             case INT32 -> values.clone();
             case INT64 -> java.util.Arrays.stream(values).asLongStream().toArray();
