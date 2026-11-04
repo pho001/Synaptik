@@ -91,7 +91,7 @@ glossary, and Javadocs now describe the explicit transition and [Arena](../../..
 Focused validation passed: 11 new storage tests, the Training [module](../../../../glossary.md#term-module) suite and [Javadoc](../../../../glossary.md#term-javadoc), and the
 real initialized-[`Linear`](../../../../glossary.md#term-linear-meanings) [CPU](../../../../glossary.md#term-cpu) integration. Independent Class C review found two P2 documentation/
 coverage gaps (foreign-thread confined Arena exception and distinct partially overlapping source
-slices); both were corrected and the reviewer returned APPROVE with no [residual](../../../../glossary.md#scan-residual-port-and-history-demand) findings. The
+slices); both were corrected and the reviewer returned APPROVE with no residual findings. The
 integration-[owner](../../../../glossary.md#term-owner) `./gradlew test javadoc` [run](../../../../glossary.md#term-run) passed with the verified packaged local [Metal](../../../../glossary.md#term-metal)
 library configured; architecture tests were included. Without that environment setting, the
 first full attempt reported Metal [EXP](../../../../glossary.md#term-expx)/[SIGMOID](../../../../glossary.md#term-sigmoid) failures requiring

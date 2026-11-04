@@ -75,7 +75,7 @@ or shared helper was introduced; one joint documentation context integrated thei
 - Public per-step packed cell-state collection, dense padded output, flattened packed Tensor,
   unpacking metadata, batch-first, sorting/permutations, reverse/bidirectional or stacked layers.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [metadata glossary](../../../../glossary.md#term-metadata); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>
 - Runtime Tensor lengths/masks, Java masks, zero-value inference, dense masking, padding values,
-  or a recurrent Model scan/control-flow body.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [masks glossary](../../../../glossary.md#term-boolean-mask); [inference glossary](../../../../glossary.md#term-inference); [padding glossary](../../../../glossary.md#padding); [Model glossary](../../../../glossary.md#term-model); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  or a recurrent Model scan/control-flow body.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [masks glossary](../../../../glossary.md#term-boolean-mask); [inference glossary](../../../../glossary.md#term-inference-meanings); [padding glossary](../../../../glossary.md#padding); [Model glossary](../../../../glossary.md#term-model))</span>
 - Hidden/cell Buffer state, defaults, initializers, mutation, reset/detach, stateful forward, or
   unary/Sequential adaptation.<span data-glossary-navigation="true"> ([Buffer glossary](../../../../glossary.md#term-buffer); [unary glossary](../../../../glossary.md#term-unary))</span>
 - Peepholes, projections, clipping, recurrent dropout, alternate LSTM equations or checkpoint
@@ -104,11 +104,11 @@ or shared helper was introduced; one joint documentation context integrated thei
 - Both recurrent states remain caller-threaded [Tensor](../../../../glossary.md#tensor) data, never [module](../../../../glossary.md#term-module) persistent state.
 - `LstmSequence` is a direct Module; no [unary](../../../../glossary.md#term-unary) or `Sequential` adapter may erase two state inputs.
 - Java lengths may control static expression construction. Runtime Tensor data cannot control
-  active Shape or loop count without a future Model scan/control-flow contract.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  active Shape or loop count without a future Model scan/control-flow contract.
 - `packedOutputs` means visible next-hidden sequence outputs. Internal compact next-cell values
   are necessary carried state, not another public output sequence. Both restored final states are
   explicit because omitting cell state would make continuation impossible.
-- The result is an [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) composition [carrier](../../../../glossary.md#term-storage-carrier), not a [Model](../../../../glossary.md#term-model) multi-output [producer](../../../../glossary.md#term-producer) or [runtime](../../../../glossary.md#term-runtime) result.
+- The result is an [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) composition carrier, not a [Model](../../../../glossary.md#term-model) multi-output [producer](../../../../glossary.md#term-producer) or [runtime](../../../../glossary.md#term-runtime) result.
 - Do not add a common helper/source/test or recurrent interface during parallel work. Stop if a
   new Model API, dependency, shared path, hidden state, or unlisted file is required.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 
@@ -202,7 +202,7 @@ observable [Tensor](../../../../glossary.md#tensor) [identity](../../../../gloss
 10. only then construct expressions in the fixed order above and restore hidden before cell.
 
 Every caller-controlled failure consumes no new [Tensor](../../../../glossary.md#tensor) ID or storage. Later unexpected failures
-retain completed prefixes with no partial [carrier](../../../../glossary.md#term-storage-carrier) and no [module](../../../../glossary.md#term-module) mutation. [Parameter](../../../../glossary.md#term-parameter) preflight does
+retain completed prefixes with no partial carrier and no [module](../../../../glossary.md#term-module) mutation. [Parameter](../../../../glossary.md#term-parameter) preflight does
 not make multi-step calls [atomic](../../../../glossary.md#resource-transaction-and-rollback) with replacement; caller [synchronization](../../../../glossary.md#term-synchronization) is required for a
 consistent [binding](../../../../glossary.md#term-binding) [snapshot](../../../../glossary.md#term-snapshot).
 
@@ -236,7 +236,7 @@ including shared gather indices and hidden-before-cell restoration order.
   internal next-cell carrying, hidden-before-cell final restoration, one-step 34/35-ID order, and
   late-failure no-rollback behavior.<span data-glossary-navigation="true"> ([eager glossary](../../../../glossary.md#term-eager-evaluation); [metadata glossary](../../../../glossary.md#term-metadata); [rollback glossary](../../../../glossary.md#term-rollback))</span>
 - Prove no public packed-cell list, hidden module state, mask/scan/dense padding, unary/Sequential
-  adapter, direct Model operation construction, shared recurrent abstraction, or new dependency.<span data-glossary-navigation="true"> ([mask glossary](../../../../glossary.md#term-boolean-mask); [scan glossary](../../../../glossary.md#term-cumulative-scan); [padding glossary](../../../../glossary.md#padding); [unary glossary](../../../../glossary.md#term-unary); [Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation); [dependency glossary](../../../../glossary.md#term-dependency))</span>
+  adapter, direct Model operation construction, shared recurrent abstraction, or new dependency.<span data-glossary-navigation="true"> ([mask glossary](../../../../glossary.md#term-boolean-mask); [padding glossary](../../../../glossary.md#padding); [unary glossary](../../../../glossary.md#term-unary); [Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 
 ## Affected files
 
@@ -274,7 +274,7 @@ nine paths within the exact fourteen-path union. Stop before a fifteenth path or
 - Preflight, two-state type/Shape behavior, provenance/ID order, mode, replacement, failure
   effects, and result ownership are covered by focused tests.<span data-glossary-navigation="true"> ([Preflight glossary](../../../../glossary.md#term-preflight); [Shape glossary](../../../../glossary.md#shape); [provenance glossary](../../../../glossary.md#provenance); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - No public packed cell sequence, shared abstraction, runtime scan/mask, dense padding,
-  dependency, execution claim, or unlisted path is introduced.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan); [mask glossary](../../../../glossary.md#term-boolean-mask); [padding glossary](../../../../glossary.md#padding); [dependency glossary](../../../../glossary.md#term-dependency))</span>
+  dependency, execution claim, or unlisted path is introduced.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [mask glossary](../../../../glossary.md#term-boolean-mask); [padding glossary](../../../../glossary.md#padding); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Focused LSTM sequence tests and the one combined [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) module suite pass.
 - The joint clean documentation pass finalizes all Javadocs/shared docs and synchronizes both
   tasks/master before Complete.
@@ -306,7 +306,7 @@ private-state, import/[dependency](../../../../glossary.md#term-dependency), Mar
 
 - Reassess a shared recurrent sequence abstraction only after the three concrete containers and
   results are complete and a real consumer can preserve LSTM's second state without erasure.<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm))</span>
-- [Runtime](../../../../glossary.md#term-runtime)-dynamic lengths/[masks](../../../../glossary.md#term-boolean-mask) need a separate [Model](../../../../glossary.md#term-model) recurrent [scan](../../../../glossary.md#term-cumulative-scan)/control-flow design.
+- [Runtime](../../../../glossary.md#term-runtime)-dynamic lengths/[masks](../../../../glossary.md#term-boolean-mask) need a separate [Model](../../../../glossary.md#term-model) recurrent scan/control-flow design.
 - Dense unpacking, bidirectionality, stacking, and recurrent [dropout](../../../../glossary.md#dropout--inverted-dropout) remain separate consumers.
 
 ## Architecture impact
@@ -388,7 +388,7 @@ It must not rerun successful Java tests unless executable code changes.
   exact surface/result, ownership/mode/state paths, null and descriptor order, all dynamic axes,
   features/batches/lengths, separate final-state stack types, replacement, <span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [descriptor glossary](../../../../glossary.md#term-descriptor); [axes glossary](../../../../glossary.md#term-axis); [features glossary](../../../../glossary.md#term-feature); [batches glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>`[5,3,1]`, unsorted
   `[1,3,2]`, zero-length rows, stable and shared active/survivor indices, exact hidden publication
-  and cell carrying, initial/exit restoration, no zero inference/scan, and exact 34/35-ID cases.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [inference glossary](../../../../glossary.md#term-inference); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  and cell carrying, initial/exit restoration, no zero inference/scan, and exact 34/35-ID cases.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [inference glossary](../../../../glossary.md#term-inference-meanings); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
 - Preliminary `./gradlew :extensions:nn:javadoc` passed after production source stabilized. Both
   generated type pages exist. No production source changed after that pass; the only later Java
   change expanded one focused test with the biased 35-ID case and missing dynamic-axis fixtures.

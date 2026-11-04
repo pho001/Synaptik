@@ -18,13 +18,13 @@ HEAD/main/origin/main base and inactive conflicts; user authorized implementatio
 
 ## Change class
 
-Class B — supported [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [API](../../../../glossary.md#term-application-programming-interface-api) and first-[scan](../../../../glossary.md#term-cumulative-scan) initialization using existing cell-local [publication](../../../../glossary.md#term-publication).
+Class B — supported [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [API](../../../../glossary.md#term-application-programming-interface-api) and first-scan initialization using existing cell-local [publication](../../../../glossary.md#term-publication).
 Use clean implementation and independent code/docs review. Stop and reclassify before changing
 locking, [ownership](../../../../glossary.md#term-ownership-meanings), dependencies or execution lifecycles.
 
 ## Goal and [scope](../../../../glossary.md#term-scope)
 
-Construct one fixed [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) [scan](../../../../glossary.md#term-cumulative-scan) from an [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)-owned cell, [runtime](../../../../glossary.md#term-runtime) length [Tensor](../../../../glossary.md#tensor) and explicit
+Construct one fixed [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) scan from an [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)-owned cell, [runtime](../../../../glossary.md#term-runtime) length [Tensor](../../../../glossary.md#tensor) and explicit
 carried state. Return dense original-time-aligned `[T,B,H]` output and typed final states; reuse
 public [Engine](../../../../glossary.md#term-engine) across lengths with compatible [descriptors](../../../../glossary.md#term-descriptor). Preserve every `long[]` compact/static
 [API](../../../../glossary.md#term-application-programming-interface-api), [provenance](../../../../glossary.md#provenance) and supported static training. Data integration is successor NN0022A, not a prerequisite.
@@ -43,7 +43,7 @@ Start with [root scope index](../../../../../ARCHITECTURE.md#scope-indexed-norma
 - Root [Core invariants](../../../../../ARCHITECTURE.md#core-invariants),
   [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>, and
   [Explicit non-goals](../../../../../ARCHITECTURE.md#explicit-non-goals).
-- Full [Fixed recurrent scan without graph regions](../../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [graph glossary](../../../../glossary.md#graph))</span>:
+- Full [Fixed recurrent scan without graph regions](../../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>:
   family/surface, static Shape/runtime values, traversal/outputs, lifecycle, performance and migration.<span data-glossary-navigation="true"> ([Shape glossary](../../../../glossary.md#shape); [runtime glossary](../../../../glossary.md#term-runtime); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - [extensions/nn](../../../../architecture/contracts/extensions-training.md#extensionsnn) and
   [Owned tensor Models](../../../../architecture/contracts/extensions-training.md#owned-tensor-models)<span data-glossary-navigation="true"> ([tensor glossary](../../../../glossary.md#tensor))</span>:
@@ -77,7 +77,7 @@ Stop on missing/ambiguous/conflicting contracts; report the heading. No authorit
   six biased/bias-free methods; static ranks/extents, exact common floating dtype without promotion,
   non-gradient INT64 lengths, canonical producer slots, unresolved layouts and floating-input flag OR.<span data-glossary-navigation="true"> ([bias glossary](../../../../glossary.md#term-bias); [dtype glossary](../../../../glossary.md#data-type--datatype); [gradient glossary](../../../../glossary.md#term-gradient); [INT64 glossary](../../../../glossary.md#data-type--datatype); [canonical glossary](../../../../glossary.md#term-canonical-form); [producer glossary](../../../../glossary.md#term-producer); [layouts glossary](../../../../glossary.md#layout))</span>
 - NN `module/{Model,ModelExecutionState,ModelBuilder,Parameter}.java`: generic forward and owned list
-  graph inputs do not grant scan compute authority; builder recurrence stays static/all-valid/zero-state.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  graph inputs do not grant scan compute authority; builder recurrence stays static/all-valid/zero-state.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>
 - Baseline tests: NN `layers/{Rnn,Gru,Lstm}{Sequence,SequencePacking,CellInitialization}Test.java`,
   Model <span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model))</span>`RecurrentScanExpressionTest`, [Compiler](../../../../glossary.md#term-compiler) `RecurrentScanCompilerTest`, integration
   `EngineCpuRecurrentScanIntegrationTest`. Preserve assertions except additive Sequence [API](../../../../glossary.md#term-application-programming-interface-api) expectations.
@@ -103,7 +103,7 @@ New production types/packages: None. Keep compact NN carriers unchanged. Use pac
 [descriptor](../../../../glossary.md#term-descriptor) checks reusing `AutomaticInput`; no shared abstraction, public [binding](../../../../glossary.md#term-binding) API or new record.
 
 Main accepts placement/name/order, current [Model](../../../../glossary.md#term-model) carriers, explicit states/direction and descriptor-only
-first-[scan](../../../../glossary.md#term-cumulative-scan) automatic initialization even at T/B=0. Direct public [Engine](../../../../glossary.md#term-engine) is the sole execution acceptance;
+first-scan automatic initialization even at T/B=0. Direct public [Engine](../../../../glossary.md#term-engine) is the sole execution acceptance;
 `Owned tensor Models` grants no scan compute/train support. Model.compute/train, [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt), Data and builder
 [widening](../../../../glossary.md#term-widening) remain excluded. All construction/initialization rules below are accepted; no new [concurrency](../../../../glossary.md#term-concurrency) guarantee.
 
@@ -111,7 +111,7 @@ first-[scan](../../../../glossary.md#term-cumulative-scan) automatic initializat
 
 1. Check null arguments in signature order. Before draws, Tensor identifiers or publication,
    validate the complete scan descriptor schema against configured/prospective cell parameters:
-   static <span data-glossary-navigation="true"> ([arguments glossary](../../../../glossary.md#term-argument); [signature glossary](../../../../glossary.md#term-signature); [Tensor glossary](../../../../glossary.md#tensor); [publication glossary](../../../../glossary.md#term-publication); [scan glossary](../../../../glossary.md#term-cumulative-scan); [descriptor glossary](../../../../glossary.md#term-descriptor); [schema glossary](../../../../glossary.md#term-schema); [parameters glossary](../../../../glossary.md#term-parameter))</span>`[T,B,I]`, `T/B >= 0`, `I/H > 0`, states `[B,H]`, exact configured floating dtype,
+   static <span data-glossary-navigation="true"> ([arguments glossary](../../../../glossary.md#term-argument); [signature glossary](../../../../glossary.md#term-signature); [Tensor glossary](../../../../glossary.md#tensor); [publication glossary](../../../../glossary.md#term-publication); [descriptor glossary](../../../../glossary.md#term-descriptor); [schema glossary](../../../../glossary.md#term-schema); [parameters glossary](../../../../glossary.md#term-parameter))</span>`[T,B,I]`, `T/B >= 0`, `I/H > 0`, states `[B,H]`, exact configured floating dtype,
    lengths non-gradient <span data-glossary-navigation="true"> ([dtype glossary](../../../../glossary.md#data-type--datatype); [gradient glossary](../../../../glossary.md#term-gradient))</span>`INT64[B]`, non-null direction, packed gate counts 1/3/4, prospective
    weight/bias Shapes and checked initialization array/count limits. Never read length values,
    inspect host storage, use promotion/broadcast as an exact-type substitute, or create a dummy
@@ -131,7 +131,7 @@ first-[scan](../../../../glossary.md#term-cumulative-scan) automatic initializat
    provenance; no copies, detach, leaf-only guards or requiresGrad clearing. NN parameters remain
    gradient-eligible, so scan output flags are true even in eval; this does not authorize BPTT.
    Both modes construct identical meaning. The module retains no input, lengths, recurrent state or
-   result; the producer retains ordered inputs. Replacement is caller-coordinated.<span data-glossary-navigation="true"> ([leaf glossary](../../../../glossary.md#term-leaf))</span><span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [provenance glossary](../../../../glossary.md#provenance); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [module glossary](../../../../glossary.md#term-module); [recurrent state glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state); [producer glossary](../../../../glossary.md#term-producer))</span>
+   result; the producer retains ordered inputs. Replacement is caller-coordinated.<span data-glossary-navigation="true"> ([leaf glossary](../../../../glossary.md#term-leaf))</span><span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [module glossary](../../../../glossary.md#term-module); [recurrent state glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state); [producer glossary](../../../../glossary.md#term-producer))</span>
 
 ## Acceptance criteria and example
 
@@ -141,7 +141,7 @@ first-[scan](../../../../glossary.md#term-cumulative-scan) automatic initializat
 - Invalid null/type/rank/static/extents/length flags/direction and initialization count overflow
   fail before initialization effects. Cover successful first-scan atomic publication, compatible
   concurrent first scan/ordinary forward, failed initialization retry, no dummy-expression IDs,
-  empty T/B and all-zero runtime lengths without weakening existing static no-op tests.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [overflow glossary](../../../../glossary.md#term-overflow); [scan glossary](../../../../glossary.md#term-cumulative-scan); [atomic publication glossary](../../../../glossary.md#term-atomic-publication))</span>
+  empty T/B and all-zero runtime lengths without weakening existing static no-op tests.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [overflow glossary](../../../../glossary.md#term-overflow); [atomic publication glossary](../../../../glossary.md#term-atomic-publication))</span>
 - Public Engine integration: canonical FLOAT32 with ordinary trainable NN parameter flags; prepare
   once, run two fresh exact-descriptor length patterns, preserve previous results, reject out-of-range
   lengths before scan publication, then repair/reuse. Include produced lengths, padded NaN input,
@@ -181,7 +181,7 @@ Executed with [JDK](../../../../glossary.md#term-java-development-kit-jdk) 26.0.
 
 Worker owns focused/[module](../../../../glossary.md#term-module) evidence; main owns integration; independent review reuses passing evidence.
 CPU0028/NN0021B [backend](../../../../glossary.md#backend)/root evidence reused; no new root/[conformance](../../../../glossary.md#term-conformance)/performance campaign.
-Six Sequence/Cell Javadocs cover [scan](../../../../glossary.md#term-cumulative-scan)/static distinction, [descriptor](../../../../glossary.md#term-descriptor) validation, initialization,
+Six Sequence/Cell Javadocs cover scan/static distinction, [descriptor](../../../../glossary.md#term-descriptor) validation, initialization,
 state/[provenance](../../../../glossary.md#provenance), flags and failures; legacy contracts reviewed and unchanged where still accurate.
 Independent code/docs review applies general, [API](../../../../glossary.md#term-application-programming-interface-api)/user and [planning](../../../../glossary.md#term-planning) documentation profiles.
 

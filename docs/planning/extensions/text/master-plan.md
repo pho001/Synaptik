@@ -18,7 +18,7 @@ The user approved this bounded Class C direction on 2026-10-20. Text0001 is Comp
 
 ## Contracts and common base
 
-- [Root layout, scope index, ownership, dependencies and testing](../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([layout glossary](../../../glossary.md#layout); [scope glossary](../../../glossary.md#term-scope); [ownership glossary](../../../glossary.md#term-ownership-meanings))</span>.
+- [Root layout, scope index, ownership, dependencies and testing](../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([scope glossary](../../../glossary.md#term-scope); [ownership glossary](../../../glossary.md#term-ownership-meanings))</span>.
 - [Sole owning Text contract](../../../architecture/contracts/extensions-training.md#extensionstext)
   and [shared Data contract](../../../architecture/contracts/extensions-training.md#extensionsdata).
 - [ADR 0043](../../../design/decisions/0043-whitespace-text-and-padded-integral-batches.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../glossary.md#term-architecture-decision-record-adr))</span>.
@@ -33,7 +33,7 @@ focused [API](../../../glossary.md#term-application-programming-interface-api) d
 ordinary IDs begin at 2. No [normalization](../../../glossary.md#term-normalization), case folding, [BOS](../../../glossary.md#term-bos)/[EOS](../../../glossary.md#term-eos), decoding, [BPE](../../../glossary.md#term-byte-pair-encoding-bpe), vocabulary
 training, [persistence](../../../glossary.md#term-persistence), [artifact](../../../glossary.md#term-artifact)/[fingerprint](../../../glossary.md#term-fingerprint) interface, corpus reader or predictor is selected.
 Those larger proposals remain deferred Draft and are not prerequisites of this capability.
-No [Embedding](../../../glossary.md#embedding) behavior, [scan](../../../glossary.md#term-cumulative-scan) semantics, [runtime](../../../glossary.md#term-runtime)-length [binding](../../../glossary.md#term-binding) or [BPTT](../../../glossary.md#term-backpropagation-through-time-bptt) extension is included.
+No [Embedding](../../../glossary.md#embedding) behavior, scan semantics, [runtime](../../../glossary.md#term-runtime)-length [binding](../../../glossary.md#term-binding) or [BPTT](../../../glossary.md#term-backpropagation-through-time-bptt) extension is included.
 The [Complete NN0022A](../nn/tasks/0022a-padded-numeric-sequence-inference.md) delivers numeric [F32](../../../glossary.md#floating-point-precision-and-rounding)
 inputs, not a complete fluent Text pipeline. Integer-input/Embedding builder support remains a
 separate [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) capability decision; exporting Data lengths alone cannot supply it.
@@ -95,15 +95,15 @@ var batch = batcher.batch(List.of("Hello world", "missing"));
 Unknown text becomes [UNK](../../../glossary.md#frozen-whitespace-tokenizer)=1; Data inserts [PAD](../../../glossary.md#frozen-whitespace-tokenizer)=0 on the left. Choosing `.rightPadded()` changes
 the second row to `[1,0]`. A caller builds an existing [Embedding](../../../glossary.md#embedding) with four vocabulary rows and
 executes `engine.compute(embedding.forward(batch.values()))`; row zero is gathered normally.
-This is not a claim that LEFT [metadata](../../../glossary.md#term-metadata) can be passed to the current right-prefix [scan](../../../glossary.md#term-cumulative-scan).
+This is not a claim that LEFT [metadata](../../../glossary.md#term-metadata) can be passed to the current right-prefix scan.
 
 ## Integration [ownership](../../../glossary.md#term-ownership-meanings) and shared documents
 
-Main [coordinates](../../../glossary.md#axis-rank-scalar-vector-and-matrix) shared authority/docs integration, independent review and the final external
+Main coordinates shared authority/docs integration, independent review and the final external
 integration/root [checkpoint](../../../glossary.md#term-checkpoint). The sole Text worker owns source/tests, [module](../../../glossary.md#term-module) [Javadoc](../../../glossary.md#term-javadoc), registration,
 architecture enforcement and external integration plumbing. After that worker stops, independent
 targeted review finalized the [API](../../../glossary.md#term-application-programming-interface-api) guide, shared glossary and indexes and
-checked the actual diff without rerunning successful Java suites. Both selected briefs [carry](../../../glossary.md#term-carry) the
+checked the actual diff without rerunning successful Java suites. Both selected briefs carry the
 accepted dirty chain and all seven integration fields; Parallel group None. Main's final
 source-matched root test and Javadoc gates passed at the Text program join after implementation,
 independent review and external numerical integration; evidence is in Text0001 Result.

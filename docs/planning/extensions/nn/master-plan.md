@@ -14,7 +14,7 @@
 
 This plan is the current map for the stateful neural-network ([NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)) composition layer: [ownership](../../../glossary.md#term-ownership-meanings) of
 [modules](../../../glossary.md#term-module) and state, forward behavior, typed composition, standard layers, and the remaining
-recurrent/data integration program. It [coordinates](../../../glossary.md#axis-rank-scalar-vector-and-matrix) work; it is not an [architecture contract](../../../glossary.md#architecture-contract).
+recurrent/data integration program. It coordinates work; it is not an [architecture contract](../../../glossary.md#architecture-contract).
 [`ARCHITECTURE.md`](../../../../ARCHITECTURE.md) is authoritative if this plan conflicts with it.
 
 Read the exact applicable contract headings rather than reconstructing architecture from task
@@ -23,7 +23,7 @@ history:
 - [`extensions/nn`](../../../architecture/contracts/extensions-training.md#extensionsnn) and
   [`modules/training`](../../../architecture/contracts/extensions-training.md#modulestraining) define ownership;
 - [dependency rules](../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([dependency glossary](../../../glossary.md#term-dependency))</span> define allowed edges; and
-- [fixed recurrent scan without graph regions](../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([scan glossary](../../../glossary.md#term-cumulative-scan); [graph glossary](../../../glossary.md#graph))</span>
+- [fixed recurrent scan without graph regions](../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([graph glossary](../../../glossary.md#graph))</span>
   defines the accepted runtime-valid-length direction and its lifecycle/performance boundaries.<span data-glossary-navigation="true"> ([runtime glossary](../../../glossary.md#term-runtime); [lifecycle glossary](../../../glossary.md#lifecycle))</span>
 
 Focused explanations are [architecture decision record (ADR) 0007](../../../design/decisions/0007-neural-network-module-and-training-boundary.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../glossary.md#adr-ci-and-qualification))</span><span data-glossary-navigation="true"> ([architecture decision record glossary](../../../glossary.md#term-architecture-decision-record-adr))</span>,
@@ -98,7 +98,7 @@ adapters, reusing Model.SingleTensorModel, OwnedModelSource and ModelExecutionSt
 registry, model hierarchy, [graph](../../../glossary.md#graph) representation or [dependency](../../../glossary.md#term-dependency). Exact types and cutover are in its brief.
 
 NN0022 Complete delivers additive [runtime](../../../glossary.md#term-runtime)-length methods on existing concrete Sequences, reusing Model
-[scan](../../../glossary.md#term-cumulative-scan) carriers, current cell [Parameter](../../../glossary.md#term-parameter) wrappers and atomic initialization. New production types/packages:
+scan carriers, current cell [Parameter](../../../glossary.md#term-parameter) wrappers and atomic initialization. New production types/packages:
 None. Exact API/initialization choices accepted 2026-10-20; no Model runner/session or Data dependency.
 
 Complete [NN0022B](tasks/0022b-runtime-length-scan-model-workflow.md) delivers explicit scan recipes,
@@ -158,7 +158,7 @@ Draft rows without links have no detailed task brief.
 | [0020A](tasks/0020a-initialized-embedding.md) | Initialized Embedding | Complete | 0020; current Embedding and [tokenizer](../../../glossary.md#frozen-whitespace-tokenizer)/schema boundaries | Added eager initialized Embedding with explicit schema/policy/[seed](../../../glossary.md#term-seed) and ordinary trainable semantics for every row. |
 | [0020B](tasks/0020b-stateless-standard-module-factory.md) | Stateless standard ModuleFactory | Complete | 0020–0020A | Added fresh standard Embedding/Linear/RNN/GRU/LSTM recipes without ownership, [registry](../../../glossary.md#term-registry), or retained configuration. |
 | [0020C](tasks/0020c-bidirectional-static-recurrent-composition.md) | Type-safe bidirectional static recurrent composition | Complete | 0020–0020B; stable static sequence/result and Model gather/composition contracts | Added concrete bidirectional RNN/GRU/LSTM containers with independent state, valid-prefix reversal, aligned forward-first concat, and typed final states. |
-| [0021A](tasks/0021a-fixed-recurrent-scan-architecture-decision.md) | Fixed recurrent-[scan](../../../glossary.md#term-cumulative-scan) architecture decision | Complete | 0020C; current flat Model/[Compiler](../../../glossary.md#term-compiler) graph, [Prepare](../../../glossary.md#prepare), [Runtime](../../../glossary.md#term-runtime), and [Engine](../../../glossary.md#term-engine) contracts | Accepted fixed flat multi-output RNN/GRU/LSTM scan semantics, [lifecycle](../../../glossary.md#lifecycle) ownership, [fail-closed](../../../glossary.md#term-fail-closed) [backpropagation](../../../glossary.md#term-backpropagation)-through-time boundary, and migration constraints. |
+| [0021A](tasks/0021a-fixed-recurrent-scan-architecture-decision.md) | Fixed recurrent-scan architecture decision | Complete | 0020C; current flat Model/[Compiler](../../../glossary.md#term-compiler) graph, [Prepare](../../../glossary.md#prepare), [Runtime](../../../glossary.md#term-runtime), and [Engine](../../../glossary.md#term-engine) contracts | Accepted fixed flat multi-output RNN/GRU/LSTM scan semantics, [lifecycle](../../../glossary.md#lifecycle) ownership, [fail-closed](../../../glossary.md#term-fail-closed) [backpropagation](../../../glossary.md#term-backpropagation)-through-time boundary, and migration constraints. |
 | [0021B](tasks/0021b-fixed-recurrent-scan-implementation-program.md) | Fixed recurrent-scan forward execution program | Complete | 0021A; Model0025E/0025F; Compiler0006A; CPU0027; Engine0021; CP0010/CP0011 Complete | CPU0028 [scalar](../../../glossary.md#term-scalar) [FLOAT32](../../../glossary.md#term-float32) forward baseline accepted 2026-10-20 after independent APPROVE and main's root gate; no NN migration/Data/[BPTT](../../../glossary.md#term-backpropagation-through-time-bptt). |
 | [0022](tasks/0022-runtime-length-recurrent-nn-api.md) | NN runtime-Tensor-length recurrent forward expressions | Complete | NN0020/0020C; NN0021B/CPU0028; Model0025E/0025F; Compiler0006A; Engine0021 — Complete | Accepted 2026-10-20 after Mencius final APPROVE and focused/module/[Javadoc](../../../glossary.md#term-javadoc)/Engine integration [validation](../../../glossary.md#term-validation); additive forwardScan, no Data or compute/train/BPTT [widening](../../../glossary.md#term-widening). |
 | [0022B](tasks/0022b-runtime-length-scan-model-workflow.md) | Runtime-length scan Model/builder [inference](../../../glossary.md#term-inference) workflow | Complete | 0022; 0028/0029; scan/Engine/[persistence](../../../glossary.md#term-persistence) prerequisites Complete; approved inference-only contract enacted | Accepted 2026-10-20 after final independent code/docs approval and coordinator root gate: scan recipes/finalHidden, typed buildWithLengths and compute(first,second), including after loadGraph. |
@@ -184,12 +184,12 @@ group None. Compiler0018, Checkpoint0014 and [NN0033](tasks/0033-trainable-runti
 are Complete after independent reviews and source-matched consumer proof. The additive
 RnnSequence.forwardGeneralScan/[F32](../../../glossary.md#floating-point-precision-and-rounding)-[F64](../../../glossary.md#floating-point-precision-and-rounding) rnnScan cutover reuses the cell equation, initialization
 and [Model](../../../glossary.md#term-model)/[Engine](../../../glossary.md#term-engine)/Training [owners](../../../glossary.md#term-owner). [Canonical](../../../glossary.md#term-canonical-form) result/read domains and exact general/fixed ports
-are explicit, without bootstrap fixed [producers](../../../glossary.md#term-producer), synthetic [layouts](../../../glossary.md#layout) or a new [carrier](../../../glossary.md#term-storage-carrier).
+are explicit, without bootstrap fixed [producers](../../../glossary.md#term-producer), synthetic [layouts](../../../glossary.md#layout) or a new carrier.
 The next product phase is capability audit/[scope](../../../glossary.md#term-scope) freeze, not an automatic NN successor.
 Ordinary static-[unrolled](../../../glossary.md#backpropagation-through-time-and-recurrent-state) `.rnn` is not migrated; NN0032 stays Draft with its second-order blocker.
 [GRU](../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../glossary.md#term-long-short-term-memory-lstm) and low fixed paths remain unchanged. No new types/executors/provider-based cold gate,
 [dtype](../../../glossary.md#data-type--datatype) expansion or higher-order/[SIMD](../../../glossary.md#simd)/performance work. Compiler0017 is deferred, not cancelled,
-behind this practical workflow. [Scan](../../../glossary.md#term-cumulative-scan)-local [padding](../../../glossary.md#padding) does not define masked [losses](../../../glossary.md#loss)/[MEAN](../../../glossary.md#term-mean) behavior.
+behind this practical workflow. Scan-local [padding](../../../glossary.md#padding) does not define masked [losses](../../../glossary.md#loss)/[MEAN](../../../glossary.md#term-mean) behavior.
 After this workflow, the user's coarse priority is missing Java [CPU](../../../glossary.md#term-cpu) capability audit → [Metal](../../../glossary.md#term-metal)
 completion → [oneDNN](../../../glossary.md#term-onednn) [backend](../../../glossary.md#backend); establish scope after audit, with no detailed successor tasks,
 new backend/build/tree/architecture cutover or claim that these capabilities are complete.
@@ -325,7 +325,7 @@ No Checkpoint widening or scan/Data/NN0027 prerequisite; earlier held streams re
 
 The user-approved [CP0010 packet](../checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md)
 and [CP0011 companion](../checkpoint/tasks/0011-flat-recurrent-scan-persistence.md) are jointly Complete
-on 2026-10-20: builder [CNN](../../../glossary.md#term-convolutional-neural-network-cnn)/static recurrence and cold flat-[scan](../../../glossary.md#term-cumulative-scan) [persistence](../../../glossary.md#term-persistence) accepted after independent
+on 2026-10-20: builder [CNN](../../../glossary.md#term-convolutional-neural-network-cnn)/static recurrence and cold flat-scan [persistence](../../../glossary.md#term-persistence) accepted after independent
 APPROVE and main's focused/native root gates; [CP0010 Result](../checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result)
 owns evidence. At that checkpoint, [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/[Compiler](../../../glossary.md#term-compiler)/Checkpoint source frontiers: None; NN0021B/CPU0028 subsequently
 completed bounded forward execution, not [BPTT](../../../glossary.md#term-backpropagation-through-time-bptt). Existing predecessor [DAG](../../../glossary.md#term-directed-acyclic-graph-dag) and held NN0027/CP0005C [scope](../../../glossary.md#term-scope) unchanged; no new
@@ -439,7 +439,7 @@ Exact metadata and 2026-10-14 dependency/base/contracts/review/conflict verifica
 
 - Complete: foundation and state lifecycle (0001–0011), recurrent cells/static sequences and typed
   topology (0012–0020C), the fixed-scan architecture decision (0021A), and dimensional
-  convolution plus its user checkpoint (0025–0025A).<span data-glossary-navigation="true"> ([lifecycle glossary](../../../glossary.md#lifecycle); [topology glossary](../../../glossary.md#term-topology); [scan glossary](../../../glossary.md#term-cumulative-scan); [convolution glossary](../../../glossary.md#term-channels-first-convolution-layers); [checkpoint glossary](../../../glossary.md#term-checkpoint))</span>
+  convolution plus its user checkpoint (0025–0025A).<span data-glossary-navigation="true"> ([lifecycle glossary](../../../glossary.md#lifecycle); [topology glossary](../../../glossary.md#term-topology); [convolution glossary](../../../glossary.md#term-channels-first-convolution-layers); [checkpoint glossary](../../../glossary.md#term-checkpoint))</span>
 - Complete: NN0021B/CPU0028 canonical FLOAT32 scalar forward execution; evidence in the briefs.
   Complete: NN0022 additive runtime-length expressions after final review and validation;
   Complete: NN0022B Model/builder inference after independent reviews and the coordinator root gate (2026-10-20).
@@ -480,10 +480,10 @@ or 0025A Draft/[Ready](../../../glossary.md#term-ready), treated 0021A's planned
   is Complete after final Cicero APPROVE/main configured gates. CPU0037's narrow read qualification
   is Complete. Cold output descriptor, remaining compatibility and fluent authority for NN0032
   remain held; existing <span data-glossary-navigation="true"> ([qualification glossary](../../../glossary.md#term-qualification); [descriptor glossary](../../../glossary.md#term-descriptor))</span>`.rnn` is unchanged. NN0033's explicit [runtime](../../../glossary.md#term-runtime)-length recipe is separate.
-- **Bounded all-valid owned [scan](../../../glossary.md#term-cumulative-scan) Complete; [padding](../../../glossary.md#padding) separately gated:** Compiler0010 is Superseded, not pending fixed-adjoint approval.
+- **Bounded all-valid owned scan Complete; [padding](../../../glossary.md#padding) separately gated:** Compiler0010 is Superseded, not pending fixed-adjoint approval.
   Completed Model0034 authority and Model0035 source/IR establish the source/body/residual foundation;
   Planning0008 transport and Compiler0011 scoped capture/inference, first-order AD and final
-  body queries/demand and Prepare0010 scoped projection/resource handoff are Complete;<span data-glossary-navigation="true"> ([adjoint glossary](../../../glossary.md#term-adjoint); [IR glossary](../../../glossary.md#term-intermediate-representation-ir); [residual glossary](../../../glossary.md#scan-residual-port-and-history-demand); [capture glossary](../../../glossary.md#term-capture-meanings); [inference glossary](../../../glossary.md#term-inference); [AD glossary](../../../glossary.md#autograd); [handoff glossary](../../../glossary.md#term-handoff))</span>
+  body queries/demand and Prepare0010 scoped projection/resource handoff are Complete;<span data-glossary-navigation="true"> ([adjoint glossary](../../../glossary.md#term-adjoint); [IR glossary](../../../glossary.md#term-intermediate-representation-ir); [residual glossary](../../../glossary.md#scan-residual-port-and-history-demand); [capture glossary](../../../glossary.md#term-capture-meanings); [inference glossary](../../../glossary.md#term-inference-meanings); [AD glossary](../../../glossary.md#autograd); [handoff glossary](../../../glossary.md#term-handoff))</span>
   [CPU0030](../../backends/cpu/tasks/0030-general-scan-f32-pointwise-vertical.md) bounded F32 pointwise
   forward/actual automatic reverse and CPU0031–0033 declared F32/F64 closure/root join are Complete.
   Generic first-order low-level support

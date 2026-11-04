@@ -1,4 +1,4 @@
-# Task NN0031: General-[scan](../../../../glossary.md#term-cumulative-scan) [owned Model](../../../../glossary.md#model-module-buffer-and-scan-distinctions) workflow
+# Task NN0031: General-scan [owned Model](../../../../glossary.md#model-module-buffer-and-scan-distinctions) workflow
 
 > **Editorial reading context — not a status update.** The application supplies source once;
 > NN acquires private parameter state through Checkpoint/Compiler, then prepares execution for
@@ -54,7 +54,7 @@ policy/API decision or architecture ambiguity is needed, stop with evidence; do 
   `extensions/nn`, `Owned tensor Models`, `modules/training`, `Generic graph source and values`,
   `Optimizer/training lifecycle` — staged general admission, private state, fixed-only rejection,
   frozen binding, native transition, transactional updates, invalidation and cleanup.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission); [binding glossary](../../../../glossary.md#term-binding))</span>
-- [Scan semantics](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>:
+- [Scan semantics](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan):
   [`General differentiable scan`](../../../../glossary.md#general-differentiable-scan) and its `Source body, attachments and scoped identities`,
   `Canonical residual ports and demand`, `Reverse scan and exact primal bindings`,
   `Traversal, empty domains and declared qualification`, `Qualification, performance and migration gates`.
@@ -73,7 +73,7 @@ for arbitrary bodies. Fixed-only `containsScan`/`rejectScanTraining` keep their 
   existing NN0028/0029/0022B, Engine0021, Training0007/0008 and Checkpoint0008–0011 — all Complete.
   Accepted CPU0034–0036 changes are part of the frozen baseline, not new work here.
 - Conflicts with: NN source/API/lifecycle and shared authority/docs; Compiler/Checkpoint cold
-  boundary, Training/Engine fresh-value owners and CPU scan semantics. None active; serial writers.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [lifecycle glossary](../../../../glossary.md#lifecycle); [Compiler glossary](../../../../glossary.md#term-compiler); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [Engine glossary](../../../../glossary.md#term-engine); [CPU glossary](../../../../glossary.md#term-cpu); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  boundary, Training/Engine fresh-value owners and CPU scan semantics. None active; serial writers.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [lifecycle glossary](../../../../glossary.md#lifecycle); [Compiler glossary](../../../../glossary.md#term-compiler); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [Engine glossary](../../../../glossary.md#term-engine); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - Parallel group: None. Serial implementation, independent review and integration are complete.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus all 284
   accepted dirty paths, exactly CP0012 final, plus four verified planning deltas.
@@ -138,7 +138,7 @@ Java paths below are rooted beneath `io/github/pho001/synaptik/` in their named 
    alias/overlap rejection, native-copy failure/failed-session retry, frozen Engine binding on setup
    failure, live mode/wrapper/Tensor/store invalidation, busy/closed precedence and close wait/cleanup.
    Extend representative scan cases and reuse unchanged lifecycle tests; detached values/TrainingStep
-   outlive caller batches and Model close, and borrowed Engines are never closed by Model.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [binding glossary](../../../../glossary.md#term-binding); [scan glossary](../../../../glossary.md#term-cumulative-scan); [lifecycle glossary](../../../../glossary.md#lifecycle); [detached glossary](../../../../glossary.md#detached-model-results); [Model glossary](../../../../glossary.md#term-model); [borrowed glossary](../../../../glossary.md#ownership-borrowing-and-lease))</span>
+   outlive caller batches and Model close, and borrowed Engines are never closed by Model.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [binding glossary](../../../../glossary.md#term-binding); [lifecycle glossary](../../../../glossary.md#lifecycle); [detached glossary](../../../../glossary.md#detached-model-results); [Model glossary](../../../../glossary.md#term-model); [borrowed glossary](../../../../glossary.md#ownership-borrowing-and-lease))</span>
 7. Fixed RNN/GRU/LSTM detection, inference, all configure/train rejection overloads and their no-effect
    precedence remain unchanged, including heads/final-state-only roots and after compute/load.
    Mixed fixed/general outer sources still reject fixed training; static unrolled training still works.<span data-glossary-navigation="true"> ([RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [GRU glossary](../../../../glossary.md#term-gated-recurrent-unit-gru); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm))</span>
@@ -182,7 +182,7 @@ Status: Complete — implementation, independent review, final [module](../../..
   now support the bounded all-valid workflow. No new production type/API/edge or backend/numerical change.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([guard glossary](../../../../glossary.md#term-guard); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [backend glossary](../../../../glossary.md#backend))</span>
 - Java: Model, OwnedModelSource, ModelExecutionState Javadoc; OwnedModelSourceTest updated;
   GeneralScanOwnedModelTest and GeneralScanOwnedModelIntegrationTest added. Ten documents finalized.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model))</span>
-- Six plans closed: this brief, [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) master, roadmap, general-[scan](../../../../glossary.md#term-cumulative-scan) program, plus targeted current status in
+- Six plans closed: this brief, [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) master, roadmap, general-scan program, plus targeted current status in
   `docs/planning/extensions/checkpoint/master-plan.md` and `docs/planning/modules/compiler/master-plan.md`.
   Those two final planning additions bring authorized task paths from 20 to 22; predecessor briefs unchanged.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 - Independent review PASS, zero findings; 580 links/anchors checked, three Java Javadocs finalized.

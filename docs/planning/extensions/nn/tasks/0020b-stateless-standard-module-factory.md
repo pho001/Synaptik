@@ -132,7 +132,7 @@ on [runtime](../../../../glossary.md#term-runtime) type, string, [registry](../.
 - Inferring output width, hidden width, vocabulary size, embedding width, bias, data type, policy,
   or seed from input data or another recipe.<span data-glossary-navigation="true"> ([embedding glossary](../../../../glossary.md#embedding))</span>
 - Bidirectional/multidirectional recurrence, stacking, merge policy, reverse traversal, runtime
-  valid lengths, masks, recurrent scan/control flow, or changes to current static packing.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [masks glossary](../../../../glossary.md#term-boolean-mask); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  valid lengths, masks, recurrent scan/control flow, or changes to current static packing.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [masks glossary](../../../../glossary.md#term-boolean-mask))</span>
 - New Tensor/operation semantics, numerical execution, gradients, compiler behavior, optimizer or
   Training implementation, checkpoint transport, Runtime, Prepare, Engine, backend, build,
   dependency, architecture, conformance, or integration work.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [operation glossary](../../../../glossary.md#operation); [gradients glossary](../../../../glossary.md#term-gradient); [compiler glossary](../../../../glossary.md#term-compiler); [optimizer glossary](../../../../glossary.md#term-optimizer); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [Prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance))</span>
@@ -445,7 +445,7 @@ or a concrete defect risk requires it.
 - NN 0020C remains the next Draft row for type-safe directional recurrent composition after this
   factory capability is Complete. It has no detailed task specification yet.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - NN 0021–0024 remain Draft for the cross-module runtime scan, valid-length integration, optional
-  arbitrary masks, and the integration checkpoint.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan); [masks glossary](../../../../glossary.md#term-boolean-mask); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  arbitrary masks, and the integration checkpoint.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [runtime glossary](../../../../glossary.md#term-runtime); [masks glossary](../../../../glossary.md#term-boolean-mask); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
 - Add another standard recipe only when a concrete module family has a complete stable
   constructor and the recipe removes real caller-side assembly without hiding required context or
   state. Do not turn this closed facade into a provider system.<span data-glossary-navigation="true"> ([facade glossary](../../../../glossary.md#term-facade))</span>
@@ -505,7 +505,7 @@ Complete before both passes and all gates succeed.
 - Return concrete types so callers retain exact forward/result/state contracts and no generic
   Module forward or recurrent base is invented.
 - Let `rnn`/`gru`/`lstm` mean the standard Sequence recipe. The concrete return type makes that
-  choice visible, while direct Cell construction remains the explicit one-step/custom path.<span data-glossary-navigation="true"> ([mean glossary](../../../../glossary.md#term-mean))</span>
+  choice visible, while direct Cell construction remains the explicit one-step/custom path.
 - Use exact `L64X128MixRandom` for standard automatic Linear so the common facade matches the
   already documented high-level recurrent algorithm. Keep the existing direct automatic Linear
   constructor for callers needing another deterministic factory.<span data-glossary-navigation="true"> ([Linear glossary](../../../../glossary.md#term-linear-meanings))</span>
@@ -523,7 +523,7 @@ Complete before both passes and all gates succeed.
 - The factory neither registers modules nor assigns topology names. Every returned top-level
   module remains unowned until caller code installs it.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology))</span>
 - Static recurrent sequences still use Java lengths, static Shapes, and current default states.
-  This task adds no directionality, runtime scan, or runtime valid-length input.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  This task adds no directionality, runtime scan, or runtime valid-length input.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - The convenience constructs Tensor leaves/expressions only through existing types; it proves no
   numerical result, gradient execution, backend support, or performance property.<span data-glossary-navigation="true"> ([leaves glossary](../../../../glossary.md#term-leaf))</span><span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [gradient glossary](../../../../glossary.md#term-gradient); [backend glossary](../../../../glossary.md#backend))</span>
 

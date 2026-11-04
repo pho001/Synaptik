@@ -74,10 +74,10 @@ represent nine logical recurrent rows rather than fifteen dense padded rows.
 - `RnnSequence`, `LstmSequence`, changes to any recurrent cell, or a shared recurrent cell,
   sequence, state tuple, packing helper, base class, interface, or public `PackedSequence`.
 - Runtime Tensor lengths or masks, a Java mask, zero-value inference, dense post-cell masking,
-  synthesized padding, sorting, permutations, or inverse permutations.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Tensor glossary](../../../../glossary.md#tensor); [masks glossary](../../../../glossary.md#term-boolean-mask); [inference glossary](../../../../glossary.md#term-inference); [padding glossary](../../../../glossary.md#padding))</span>
+  synthesized padding, sorting, permutations, or inverse permutations.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Tensor glossary](../../../../glossary.md#tensor); [masks glossary](../../../../glossary.md#term-boolean-mask); [inference glossary](../../../../glossary.md#term-inference-meanings); [padding glossary](../../../../glossary.md#padding))</span>
 - Dense padded outputs, unpacking, batch-first layout, reverse or bidirectional traversal, stacked
   recurrent layers, residuals, recurrent dropout, attention, or state detachment.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [layout glossary](../../../../glossary.md#layout); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout))</span>
-- A recurrent [Model](../../../../glossary.md#term-model) [scan](../../../../glossary.md#term-cumulative-scan)/control-flow body or reinterpretation of `CUM_SUM`/`CUM_PROD`.
+- A recurrent [Model](../../../../glossary.md#term-model) scan/control-flow body or reinterpretation of `CUM_SUM`/`CUM_PROD`.
 - Default or retained hidden state, hidden Buffers, state initialization, mutation, reset, or an
   adapter into <span data-glossary-navigation="true"> ([Buffers glossary](../../../../glossary.md#term-buffer))</span>`UnaryTensorModule` or `Sequential`.
 - Gradient-rule, compiler, Runtime, Prepare, Engine, backend, numerical execution, checkpoint
@@ -112,7 +112,7 @@ represent nine logical recurrent rows rather than fifteen dense padded rows.
   still has a different two-state contract, and the explicit parallel file partition forbids a
   shared implementation path.<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [partition glossary](../../../../glossary.md#partition))</span>
 - Stop if the task needs a new Model API, dependency, runtime scan, hidden state, shared source or
-  test file, or any path outside its authorized ownership.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [scan glossary](../../../../glossary.md#term-cumulative-scan); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
+  test file, or any path outside its authorized ownership.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 
 ## Package impact
 
@@ -277,9 +277,9 @@ may touch this task's nine listed paths, within the fourteen-path union recorded
 - Packed outputs are exact GRU next-hidden results; zero-length/all-zero/empty behavior matches
   the contract and consumes no unexpected IDs.
 - Full local preflight, fixed provenance/ID order, no-zero inference, mode, replacement,
-  concurrency, and failure-prefix behavior are tested.<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight); [provenance glossary](../../../../glossary.md#provenance); [inference glossary](../../../../glossary.md#term-inference); [concurrency glossary](../../../../glossary.md#term-concurrency))</span>
+  concurrency, and failure-prefix behavior are tested.<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight); [provenance glossary](../../../../glossary.md#provenance); [inference glossary](../../../../glossary.md#term-inference-meanings); [concurrency glossary](../../../../glossary.md#term-concurrency))</span>
 - No LSTM/RNN/shared abstraction, runtime scan/mask, dense padding, dependency, execution claim,
-  or out-of-scope path is introduced.<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan); [mask glossary](../../../../glossary.md#term-boolean-mask); [padding glossary](../../../../glossary.md#padding); [dependency glossary](../../../../glossary.md#term-dependency); [scope glossary](../../../../glossary.md#term-scope))</span>
+  or out-of-scope path is introduced.<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [runtime glossary](../../../../glossary.md#term-runtime); [mask glossary](../../../../glossary.md#term-boolean-mask); [padding glossary](../../../../glossary.md#padding); [dependency glossary](../../../../glossary.md#term-dependency); [scope glossary](../../../../glossary.md#term-scope))</span>
 - Focused GRU sequence tests and the one coordinated final [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) module suite pass.
 - One joint clean documentation pass finalizes Javadocs/shared docs, records no-change
   conclusions, and synchronizes both tasks/master before either becomes Complete.
@@ -321,7 +321,7 @@ dependency, [operation](../../../../glossary.md#operation), or execution behavio
 - Reassess a shared recurrent sequence abstraction only after all three concrete sequence results
   are complete and a consumer proves a type-safe benefit.
 - Runtime-dynamic masks/lengths remain blocked on a future genuine Model recurrent scan/control-
-  flow contract.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [masks glossary](../../../../glossary.md#term-boolean-mask); [Model glossary](../../../../glossary.md#term-model); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  flow contract.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [masks glossary](../../../../glossary.md#term-boolean-mask); [Model glossary](../../../../glossary.md#term-model))</span>
 
 ## Architecture impact
 
@@ -474,11 +474,11 @@ not repeat successful Java tests unless executable Java changes.
 - Documentation-agent review: joint clean context `/root/nn_0016_0017_docs` completed the
   independent review without changing executable Java or tests.
 - Documentation impact: shared package/API/glossary text now describes all three concrete static
-  sequence containers and preserves the runtime-scan boundary.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  sequence containers and preserves the runtime-scan boundary.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Javadoc review: the implementation drafts were accurate and required no production-source edit;
   shared package Javadoc was finalized and generated output passed inspection.
 - Glossary impact: existing construction-time length, active batch, static packed recurrent
-  sequence, and recurrent scan definitions now cover RNN, GRU, and LSTM without zero inference.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [inference glossary](../../../../glossary.md#term-inference))</span>
+  sequence, and recurrent scan definitions now cover RNN, GRU, and LSTM without zero inference.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [inference glossary](../../../../glossary.md#term-inference-meanings))</span>
 - Unresolved issues: None.
 - Follow-up required: None for [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0016.
 

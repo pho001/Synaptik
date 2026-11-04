@@ -39,7 +39,7 @@ per-value body [dtype](../../../../glossary.md#data-type--datatype) or construct
   Core lifecycle, Core invariants, Dependency rules, Testing requirements.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [Dependency glossary](../../../../glossary.md#term-dependency))</span>
 - [Compiler cold inventory](../../../../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction)<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler))</span>:
   static homogeneous length intersection, preflight and substitution roles, no provider admission.<span data-glossary-navigation="true"> ([homogeneous glossary](../../../../glossary.md#term-homogeneous); [preflight glossary](../../../../glossary.md#term-preflight); [admission glossary](../../../../glossary.md#term-admission))</span>
-- [Scan header/roles](../../../../architecture/contracts/recurrent-scan.md#header-bindings-and-source-admission)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>:
+- [Scan header/roles](../../../../architecture/contracts/recurrent-scan.md#header-bindings-and-source-admission):
   c+s+i+1 actuals, c+s+i formals, final discrete lengths actual, ordered row roles.
 - [Generic graph source](../../../../architecture/contracts/extensions-training.md#generic-graph-source-and-values)<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>,
   [v4](../../../../architecture/contracts/extensions-training.md#canonical-graph-model-version-4) and
@@ -49,7 +49,7 @@ per-value body [dtype](../../../../glossary.md#data-type--datatype) or construct
 ## Exact v5 encoding
 
 Use ArtifactFile v1 kind `graph-model.v5`, [ASCII](../../../../glossary.md#term-ascii) `SYNGRF05`, signed [big-endian](../../../../glossary.md#text-encoding-and-file-boundaries) i32 version 5.
-Only an outer length-aware [Scan](../../../../glossary.md#term-cumulative-scan) selects v5 and [opcode](../../../../glossary.md#term-opcode) 33. Opcode 23 retains its original all-valid
+Only an outer length-aware Scan selects v5 and [opcode](../../../../glossary.md#term-opcode) 33. Opcode 23 retains its original all-valid
 seven-field record in all versions; v5 may contain both 23 and 33. Bodies retain opcodes 1..19 and
 24..32, never nested scans or opcode 33. New readers preserve exact v1-v4 record [admission](../../../../glossary.md#term-admission).
 

@@ -1,4 +1,4 @@
-# Task 0001B: Remove Repeated [Parameter](../../../../glossary.md#term-parameter) Overlap [Scan](../../../../glossary.md#term-cumulative-scan)
+# Task 0001B: Remove Repeated [Parameter](../../../../glossary.md#term-parameter) Overlap Scan
 
 > **Editorial reading context — not a status update.** “Scan” here means pairwise memory
 > overlap checking, not a recurrent Tensor operation. Parameters and their storage identities
@@ -24,8 +24,8 @@ Keep complete per-[run](../../../../glossary.md#term-run) [binding](../../../../
 
 ## [Scope](../../../../glossary.md#term-scope)
 
-- Prove from [Model](../../../../glossary.md#term-model)'s [sealed](../../../../glossary.md#term-sealed) `HostTensorStorage`/final `MemorySegmentStorage.segment` and Training [capture](../../../../glossary.md#term-capture-meanings)/[binding](../../../../glossary.md#term-normative) contracts that a [parameter](../../../../glossary.md#term-parameter) pair accepted at open cannot start overlapping while wrappers and storage associations remain fixed.
-- Remove only the redundant parameter-to-parameter pair [scan](../../../../glossary.md#term-cumulative-scan) from `validateModuleAndParameters`; retain all per-parameter [liveness](../../../../glossary.md#term-liveness), [binding](../../../../glossary.md#term-binding), and [finite](../../../../glossary.md#term-finite)-state checks.
+- Prove from [Model](../../../../glossary.md#term-model)'s [sealed](../../../../glossary.md#term-sealed) `HostTensorStorage`/final `MemorySegmentStorage.segment` and Training [capture](../../../../glossary.md#term-capture-meanings)/[binding](../../../../glossary.md#term-binding) contracts that a [parameter](../../../../glossary.md#term-parameter) pair accepted at open cannot start overlapping while wrappers and storage associations remain fixed.
+- Remove only the redundant parameter-to-parameter pair scan from `validateModuleAndParameters`; retain all per-parameter [liveness](../../../../glossary.md#term-liveness), [binding](../../../../glossary.md#term-binding), and [finite](../../../../glossary.md#term-finite)-state checks.
 - Preserve the open-time overlap check and per-[run](../../../../glossary.md#term-run) overlap checks involving dynamic compiled inputs.
 - Optionally precompute fixed compiled-input diagnostic roles during binding-plan construction to avoid a repeated parameter-path scan, without changing errors or input mapping.
 - Add targeted [regression](../../../../glossary.md#term-regression) tests for overlapping parameter rejection at open, changed binding rejection before mutation, and dynamic input overlap rejection before mutation.

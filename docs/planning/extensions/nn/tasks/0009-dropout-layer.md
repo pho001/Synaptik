@@ -157,7 +157,7 @@ There is no declared public/protected probability accessor, mode accessor, state
 training/evaluation convenience, [mask](../../../../glossary.md#term-boolean-mask) accessor, constructor overload, nested type, or interface.
 Inherited final `Module` discovery/mode methods remain unchanged.
 
-## Result-[carrier](../../../../glossary.md#term-storage-carrier) decision and [ownership](../../../../glossary.md#term-ownership-meanings)
+## Result-carrier decision and [ownership](../../../../glossary.md#term-ownership-meanings)
 
 `io.github.pho001.synaptik.model.tensor.DropoutResult` cannot serve as the [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) forward result
 without changing its current truth. Its public [Javadoc](../../../../glossary.md#term-javadoc) defines output and next state as output
@@ -221,7 +221,7 @@ Each call completes the following checks before reading mode or entering either 
 4. Read `context.mode()` exactly once. `ForwardContext` construction already guarantees a
    non-null enum value.
 
-These local failures consume no [Tensor](../../../../glossary.md#tensor) identifier, create no result [carrier](../../../../glossary.md#term-storage-carrier) or [producer](../../../../glossary.md#term-producer), and
+These local failures consume no [Tensor](../../../../glossary.md#tensor) identifier, create no result carrier or [producer](../../../../glossary.md#term-producer), and
 change no [module](../../../../glossary.md#term-module)/context/state value. Null checking before branch selection deliberately gives
 the layer one stable public [argument](../../../../glossary.md#term-argument) order independent of mode.
 
@@ -498,13 +498,13 @@ After Java/tests are stable, give the required clean documentation context:
   null validation follows that same public parameter order.<span data-glossary-navigation="true"> ([arguments glossary](../../../../glossary.md#term-argument); [graph RNG state glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [immutable glossary](../../../../glossary.md#term-immutable); [validation glossary](../../../../glossary.md#term-validation); [parameter glossary](../../../../glossary.md#term-parameter))</span>
 - Reuse `DropoutAttrs` only as the intrinsic constructor validator; retain no attrs object and
   expose no getter because no current consumer requires configuration introspection.
-- Name the [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [carrier](../../../../glossary.md#term-storage-carrier) `DropoutForwardResult`, not `DropoutResult`, to avoid collision with and false
+- Name the [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) carrier `DropoutForwardResult`, not `DropoutResult`, to avoid collision with and false
   equivalence to the Model training-occurrence carrier.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - Put the carrier beside the layer in `nn.layers`, not in `nn.module` or Model: it exists only
   because the concrete mode-sensitive layer has two result origins.
 - Return one carrier shape for both modes so callers always receive the state they must thread.
   Returning only Tensor during evaluation would force a mode-dependent Java return type or hide
-  state preservation.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [evaluation glossary](../../../../glossary.md#term-evaluation))</span>
+  state preservation.<span data-glossary-navigation="true"> ([evaluation glossary](../../../../glossary.md#term-evaluation))</span>
 - Preserve the exact incoming state reference in evaluation. Creating an equivalent new state
   would allocate an occurrence and falsely imply advancement or replay-state reconstruction.
 - Preserve the exact input reference in evaluation. A Model no-op would consume an ID and change
@@ -598,7 +598,7 @@ Final implementation and documentation evidence:
   local links and 293 anchored destinations resolved, fences balanced, terminal newlines present,
   and no trailing whitespace was found. The glossary now distinguishes Model's same-producer
   training carrier from the NN branch carrier and gives a small declarative evaluation/training
-  identity table without repeating Model mathematics or claiming execution.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  identity table without repeating Model mathematics or claiming execution.
 - Exact final scope contains only the seven task-owned paths: `Dropout.java`,
   `DropoutForwardResult.java`, layers `package-info.java`, `DropoutTest.java`, `docs/glossary.md`,
   the NN master plan, and this task. No task 0010/0011 specification or unrelated Model, build,
@@ -618,7 +618,7 @@ Final implementation and documentation evidence:
 
 - Completed changes: The exact Dropout executable surface, NN result carrier, package Javadocs,
   focused coverage, glossary explanation, and synchronized planning evidence are complete without
-  hidden state or out-of-scope behavior.<span data-glossary-navigation="true"> ([Dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [carrier glossary](../../../../glossary.md#term-storage-carrier); [planning glossary](../../../../glossary.md#term-planning); [scope glossary](../../../../glossary.md#term-scope))</span>
+  hidden state or out-of-scope behavior.<span data-glossary-navigation="true"> ([Dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [planning glossary](../../../../glossary.md#term-planning); [scope glossary](../../../../glossary.md#term-scope))</span>
 - Files changed or created: Exactly the seven task-owned paths: three production Java paths, one
   focused NN test, the glossary, NN master plan, and this task record.
 - Tests or validation performed: Focused one-suite/9-test and authoritative NN 15-suite/83-test

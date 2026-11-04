@@ -45,7 +45,7 @@ schema version, storage provider, or [serialization](../../../../glossary.md#ter
 - Add one public immutable `StateEntry` value containing exactly a relative qualified `path`, a
   `StateKind`, and the exact current [`Tensor`](../../../../glossary.md#tensor) reference. The Tensor's immutable descriptor supplies
   the entry's data type, structural Shape, and gradient-eligibility fact; do not duplicate those
-  facts in another schema carrier.<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [data type glossary](../../../../glossary.md#data-type--datatype); [Shape glossary](../../../../glossary.md#shape); [gradient glossary](../../../../glossary.md#term-gradient); [schema glossary](../../../../glossary.md#term-schema); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  facts in another schema carrier.<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [data type glossary](../../../../glossary.md#data-type--datatype); [Shape glossary](../../../../glossary.md#shape); [gradient glossary](../../../../glossary.md#term-gradient); [schema glossary](../../../../glossary.md#term-schema))</span>
 - Add public `StateKind` with exactly [`PARAMETER`](../../../../glossary.md#term-parameter) and [`BUFFER`](../../../../glossary.md#term-buffer). Kind is part of the state schema;
   an entry cannot satisfy a target of the other kind merely because its Tensor is compatible.
 - Add exactly these public final methods to [`Module`](../../../../glossary.md#term-module):
@@ -153,7 +153,7 @@ schema version, storage provider, or [serialization](../../../../glossary.md#ter
 - `extensions/nn` owns module-declared parameters, persistent buffers, module-tree traversal, and
   this in-memory state transfer. It continues to depend only on <span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module))</span>`modules/model`.
 - NN must not import Training, Compiler, Runtime, Prepare, Engine, CPU, Metal, CUDA, or another
-  backend. Training remains downstream and may later coordinate when state is saved or loaded.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Compiler glossary](../../../../glossary.md#term-compiler); [Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [CPU glossary](../../../../glossary.md#term-cpu); [Metal glossary](../../../../glossary.md#term-metal); [CUDA glossary](../../../../glossary.md#term-cuda); [backend glossary](../../../../glossary.md#backend); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  backend. Training remains downstream and may later coordinate when state is saved or loaded.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Compiler glossary](../../../../glossary.md#term-compiler); [Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [CPU glossary](../../../../glossary.md#term-cpu); [Metal glossary](../../../../glossary.md#term-metal); [CUDA glossary](../../../../glossary.md#term-cuda); [backend glossary](../../../../glossary.md#backend))</span>
 - Tensor identity, descriptor, and provenance remain immutable. Export and load retain exact
   Tensor references and change only the current binding held by stable NN wrappers.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [identity glossary](../../../../glossary.md#term-identity-meanings); [descriptor glossary](../../../../glossary.md#term-descriptor); [provenance glossary](../../../../glossary.md#provenance); [immutable glossary](../../../../glossary.md#term-immutable); [binding glossary](../../../../glossary.md#term-binding))</span>
 - [Parameter](../../../../glossary.md#term-parameter) [schema](../../../../glossary.md#term-schema) remains owned by `Parameter`: exact declaration-time data type, structural
@@ -454,7 +454,7 @@ already locks the unchanged Model-only dependency, and focused NN tests own the 
   object serialization as a wire format. Do not create its detailed specification now.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [provenance glossary](../../../../glossary.md#provenance); [serialization glossary](../../../../glossary.md#term-serialization); [wire format glossary](../../../../glossary.md#term-wire-format))</span>
 - `extensions/training` may later coordinate state-dictionary timing with optimizer/session state,
   but optimizer state remains a separate training-owned contract and must not be inserted into
-  this NN dictionary.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [optimizer glossary](../../../../glossary.md#term-optimizer); [optimizer state glossary](../../../../glossary.md#term-optimizer-state))</span>
+  this NN dictionary.<span data-glossary-navigation="true"> ([optimizer glossary](../../../../glossary.md#term-optimizer); [optimizer state glossary](../../../../glossary.md#term-optimizer-state))</span>
 
 ## Documentation and no-change review
 
@@ -595,7 +595,7 @@ and index, planning guide and roadmap, documentation rules and General/Planning/
 profiles, [ADR](../../../../glossary.md#term-architecture-decision-record-adr) 0007, [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) master plan and completed task history, final [Module](../../../../glossary.md#term-module)/[Parameter](../../../../glossary.md#term-parameter)/[Buffer](../../../../glossary.md#term-buffer) and
 layer source/tests, [Model](../../../../glossary.md#term-model) [descriptor](../../../../glossary.md#term-descriptor)/[Shape](../../../../glossary.md#shape)/data-type contracts, Training API and training-[graph](../../../../glossary.md#graph)
 boundary, glossary terminology, build edges, and NN/training architecture enforcement. A read-only
-legacy tree [scan](../../../../glossary.md#term-cumulative-scan) found no selected module state-dictionary/[checkpoint](../../../../glossary.md#term-checkpoint) capability worth carrying
+legacy tree scan found no selected module state-dictionary/[checkpoint](../../../../glossary.md#term-checkpoint) capability worth carrying
 forward; no legacy architecture or source was used.
 
 The planning pass selected the exact public API and validate-before-install algorithm recorded

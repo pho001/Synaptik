@@ -32,7 +32,7 @@ optional training adapters supply semantic payloads; this task owns neither [NN]
   logical kind/entry keys, sorted entries, explicit lengths, no padding or compression. Payloads
   are opaque bytes. A fixed header checks the manifest with an unkeyed SHA-256 digest; the manifest
   records each payload length and SHA-256 digest. Reject duplicate/noncanonical names, <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [big-endian glossary](../../../../glossary.md#text-encoding-and-file-boundaries); [metadata glossary](../../../../glossary.md#term-metadata); [ASCII glossary](../../../../glossary.md#term-ascii); [padding glossary](../../../../glossary.md#padding); [opaque glossary](../../../../glossary.md#term-opaque); [manifest glossary](../../../../glossary.md#term-manifest); [SHA-256 glossary](../../../../glossary.md#term-sha-256); [digest glossary](../../../../glossary.md#term-digest); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>`.`/`..`, empty
-  segments, unknown versions, malformed fields, truncation, and trailing bytes.<span data-glossary-navigation="true"> ([truncation glossary](../../../../glossary.md#term-truncation-toward-zero))</span>
+  segments, unknown versions, malformed fields, truncation, and trailing bytes.
 - Public caller-supplied limits bound file and manifest bytes, entry count, key length, each
   payload, and aggregate payload bytes. The reader bounds encoded lengths before allocation and
   checks aggregate arithmetic before payload allocation. An individual payload cannot exceed the
@@ -50,7 +50,7 @@ optional training adapters supply semantic payloads; this task owns neither [NN]
   written final file. The file's contents are forced before publication on a local filesystem,
   but Java NIO does not portably guarantee that the rename's directory entry survives a power
   loss. Do not claim full crash durability, try to
-  manufacture it with <span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [loss glossary](../../../../glossary.md#loss); [crash durability glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>`FileChannel.force` on a directory, or add a platform-specific fallback.
+  manufacture it with <span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [crash durability glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>`FileChannel.force` on a directory, or add a platform-specific fallback.
   On move failure, never deliberately delete the target; clean only owned temporary files when
   safe, and tell the caller to inspect the target if the provider's result is uncertain.
 - This is an initial storage contract, not encryption, authentication against an adversary who
@@ -60,7 +60,7 @@ optional training adapters supply semantic payloads; this task owns neither [NN]
 The replace policy is deliberate: [Java `Files.move`](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/nio/file/Files.html#move(java.nio.file.Path,java.nio.file.Path,java.nio.file.CopyOption...))
 with `ATOMIC_MOVE` ignores other move options and does not portably guarantee no-replace behavior
 when the [target](../../../../glossary.md#term-target) exists. [Java `FileChannel.force`](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/nio/channels/FileChannel.html#force(boolean))
-only guarantees flushing changes made through that [channel](../../../../glossary.md#term-channel), not a separate rename. The format is kept
+only guarantees flushing changes made through that channel, not a separate rename. The format is kept
 small and uncompressed so exact bytes, bounds, and corruption refusal are reviewable before
 semantic adapters are added.
 

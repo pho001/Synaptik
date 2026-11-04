@@ -1,4 +1,4 @@
-# Task CP0013: Bounded general-[scan](../../../../glossary.md#term-cumulative-scan) [graph](../../../../glossary.md#graph) [persistence](../../../../glossary.md#term-persistence)
+# Task CP0013: Bounded general-scan [graph](../../../../glossary.md#graph) [persistence](../../../../glossary.md#term-persistence)
 
 > **Editorial reading context — not a status update.** Version four adds bytes describing a
 > bounded general-scan body, not an executable loop or stored training tape. Checkpoint sizes
@@ -22,7 +22,7 @@ focused evidence: `/private/tmp/synaptik-cp0013-evidence.xLBA70`. Preserve unrel
 
 ## Change class and goal
 
-Class C: save ordinary general [`Scan`](../../../../glossary.md#term-cumulative-scan) source/values through [Checkpoint](../../../../glossary.md#term-checkpoint), load cold through [Compiler](../../../../glossary.md#term-compiler).
+Class C: save ordinary general `Scan` source/values through [Checkpoint](../../../../glossary.md#term-checkpoint), load cold through [Compiler](../../../../glossary.md#term-compiler).
 Clean implementation/independent reviews; NN0032's [backend](../../../../glossary.md#backend)/[layout](../../../../glossary.md#layout) gate stays separate.
 
 ## [Scope](../../../../glossary.md#term-scope) and non-goals
@@ -50,7 +50,7 @@ Executors read this brief, affected source/tests and these headings, not full gl
   (consumer save/load boundary only).
 - [Compiler](../../../../glossary.md#term-compiler): [Compile lifecycle](../../../../architecture/contracts/compiler-autograd.md#compile-lifecycle)<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>,
   [Bounded general-scan cold reconstruction](../../../../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction)<span data-glossary-navigation="true"> ([cold reconstruction glossary](../../../../glossary.md#term-cold-reconstruction))</span>.
-- Recurrent [scan](../../../../glossary.md#term-cumulative-scan): [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
+- Recurrent scan: [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
   including [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>,
   [Canonical residual ports and demand](../../../../architecture/contracts/recurrent-scan.md#canonical-residual-ports-and-demand)<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>,
   [Reverse scan and exact primal bindings](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal); [bindings glossary](../../../../glossary.md#term-binding))</span>,
@@ -64,7 +64,7 @@ Current v1/v2/v3 remain body-free. Stop on ambiguous authority or any new produc
 - Depends on: Compiler0012, CP0010/0011/0012 and NN0031/CPU0030–0036/low-level and owned-workflow
   joins Complete; required predecessor reviews/validation accepted. Schema/product proposal approved.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Schema glossary](../../../../glossary.md#term-schema))</span>
 - Conflicts with: Checkpoint wire/source/limits, Compiler cold inventory, NN persistence, scan and
-  root/owning/shared-document writes; serial, no other writer active.<span data-glossary-navigation="true"> ([Checkpoint glossary](../../../../glossary.md#term-checkpoint); [Compiler glossary](../../../../glossary.md#term-compiler); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [persistence glossary](../../../../glossary.md#term-persistence); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  root/owning/shared-document writes; serial, no other writer active.<span data-glossary-navigation="true"> ([Checkpoint glossary](../../../../glossary.md#term-checkpoint); [Compiler glossary](../../../../glossary.md#term-compiler); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [persistence glossary](../../../../glossary.md#term-persistence))</span>
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus
   292 accepted dirty paths (291-path baseline + ADR0047), empty index, verified 2026-10-23; preserve all.
@@ -133,7 +133,7 @@ Authority, [codec](../../../../glossary.md#term-codec), documentation, independe
   body/node once with fresh canonical formals and Scan.apply per occurrence, including T=0; no
   Checkpoint Tensor reconstruction table. Normalized full recapture equality precedes publication.
   Save/load create no Engine; copy/rebind unchanged. Validation failure changes no source/state/target
-  and returns no partial result. Retain ArtifactFile uncertain-move/failure/cleanup, not new durability.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [canonical glossary](../../../../glossary.md#term-canonical-form); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [occurrence glossary](../../../../glossary.md#term-occurrence); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [Tensor glossary](../../../../glossary.md#tensor); [publication glossary](../../../../glossary.md#term-publication); [Engine glossary](../../../../glossary.md#term-engine); [rebind glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [Validation glossary](../../../../glossary.md#term-validation); [target glossary](../../../../glossary.md#term-target); [durability glossary](../../../../glossary.md#term-durability))</span>
+  and returns no partial result. Retain ArtifactFile uncertain-move/failure/cleanup, not new durability.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [canonical glossary](../../../../glossary.md#term-canonical-form); [occurrence glossary](../../../../glossary.md#term-occurrence); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [Tensor glossary](../../../../glossary.md#tensor); [publication glossary](../../../../glossary.md#term-publication); [Engine glossary](../../../../glossary.md#term-engine); [rebind glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [Validation glossary](../../../../glossary.md#term-validation); [target glossary](../../../../glossary.md#term-target); [durability glossary](../../../../glossary.md#term-durability))</span>
 - Test valid last records as well as late-invalid bodies after valid outer work, zero time/empty
   dimensions, multiple occurrences/reused templates, unused formals, repeated roles/actuals, all
   ports/aliases/raw bits and applicable cold dtypes. Exact/one-below bounds/malformed fixtures and
@@ -145,7 +145,7 @@ Authority, [codec](../../../../glossary.md#term-codec), documentation, independe
 ## Documentation, review and [validation](../../../../glossary.md#term-validation)
 
 Root + one extensions-training [owner](../../../../glossary.md#term-owner) and [ADR 0047](../../../../design/decisions/0047-bounded-general-scan-graph-persistence.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
-are accepted; [Compiler](../../../../glossary.md#term-compiler)/recurrent edits were status-only. [Scan](../../../../glossary.md#term-cumulative-scan)/reconstruction/[ABI](../../../../glossary.md#term-application-binary-interface-abi)/[backend](../../../../glossary.md#backend)/generator/
+are accepted; [Compiler](../../../../glossary.md#term-compiler)/recurrent edits were status-only. Scan/reconstruction/[ABI](../../../../glossary.md#term-application-binary-interface-abi)/[backend](../../../../glossary.md#backend)/generator/
 numerical/[AD](../../../../glossary.md#autograd)/[padding](../../../../glossary.md#padding)/[NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)-migration semantics stay unchanged. Stop on missing seams or ambiguity.
 Worker yielded frozen implementation; Cicero finalized 11 authority/explanatory documents, confirmed
 accurate Javadocs and gave final independent APPROVE without Java review edits. Main's gates below

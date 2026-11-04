@@ -23,7 +23,7 @@ The approved authority is enacted before a clean implementation and independent 
 ## Goal
 
 Establish the smallest Data-only foundation for [host](../../../../glossary.md#term-host) numeric [sample](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters)/sequence batching:
-[Model](../../../../glossary.md#term-model) supplies [Tensor](../../../../glossary.md#tensor) semantics; Data will [prepare](../../../../glossary.md#prepare) host inputs. Register and enforce the boundary
+[Model](../../../../glossary.md#term-model) supplies [Tensor](../../../../glossary.md#tensor) semantics; Data will prepare host inputs. Register and enforce the boundary
 without implementing batching or introducing a public [API](../../../../glossary.md#term-application-programming-interface-api) or production type.
 
 ## [Scope](../../../../glossary.md#term-scope) and approved decision
@@ -147,7 +147,7 @@ The complete change comprises 17 task paths, grouped below; no code was supersed
 4. Namespace/import checks cover all Data Java sources when present. With an empty module, use
    test-local source/build fixtures to prove allowed namespace/Model imports pass and wrong
    namespace, forbidden imports and forbidden configuration edges fail. Do not rely on a vacuous
-   scan or add production classes just to exercise tests.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+   scan or add production classes just to exercise tests.
 5. The isolated consumer compiles Model Tensor declarations through Data alone. Record that this
    proves dependency export, not a Data API, batch semantics or execution capability.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [dependency glossary](../../../../glossary.md#term-dependency); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>
 6. Required independent Class C code/documentation review and one main-owned root gate pass.

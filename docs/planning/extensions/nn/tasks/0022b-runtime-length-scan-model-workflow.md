@@ -1,4 +1,4 @@
-# Task NN0022B [Runtime](../../../../glossary.md#term-runtime) length [scan](../../../../glossary.md#term-cumulative-scan) [Model](../../../../glossary.md#term-model) workflow
+# Task NN0022B [Runtime](../../../../glossary.md#term-runtime) length scan [Model](../../../../glossary.md#term-model) workflow
 
 > **Editorial reading context — not a status update.** The builder describes a two-input
 > Model whose positions are values then valid lengths; the application supplies fresh stored
@@ -21,7 +21,7 @@ Class C: public two-input workflow/limited [Model](../../../../glossary.md#term-
 
 ## Goal
 
-Build/save/load/compute [scan](../../../../glossary.md#term-cumulative-scan) Models through existing [Model](../../../../glossary.md#term-model)/[Engine](../../../../glossary.md#term-engine) [owners](../../../../glossary.md#term-owner); no Data prerequisite or dynamic [shapes](../../../../glossary.md#shape).
+Build/save/load/compute scan Models through existing [Model](../../../../glossary.md#term-model)/[Engine](../../../../glossary.md#term-engine) [owners](../../../../glossary.md#term-owner); no Data prerequisite or dynamic [shapes](../../../../glossary.md#shape).
 
 ## [Scope](../../../../glossary.md#term-scope) and approved [API](../../../../glossary.md#term-application-programming-interface-api)
 
@@ -36,7 +36,7 @@ Model<List<Tensor>, List<Tensor>> buildWithLengths(); // ModelBuilder
 HostTensorValue compute(Tensor firstInput, Tensor secondInput); // Model
 ```
 
-Each [scan](../../../../glossary.md#term-cumulative-scan) recipe uses FORWARD biased zero-state Sequence.forwardScan with existing [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings) and positive hidden width.
+Each scan recipe uses FORWARD biased zero-state Sequence.forwardScan with existing [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings) and positive hidden width.
 The first scan requires positive static [TBF](../../../../glossary.md#term-tbf) `[T,B,F]`, establishing one [canonical](../../../../glossary.md#term-canonical-form) non-[gradient](../../../../glossary.md#term-gradient) [INT64](../../../../glossary.md#data-type--datatype) `[B]`
 length [prototype](../../../../glossary.md#term-prototype); later scans keep T/B, infer only F and own independent [parameters](../../../../glossary.md#term-parameter)/zero h (and c).
 Length values may include zero. Advanced Model.[graph](../../../../glossary.md#graph) retains the scan contract's zero T/B and
@@ -70,13 +70,13 @@ try (var loaded = Model.loadGraph(path)) {
 
 The compute overload removes list/result indexing: EXACTLY two declared inputs and one output
 in positional order for ANY [owned Model](../../../../glossary.md#model-module-buffer-and-scan-distinctions), not only scans; no [dtype](../../../../glossary.md#data-type--datatype),
-length-role or [artifact](../../../../glossary.md#term-artifact) [inference](../../../../glossary.md#term-inference). Use Long.MAX_VALUE and one begin/end [admission](../../../../glossary.md#term-admission): [arity](../../../../glossary.md#term-arity) before
+length-role or [artifact](../../../../glossary.md#term-artifact) [inference](../../../../glossary.md#term-inference-meanings). Use Long.MAX_VALUE and one begin/end [admission](../../../../glossary.md#term-admission): [arity](../../../../glossary.md#term-arity) before
 [arguments](../../../../glossary.md#term-argument), then computeOpen, not nested public compute. Capability/[lifecycle](../../../../glossary.md#lifecycle) precedence stays unchanged.
 List/bounded compute and optional cold forward remain advanced; forward is never a compute prerequisite.
 
 ### Ordinary steps and [padding](../../../../glossary.md#padding)
 
-The following rules describe composition, not an implicit [model](../../../../glossary.md#term-model)-wide [mask](../../../../glossary.md#term-boolean-mask). Only each [scan](../../../../glossary.md#term-cumulative-scan) skips
+The following rules describe composition, not an implicit [model](../../../../glossary.md#term-model)-wide [mask](../../../../glossary.md#term-boolean-mask). Only each scan skips
 its own padded recurrent transitions and zero-pads its dense output; ordinary layers do not.
 
 | Existing step | Meaning before, between or after scans |
@@ -117,7 +117,7 @@ and [graph-model v1](../../../../architecture/contracts/extensions-training.md#c
 
 The approved cutover is enacted in the root, owning [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) heading and [module-boundaries explanation](../../../../architecture/module-boundaries.md#owned-tensor-model-composition)<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module))</span>,
 with [ADR0041](../../../../design/decisions/0041-runtime-length-scan-model-inference.md).
-[Engine](../../../../glossary.md#term-engine)/[scan](../../../../glossary.md#term-cumulative-scan) semantics, [ownership](../../../../glossary.md#term-ownership-meanings) and allowed edges remain unchanged; stop on any further gap.
+[Engine](../../../../glossary.md#term-engine)/scan semantics, [ownership](../../../../glossary.md#term-ownership-meanings) and allowed edges remain unchanged; stop on any further gap.
 
 ## Dependencies and integration
 
@@ -131,7 +131,7 @@ with [ADR0041](../../../../design/decisions/0041-runtime-length-scan-model-infer
 - Integration order: approved cutover → independent contract review → clean implementation → independent code/docs review → coordinator checkpoint;
   then NN0022A only after its separate Data0001/0002 gates. No task becomes Ready automatically.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
 - Integration validation: focused public scan Model integration plus one coordinated root test/Javadoc
-  gate because this capability changes the owned Model contract boundary; reuse CPU0028 route evidence.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [scan glossary](../../../../glossary.md#term-cumulative-scan); [Model glossary](../../../../glossary.md#term-model); [Javadoc glossary](../../../../glossary.md#term-javadoc); [owned Model glossary](../../../../glossary.md#model-module-buffer-and-scan-distinctions))</span>
+  gate because this capability changes the owned Model contract boundary; reuse CPU0028 route evidence.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Model glossary](../../../../glossary.md#term-model); [Javadoc glossary](../../../../glossary.md#term-javadoc); [owned Model glossary](../../../../glossary.md#model-module-buffer-and-scan-distinctions))</span>
 - Shared-document integration [owner](../../../../glossary.md#term-owner): main coordinator, sole writer of shared plans/authority/explanations.
 
 Pre-launch verification — 2026-10-20: coordinator verified [Ready](../../../../glossary.md#term-ready)/frontier, Complete dependencies, dirty NN0022/[hash](../../../../glossary.md#term-hash),
@@ -156,7 +156,7 @@ RuntimeLengthScanModelIntegrationTest in the existing testing integration packag
 2. buildWithLengths rejects no-scan chains; build rejects scans without changing static behavior.
    Advanced list cold forward accepts two exact-descriptor symbolic inputs, including produced
    substitutions; no Engine or retained input storage. Two inputs, source roles, canonical state
-   paths, supplied-state aliases, initialization and fresh-build isolation survive construction/load.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [descriptor glossary](../../../../glossary.md#term-descriptor); [Engine glossary](../../../../glossary.md#term-engine); [canonical glossary](../../../../glossary.md#term-canonical-form); [aliases glossary](../../../../glossary.md#aliasing-and-arena))</span>
+   paths, supplied-state aliases, initialization and fresh-build isolation survive construction/load.<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [Engine glossary](../../../../glossary.md#term-engine); [canonical glossary](../../../../glossary.md#term-canonical-form); [aliases glossary](../../../../glossary.md#aliasing-and-arena))</span>
 3. For all three families, direct and mixed stacks, `[T,short,0]`, all-zero and changed lengths,
    compare every output against independent equations or the accepted direct oracle. Validate
    finalHidden versus dense last-time results, nonzero explicit initial states through graph,
@@ -203,7 +203,7 @@ Accepted 2026-10-20; all acceptance criteria reviewed. Status: Complete.
 - Root XML: NN 524/57 suites and architecture 13/9 suites, zero failures/errors/skips;
   integration 183/33 suites, zero failures/errors, one unrelated environment-assumption skip:<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
   `EngineModelAutotuningIntegrationTest.eligibleCpuAlternativesCompleteBothPublicTuningPhases`
-  (host CPU fixture has no eligible local-workload alternatives). Focused scan integration remains 11/0 skips.<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host); [CPU glossary](../../../../glossary.md#term-cpu); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  (host CPU fixture has no eligible local-workload alternatives). Focused scan integration remains 11/0 skips.<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - Frozen nine-Java [manifest](../../../../glossary.md#term-manifest) SHA256 `563a71aa18157f3436486d0577701a12bc3cb625bfbf56b9a831afe1fe607ee4`
   unchanged after final review/root gate; protected notice/oracle/native hashes unchanged.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle))</span>
 - Inference-only, canonical FLOAT32 CPU execution; no BPTT, Data, dtype, backend or format widening.

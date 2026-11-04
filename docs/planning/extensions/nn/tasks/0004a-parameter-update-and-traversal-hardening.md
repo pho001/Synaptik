@@ -107,7 +107,7 @@ failure.
   API; state dictionaries, serialization, or file formats.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [compare-and-set glossary](../../../../glossary.md#term-compare-and-set-cas); [rollback glossary](../../../../glossary.md#term-rollback); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [serialization glossary](../../../../glossary.md#term-serialization))</span>
 - Thread safety, locking, volatile fields, atomic references, unsynchronized visibility promises,
   concurrent snapshots, or a multi-parameter consistency protocol. Callers still coordinate
-  replacement with forward construction, traversal, and other mutation.<span data-glossary-navigation="true"> ([atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [parameter glossary](../../../../glossary.md#term-parameter); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  replacement with forward construction, traversal, and other mutation.<span data-glossary-navigation="true"> ([atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [parameter glossary](../../../../glossary.md#term-parameter))</span>
 - Public replacement of [`Buffer`](../../../../glossary.md#term-buffer), a buffer update service, a public module parent, detach,
   rename, reparenting, shared children, or a supported corruption mechanism.
 - Public parameter-schema accessors, layout/storage/provenance/label compatibility, shape
@@ -230,7 +230,7 @@ This task may create or modify at most:
 - the four documentation/[planning](../../../../glossary.md#term-planning) files listed above.
 
 No other file may enter the task diff. If implementation needs another production type/package,
-a new [module](../../../../glossary.md#term-module) edge, public [schema](../../../../glossary.md#term-schema) [carrier](../../../../glossary.md#term-storage-carrier), [checkpoint](../../../../glossary.md#term-checkpoint)/[transaction](../../../../glossary.md#term-transaction)/[concurrency](../../../../glossary.md#term-concurrency) mechanism,
+a new [module](../../../../glossary.md#term-module) edge, public [schema](../../../../glossary.md#term-schema) carrier, [checkpoint](../../../../glossary.md#term-checkpoint)/[transaction](../../../../glossary.md#term-transaction)/[concurrency](../../../../glossary.md#term-concurrency) mechanism,
 [architecture test](../../../../glossary.md#term-architecture-test), [Model](../../../../glossary.md#term-model) change, or more files, stop and propose a separate follow-up task.
 
 ## Acceptance criteria
@@ -398,7 +398,7 @@ Complete before every acceptance criterion passes.
 - Exact declaration-time data type and structural Shape cannot be changed through replacement.
   Callers must construct a new module/parameter if a layer's trainable schema changes.<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype); [Shape glossary](../../../../glossary.md#shape); [module glossary](../../../../glossary.md#term-module); [schema glossary](../../../../glossary.md#term-schema))</span>
 - The public capability does not compute an optimizer update, map gradients, execute a graph, or
-  coordinate with concurrent forward construction.<span data-glossary-navigation="true"> ([optimizer glossary](../../../../glossary.md#term-optimizer); [gradients glossary](../../../../glossary.md#term-gradient); [graph glossary](../../../../glossary.md#graph); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  coordinate with concurrent forward construction.<span data-glossary-navigation="true"> ([optimizer glossary](../../../../glossary.md#term-optimizer); [gradients glossary](../../../../glossary.md#term-gradient); [graph glossary](../../../../glossary.md#graph))</span>
 - Iterative traversal removes call-stack depth dependence but does not promise a maximum tree
   size; heap capacity and final qualified-path size remain ordinary environmental limits.<span data-glossary-navigation="true"> ([heap glossary](../../../../glossary.md#term-heap))</span>
 - Buffer replacement remains available only to a declaring subclass through the existing

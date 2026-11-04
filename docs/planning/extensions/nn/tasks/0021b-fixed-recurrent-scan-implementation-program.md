@@ -1,4 +1,4 @@
-# Task NN0021B Fixed recurrent [scan](../../../../glossary.md#term-cumulative-scan) forward execution program
+# Task NN0021B Fixed recurrent scan forward execution program
 
 > **Editorial reading context — not a status update.** This packet coordinates acceptance;
 > CPU owns the implementation of the prepared recurrent loop. One Model occurrence is not
@@ -21,7 +21,7 @@ Class C program — [concrete backend](../../../../glossary.md#concrete-backend)
 
 ## Goal
 
-Make the existing flat [Model](../../../../glossary.md#term-model) [scan](../../../../glossary.md#term-cumulative-scan) executable through ordinary [CPU](../../../../glossary.md#term-cpu) [compile](../../../../glossary.md#compile) → [prepare](../../../../glossary.md#prepare) → [run](../../../../glossary.md#term-run).
+Make the existing flat [Model](../../../../glossary.md#term-model) scan executable through ordinary [CPU](../../../../glossary.md#term-cpu) [compile](../../../../glossary.md#compile) → [prepare](../../../../glossary.md#prepare) → [run](../../../../glossary.md#term-run).
 One scan [occurrence](../../../../glossary.md#term-occurrence) prepares one reusable [kernel](../../../../glossary.md#kernel); explicit input states and fresh valid lengths
 produce dense outputs and final states without static [unrolling](../../../../glossary.md#term-unrolling) or hidden carried state.
 
@@ -29,7 +29,7 @@ produce dense outputs and final states without static [unrolling](../../../../gl
 
 - Model0025E/0025F and Compiler0006A already supply the family, canonical output provenance,
   static inference, materialized layout closure and fail-closed backpropagation through time
-  (BPTT). CP0010/CP0011 already supply cold persistence. Do not reimplement those capabilities.<span data-glossary-navigation="true"> ([BPTT glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state))</span><span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [provenance glossary](../../../../glossary.md#provenance); [inference glossary](../../../../glossary.md#term-inference); [layout glossary](../../../../glossary.md#layout); [fail-closed glossary](../../../../glossary.md#term-fail-closed); [backpropagation through time glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [persistence glossary](../../../../glossary.md#term-persistence))</span>
+  (BPTT). CP0010/CP0011 already supply cold persistence. Do not reimplement those capabilities.<span data-glossary-navigation="true"> ([BPTT glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state))</span><span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [provenance glossary](../../../../glossary.md#provenance); [inference glossary](../../../../glossary.md#term-inference-meanings); [layout glossary](../../../../glossary.md#layout); [fail-closed glossary](../../../../glossary.md#term-fail-closed); [backpropagation through time glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [persistence glossary](../../../../glossary.md#term-persistence))</span>
 - [CPU0028](../../../backends/cpu/tasks/0028-fixed-recurrent-scan-forward-execution.md) owns the
   complete CPU admission, private lowering/Java kernel, resources, binding, tests and documentation.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [admission glossary](../../../../glossary.md#term-admission); [lowering glossary](../../../../glossary.md#lowering); [kernel glossary](../../../../glossary.md#kernel); [binding glossary](../../../../glossary.md#term-binding))</span>
 - NN0021B owns coordination and final acceptance, not NN or CPU implementation. There is no
@@ -48,7 +48,7 @@ loop-body API or second pipeline. No native route, tuning search, performance ca
   [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>,
   [Explicit non-goals](../../../../../ARCHITECTURE.md#explicit-non-goals) and
   [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
-- Read the complete [recurrent-scan contract](../../../../architecture/contracts/recurrent-scan.md)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>:
+- Read the complete [recurrent-scan contract](../../../../architecture/contracts/recurrent-scan.md):
   `Fixed recurrent scan without graph regions`, `Fixed family and current Model surface`,
   `Static Shape and runtime-value boundary`, `Valid lengths, traversal, and outputs`,
   `Purity and lifecycle ownership`, `Performance and migration invariants`.
@@ -72,7 +72,7 @@ Stop and report an actual source-backed contract gap; [planning](../../../../glo
 
 - Depends on: NN0021A; Model0025E/0025F; Compiler0006A; CPU0027; Engine0021; CP0010/CP0011 — Complete.
 - Conflicts with: CPU admission/unit-plan/finalization, shared scan/lifecycle contracts and shared
-  documentation; no active conflicting writer reported by main.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission); [scan glossary](../../../../glossary.md#term-cumulative-scan); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  documentation; no active conflicting writer reported by main.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Parallel group: None; independent read-only [planning](../../../../glossary.md#term-planning)/review may overlap.
 - Common base revision: `e9b00bafddb36c28b12a9bb9fa5add3f19978547` (`main == origin/main`).
 - Integration order: main inspects verified CPU0028 Ready/frontier → clean
@@ -101,7 +101,7 @@ flags and exact output OR, non-gradient [INT64](../../../../glossary.md#data-typ
 It includes RNN_TANH, GRU_RESET_AFTER and [LSTM](../../../../glossary.md#term-long-short-term-memory-lstm), both directions, [bias](../../../../glossary.md#term-bias)/no bias, all canonical outputs
 and zero time/[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters). [Scalar](../../../../glossary.md#term-scalar) sequential Java [kernels](../../../../glossary.md#kernel) use exact segment access for [heap](../../../../glossary.md#term-heap), native and
 mixed canonical storage. CPU0028 specifies exclusions and validation. [FLOAT64](../../../../glossary.md#term-float64)/low types, arbitrary
-layouts, [vector](../../../../glossary.md#term-vector)/parallel [scan](../../../../glossary.md#term-cumulative-scan) strategies and tuning are not implied by FLOAT32 support.
+layouts, [vector](../../../../glossary.md#term-vector)/parallel scan strategies and tuning are not implied by FLOAT32 support.
 Gradient eligibility is not a backward request: true [PARAMETER](../../../../glossary.md#term-parameter) [weights](../../../../glossary.md#term-weight), including restored scans,
 must execute FORWARD_ONLY while all backward-capable scan requests remain [Compiler](../../../../glossary.md#term-compiler)-rejected.
 
@@ -115,7 +115,7 @@ It adds no generic execution hierarchy or generated scan [artifact](../../../../
    repeated/fresh-input, carrier, isolation and public multi-output publication acceptance.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [publication glossary](../../../../glossary.md#term-publication))</span>
 2. The entire length vector and access preconditions are validated before any scan result write.
    No padded recurrent arithmetic occurs; padding is positive zero; zero-length final states are
-   raw initial values; reverse traversal uses only the valid prefix at original time positions.<span data-glossary-navigation="true"> ([vector glossary](../../../../glossary.md#term-vector); [scan glossary](../../../../glossary.md#term-cumulative-scan); [padding glossary](../../../../glossary.md#padding); [positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
+   raw initial values; reverse traversal uses only the valid prefix at original time positions.<span data-glossary-navigation="true"> ([vector glossary](../../../../glossary.md#term-vector); [padding glossary](../../../../glossary.md#padding); [positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 3. Static descriptors, resources and kernel count are independent of length values. Kernel/node
    count is constant in time; dense output memory is still proportional to time × batch × hidden.<span data-glossary-navigation="true"> ([descriptors glossary](../../../../glossary.md#term-descriptor); [kernel glossary](../../../../glossary.md#kernel); [node glossary](../../../../glossary.md#node); [constant glossary](../../../../glossary.md#term-constant); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>
 4. Current NN/static-unrolled training and cold wire formats remain unchanged. BPTT remains
@@ -139,7 +139,7 @@ owns exact implementation, changed areas, commands, review and [validation](../.
 Delivered [canonical](../../../../glossary.md#term-canonical-form) [FLOAT32](../../../../glossary.md#term-float32) [scalar](../../../../glossary.md#term-scalar) direct Java [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../../glossary.md#term-long-short-term-memory-lstm), all six [signatures](../../../../glossary.md#term-signature)/directions,
 [heap](../../../../glossary.md#term-heap)/native/mixed storage, all outputs, exact output-flag OR and fresh [runtime](../../../../glossary.md#term-runtime) [INT64](../../../../glossary.md#data-type--datatype) lengths.
 One [immutable](../../../../glossary.md#term-immutable) prepared [kernel](../../../../glossary.md#kernel) per [occurrence](../../../../glossary.md#term-occurrence) uses isolated [run](../../../../glossary.md#term-run) scratch; full length/access
-[preflight](../../../../glossary.md#term-preflight) follows [producers](../../../../glossary.md#term-producer) and precedes every [scan](../../../../glossary.md#term-cumulative-scan) write. Dense output remains O(T*B*H).
+[preflight](../../../../glossary.md#term-preflight) follows [producers](../../../../glossary.md#term-producer) and precedes every scan write. Dense output remains O(T*B*H).
 Worker [CPU](../../../../glossary.md#term-cpu): 1,101 total/1,071 passed/30 existing opt-in skips; focused CPU 55, [conformance](../../../../glossary.md#term-conformance)/ledger 7,
 [Engine](../../../../glossary.md#term-engine) 5 and Fluent 5 passed; corrected cell-[oracle](../../../../glossary.md#term-test-oracle) tests 7 CPU + 1 conformance passed.
 Dewey final independent code/docs APPROVE, zero findings, on unchanged 32-file [manifest](../../../../glossary.md#term-manifest)

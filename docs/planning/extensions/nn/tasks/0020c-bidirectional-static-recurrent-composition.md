@@ -58,7 +58,7 @@ cell-specific results. Directionality adds four decisions that must not remain i
 Current [Model](../../../../glossary.md#term-model) `GATHER_ND`, axis [`GATHER`](../../../../glossary.md#gather), `SELECT`, and `CONCAT` expressions are sufficient. A
 whole-axis `flip(0)` is not sufficient because it would move right [padding](../../../../glossary.md#padding) ahead of valid data for
 short rows. Dense `WHERE` masking is not sufficient because it would still construct padded cell
-work. `SUM` is not selected because it discards the two directional [feature](../../../../glossary.md#term-software-feature) subspaces and requires
+work. `SUM` is not selected because it discards the two directional [feature](../../../../glossary.md#term-feature) subspaces and requires
 an equal-Shape interpretation that the first [API](../../../../glossary.md#term-application-programming-interface-api) does not need. Final-axis `CONCAT` retains both
 halves visibly and is already a current [differentiable](../../../../glossary.md#derivative-and-chain-rule) Model [operation](../../../../glossary.md#operation).
 
@@ -75,7 +75,7 @@ halves visibly and is already a current [differentiable](../../../../glossary.md
 - Require the two supplied cells to be non-null, identity-distinct, and configured with the same
   hidden size and exact parameter data type. Bias presence may differ for supplied cells. Input
   width is validated for both cells against each forward call because an automatic cell may still
-  be unbound and supplied cells can carry independently constructed input schemas.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [parameter glossary](../../../../glossary.md#term-parameter); [data type glossary](../../../../glossary.md#data-type--datatype); [carry glossary](../../../../glossary.md#term-carry); [schemas glossary](../../../../glossary.md#term-schema))</span>
+  be unbound and supplied cells can carry independently constructed input schemas.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [parameter glossary](../../../../glossary.md#term-parameter); [data type glossary](../../../../glossary.md#data-type--datatype); [schemas glossary](../../../../glossary.md#term-schema))</span>
 - Permanently register the forward cell under exact child name `forward` and the backward cell
   under exact child name `backward`, in that order. Complete two-child validation must precede
   either parent link.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
@@ -147,7 +147,7 @@ halves visibly and is already a current [differentiable](../../../../glossary.md
   mask, runtime Tensor lengths, Java Boolean masks, dense post-cell masking, or runtime-dependent
   loop count/active Shape.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [Tensor glossary](../../../../glossary.md#tensor); [mask glossary](../../../../glossary.md#term-boolean-mask); [runtime glossary](../../../../glossary.md#term-runtime); [Boolean glossary](../../../../glossary.md#data-type--datatype); [Shape glossary](../../../../glossary.md#shape))</span>
 - A recurrent Model scan/control-flow operation, body/subgraph representation, carried-value
-  tuple, runtime early exit, or reinterpretation of `CUM_SUM`/`CUM_PROD` as recurrent [scan](../../../../glossary.md#term-cumulative-scan).
+  tuple, runtime early exit, or reinterpretation of `CUM_SUM`/`CUM_PROD` as recurrent scan.
 - Changes to current one-directional cells, sequences, results, formulas, gate packing, default
   states, construction-time length semantics, or state-path schema.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema))</span>
 - A new [Model](../../../../glossary.md#term-model) [operation](../../../../glossary.md#operation)/helper/public method, direct `Operation` construction, new compiler rule,
@@ -223,7 +223,7 @@ halves visibly and is already a current [differentiable](../../../../glossary.md
   backpropagation or execution.<span data-glossary-navigation="true"> ([derivative glossary](../../../../glossary.md#term-derivative); [backpropagation glossary](../../../../glossary.md#term-backpropagation))</span>
 - If implementation needs a new Model semantic, dependency, runtime scan, public generic recurrent
   abstraction, hidden state, different merge, architecture change, ModuleFactory change, or path
-  outside the exact list, stop and report the blocker rather than widening the task.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [scan glossary](../../../../glossary.md#term-cumulative-scan); [widening glossary](../../../../glossary.md#term-widening))</span>
+  outside the exact list, stop and report the blocker rather than widening the task.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [widening glossary](../../../../glossary.md#term-widening))</span>
 
 ## Package impact
 
@@ -497,7 +497,7 @@ Overload behavior is:
 Default RNN/GRU state creation order is forward hidden then backward hidden. Default LSTM order is
 forward hidden, forward cell, backward hidden, backward cell. Each is a fresh [eager](../../../../glossary.md#term-eager-evaluation) unlabeled,
 [provenance](../../../../glossary.md#provenance)-free, non-[gradient](../../../../glossary.md#term-gradient) [leaf](../../../../glossary.md#term-leaf) shaped `[batch, hiddenSize]` with the common cell parameter type
-and is never retained. Omitted lengths [mean](../../../../glossary.md#term-mean) `L[b] = time` for every row.
+and is never retained. Omitted lengths mean `L[b] = time` for every row.
 
 ## Packing, reverse traversal, [alignment](../../../../glossary.md#term-alignment), and merge
 
@@ -758,7 +758,7 @@ or eighteenth path, stop and report the concrete need rather than expanding scop
   documented cross-cell failure non-rollback are tested.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [provenance glossary](../../../../glossary.md#provenance); [rollback glossary](../../../../glossary.md#term-rollback))</span>
 - The implementation contains no `flip(0)` whole-time reversal, dense [mask](../../../../glossary.md#term-boolean-mask), SUM merge, direct
   [`Operation`](../../../../glossary.md#operation), runtime scan, type switch, reflection, per-step callback, cross-direction shared
-  cell/Parameter/Tensor identity, or non-Model dependency.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan); [Model glossary](../../../../glossary.md#term-model); [dependency glossary](../../../../glossary.md#term-dependency))</span>
+  cell/Parameter/Tensor identity, or non-Model dependency.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [Model glossary](../../../../glossary.md#term-model); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Focused and final NN tests pass after executable stabilization. Repository-wide validation is
   deferred because the change remains inside the existing NN/Model dependency boundary.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - A separate clean documentation-focused pass finalizes every affected Javadoc and explanatory
@@ -819,7 +819,7 @@ and example profiles named by `docs/developer-guide/documentation-rules.md` and 
   reverse-prefix, merge, failure, concurrency, and no-execution boundaries;<span data-glossary-navigation="true"> ([parameters glossary](../../../../glossary.md#term-parameter); [nullability glossary](../../../../glossary.md#term-nullability); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [concurrency glossary](../../../../glossary.md#term-concurrency))</span>
 - update Training API and glossary for bidirectional packing, CONCAT order, directional final
   state, independent parameter trees/seeds, and the distinction from runtime scan and arbitrary
-  multidirectional/stacked recurrence;<span data-glossary-navigation="true"> ([seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  multidirectional/stacked recurrence;<span data-glossary-navigation="true"> ([seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - retain current one-directional and ModuleFactory explanations accurately and record why
   Tensor/Compile APIs, Training Java, Model capabilities, architecture/ADR/tests, build,
   conformance/integration, global roadmap, CPU, and other modules need no edit; and<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Model glossary](../../../../glossary.md#term-model); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [conformance glossary](../../../../glossary.md#term-conformance); [CPU glossary](../../../../glossary.md#term-cpu))</span>
@@ -847,7 +847,7 @@ records a concrete risk that requires a rerun.
 
 - NN 0021 remains Draft for the cross-module recurrent scan/control-flow and runtime input-binding
   prerequisite. It must preserve this task's directional ownership, reverse-prefix, merge, and
-  final-state semantics without treating static Java lengths as the target runtime API.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [scan glossary](../../../../glossary.md#term-cumulative-scan); [binding glossary](../../../../glossary.md#term-binding); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [target glossary](../../../../glossary.md#term-target); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
+  final-state semantics without treating static Java lengths as the target runtime API.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [binding glossary](../../../../glossary.md#term-binding); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [target glossary](../../../../glossary.md#term-target); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0022 remains Draft for Data-owned [runtime](../../../../glossary.md#term-runtime) valid lengths after NN 0021.
 - NN 0023–0024 remain Draft for optional [masks](../../../../glossary.md#term-boolean-mask) and the later integration [checkpoint](../../../../glossary.md#term-checkpoint).
 - Add arbitrary multidimensional directions or stacked recurrent layers only when a concrete
@@ -914,7 +914,7 @@ reviews source and tests rather than accepting the handoff summary as proof.
   arbitrary direction collection would duplicate those orders or invent unplanned spatial
   semantics.<span data-glossary-navigation="true"> ([spatial glossary](../../../../glossary.md#term-spatial-axes))</span>
 - Select fixed ordered final-[axis](../../../../glossary.md#term-axis) `CONCAT`. It retains both directional features and makes the
-  merge visible in provenance. <span data-glossary-navigation="true"> ([features glossary](../../../../glossary.md#term-software-feature); [provenance glossary](../../../../glossary.md#provenance))</span>`SUM` would erase direction identity and configurable merge would
+  merge visible in provenance. <span data-glossary-navigation="true"> ([features glossary](../../../../glossary.md#term-feature); [provenance glossary](../../../../glossary.md#provenance))</span>`SUM` would erase direction identity and configurable merge would
   add policy surface without a second current consumer.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Own cells directly under `forward` and `backward`, not through two nested one-directional
   Sequence children. This produces concise stable paths and avoids building a padded reversed
@@ -972,7 +972,7 @@ task implementation was performed.
   independent direct <span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>`forward`/`backward` children, fixed CONCAT, and one protected visibility
   widening of the existing atomic named-child primitive. It found no need for a generic recurrent
   base, arbitrary directions, ModuleFactory recipe, Model operation, runtime scan, hidden state,
-  dependency, or architecture change.<span data-glossary-navigation="true"> ([widening glossary](../../../../glossary.md#term-widening); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  dependency, or architecture change.<span data-glossary-navigation="true"> ([widening glossary](../../../../glossary.md#term-widening); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Targeted Ruby Markdown validation passed for this task and the NN master plan: every local link
   target exists, there are no fragment references requiring a foreign anchor, effective headings
   are unique, fences are balanced, terminal newlines are present, and trailing whitespace is
@@ -1091,7 +1091,7 @@ boundary. The Training [API](../../../../glossary.md#term-application-programmin
   task, and master evidence; all other documentation has a reasoned no-change conclusion.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module))</span>
 - [Javadoc](../../../../glossary.md#term-javadoc) review: Complete; final warning-free build and generated-page inspection passed.
 - Glossary impact: Added the concrete bidirectional static packed sequence term and corrected the
-  surrounding current-capability/future-scan boundary.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  surrounding current-capability/future-scan boundary.
 - Unresolved issues: None.
 - Required follow-up: None for task 0020C; [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0021–0024 remain separate Draft work.
 

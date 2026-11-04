@@ -76,7 +76,7 @@ No shared [parameter](../../../../glossary.md#term-parameter)-path update workar
   [Optimizer/training lifecycle](../../../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle)<span data-glossary-navigation="true"> ([Optimizer glossary](../../../../glossary.md#term-optimizer); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>.
 - [Proposed ADR 0038](../../../../design/decisions/0038-declarative-model-and-training-resume.md).
 
-The current contracts do not authorize the new product. Before [Ready](../../../../glossary.md#term-ready), [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) root + owning
+The current contracts do not authorize the new product. Before [Ready](../../../../glossary.md#term-ready), coordinate root + owning
 extensions contract + affected architecture explanations + [ADR](../../../../glossary.md#term-architecture-decision-record-adr) + architecture tests as applicable.
 Stop on missing/ambiguous contracts; this proposal does not override them.
 

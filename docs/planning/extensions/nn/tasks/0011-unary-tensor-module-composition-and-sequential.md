@@ -79,7 +79,7 @@ numerical result, infer a whole pipeline ahead of each child, [capture](../../..
   `ForwardContext` and returns output plus next state; it must remain outside this contract.
 - A contextual or state-threading sequential container. Do not implicitly call
   `Module.forwardContext()`, synthesize a context, retain graph RNG state, discard a result carrier,
-  or hide buffer transitions.<span data-glossary-navigation="true"> ([graph RNG state glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  or hide buffer transitions.<span data-glossary-navigation="true"> ([graph RNG state glossary](../../../../glossary.md#graph-rng-state--graphrngstate))</span>
 - Adding `BatchNorm`, `Dropout`, arbitrary `Module`, or non-`Module` functions to the accepted child
   type.
 - Varargs, array, stream, iterable, builder, factory, named-child map, add/remove/replace/move,
@@ -352,7 +352,7 @@ and justifying a revised plan before implementation.
 - Compatible parameter replacement and state-dictionary load are visible to later forward calls at
   stable numeric paths; earlier expressions remain unchanged.
 - No Model, BatchNorm, Dropout/result-carrier, ForwardContext, graph RNG, training, compiler,
-  runtime, prepare, Engine, backend, dependency, architecture, or build contract changes.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [carrier glossary](../../../../glossary.md#term-storage-carrier); [graph glossary](../../../../glossary.md#graph); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [backend glossary](../../../../glossary.md#backend); [dependency glossary](../../../../glossary.md#term-dependency))</span>
+  runtime, prepare, Engine, backend, dependency, architecture, or build contract changes.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [graph glossary](../../../../glossary.md#graph); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [backend glossary](../../../../glossary.md#backend); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Javadocs fully document inputs, outputs, nullability, ownership, order, identity, failure,
   partial-expression, mode, mutation, and thread-safety boundaries without claiming execution or
   numerical results.<span data-glossary-navigation="true"> ([nullability glossary](../../../../glossary.md#term-nullability); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
@@ -607,7 +607,7 @@ glossary work. It records reasoned no-change conclusions for [Tensor](../../../.
 - Production import and [Gradle](../../../../glossary.md#term-gradle) scans found only [Model](../../../../glossary.md#term-model), existing [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context), and [JDK](../../../../glossary.md#term-java-development-kit-jdk) dependencies;
   `extensions/nn` retains exactly its sole `implementation(project(":modules:model"))` edge. The
   new composition types import no ForwardContext, graph RNG/result carrier, training, compiler,
-  runtime, prepare, Engine, or backend contract.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [carrier glossary](../../../../glossary.md#term-storage-carrier); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine))</span>
+  runtime, prepare, Engine, or backend contract.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Implementation scope inspection found exactly 14 current NN implementation/planning paths:
   eight production/Javadoc paths, four tests, this task, and the NN master plan. The final
   documentation context is expected to add only the two remaining authorized explanatory paths,

@@ -18,7 +18,7 @@ Complete
 Add one final public [long short-term memory](../../../../glossary.md#term-long-short-term-memory-lstm) ([LSTM](../../../../glossary.md#neural-network-families)) cell with explicit caller-threaded hidden and
 cell state. The cell owns two gate-major packed projection [matrices](../../../../glossary.md#term-matrix-meanings) and one optional packed
 input-side [bias](../../../../glossary.md#term-bias), constructs one fixed LSTM step entirely from current [Model](../../../../glossary.md#term-model) [Tensor](../../../../glossary.md#tensor) expressions,
-and returns both next-state Tensors in one [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)-owned result [carrier](../../../../glossary.md#term-storage-carrier). It retains no [recurrent state](../../../../glossary.md#backpropagation-through-time-and-recurrent-state).
+and returns both next-state Tensors in one [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)-owned result carrier. It retains no [recurrent state](../../../../glossary.md#backpropagation-through-time-and-recurrent-state).
 
 [Mental model](../../../../glossary.md#term-mental-model):
 
@@ -89,7 +89,7 @@ returning an untyped collection.
 - Preserve stable parameter wrappers, schema-compatible replacement snapshots, recursive
   discovery, and state-dictionary paths through current <span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema))</span>[`Module`](../../../../glossary.md#term-module) and `Parameter` contracts.
 - Add focused exact-surface/result-carrier, supplied-state, initialization, validation-order,
-  shape/type, gate-slicing, provenance, replacement, mode, discovery, and exclusion tests.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [provenance glossary](../../../../glossary.md#provenance))</span>
+  shape/type, gate-slicing, provenance, replacement, mode, discovery, and exclusion tests.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance))</span>
 - Add complete type, record-component, constructor, member, and package Javadocs. After executable
   work and final NN testing, use a separate clean documentation-focused context to finalize
   Javadocs, glossary impact, planning evidence, generated Javadoc, and no-change conclusions.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [planning glossary](../../../../glossary.md#term-planning); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
@@ -99,7 +99,7 @@ returning an untyped collection.
 - Retaining current or next hidden/cell [Tensors](../../../../glossary.md#tensor) in fields, [`Buffer`](../../../../glossary.md#term-buffer) values, children, state
   dictionaries, thread-locals, statics, runtime objects, sessions, or another hidden lifecycle.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Default or zero hidden/cell state, state initializers, reset/detach APIs, stateful forward
-  overloads, or a carrier that omits either state transition.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  overloads, or a carrier that omits either state transition.
 - `UnaryTensorModule`, participation in `Sequential`, an adapter into `Sequential`, or changes to
   `Sequential`, `UnaryTensorModule`, [`Module`](../../../../glossary.md#term-module), [`Parameter`](../../../../glossary.md#term-parameter), or `Buffer`.
 - Separate public gate parameters, eight per-gate matrices, separate input/recurrent biases,
@@ -115,7 +115,7 @@ returning an untyped collection.
   lengths, packed sequence, variable-length handling, active-batch compaction, bidirectionality,
   stacking, static unrolling, or time traversal.<span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis); [masks glossary](../../../../glossary.md#term-boolean-mask); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [unrolling glossary](../../../../glossary.md#term-unrolling))</span>
 - A general recurrent Model scan, loop operation, subgraph/body representation, carried-value
-  tuple, scan result, or Tensor API. Current <span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [scan glossary](../../../../glossary.md#term-cumulative-scan); [operation glossary](../../../../glossary.md#operation); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>`CUM_SUM` and `CUM_PROD` are associative cumulative
+  tuple, scan result, or Tensor API. Current <span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>`CUM_SUM` and `CUM_PROD` are associative cumulative
   operations and are not recurrent scan primitives.
 - Backpropagation through time, gradient detachment, gradient rules, optimizer/session,
   parameter groups, checkpoint transport, serialization, compiler capture, scheduling,
@@ -152,7 +152,7 @@ returning an untyped collection.
   Training, Compiler, Runtime, Prepare, Engine, CPU, Metal, CUDA, or another backend.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [CPU glossary](../../../../glossary.md#term-cpu); [Metal glossary](../../../../glossary.md#term-metal); [CUDA glossary](../../../../glossary.md#term-cuda); [backend glossary](../../../../glossary.md#backend))</span>
 - NN owns packed parameter bindings, the typed cell composition, and its explicit two-Tensor
   result carrier. Model remains the sole owner of LINEAR decomposition, SLICE, ADD, MUL, SIGMOID,
-  TANH, type promotion, Shape algebra, descriptors, provenance, and Tensor identity.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [parameter glossary](../../../../glossary.md#term-parameter); [bindings glossary](../../../../glossary.md#term-binding); [Tensor glossary](../../../../glossary.md#tensor); [carrier glossary](../../../../glossary.md#term-storage-carrier); [Model glossary](../../../../glossary.md#term-model); [owner glossary](../../../../glossary.md#term-owner); [LINEAR glossary](../../../../glossary.md#term-linear-meanings); [decomposition glossary](../../../../glossary.md#term-decomposition); [SLICE glossary](../../../../glossary.md#slice); [SIGMOID glossary](../../../../glossary.md#term-sigmoid); [TANH glossary](../../../../glossary.md#term-tanh); [Shape glossary](../../../../glossary.md#shape); [descriptors glossary](../../../../glossary.md#term-descriptor); [provenance glossary](../../../../glossary.md#provenance); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  TANH, type promotion, Shape algebra, descriptors, provenance, and Tensor identity.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [parameter glossary](../../../../glossary.md#term-parameter); [bindings glossary](../../../../glossary.md#term-binding); [Tensor glossary](../../../../glossary.md#tensor); [Model glossary](../../../../glossary.md#term-model); [owner glossary](../../../../glossary.md#term-owner); [LINEAR glossary](../../../../glossary.md#term-linear-meanings); [decomposition glossary](../../../../glossary.md#term-decomposition); [SLICE glossary](../../../../glossary.md#slice); [SIGMOID glossary](../../../../glossary.md#term-sigmoid); [TANH glossary](../../../../glossary.md#term-tanh); [Shape glossary](../../../../glossary.md#shape); [descriptors glossary](../../../../glossary.md#term-descriptor); [provenance glossary](../../../../glossary.md#provenance); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Tensor identity, descriptors, and provenance remain immutable. Parameter replacement changes
   only the current exact Tensor returned by one stable wrapper; existing expressions remain
   unchanged.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable))</span>
@@ -206,7 +206,7 @@ public LstmCellForwardResult forward(Tensor input, Tensor hidden, Tensor cell)
 | `inputWeight()` | Returns the exact stable wrapper declared under `inputWeight`. |
 | `hiddenWeight()` | Returns the exact stable wrapper declared under `hiddenWeight`. |
 | `bias()` | Returns an empty Optional or the exact stable wrapper declared under `bias`. |
-| `forward(input, hidden, cell)` | Validates the complete three-input request, snapshots current [parameters](../../../../glossary.md#term-parameter), constructs the fixed [LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) formula once, and returns exact next-hidden/next-cell references in one fresh [carrier](../../../../glossary.md#term-storage-carrier). |
+| `forward(input, hidden, cell)` | Validates the complete three-input request, snapshots current [parameters](../../../../glossary.md#term-parameter), constructs the fixed [LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) formula once, and returns exact next-hidden/next-cell references in one fresh carrier. |
 
 The class declares no other public or protected constructor, method, field, nested type,
 interface, or overload. Inherited final [`Module`](../../../../glossary.md#term-module) APIs remain available normally.
@@ -554,11 +554,11 @@ If implementation needs another public type, helper file, test [owner](../../../
   references. Mode changes do not affect the expression chain.
 - No hidden [recurrent state](../../../../glossary.md#backpropagation-through-time-and-recurrent-state), [unary](../../../../glossary.md#term-unary) adapter, `Sequential` change, context, RNG state, sequence/time
   behavior, scan, Model/initializer change, optimizer, execution behavior, or framework-
-  compatibility claim is introduced.<span data-glossary-navigation="true"> ([RNG state glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [scan glossary](../../../../glossary.md#term-cumulative-scan); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
+  compatibility claim is introduced.<span data-glossary-navigation="true"> ([RNG state glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
 - Focused tests cover exact reflection surfaces, record behavior, state schema/order, supplied
   validation, initialized draw/ID order, all-zero forget bias, early failures, all gate intervals,
   exact operation/provenance association, broadcasting/type/rank/feature failures, replacement
-  snapshots, mode independence, explicit two-state threading, discovery, and exclusions.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-software-feature))</span><span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [operation glossary](../../../../glossary.md#operation); [rank glossary](../../../../glossary.md#term-rank); [state threading glossary](../../../../glossary.md#state-threading))</span>
+  snapshots, mode independence, explicit two-state threading, discovery, and exclusions.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-feature))</span><span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [operation glossary](../../../../glossary.md#operation); [rank glossary](../../../../glossary.md#term-rank); [state threading glossary](../../../../glossary.md#state-threading))</span>
 - All new and affected public/package APIs have meaningful complete Javadoc for purpose,
   equations, packing, Shapes/types, ownership, nullability, source lifecycle, side effects,
   promotion, broadcasting, result semantics, failure order, concurrency, mode, initialization
@@ -624,19 +624,19 @@ contract.
 ## Follow-up tasks
 
 - NN 0015 remains Draft without a detailed task: decide static unrolling of concrete cell calls
-  versus a genuinely general recurrent Model scan. <span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [unrolling glossary](../../../../glossary.md#term-unrolling); [Model glossary](../../../../glossary.md#term-model); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>`CUM_SUM` and `CUM_PROD` do not satisfy that
+  versus a genuinely general recurrent Model scan. <span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [unrolling glossary](../../../../glossary.md#term-unrolling); [Model glossary](../../../../glossary.md#term-model))</span>`CUM_SUM` and `CUM_PROD` do not satisfy that
   need.
 - NN 0015 must reserve packed variable-length sequencing for explicit lengths or an explicit mask,
   never inference from zero-valued data. Padded steps cause no cell invocation. Active-batch
   compaction or stable sorting must restore original batch order and capture final hidden state,
-  plus final cell state for LSTM, exactly when each sequence leaves the active set.<span data-glossary-navigation="true"> ([mask glossary](../../../../glossary.md#term-boolean-mask); [inference glossary](../../../../glossary.md#term-inference); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [capture glossary](../../../../glossary.md#term-capture-meanings); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm))</span>
+  plus final cell state for LSTM, exactly when each sequence leaves the active set.<span data-glossary-navigation="true"> ([mask glossary](../../../../glossary.md#term-boolean-mask); [inference glossary](../../../../glossary.md#term-inference-meanings); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [capture glossary](../../../../glossary.md#term-capture-meanings); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm))</span>
 - If NN 0015 selects containers, prefer cell-specific types unless completed RNN/GRU/LSTM
   signatures prove a shared recurrent contract without casts, state erasure, duplicate carriers,
   or hidden state.<span data-glossary-navigation="true"> ([RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [GRU glossary](../../../../glossary.md#term-gated-recurrent-unit-gru); [signatures glossary](../../../../glossary.md#term-signature))</span>
 - A non-zero forget-bias default, alternate LSTM packing/bias/equation policy, or framework
   checkpoint conversion requires a concrete consumer and separate task.<span data-glossary-navigation="true"> ([bias glossary](../../../../glossary.md#term-bias); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
 - Truncation, masking implementation, bidirectionality, stacking, recurrent dropout, checkpoint
-  persistence, training sessions, and backend execution remain separate future work.<span data-glossary-navigation="true"> ([Truncation glossary](../../../../glossary.md#term-truncation-toward-zero); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [persistence glossary](../../../../glossary.md#term-persistence); [backend glossary](../../../../glossary.md#backend))</span>
+  persistence, training sessions, and backend execution remain separate future work.<span data-glossary-navigation="true"> ([dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [persistence glossary](../../../../glossary.md#term-persistence); [backend glossary](../../../../glossary.md#backend))</span>
 
 ## Documentation and no-change review
 
@@ -656,14 +656,14 @@ The separate documentation pass must verify and record these reasoned no-change 
   because state ownership, module direction, and lifecycle boundaries do not change.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Tensor and Compile APIs plus Model source/master/capabilities remain accurate because the cell
   composes existing expressions and adds no Tensor method, semantic kind, split, recurrent scan,
-  capture, derivative, or execution behavior.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Model glossary](../../../../glossary.md#term-model); [scan glossary](../../../../glossary.md#term-cumulative-scan); [capture glossary](../../../../glossary.md#term-capture-meanings); [derivative glossary](../../../../glossary.md#term-derivative))</span>
+  capture, derivative, or execution behavior.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Model glossary](../../../../glossary.md#term-model); [capture glossary](../../../../glossary.md#term-capture-meanings); [derivative glossary](../../../../glossary.md#term-derivative))</span>
 - Training API and training graph remain accurate because recursive parameter discovery and
   replacement consume this direct Module normally; explicit recurrent states are forward values,
   and no optimizer, session, gradient publication, backpropagation-through-time, truncation, or
-  state orchestration is added.<span data-glossary-navigation="true"> ([training graph glossary](../../../../glossary.md#training-graph); [parameter glossary](../../../../glossary.md#term-parameter); [optimizer glossary](../../../../glossary.md#term-optimizer); [gradient glossary](../../../../glossary.md#term-gradient); [publication glossary](../../../../glossary.md#term-publication); [backpropagation glossary](../../../../glossary.md#term-backpropagation); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero))</span>
+  state orchestration is added.<span data-glossary-navigation="true"> ([training graph glossary](../../../../glossary.md#training-graph); [parameter glossary](../../../../glossary.md#term-parameter); [optimizer glossary](../../../../glossary.md#term-optimizer); [gradient glossary](../../../../glossary.md#term-gradient); [publication glossary](../../../../glossary.md#term-publication); [backpropagation glossary](../../../../glossary.md#term-backpropagation))</span>
 - `RnnCell`, `GruCell`, `DropoutForwardResult`, `UnaryTensorModule`, `Sequential`, state-dictionary
   contracts, and their tests remain accurate. LSTM has a distinct carrier because it returns two
-  different state expressions; transient gates and recurrent values are not module state.<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  different state expressions; transient gates and recurrent values are not module state.<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm))</span>
 - [Gradle](../../../../glossary.md#term-gradle) and [dependency](../../../../glossary.md#term-dependency) rules/tests remain accurate because `extensions/nn` retains only its
   existing Model dependency.
 - Backend conformance and integration tests remain unnecessary because no numerical execution,
@@ -744,7 +744,7 @@ After executable Java/tests stabilize, give the clean documentation context:
   input state or retain recurrent state.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [unary glossary](../../../../glossary.md#term-unary); [recurrent state glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state))</span>
 - Add public `LstmCellForwardResult(nextHidden, nextCell)`. The two next states are distinct
   expressions and both are required for truthful caller threading. A public record follows the
-  existing NN forward-result convention while keeping the carrier cell-specific.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  existing NN forward-result convention while keeping the carrier cell-specific.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - Pack two matrices and optional bias in input, forget, candidate, output order. Independent
   slices make provenance exact with current Model APIs and keep the parameter surface as small as<span data-glossary-navigation="true"> ([matrices glossary](../../../../glossary.md#term-matrix-meanings); [bias glossary](../../../../glossary.md#term-bias); [provenance glossary](../../../../glossary.md#provenance); [Model glossary](../../../../glossary.md#term-model); [parameter glossary](../../../../glossary.md#term-parameter))</span>
   `GruCell`. This order is the [checkpoint](../../../../glossary.md#term-checkpoint) [schema](../../../../glossary.md#term-schema) and is not claimed to match another framework.
@@ -778,7 +778,7 @@ After executable Java/tests stabilize, give the clean documentation context:
   no binding.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [Dimensions glossary](../../../../glossary.md#dimension); [Model glossary](../../../../glossary.md#term-model); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [binding glossary](../../../../glossary.md#term-binding))</span>
 - Higher-[rank](../../../../glossary.md#term-rank) inputs are one batched cell application, never an implicit sequence.
 - Explicit caller-threaded recurrence may build deep provenance chains. This task adds no
-  detachment, truncation, loop IR, scheduling, or memory-lifetime policy.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
+  detachment, truncation, loop IR, scheduling, or memory-lifetime policy.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
 - Parameter replacement and forward are not thread-safe as one snapshot. The cell retains no
   lock, version, or transaction.<span data-glossary-navigation="true"> ([thread-safe glossary](../../../../glossary.md#term-thread-safe); [snapshot glossary](../../../../glossary.md#term-snapshot); [transaction glossary](../../../../glossary.md#term-transaction))</span>
 - Initialized eager parameters require Java-array-sized host leaves and may consume draws or IDs
@@ -804,14 +804,14 @@ After executable Java/tests stabilize, give the clean documentation context:
 - The NN planning state has exactly one Ready row/spec (0014). NN 0015 remains the unchanged Draft
   row with no task file, including its explicit lengths/mask, no-zero-value-inference, active-
   batch compaction, original-order restoration, final hidden/cell capture, static-versus-dynamic
-  packing, and scan/unroll decision boundaries.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [mask glossary](../../../../glossary.md#term-boolean-mask); [inference glossary](../../../../glossary.md#term-inference); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [capture glossary](../../../../glossary.md#term-capture-meanings))</span>
+  packing, and scan/unroll decision boundaries.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [mask glossary](../../../../glossary.md#term-boolean-mask); [inference glossary](../../../../glossary.md#term-inference-meanings); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [capture glossary](../../../../glossary.md#term-capture-meanings))</span>
 - Every unrelated concurrent CPU/source/test/documentation/master/task/roadmap/glossary change was
   preserved exactly. Whole-worktree <span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>`git diff --check` and the new-file no-index whitespace check
   passed; no Java, Javadoc, Gradle, or test command was run during this planning-only task.<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [run glossary](../../../../glossary.md#term-run))</span>
 - Clean implementation context `/root/nn_0014_implementation` added the exact direct-[Module](../../../../glossary.md#term-module)
   `LstmCell`, the exact two-component `LstmCellForwardResult`, two focused test suites, and draft
   type/package Javadocs. It required no Model helper, initializer, hidden Buffer/state,
-  `ForwardContext`, sequence/[scan](../../../../glossary.md#term-cumulative-scan) abstraction, [dependency](../../../../glossary.md#term-dependency), or ninth task path.
+  `ForwardContext`, sequence/scan abstraction, [dependency](../../../../glossary.md#term-dependency), or ninth task path.
 - The stabilized focused command
   `./gradlew :extensions:nn:test --tests io.github.pho001.synaptik.nn.layers.LstmCellTest --tests io.github.pho001.synaptik.nn.layers.LstmCellInitializationTest`
   passed 15 tests with no failures, errors, or skips. The initial development run exposed one
@@ -895,10 +895,10 @@ After executable Java/tests stabilize, give the clean documentation context:
   execution contract.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [Compile glossary](../../../../glossary.md#compile); [metadata glossary](../../../../glossary.md#term-metadata); [derivative glossary](../../../../glossary.md#term-derivative))</span>
 - Training API and the training graph require no change because recursive parameter discovery and
   replacement already consume this direct Module and the task adds no optimizer, session,
-  gradient publication, backpropagation-through-time, truncation, or state orchestration.<span data-glossary-navigation="true"> ([training graph glossary](../../../../glossary.md#training-graph); [optimizer glossary](../../../../glossary.md#term-optimizer); [gradient glossary](../../../../glossary.md#term-gradient); [publication glossary](../../../../glossary.md#term-publication); [backpropagation glossary](../../../../glossary.md#term-backpropagation); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero))</span>
+  gradient publication, backpropagation-through-time, truncation, or state orchestration.<span data-glossary-navigation="true"> ([training graph glossary](../../../../glossary.md#training-graph); [optimizer glossary](../../../../glossary.md#term-optimizer); [gradient glossary](../../../../glossary.md#term-gradient); [publication glossary](../../../../glossary.md#term-publication); [backpropagation glossary](../../../../glossary.md#term-backpropagation))</span>
   `RnnCell`, `GruCell`, `DropoutForwardResult`, `UnaryTensorModule`, `Sequential`, state-dictionary
   contracts, and their tests remain accurate: LSTM alone needs the distinct two-state carrier,
-  while transient gates and recurrent values never become module state.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  while transient gates and recurrent values never become module state.
 - Gradle/dependency rules and tests, backend conformance, and integration tests require no change
   because no dependency, numerical execution, backend capability, or end-to-end lifecycle changed.
   The LSTM task did not edit the global roadmap, CPU work, other modules, Model capabilities, or
@@ -918,7 +918,7 @@ executable behavior or repeating the stable Java suites.
 
 - Completed changes: added final direct-[Module](../../../../glossary.md#term-module) `LstmCell` with exact supplied and explicit-source
   construction, IFGO-packed state, complete forward preflight, fixed two-state formula, exact
-  result carrier, and focused contract tests; finalized every affected documentation contract.<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  result carrier, and focused contract tests; finalized every affected documentation contract.<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight))</span>
 - Files changed or created: exactly `LstmCell.java`, `LstmCellForwardResult.java`, layers
   `package-info.java`, `LstmCellTest.java`, `LstmCellInitializationTest.java`, `docs/glossary.md`,
   the NN master plan, and this task; unrelated concurrent paths were preserved.
@@ -930,7 +930,7 @@ executable behavior or repeating the stable Java suites.
   independent source/test/API/architecture review and changed no executable Java or test.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Documentation impact: finalized the LSTM/result/package Javadocs, added the glossary's current
   LSTM checkpoint schema and explicit two-state example plus sequence/scan distinctions, and
-  synchronized task/master status and evidence.<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [schema glossary](../../../../glossary.md#term-schema); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  synchronized task/master status and evidence.<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [schema glossary](../../../../glossary.md#term-schema))</span>
 - Javadoc review: complete; generated type/result/package pages contain the exact surface, state,
   initialization, source, equation, failure, reference, concurrency, mode, and non-execution
   contracts.<span data-glossary-navigation="true"> ([concurrency glossary](../../../../glossary.md#term-concurrency))</span>

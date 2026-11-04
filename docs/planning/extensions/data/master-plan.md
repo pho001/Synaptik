@@ -12,7 +12,7 @@
 
 ## Goal
 
-[Prepare](../../../glossary.md#prepare) numeric [host](../../../glossary.md#term-host) sequences outside [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) computation. The delivered [slice](../../../glossary.md#slice) pads caller
+Prepare numeric [host](../../../glossary.md#term-host) sequences outside [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) computation. The delivered slice pads caller
 `long[]` rows into one [INT64](../../../glossary.md#data-type--datatype) [Tensor](../../../glossary.md#tensor) with [immutable](../../../glossary.md#term-immutable) valid counts, explicit side and logical [axes](../../../glossary.md#term-axis).
 Broader floating-sequence and equal-[shape](../../../glossary.md#shape) [sample](../../../glossary.md#term-sample-machine-learning-and-hyperparameters) batching remain deferred, not cancelled.
 
@@ -34,11 +34,11 @@ allocation. Data0003's brief owns final review and [validation](../../../glossar
 ## [Scope](../../../glossary.md#term-scope) and non-goals
 
 Selected: shared LEFT/RIGHT representation, unchanged [O(B)](../../../glossary.md#memory-management-atomic-counters-and-complexity) [host](../../../glossary.md#term-host)-count [API](../../../glossary.md#term-application-programming-interface-api), and a fluent
-`LongSequenceBatcher` using public [Model](../../../glossary.md#term-model) [heap](../../../glossary.md#term-heap) allocation. There is no implicit [truncation](../../../glossary.md#term-truncation-toward-zero).
+`LongSequenceBatcher` using public [Model](../../../glossary.md#term-model) [heap](../../../glossary.md#term-heap) allocation. There is no implicit truncation.
 Data never tokenizes, owns [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) computation, runs [Engine](../../../glossary.md#term-engine), allocates native resources, or adds a
 storage [lifetime](../../../glossary.md#term-lifetime), [runtime](../../../glossary.md#term-runtime)-length [binding](../../../glossary.md#term-binding), loader/sampler/[epoch](../../../glossary.md#term-epoch-meanings) [lifecycle](../../../glossary.md#lifecycle) or [persistence](../../../glossary.md#term-persistence).
 Current scans still accept right-valid-prefix counts only; LEFT support is preparation [metadata](../../../glossary.md#term-metadata),
-not a [scan](../../../glossary.md#term-cumulative-scan) capability change. The implemented NN0022A export only materializes counts for
+not a scan capability change. The implemented NN0022A export only materializes counts for
 RIGHT/TIME_MAJOR [batches](../../../glossary.md#term-batch-machine-learning-and-hyperparameters); binding remains owned by the application.
 
 ## [Module](../../../glossary.md#term-module) invariants and dependencies
@@ -84,7 +84,7 @@ completed on 2026-10-21; Text0001 is Complete and the Text frontier is None. No 
 | [0001](tasks/0001-data-extension-boundary.md) | Data-only architecture/build foundation | Complete | None | Accepted empty [module](../../../glossary.md#term-module), exact [Model](../../../glossary.md#term-model) [API](../../../glossary.md#term-application-programming-interface-api) edge and architecture enforcement; historical brief unchanged. |
 | [0002](tasks/0002-valid-sequence-lengths-and-right-padded-batch.md) | [Host](../../../glossary.md#term-host) [metadata](../../../glossary.md#term-metadata) and [borrowed](../../../glossary.md#ownership-borrowing-and-lease) [batch](../../../glossary.md#term-batch-machine-learning-and-hyperparameters) builder | Complete | 0001 | Accepted [immutable](../../../glossary.md#term-immutable) host prefixes/logical [axes](../../../glossary.md#term-axis) and right-padded metadata; historical brief unchanged. |
 | [0003](tasks/0003-padded-integral-sequence-batching.md) | Shared padded representation and integral batching | Complete | 0001/0002 Complete; main authority approved | Accepted after independent APPROVE and module/architecture-consumer gates; Text program root join complete. |
-| 0005 | Floating sequence batching | Draft | 0003; selected concrete float consumer/API | Preserve broader numeric capability; no speculative [dtype](../../../glossary.md#data-type--datatype)/[truncation](../../../glossary.md#term-truncation-toward-zero) abstraction now. |
+| 0005 | Floating sequence batching | Draft | 0003; selected concrete float consumer/API | Preserve broader numeric capability; no speculative [dtype](../../../glossary.md#data-type--datatype)/truncation abstraction now. |
 | 0006 | Equal-[shape](../../../glossary.md#shape) numeric [sample](../../../glossary.md#term-sample-machine-learning-and-hyperparameters) batching | Draft | 0003; selected sample consumer/API | Preserve generic numeric stacking for later Vision use without image semantics. |
 | 0004 | Broader Data batching [checkpoint](../../../glossary.md#term-checkpoint) | Draft | 0003, 0005, 0006 | Validate the broader sample/sequence capability after selection, not a prerequisite of Text0001. |
 

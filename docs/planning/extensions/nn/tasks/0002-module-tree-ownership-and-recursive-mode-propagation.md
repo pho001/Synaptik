@@ -134,7 +134,7 @@ This task may create or modify at most:
 - two [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) test files; and
 - these two [planning](../../../../glossary.md#term-planning) files.
 
-If implementation needs a new public [carrier](../../../../glossary.md#term-storage-carrier) type, another [module](../../../../glossary.md#term-module)/build [dependency](../../../../glossary.md#term-dependency), an
+If implementation needs a new public carrier type, another [module](../../../../glossary.md#term-module)/build [dependency](../../../../glossary.md#term-dependency), an
 architecture-test change, [binding](../../../../glossary.md#term-binding) mutation, [checkpoint](../../../../glossary.md#term-checkpoint) format, or more files, stop and propose a
 separate follow-up task.
 
@@ -239,7 +239,7 @@ summary only after that pass; do not mark it Complete first.
 - Child ownership is exclusive and permanent. A module can have zero or one parent and a child
   cannot be reused, removed, renamed, or reparented in this task.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [module glossary](../../../../glossary.md#term-module))</span>
 - Recursive maps, not a new public state-entry type, carry qualified names while preserving the
-  existing <span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry))</span>[`Parameter`](../../../../glossary.md#term-parameter) and [`Buffer`](../../../../glossary.md#term-buffer) APIs. The maps are defensive insertion-ordered snapshots.
+  existing [`Parameter`](../../../../glossary.md#term-parameter) and [`Buffer`](../../../../glossary.md#term-buffer) APIs. The maps are defensive insertion-ordered snapshots.
 - State traversal is depth-first with direct parameters before direct buffers before descendants.
 - Recursive mode changes preflight identity uniqueness before setting a mode, yielding all-or-
   nothing requested-mode propagation even for a defensively detected malformed tree.<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>

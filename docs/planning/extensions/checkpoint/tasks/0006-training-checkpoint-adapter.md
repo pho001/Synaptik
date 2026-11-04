@@ -54,7 +54,7 @@ BatchNorm training-[buffer](../../../../glossary.md#term-buffer) [alignment](../
   [Optimizer/training lifecycle](../../../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle)<span data-glossary-navigation="true"> ([Optimizer glossary](../../../../glossary.md#term-optimizer); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>.
 - [Proposed ADR 0038](../../../../design/decisions/0038-declarative-model-and-training-resume.md).
 
-The current contracts do not authorize the new product. Before [Ready](../../../../glossary.md#term-ready), [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) root + owning
+The current contracts do not authorize the new product. Before [Ready](../../../../glossary.md#term-ready), coordinate root + owning
 extensions contract + affected architecture explanations + [ADR](../../../../glossary.md#term-architecture-decision-record-adr) + architecture tests as applicable.
 Stop on missing/ambiguous contracts; this proposal does not override them.
 
@@ -142,7 +142,7 @@ Bound/[checksum](../../../../glossary.md#term-checksum) outer file first; [prefl
 [schema](../../../../glossary.md#term-schema)/[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication)/aggregate sizes and all ArtifactLimits before component or ParameterState clones.
 Bound every nested count/[rank](../../../../glossary.md#term-rank)/path/string by remaining bytes/minimum record size and array ceilings.
 Defaults must be conservative and configurable; [canonical](../../../../glossary.md#term-canonical-form) encoded limits are not peak-[heap](../../../../glossary.md#term-heap) budgets.
-Reject missing/duplicate/extra keys, unknown versions/IDs, malformed/trailing data and [truncation](../../../../glossary.md#term-truncation-toward-zero).
+Reject missing/duplicate/extra keys, unknown versions/IDs, malformed/trailing data and truncation.
 Retain existing checked ArtifactFormatException/I/O taxonomy; [owner](../../../../glossary.md#term-owner)/[lifecycle](../../../../glossary.md#lifecycle) errors stay owner errors.
 
 Before save/read returns any [detached](../../../../glossary.md#detached-model-results) [snapshot](../../../../glossary.md#term-snapshot), compare COMPLETE model [parameter](../../../../glossary.md#term-parameter) paths, PARAMETER
@@ -183,7 +183,7 @@ resource cleanup at every failure and [borrowed](../../../../glossary.md#ownersh
 Add bounded actual [Metal](../../../../glossary.md#term-metal) [smoke](../../../../glossary.md#term-smoke-test) with source-matched library and report absence/skips honestly;
 no cross-[device](../../../../glossary.md#term-device) exactness or broad performance claim.
 
-Before [Ready](../../../../glossary.md#term-ready) [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) root + owning extensions contract + explanations + ADR0038 acceptance
+Before [Ready](../../../../glossary.md#term-ready) coordinate root + owning extensions contract + explanations + ADR0038 acceptance
 and architecture tests; include optional project and exact two api edges only in implementation.
 Update CheckpointDependencyContractTest's absent-adapter assertion/exact edges and forbid reverse
 edges; retain [model](../../../../glossary.md#term-model)-only exact three-edge check. Add durable end-to-end integration [fixture](../../../../glossary.md#term-fixture).

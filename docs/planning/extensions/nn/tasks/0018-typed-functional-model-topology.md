@@ -34,7 +34,7 @@ var model = Model.define(topology -> {
 
 This task establishes typed composition, stable names, and construction [atomicity](../../../../glossary.md#term-atomicity) only. Current
 layers remain eagerly initialized, so the example still supplies their current constructor
-[dimensions](../../../../glossary.md#dimension). Deferred input-[feature](../../../../glossary.md#term-feature) [inference](../../../../glossary.md#term-inference) is the immediately following Draft capability and
+[dimensions](../../../../glossary.md#dimension). Deferred input-[feature](../../../../glossary.md#term-feature) [inference](../../../../glossary.md#term-inference-meanings) is the immediately following Draft capability and
 must not be simulated by an incomplete [parameter](../../../../glossary.md#term-parameter) or hidden first-forward mutation in this task.
 
 [Mental model](../../../../glossary.md#term-mental-model):
@@ -72,7 +72,7 @@ introducing tuples or text-specific types. The caller does not define backward b
 - Add one package-private [atomic](../../../../glossary.md#resource-transaction-and-rollback) named-child registration primitive to [`Module`](../../../../glossary.md#term-module). It must preflight
   nulls, local-name grammar and collisions, repeated module identity, self/ancestor cycles, and
   existing parent ownership for the complete snapshot before installing any child or parent link.
-  Its exact source-level shape is<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight); [identity glossary](../../../../glossary.md#term-identity-meanings); [shape glossary](../../../../glossary.md#shape))</span>
+  Its exact source-level shape is<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
   `final void registerNamedChildren(Map<String, ? extends Module> children)`; it copies the
   encounter-ordered snapshot and exposes no new public/protected API.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Seal the topology before `define` returns or propagates a callback/validation failure. A captured
@@ -90,14 +90,14 @@ introducing tuples or text-specific types. The caller does not define backward b
 - Preserve inherited `train()`/`eval()`, recursive state discovery, state dictionaries, strict
   load, and parameter replacement through the stable named child tree.<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter))</span>
 - Add focused API-shape, inference compilation, topology lifecycle/atomicity, exact ownership,
-  forward reference/failure, structured input/output, mode, and state-path tests.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [lifecycle glossary](../../../../glossary.md#lifecycle); [atomicity glossary](../../../../glossary.md#term-atomicity))</span>
+  forward reference/failure, structured input/output, mode, and state-path tests.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle); [atomicity glossary](../../../../glossary.md#term-atomicity))</span>
 - Finalize affected Javadocs, package documentation, Training API, glossary, and planning evidence
   in a separate documentation-focused clean context before completion.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 
 ## Out of [scope](../../../../glossary.md#term-scope)
 
 - Lazy or deferred parameters, uninitialized Tensor placeholders, input-feature inference,
-  first-forward initialization, <span data-glossary-navigation="true"> ([Lazy glossary](../../../../glossary.md#term-lazy-evaluation); [Tensor glossary](../../../../glossary.md#tensor); [feature glossary](../../../../glossary.md#term-feature); [inference glossary](../../../../glossary.md#term-inference))</span>`bind`, `build`, input specifications, dynamic parameter Shapes,
+  first-forward initialization, <span data-glossary-navigation="true"> ([Lazy glossary](../../../../glossary.md#term-lazy-evaluation); [Tensor glossary](../../../../glossary.md#tensor); [feature glossary](../../../../glossary.md#term-feature); [inference glossary](../../../../glossary.md#term-inference-meanings))</span>`bind`, `build`, input specifications, dynamic parameter Shapes,
   retained random sources, or changes to current eager initializer/layer constructors.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [eager glossary](../../../../glossary.md#term-eager-evaluation))</span>
 - Changing [`Parameter`](../../../../glossary.md#term-parameter), [`Buffer`](../../../../glossary.md#term-buffer), `StateDictionary`, `StateEntry`, or state load/export behavior.
 - A universal `forward` method on [`Module`](../../../../glossary.md#term-module), changing `UnaryTensorModule`, or replacing
@@ -107,7 +107,7 @@ introducing tuples or text-specific types. The caller does not define backward b
 - NN-owned tuple, dictionary, text, token, sequence-batch, valid-length, padding-mask, data-loader,
   tokenizer, or predictor types.<span data-glossary-navigation="true"> ([token glossary](../../../../glossary.md#term-token); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [padding glossary](../../../../glossary.md#padding); [mask glossary](../../../../glossary.md#term-boolean-mask); [tokenizer glossary](../../../../glossary.md#frozen-whitespace-tokenizer))</span>
 - Default recurrent states, recurrent mask/length migration, recurrent scan/control flow, or
-  changes to cells and sequence containers.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  changes to cells and sequence containers.
 - User-defined backward methods, Tensor gradient state, compiler autograd changes, optimizer or
   Training behavior, execution, runtime, prepare, Engine, or backend work.<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient); [compiler glossary](../../../../glossary.md#term-compiler); [autograd glossary](../../../../glossary.md#autograd); [optimizer glossary](../../../../glossary.md#term-optimizer); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [backend glossary](../../../../glossary.md#backend))</span>
 - A new Gradle project, dependency, architecture rule, ADR, architecture test, data/text extension,
@@ -287,7 +287,7 @@ or any build/architecture/[dependency](../../../../glossary.md#term-dependency) 
   non-null and failure behavior, forward prefix effects, state/mode inheritance, threading, and
   explicit deferred-binding/training/execution exclusions with complete tags.<span data-glossary-navigation="true"> ([atomicity glossary](../../../../glossary.md#term-atomicity); [binding glossary](../../../../glossary.md#term-binding))</span>
 - The Training API and glossary distinguish Model topology from Tensor graph structure and label
-  deferred input-dimension inference as planned rather than implemented.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [dimension glossary](../../../../glossary.md#dimension); [inference glossary](../../../../glossary.md#term-inference))</span>
+  deferred input-dimension inference as planned rather than implemented.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [dimension glossary](../../../../glossary.md#dimension); [inference glossary](../../../../glossary.md#term-inference-meanings))</span>
 - A separate clean-context documentation pass finalizes all affected documentation/Javadocs and
   records glossary impact before completion.
 
@@ -333,7 +333,7 @@ because this task changes no [dependency](../../../../glossary.md#term-dependenc
   after their architecture/module decision.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning); [canonical glossary](../../../../glossary.md#term-canonical-form); [metadata glossary](../../../../glossary.md#term-metadata); [tokenizer glossary](../../../../glossary.md#frozen-whitespace-tokenizer); [module glossary](../../../../glossary.md#term-module))</span>
 - NN 0021–0022: establish genuine runtime recurrent scan/input binding before adding the
   Data-owned valid-length recurrent API; do not present current host-static specialization or a
-  dense mask as skipped runtime work.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [host glossary](../../../../glossary.md#term-host); [specialization glossary](../../../../glossary.md#term-specialization); [mask glossary](../../../../glossary.md#term-boolean-mask))</span>
+  dense mask as skipped runtime work.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [host glossary](../../../../glossary.md#term-host); [specialization glossary](../../../../glossary.md#term-specialization); [mask glossary](../../../../glossary.md#term-boolean-mask))</span>
 
 ## Architecture impact
 
@@ -405,7 +405,7 @@ passed one suite and ten tests with zero failures, errors, or skips.
 After executable Java and tests stabilized, the sole authoritative
 `./gradlew :extensions:nn:test` command passed 30 suites and 207 tests with zero failures, errors,
 or skips. No executable Java or test changed afterward. The ten [Model](../../../../glossary.md#term-model) tests cover the exact API
-surface, external-package Java type [inference](../../../../glossary.md#term-inference) for [Tensor](../../../../glossary.md#tensor) and caller-record boundaries, ordered
+surface, external-package Java type [inference](../../../../glossary.md#term-inference-meanings) for [Tensor](../../../../glossary.md#tensor) and caller-record boundaries, ordered
 descriptive ownership/state paths, empty [topology](../../../../glossary.md#term-topology), all sealing paths, collection and complete
 ownership failures, reusable candidates, package-private atomic cycle/collision/ownership
 [preflight](../../../../glossary.md#term-preflight), exact forward references and calls, null/throw prefix effects, inherited mode,

@@ -1,4 +1,4 @@
-# Task Checkpoint0012: General-[scan](../../../../glossary.md#term-cumulative-scan) in-memory copy and [rebind](../../../../glossary.md#capture-graph-ports-and-reconstruction)
+# Task Checkpoint0012: General-scan in-memory copy and [rebind](../../../../glossary.md#capture-graph-ports-and-reconstruction)
 
 > **Editorial reading context — not a status update.** A general scan contains a step body
 > with its own local identities. Checkpoint preserves that attachment while renumbering the
@@ -30,13 +30,13 @@ maintain a body [opcode](../../../../glossary.md#term-opcode) inventory/reconstr
 [Compiler](../../../../glossary.md#term-compiler)-reconstructible [signatures](../../../../glossary.md#term-signature), independently of [CPU](../../../../glossary.md#term-cpu) support; not blanket all-[PURE](../../../../glossary.md#term-pure) [admission](../../../../glossary.md#term-admission).
 
 Keep disk save/load closed. Add only minimal compatibility guards in existing [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [owners](../../../../glossary.md#term-owner) so
-Checkpoint [widening](../../../../glossary.md#term-widening) cannot accidentally open general-[scan](../../../../glossary.md#term-cumulative-scan) acquisition/compute/train. Reject through
+Checkpoint [widening](../../../../glossary.md#term-widening) cannot accidentally open general-scan acquisition/compute/train. Reject through
 ordinary public Model [provenance](../../../../glossary.md#provenance) and `ScanKind.SCAN` before copy/setup; no new Compiler edge.
 
 ## Non-goals
 
 No new production type/package/public [API](../../../../glossary.md#term-application-programming-interface-api), [dependency](../../../../glossary.md#term-dependency), wire/version, architecture policy or [ADR](../../../../glossary.md#term-architecture-decision-record-adr);
-no [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [qualification](../../../../glossary.md#term-qualification)/workflow [widening](../../../../glossary.md#term-widening), fixed-[scan](../../../../glossary.md#term-cumulative-scan) [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt), [padding](../../../../glossary.md#padding), [backend](../../../../glossary.md#backend)/numerical/[runtime](../../../../glossary.md#term-runtime) change,
+no [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [qualification](../../../../glossary.md#term-qualification)/workflow [widening](../../../../glossary.md#term-widening), fixed-scan [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt), [padding](../../../../glossary.md#padding), [backend](../../../../glossary.md#backend)/numerical/[runtime](../../../../glossary.md#term-runtime) change,
 T-[unrolling](../../../../glossary.md#term-unrolling), per-step/per-compute/train source reconstruction, benchmark or native/[device](../../../../glossary.md#term-device) opt-in.
 Do not reopen Compiler0012 or require CPU0036 performance qualification for cold copying.
 STOP if a new type, policy, missing contract or architecture decision becomes necessary.
@@ -52,7 +52,7 @@ Read AGENTS.md, affected source/tests and these exact headings via the root [sco
   `extensions/checkpoint`, `Generic graph source and values`, `Canonical graph-model version 1`,
   `Canonical graph-model version 2`, `Canonical graph-model version 3`; also
   [Owned tensor Models](../../../../architecture/contracts/extensions-training.md#owned-tensor-models)<span data-glossary-navigation="true"> ([tensor glossary](../../../../glossary.md#tensor))</span>
-  for the independently closed NN acquisition gate and unchanged fixed-scan training rejection.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  for the independently closed NN acquisition gate and unchanged fixed-scan training rejection.
 - [Scan owner](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan):
   [`General differentiable scan`](../../../../glossary.md#general-differentiable-scan), `Source body, attachments and scoped identities`,
   `Canonical residual ports and demand`, `Traversal, empty domains and declared qualification`.
@@ -64,7 +64,7 @@ Read AGENTS.md, affected source/tests and these exact headings via the root [sco
 
 - Depends on: approved NN0030 decision; Complete Compiler0012 and Checkpoint0008–0011;
   accepted Model/Planning/Compiler/Prepare/CPU low-level scan join. CPU0036 is accepted baseline,
-  not an additional performance gate. Required predecessor reviews/validation are recorded Complete.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Planning glossary](../../../../glossary.md#term-planning); [Compiler glossary](../../../../glossary.md#term-compiler); [Prepare glossary](../../../../glossary.md#prepare); [CPU glossary](../../../../glossary.md#term-cpu); [scan glossary](../../../../glossary.md#term-cumulative-scan); [validation glossary](../../../../glossary.md#term-validation))</span>
+  not an additional performance gate. Required predecessor reviews/validation are recorded Complete.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Planning glossary](../../../../glossary.md#term-planning); [Compiler glossary](../../../../glossary.md#term-compiler); [Prepare glossary](../../../../glossary.md#prepare); [CPU glossary](../../../../glossary.md#term-cpu); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Conflicts with: Checkpoint graph normalization/wire/API, Compiler cold reconstruction, scan
   contracts, NN acquisition/lifecycle and shared-document writers; inactive and serialized.<span data-glossary-navigation="true"> ([Checkpoint glossary](../../../../glossary.md#term-checkpoint); [graph glossary](../../../../glossary.md#graph); [normalization glossary](../../../../glossary.md#term-normalization); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [cold reconstruction glossary](../../../../glossary.md#term-cold-reconstruction); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Parallel group: None; source and documentation writers serialize. Read-only review may overlap tests.
@@ -99,7 +99,7 @@ Read AGENTS.md, affected source/tests and these exact headings via the root [sco
 - Integration package `io.github.pho001.synaptik.testing.integration` under
   `testing/integration-tests/src/test/java`: `GraphCheckpointEngineIntegrationTest.java`,
   bounded copy/rebind-to-public-Engine regression, not NN workflow qualification.<span data-glossary-navigation="true"> ([rebind glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [Engine glossary](../../../../glossary.md#term-engine); [regression glossary](../../../../glossary.md#term-regression); [qualification glossary](../../../../glossary.md#term-qualification))</span>
-- Read-only [Model](../../../../glossary.md#term-model) `CompiledNode`, `CompiledScanBody`, `ScanBody`/[`Scan`](../../../../glossary.md#term-cumulative-scan); [Compiler](../../../../glossary.md#term-compiler)
+- Read-only [Model](../../../../glossary.md#term-model) `CompiledNode`, `CompiledScanBody`, `ScanBody`/`Scan`; [Compiler](../../../../glossary.md#term-compiler)
   `GraphCompilationPort`, `SourceGraphReconstruction` and its focused tests. Do not edit Compiler.
 
 ## Acceptance criteria
@@ -130,7 +130,7 @@ Read AGENTS.md, affected source/tests and these exact headings via the root [sco
 - NN early GENERAL rejection covers graph overloads, defineTensor/acquireDefinition and
   acquireComposition as applicable, before copy/storage/setup effects using Model-only provenance.
   No general-scan owned Model reaches compute/configure/train; fixed inference/training guard and
-  static routes remain unchanged. Test final-state/residual-only roots, heads, T=0 and unreadable state.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [graph glossary](../../../../glossary.md#graph); [Model glossary](../../../../glossary.md#term-model); [scan glossary](../../../../glossary.md#term-cumulative-scan); [owned Model glossary](../../../../glossary.md#model-module-buffer-and-scan-distinctions); [inference glossary](../../../../glossary.md#term-inference); [guard glossary](../../../../glossary.md#term-guard))</span>
+  static routes remain unchanged. Test final-state/residual-only roots, heads, T=0 and unreadable state.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [graph glossary](../../../../glossary.md#graph); [Model glossary](../../../../glossary.md#term-model); [owned Model glossary](../../../../glossary.md#model-module-buffer-and-scan-distinctions); [inference glossary](../../../../glossary.md#term-inference); [guard glossary](../../../../glossary.md#term-guard))</span>
 - Existing Engine consumers still work; new supported F32/F64 copy/rebind regression matches direct
   ordinary scan results, while low/CPU-unsupported cases remain cold-only rather than execution promises.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [regression glossary](../../../../glossary.md#term-regression))</span>
 
@@ -174,7 +174,7 @@ Status: Complete — implementation/scoped acceptance only; unrestricted reposit
   `GraphCheckpointTest`, new `GraphCheckpointGeneralScanTest`; nn.[module](../../../../glossary.md#term-module) [`Model`](../../../../glossary.md#term-model), `OwnedModelSource`,
   `OwnedModelSourceTest`; `GraphCheckpointEngineIntegrationTest`; `GraphCompilationPort` Javadoc;
   root, graph-checkpoint API, compiler-autograd/extensions-training contracts, module-boundaries,
-  general-differentiable-scan explanation, glossary; this brief, Checkpoint master and roadmap.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [autograd glossary](../../../../glossary.md#autograd); [differentiable glossary](../../../../glossary.md#derivative-and-chain-rule); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  general-differentiable-scan explanation, glossary; this brief, Checkpoint master and roadmap.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [autograd glossary](../../../../glossary.md#autograd); [differentiable glossary](../../../../glossary.md#derivative-and-chain-rule))</span>
 - Independent clean code/docs review Complete, pass/no findings (2026-10-23 11:29:53 UTC).
   Seven targeted documents and affected Javadocs finalized; existing glossary distinctions clarified,
   no new terminology/policy/ADR. Compiler executable inventory/logic and CPU0036 stayed unchanged.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>

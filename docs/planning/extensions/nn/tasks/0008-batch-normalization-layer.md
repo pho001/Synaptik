@@ -102,10 +102,10 @@ multi-binding [API](../../../../glossary.md#term-application-programming-interfa
   inferred channel axes, grouped normalization, synchronized/distributed statistics, or rank-
   specific wrappers. This <span data-glossary-navigation="true"> ([NCHW glossary](../../../../glossary.md#term-nchw); [NHWC glossary](../../../../glossary.md#term-nhwc); [aliases glossary](../../../../glossary.md#aliasing-and-arena); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [channel glossary](../../../../glossary.md#term-channel); [normalization glossary](../../../../glossary.md#term-normalization))</span>`BatchNorm` uses [Model](../../../../glossary.md#term-model)'s [rank](../../../../glossary.md#term-rank)-at-least-two arbitrary-[axis](../../../../glossary.md#term-axis) contract.
 - Zero feature count, dynamic state Shape, scalar/full-rank/broadcast state, mixed state types,
-  integral/BOOL state, frozen affine parameters, or caller-selected buffer gradient eligibility.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-software-feature); [Shape glossary](../../../../glossary.md#shape); [scalar glossary](../../../../glossary.md#term-scalar); [BOOL glossary](../../../../glossary.md#data-type--datatype); [parameters glossary](../../../../glossary.md#term-parameter); [buffer glossary](../../../../glossary.md#term-buffer); [gradient glossary](../../../../glossary.md#term-gradient))</span>
+  integral/BOOL state, frozen affine parameters, or caller-selected buffer gradient eligibility.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-feature); [Shape glossary](../../../../glossary.md#shape); [scalar glossary](../../../../glossary.md#term-scalar); [BOOL glossary](../../../../glossary.md#data-type--datatype); [parameters glossary](../../../../glossary.md#term-parameter); [buffer glossary](../../../../glossary.md#term-buffer); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Deferred equality between a dynamic input channel and the fixed state extent. Generic Model may
   carry that obligation, but this stateful layer requires an exact structural match so training
-  cannot replace a fixed-schema buffer with a dynamically shaped next-statistic expression.<span data-glossary-navigation="true"> ([extent glossary](../../../../glossary.md#term-extent); [carry glossary](../../../../glossary.md#term-carry); [schema glossary](../../../../glossary.md#term-schema); [statistic glossary](../../../../glossary.md#term-statistic))</span>
+  cannot replace a fixed-schema buffer with a dynamically shaped next-statistic expression.<span data-glossary-navigation="true"> ([extent glossary](../../../../glossary.md#term-extent); [schema glossary](../../../../glossary.md#term-schema); [statistic glossary](../../../../glossary.md#term-statistic))</span>
 - A default channel axis, default data type, default epsilon, default momentum, raw binary64
   hyperparameters, configurable parameter/buffer initializers, RNG, or retained source.<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype); [epsilon glossary](../../../../glossary.md#epsilon); [momentum glossary](../../../../glossary.md#term-momentum); [binary64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [hyperparameters glossary](../../../../glossary.md#term-hyperparameter); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate))</span>
 - A batch counter, cumulative momentum, optional momentum, unbiased forward normalization,
@@ -113,7 +113,7 @@ multi-binding [API](../../../../glossary.md#term-application-programming-interfa
 - A public result carrier for the layer, public saved batch statistics, public sibling lookup,
   explicit next-statistic return, buffer setter, public buffer replacement, or another state
   transition type. Current buffers expose the installed next expressions through their stable
-  wrappers and normal discovery APIs.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [lookup glossary](../../../../glossary.md#term-lookup))</span>
+  wrappers and normal discovery APIs.<span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup))</span>
 - A no-context `forward(Tensor)` overload. This first mode-sensitive layer consumes the existing
   explicit immutable context contract. Task 0011 remains responsible for any narrow shared unary
   composition contract required by <span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [unary glossary](../../../../glossary.md#term-unary))</span>`Sequential`.
@@ -169,7 +169,7 @@ multi-binding [API](../../../../glossary.md#term-application-programming-interfa
   a compile request, an execution handle, a backend flag, or a source of hidden global mode.<span data-glossary-navigation="true"> ([mutable glossary](../../../../glossary.md#term-mutable); [compile glossary](../../../../glossary.md#compile); [backend glossary](../../../../glossary.md#backend))</span>
 - The training [Model](../../../../glossary.md#term-model) [occurrence](../../../../glossary.md#term-occurrence) is a pure five-output [producer](../../../../glossary.md#term-producer). The layer consumes only the public
   `output`, `nextRunningMean`, and `nextRunningVariance` carrier components and must not expose or
-  reconstruct the saved producer slots.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  reconstruct the saved producer slots.
 - Existing `Module.replaceBuffer` is sufficient because the two Model next-statistic components
   are non-null exact Tensor expressions and direct buffer names are permanently declared. This
   task must not widen Buffer mutation access or add generic multi-binding atomicity.<span data-glossary-navigation="true"> ([statistic glossary](../../../../glossary.md#term-statistic); [atomicity glossary](../../../../glossary.md#term-atomicity))</span>
@@ -245,7 +245,7 @@ Validate before declaring any state:
 1. require `channelAxis >= 0`;
 2. null-check `scale`, [`bias`](../../../../glossary.md#term-bias), `runningMean`, `runningVariance`, [`momentum`](../../../../glossary.md#term-momentum), then [`epsilon`](../../../../glossary.md#epsilon);
 3. require scale floating type, `requiresGrad == true`, rank one, fully static Shape, then positive
-   feature extent;<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [Shape glossary](../../../../glossary.md#shape); [feature glossary](../../../../glossary.md#term-software-feature); [extent glossary](../../../../glossary.md#term-extent))</span>
+   feature extent;<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [Shape glossary](../../../../glossary.md#shape); [feature glossary](../../../../glossary.md#term-feature); [extent glossary](../../../../glossary.md#term-extent))</span>
 4. require bias floating type, `requiresGrad == true`, rank one, fully static Shape, exact scale
    data type, then structural Shape equality with scale;
 5. require running [mean](../../../../glossary.md#term-mean) floating type, `requiresGrad == false`, rank one, fully static Shape,
@@ -319,7 +319,7 @@ new failure.
 
 Neither forward branch changes module mode or the context. [Parameter](../../../../glossary.md#term-parameter) replacement, buffer
 transition, mode changes, and forward construction remain non-[thread-safe](../../../../glossary.md#term-thread-safe) as a combined activity;
-callers must externally [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) them when one consistent state [snapshot](../../../../glossary.md#term-snapshot) matters.
+callers must externally coordinate them when one consistent state [snapshot](../../../../glossary.md#term-snapshot) matters.
 
 ## Package impact
 
@@ -330,7 +330,7 @@ Existing packages used:
   `ForwardContext` contracts.
 - `io.github.pho001.synaptik.nn.initialization` — existing exact one/zero parameter policies.
 - `io.github.pho001.synaptik.model.tensor` — existing inference/training receivers, result
-  carrier, Tensor factories, metadata, and provenance.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [carrier glossary](../../../../glossary.md#term-storage-carrier); [Tensor glossary](../../../../glossary.md#tensor); [metadata glossary](../../../../glossary.md#term-metadata); [provenance glossary](../../../../glossary.md#provenance))</span>
+  carrier, Tensor factories, metadata, and provenance.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [Tensor glossary](../../../../glossary.md#tensor); [metadata glossary](../../../../glossary.md#term-metadata); [provenance glossary](../../../../glossary.md#provenance))</span>
 - `io.github.pho001.synaptik.model.datatype` and `.shape` — exact type, [scalar](../../../../glossary.md#term-scalar), and [Shape](../../../../glossary.md#shape) values.
 - `io.github.pho001.synaptik.model.operation.normalization` — intrinsic attrs validation and
   focused test inspection only; production does not construct an operation directly.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [operation glossary](../../../../glossary.md#operation))</span>
@@ -396,7 +396,7 @@ follow-up instead of expanding this task.
   schema validation, returns its output, and preserves exact buffer bindings.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [schema glossary](../../../../glossary.md#term-schema))</span>
 - Training uses the exact context [snapshot](../../../../glossary.md#term-snapshot), creates one [Model](../../../../glossary.md#term-model) `BATCH_NORM_TRAINING` producer,
   installs producer slots one and two as mean then variance buffer bindings, returns exact slot
-  zero, and exposes no saved slots or layer result carrier.<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [mean glossary](../../../../glossary.md#term-mean); [variance glossary](../../../../glossary.md#term-variance); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  zero, and exposes no saved slots or layer result carrier.<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [mean glossary](../../../../glossary.md#term-mean); [variance glossary](../../../../glossary.md#term-variance))</span>
 - Tests lock Shape/type/gradient/layout metadata, shared producer and output indices, ordered
   provenance, exact attrs scalar identity, state replacement order, structural discovery snapshot
   observation, earlier-expression stability, and repeated-call chaining without executing values.<span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout); [metadata glossary](../../../../glossary.md#term-metadata); [provenance glossary](../../../../glossary.md#provenance))</span>

@@ -35,7 +35,7 @@ Read the [program](../../../model-execution-refactor.md). Source and contracts o
 
 Current authority forbids [target](../../../../glossary.md#term-target) edges. BEFORE code relies on them, update the named root headings/index and only owning
 extensions-training contract: move [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [persistence](../../../../glossary.md#term-persistence) rules to NN, retain [artifacts](../../../../glossary.md#term-artifact) under relocated Checkpoint, add [graph](../../../../glossary.md#graph) rules.
-[Coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) explanations, ADR0039 and architecture tests; Compiler contract unchanged. Checkpoint: api(Model),
+Coordinate explanations, ADR0039 and architecture tests; Compiler contract unchanged. Checkpoint: api(Model),
 implementation(Compiler), no NN/Training/[Engine](../../../../glossary.md#term-engine). NN: retain api(Model,Training), add api(Checkpoint,Engine) for moved
 PUBLIC [signatures](../../../../glossary.md#term-signature). No reverse edge/broad exemption. Stop on uncertainty beyond this accepted target.
 
@@ -165,7 +165,7 @@ Kind/key ceiling ≥14. Check all SIX limits and individual payloads with checke
 file reader already preflights [framing](../../../../glossary.md#term-framing) allocation. These are encoded, not peak-[heap](../../../../glossary.md#term-heap) bounds. copy/[rebind](../../../../glossary.md#capture-graph-ports-and-reconstruction) have no implicit
 file ceiling; checked collection/geometry/[JVM](../../../../glossary.md#term-java-virtual-machine-jvm) limits apply, copy preflights each unique payload ≤Integer.MAX_VALUE−8.
 No generic validation layer. Complete save image validation precedes unchanged ArtifactFile force/revalidate/one-[atomic](../../../../glossary.md#resource-transaction-and-rollback)-move
-[publication](../../../../glossary.md#term-publication), with its existing failure/cleanup semantics; not [authentication](../../../../glossary.md#term-authentication) or portable power-[loss](../../../../glossary.md#loss) [durability](../../../../glossary.md#term-durability).
+[publication](../../../../glossary.md#term-publication), with its existing failure/cleanup semantics; not [authentication](../../../../glossary.md#term-authentication) or portable power-loss [durability](../../../../glossary.md#term-durability).
 
 ## Acceptance and [validation](../../../../glossary.md#term-validation)
 
@@ -174,7 +174,7 @@ No generic validation layer. Complete save image validation precedes unchanged A
   Linear MATMUL/PERMUTE/ADD, descriptors/detached lifetime. Differing input/encounter order, state encountered first,
   unused inputs and ignored prototype storage; copied/loaded graphs retain no original state.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [Linear glossary](../../../../glossary.md#term-linear-meanings); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [descriptors glossary](../../../../glossary.md#term-descriptor); [detached glossary](../../../../glossary.md#detached-model-results); [lifetime glossary](../../../../glossary.md#term-lifetime); [prototype glossary](../../../../glossary.md#term-prototype))</span>
 - Malformed/bound tests: all six exact/below limits, unknown IDs/version, UTF-8/flags/counts/ranks/overflow/truncation/trailing
-  data, references/order/aliases/keys/lengths, BOOL, unsupported/unreadable state, late failures/no mutation/publication.<span data-glossary-navigation="true"> ([UTF-8 glossary](../../../../glossary.md#term-utf-8); [overflow glossary](../../../../glossary.md#term-overflow); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero); [BOOL glossary](../../../../glossary.md#data-type--datatype); [publication glossary](../../../../glossary.md#term-publication))</span>
+  data, references/order/aliases/keys/lengths, BOOL, unsupported/unreadable state, late failures/no mutation/publication.<span data-glossary-navigation="true"> ([UTF-8 glossary](../../../../glossary.md#term-utf-8); [overflow glossary](../../../../glossary.md#term-overflow); [BOOL glossary](../../../../glossary.md#data-type--datatype); [publication glossary](../../../../glossary.md#term-publication))</span>
 - rebind accepts produced/repeated substitutions, retains upstream provenance/state, rejects full-descriptor/arity mismatch.
   One small GraphCheckpointEngineIntegrationTest proves cold load then explicit Engine forward/ordinary autograd equivalence,
   Linear and two fresh same-signature inputs. Retain old flexible-batch and private restore integrations; no new Model API.<span data-glossary-navigation="true"> ([rebind glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [provenance glossary](../../../../glossary.md#provenance); [arity glossary](../../../../glossary.md#term-arity); [autograd glossary](../../../../glossary.md#autograd); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [Model glossary](../../../../glossary.md#term-model); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>

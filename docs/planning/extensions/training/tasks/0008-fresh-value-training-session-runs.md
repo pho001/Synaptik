@@ -71,7 +71,7 @@ Start with [root scope index](../../../../../ARCHITECTURE.md#scope-indexed-norma
   and [Coordinated authority cutovers and validation](../../../../design/decisions/0039-portable-graph-model-persistence.md#coordinated-authority-cutovers-and-validation)<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>.
 
 At launch Training authority explicitly excluded fresh positional [admission](../../../../glossary.md#term-admission). Before code relies on
-it, [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) the bounded root Core [lifecycle](../../../../glossary.md#lifecycle) and owning Training lifecycle update, explanations
+it, coordinate the bounded root Core [lifecycle](../../../../glossary.md#lifecycle) and owning Training lifecycle update, explanations
 and [ADR](../../../../glossary.md#term-architecture-decision-record-adr) reconciliation in this same capability. Clarify fixed [parameter](../../../../glossary.md#term-parameter)/[seed](../../../../glossary.md#term-seed) identities versus
 call-local external values; preserve all other lifecycle rules. Root [ownership](../../../../glossary.md#term-ownership-meanings)/dependencies/testing
 are reviewed, not permission for new edges. Engine authority stays unchanged. This is the accepted

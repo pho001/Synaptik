@@ -30,7 +30,7 @@ not NN0032's separate all-valid migration or a higher-order compatibility waiver
 
 ## Accepted [API](../../../../glossary.md#term-application-programming-interface-api) and composition decision
 
-Add exactly this composition convenience, returning the existing semantic result [carrier](../../../../glossary.md#term-storage-carrier):
+Add exactly this composition convenience, returning the existing semantic result carrier:
 ```java
 public RecurrentScanResult forwardGeneralScan(
         Tensor input, Tensor validLengths, Tensor initialHidden, RecurrentDirection direction);
@@ -48,7 +48,7 @@ temporary cell, recapture, parameter mutation or public initialization hook.
 
 Create [canonical](../../../../glossary.md#term-canonical-form) storage-free formals for [carry](../../../../glossary.md#term-carry) [B,H], step [B,F], and invariants inputWeight,
 hiddenWeight, optional bias, retaining dtype/gradient flags. Use the shared next state as both
-next carry and emission. Bind actual weights as outer invariants to [Scan](../../../../glossary.md#term-cumulative-scan).apply with rowCarryCount=1,
+next carry and emission. Bind actual weights as outer invariants to Scan.apply with rowCarryCount=1,
 sequenceRowAxes=[ROW(0)] and traversal from direction. RecurrentScanResult component names express
 semantic roles: general outputs are [producer](../../../../glossary.md#term-producer) port1 and finalHidden port0; fixed ordering stays 0/1.
 Update only carrier [Javadoc](../../../../glossary.md#term-javadoc), never manufacture old order/[layout](../../../../glossary.md#layout) with [graph](../../../../glossary.md#graph) operations.
@@ -69,7 +69,7 @@ an automatic downstream [objective](../../../../glossary.md#term-objective) [mas
 - [Owned tensor Models](../../../../architecture/contracts/extensions-training.md#owned-tensor-models)<span data-glossary-navigation="true"> ([tensor glossary](../../../../glossary.md#tensor))</span>,
   modules/training and optimizer/training lifecycle: one state set, existing owners, fresh inputs,
   borrowed Engine and cached preparations, no retained loss/optimizer recipe in saved artifacts.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([optimizer glossary](../../../../glossary.md#term-optimizer); [borrowed glossary](../../../../glossary.md#ownership-borrowing-and-lease); [Engine glossary](../../../../glossary.md#term-engine); [loss glossary](../../../../glossary.md#loss); [artifacts glossary](../../../../glossary.md#term-artifact))</span>
-- [Length-aware scan](../../../../architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>:
+- [Length-aware scan](../../../../architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan):
   homogeneous F32/F64 first-order qualification, explicit roles/activity and stable carry shape.<span data-glossary-navigation="true"> ([homogeneous glossary](../../../../glossary.md#term-homogeneous); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [qualification glossary](../../../../glossary.md#term-qualification); [carry glossary](../../../../glossary.md#term-carry); [shape glossary](../../../../glossary.md#shape))</span>
 - [Cold reconstruction](../../../../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction)<span data-glossary-navigation="true"> ([Cold reconstruction glossary](../../../../glossary.md#term-cold-reconstruction))</span>
   and [Checkpoint v5](../../../../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)<span data-glossary-navigation="true"> ([Checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>.
@@ -97,7 +97,7 @@ MAIN alone owns shared documents and later integration. Code workers [run](../..
 ## Files and symbols
 
 - Existing nn.layers RnnSequence/RnnCell: explicit general-Scan composition and shared cell equation;
-  no new production type or package. Model RecurrentScanResult: semantic-component Javadoc only.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [Model glossary](../../../../glossary.md#term-model))</span>
+  no new production type or package. Model RecurrentScanResult: semantic-component Javadoc only.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model))</span>
 - Existing nn.[module](../../../../glossary.md#term-module) ModelBuilder: explicit rnnScan route, finalHidden selector and accurate [Javadoc](../../../../glossary.md#term-javadoc).
 - ModelExecutionState/OwnedModelSource only if a concrete owned lifecycle gap is demonstrated;
   do not create another cache/session or change Training ownership.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [cache glossary](../../../../glossary.md#term-cache); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
@@ -159,7 +159,7 @@ six affected test classes (two new). The 2621-file dirty base and ten integrated
 recorded in `nn0033-base.json` and `nn0033-integrated-files.json`; main counterparts matched
 the [fork](../../../../glossary.md#term-fork-meanings) base, preserving main-only [Model](../../../../glossary.md#term-model) Javadoc and user changes.
 
-One package-private composeStep shares ordinary forward and [Scan](../../../../glossary.md#term-cumulative-scan) mathematics, prevalidation and
+One package-private composeStep shares ordinary forward and Scan mathematics, prevalidation and
 [bias](../../../../glossary.md#term-bias)/ADD order. Existing initialization/[publication](../../../../glossary.md#term-publication), Model caches, Training and [Checkpoint](../../../../glossary.md#term-checkpoint) [owners](../../../../glossary.md#term-owner)
 are reused; ModelExecutionState/OwnedModelSource needed no changes. Builder cutover is only
 explicit [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) rnnScan; finalHidden uses actual general/fixed [producer](../../../../glossary.md#term-producer) ports.

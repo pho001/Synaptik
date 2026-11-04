@@ -1,4 +1,4 @@
-# Task NN0032: Fluent [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn) general-[scan](../../../../glossary.md#term-cumulative-scan) migration compatibility decision
+# Task NN0032: Fluent [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn) general-scan migration compatibility decision
 
 > **Editorial reading context — paused compatibility decision.** First-order differentiation
 > constructs gradients; second-order compilation asks for derivatives of derivative expressions.
@@ -17,7 +17,7 @@ Draft — **blocked on a confirmed advanced second-order [CPU](../../../../gloss
 redirect `.rnn(hiddenSize)`. No authority or implementation change has been made by this assessment.
 
 The subsequently authorized [Model0036](../../../modules/model/tasks/0036-length-aware-general-scan-design.md)
-is Complete for [length-aware Scan proposal delivery](../../../length-aware-general-scan.md)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span> only,
+is Complete for [length-aware Scan proposal delivery](../../../length-aware-general-scan.md) only,
 after independent final APPROVE and MAIN acceptance; no [planning](../../../../glossary.md#term-planning)/source/authority frontier follows.
 Its new row/sequence [binding](../../../../glossary.md#term-binding) [metadata](../../../../glossary.md#term-metadata), length overload and v5 remain PROPOSED; it neither resumes
 this migration nor resolves/waives the second-order compile, CONCAT-copy or mixed-[engine](../../../../glossary.md#term-engine) gates.
@@ -34,7 +34,7 @@ The user approved proceeding with an [F32](../../../../glossary.md#floating-poin
 [general Scan](../../../../glossary.md#general-differentiable-scan) concepts, **while preserving existing [API](../../../../glossary.md#term-application-programming-interface-api), state and supported capabilities**.
 That preservation condition is not a first-order-only waiver. Current ordinary `.rnn` remains
 unchanged pending the user's scope decision below. No approval to lose advanced second-order
-[compile](../../../../glossary.md#compile) capability or to extend [Scan](../../../../glossary.md#term-cumulative-scan) second order is assumed.
+[compile](../../../../glossary.md#compile) capability or to extend Scan second order is assumed.
 
 The original pause assessment updated only this factual brief. Source/tests and [normative](../../../../glossary.md#term-normative) contracts
 are read-only. No new production type, wrapper, API, execution/[AD](../../../../glossary.md#autograd) layer, provider inspection,
@@ -53,7 +53,7 @@ Read the root [scope](../../../../glossary.md#term-scope) index, then the exact 
   [Generic graph source and values](../../../../architecture/contracts/extensions-training.md#generic-graph-source-and-values)<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>,
   [Canonical graph-model version 3](../../../../architecture/contracts/extensions-training.md#canonical-graph-model-version-3)<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [model glossary](../../../../glossary.md#term-model))</span>
   and [version 4](../../../../architecture/contracts/extensions-training.md#canonical-graph-model-version-4).
-- [Recurrent scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>:
+- [Recurrent scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan):
   `Performance and migration invariants`, [`General differentiable scan`](../../../../glossary.md#general-differentiable-scan),
   `Source body, attachments and scoped identities`, `Canonical residual ports and demand`,
   `Reverse scan and exact primal bindings`, `Traversal, empty domains and declared qualification`,
@@ -72,7 +72,7 @@ factual documentation update. Stop rather than invent an interpretation of confl
 - Depends on: NN0029, NN0030/0031, Compiler0012, CP0010–0013, CPU0030–0037 and accepted low-level
   join — Complete; their Result/status/review evidence was checked, not rerun.
 - Conflicts with: fluent recurrence, NN initialization/ownership, general-body autograd/wire,
-  scan capability, root/scoped authority and shared planning documents; serialize these scopes.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [autograd glossary](../../../../glossary.md#autograd); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  scan capability, root/scoped authority and shared planning documents; serialize these scopes.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [autograd glossary](../../../../glossary.md#autograd))</span>
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus all
   295 accepted dirty paths; empty index. Accepted baseline lists 2423 files at
@@ -98,7 +98,7 @@ final independent [planning](../../../../glossary.md#term-planning) review befor
 Current `ModelBuilder.RnnStep.forward` calls `RnnSequence.forward` and packs its ordinary
 [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/ADD/[TANH](../../../../glossary.md#term-tanh) expressions with CONCAT. It inserts no [general Scan](../../../../glossary.md#general-differentiable-scan).
 The [general-scan contract](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)
-explicitly rejects every [scan](../../../../glossary.md#term-cumulative-scan) higher-order/createGraph request before [derivative](../../../../glossary.md#term-derivative) allocation.
+explicitly rejects every scan higher-order/createGraph request before [derivative](../../../../glossary.md#term-derivative) allocation.
 Independent source review additionally reports the two-stage rejection at
 `modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/AutogradPreflight.java:234`.
 
@@ -151,7 +151,7 @@ capability; singleton CONCAT does not hide the contained Scan from [autograd](..
 The existing-[operation](../../../../glossary.md#operation) descriptor candidate is
 `Tensor.concat(0, scan.outputs().getFirst())`: one [axis](../../../../glossary.md#term-axis)-zero, [rank](../../../../glossary.md#term-rank)-three CONCAT around the
 stacked emission, not a new wrapper/type/[API](../../../../glossary.md#term-application-programming-interface-api). `TensorCompositionExpressions.concatChecked` returns
-a fresh unresolved-[layout](../../../../glossary.md#layout) descriptor with the same [dtype](../../../../glossary.md#data-type--datatype)/[shape](../../../../glossary.md#shape)/[gradient](../../../../glossary.md#term-gradient) OR, whereas raw [Scan](../../../../glossary.md#term-cumulative-scan)
+a fresh unresolved-[layout](../../../../glossary.md#layout) descriptor with the same [dtype](../../../../glossary.md#data-type--datatype)/[shape](../../../../glossary.md#shape)/[gradient](../../../../glossary.md#term-gradient) OR, whereas raw Scan
 emission is [canonical](../../../../glossary.md#term-canonical-form). This preserves the old cold `[T,B,H]` output descriptor, including layout
 absence, and therefore the [metadata](../../../../glossary.md#term-metadata) expected by exact-descriptor downstream substitutions.
 
@@ -171,8 +171,8 @@ the forward copy or resolve higher-order compatibility.
 
 ## User [scope](../../../../glossary.md#term-scope) decision required
 
-MAIN must obtain the user's choice: accept [loss](../../../../glossary.md#loss) of this advanced second-order [compile](../../../../glossary.md#compile) capability,
-or separately qualify [Scan](../../../../glossary.md#term-cumulative-scan) second order before migrating fluent [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn). Neither choice is assumed
+MAIN must obtain the user's choice: accept loss of this advanced second-order [compile](../../../../glossary.md#compile) capability,
+or separately qualify Scan second order before migrating fluent [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn). Neither choice is assumed
 approved. Keep current fluent [unrolling](../../../../glossary.md#term-unrolling) while this decision is outstanding. Extending Scan higher
 order requires separate architecture/implementation authorization, not hidden NN0032 work.
 Do not infer a first-order-only waiver, silently narrow support, or create a speculative successor.

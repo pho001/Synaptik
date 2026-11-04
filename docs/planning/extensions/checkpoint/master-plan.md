@@ -126,7 +126,7 @@ no NN/Training/Engine edge. NN owns old Engine-materializing ModelCheckpoint beh
 The new GraphCheckpoint Source/[Leaf](../../../glossary.md#term-leaf)/Role boundary carries ordinary Tensor sources, not a runner.
 [Host](../../../glossary.md#term-host)-only values allow cold copy/save/load without Engine; owned loaded values are adopted once.
 The original selective v1/v2 codecs covered ADD/MUL/NEG/[MATMUL](../../../glossary.md#matrix-multiplication--matmul)/PERMUTE[1,0]/RELU/[TANH](../../../glossary.md#term-tanh)/[SIGMOID](../../../glossary.md#term-sigmoid).
-Accepted v3-v5 successors below add selected flat [CNN](../../../glossary.md#term-convolutional-neural-network-cnn)/recurrent and bounded general-[scan](../../../glossary.md#term-cumulative-scan) sources,
+Accepted v3-v5 successors below add selected flat [CNN](../../../glossary.md#term-convolutional-neural-network-cnn)/recurrent and bounded general-scan sources,
 not an all-family codec campaign.
 Exact APIs, [ownership](../../../glossary.md#term-ownership-meanings) and source guards live in current root/scoped authority; program/[ADR](../../../glossary.md#term-architecture-decision-record-adr) explain them.
 
@@ -141,7 +141,7 @@ NN0032 remains Draft at its independent backend/[layout](../../../glossary.md#la
 production delivery after accepted Compiler0018. Independent exact-wire/final code review,
 619 affected tests/Javadocs and public loaded [F32](../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../glossary.md#floating-point-precision-and-rounding) Model numerical proof passed. Selective
 v5/opcode33 preserves old records; direct encoder [preflight](../../../glossary.md#term-preflight) reuses Compiler before sizing/storage.
-MAIN retains the frozen base/integration evidence; NN0033 owns the next recurrent-composition [slice](../../../glossary.md#slice).
+MAIN retains the frozen base/integration evidence; NN0033 owns the next recurrent-composition slice.
 [NN0031 Result](../nn/tasks/0031-general-scan-owned-model-workflow.md#result) records later Complete
 owned acquisition/compute/train [qualification](../../../glossary.md#term-qualification) and the successful configured native program join;
 body [persistence](../../../glossary.md#term-persistence) is now separately delivered by CP0013. CP0005B is Complete after final independent code/docs review,
@@ -162,7 +162,7 @@ not in this plan.
 Completed joint [DAG](../../../glossary.md#term-directed-acyclic-graph-dag): Compiler0008/0009 + Checkpoint0008/0009 + Training0008 +
 NN0028/0029 plus Model0025E/0025F/Compiler0006A → [CP0010](tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md)
 with [CP0011 scan supplement](tasks/0011-flat-recurrent-scan-persistence.md), on published CPU0027 base.
-CP0010/CP0011 Complete together on 2026-10-20: bounded [CNN](../../../glossary.md#term-convolutional-neural-network-cnn)/static recurrence and cold [scan](../../../glossary.md#term-cumulative-scan) v3
+CP0010/CP0011 Complete together on 2026-10-20: bounded [CNN](../../../glossary.md#term-convolutional-neural-network-cnn)/static recurrence and cold scan v3
 [persistence](../../../glossary.md#term-persistence) accepted after independent APPROVE and main's focused/native root gates;
 [CP0010 Result](tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result) owns evidence.
 NN0030 approved decision + Compiler0012 + CP0008–0011/low-level join Complete →
@@ -221,7 +221,7 @@ remain future decisions. CP0005B v1 supports no recurrent files.
 
 Compiler0008 + Checkpoint0008 + Training0008 + NN0028 (all Complete) →
 [Checkpoint0009](tasks/0009-owned-model-activation-source-and-persistence.md). This completed Class C
-capability adds RELU/[TANH](../../../glossary.md#term-tanh)/[SIGMOID](../../../glossary.md#term-sigmoid) to the five-kind source [slice](../../../glossary.md#slice), with owned-[Model](../../../glossary.md#term-model) construction and
+capability adds RELU/[TANH](../../../glossary.md#term-tanh)/[SIGMOID](../../../glossary.md#term-sigmoid) to the five-kind source slice, with owned-[Model](../../../glossary.md#term-model) construction and
 direct-[oracle](../../../glossary.md#term-test-oracle) [MLP](../../../glossary.md#term-multilayer-perceptron-mlp) compute/train/save/load coverage. [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) remains a consumer; no new production types,
 public [signatures](../../../glossary.md#term-signature), [dependency](../../../glossary.md#term-dependency) edges, [runtime](../../../glossary.md#term-runtime) behavior or numerical rules changed.
 

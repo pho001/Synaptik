@@ -143,7 +143,7 @@ All production names below are in `io.github.pho001.synaptik.checkpoint.model`:
   Order: dry-size/check D and residuals → encode bounded ≤1 MiB metadata → SHA → public capture
   (actual component preflight) → recheck complete outer/coherence → prefixed payload copies.
   Test each outer-only boundary where the unprefixed component fits; rejection must precede
-  Engine admission/bulk values (including residuals below constructor minima).<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [preflight glossary](../../../../glossary.md#term-preflight); [metadata glossary](../../../../glossary.md#term-metadata); [admission glossary](../../../../glossary.md#term-admission))</span>
+  Engine admission/bulk values (including residuals below constructor minima).<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight); [metadata glossary](../../../../glossary.md#term-metadata); [admission glossary](../../../../glossary.md#term-admission))</span>
 - Envelope-load outer preflight precedes copies/projection. Before decoded allocation, bound
   counts, paths and LayerNorm rank by remaining definition bytes (including scalar suffix), not
   backend rank 16. Reject strict-UTF8 errors, unknown fields, noncanonical flags/order, duplicates,

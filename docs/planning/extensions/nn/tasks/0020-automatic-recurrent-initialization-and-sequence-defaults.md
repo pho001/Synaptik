@@ -281,7 +281,7 @@ does not add an [NN](../../../../glossary.md#neural-network-module-parameter-buf
   cached, registered, retained, or placed in a state dictionary.<span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis))</span>
 - Preserve the current fully static [time-major](../../../../glossary.md#term-time-major) input requirement and `long[]` static packing.
   Do not turn zero Tensor values into padding. Do not add runtime Tensor lengths, masks, dense
-  masked recurrence, or a scan/control-flow operation.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [masks glossary](../../../../glossary.md#term-boolean-mask); [scan glossary](../../../../glossary.md#term-cumulative-scan); [operation glossary](../../../../glossary.md#operation))</span>
+  masked recurrence, or a scan/control-flow operation.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [masks glossary](../../../../glossary.md#term-boolean-mask); [operation glossary](../../../../glossary.md#operation))</span>
 - Preserve the rule that a sequence invokes its cell once per non-empty represented step. An
   explicit all-zero length call invokes no cell; therefore an otherwise unbound automatic cell
   remains unbound until a later call reaches a represented step or strict load binds it. A
@@ -300,7 +300,7 @@ does not add an [NN](../../../../glossary.md#neural-network-module-parameter-buf
 
 - Initialized [`Embedding`](../../../../glossary.md#embedding), vocabulary inference, padding-row behavior, or a padding index. Those
   require the separate NN 0020A padding-row/update decision; vocabulary size must never be
-  inferred from one batch's maximum token ID.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [padding glossary](../../../../glossary.md#padding); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [token ID glossary](../../../../glossary.md#frozen-whitespace-tokenizer))</span>
+  inferred from one batch's maximum token ID.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference-meanings); [padding glossary](../../../../glossary.md#padding); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [token ID glossary](../../../../glossary.md#frozen-whitespace-tokenizer))</span>
 - A deprecated `LinearWeightInitialization` alias, a separate recurrent policy enum, public
   policy callback/service-provider interface, user-defined policy implementation, mutable
   initializer, or retention of RNG/seed/type/Shape inside <span data-glossary-navigation="true"> ([alias glossary](../../../../glossary.md#aliasing-and-arena); [callback glossary](../../../../glossary.md#term-callback); [mutable glossary](../../../../glossary.md#term-mutable); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [seed glossary](../../../../glossary.md#term-seed); [Shape glossary](../../../../glossary.md#shape))</span>`ParameterInitialization`.
@@ -327,7 +327,7 @@ does not add an [NN](../../../../glossary.md#neural-network-module-parameter-buf
   side-only bias, all-zero bias, result-component order, or static packing/restoration semantics.<span data-glossary-navigation="true"> ([RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [tanh glossary](../../../../glossary.md#term-tanh); [GRU glossary](../../../../glossary.md#term-gated-recurrent-unit-gru); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm))</span>
 - Runtime Tensor lengths, Boolean mask input, dynamic loop count, runtime-dependent active Shape,
   recurrent scan/control-flow body, dense post-cell masking, or reinterpretation of <span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Tensor glossary](../../../../glossary.md#tensor); [Boolean mask glossary](../../../../glossary.md#term-boolean-mask))</span>`CUM_SUM` /
-  `CUM_PROD` as a recurrent [scan](../../../../glossary.md#term-cumulative-scan).
+  `CUM_PROD` as a recurrent scan.
 - Dense padded output, batch-first layout, sorting by length, padding inference from numeric zero,
   or changes to the Data/Text/Vision proposals.<span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout))</span>
 - A backward method on Module/Model/cell/sequence, retained tape, mutable Tensor gradient, new
@@ -386,7 +386,7 @@ does not add an [NN](../../../../glossary.md#neural-network-module-parameter-buf
   fan-out. NN must not import or invoke compiler internals to prove it.<span data-glossary-navigation="true"> ([leaf glossary](../../../../glossary.md#term-leaf))</span><span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out))</span>
 - Static Java lengths may specialize the statically unrolled expression structure. Runtime
   lengths must not be presented as supported until NN 0021's cross-module scan/input-binding
-  prerequisite is complete.<span data-glossary-navigation="true"> ([unrolled glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state); [scan glossary](../../../../glossary.md#term-cumulative-scan); [binding glossary](../../../../glossary.md#term-binding))</span>
+  prerequisite is complete.<span data-glossary-navigation="true"> ([unrolled glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state); [binding glossary](../../../../glossary.md#term-binding))</span>
 - If implementation needs a new Model operation/method, public lifecycle/status/schema API,
   caller-owned source retention, new dependency, generic recurrent abstraction, runtime control
   flow, change outside the exact path list, or architecture-rule change, stop and report the
@@ -486,7 +486,7 @@ and [seed](../../../../glossary.md#term-seed) before [binding](../../../../gloss
 | `hiddenWeight` | `[gateMultiplier * hiddenSize, hiddenSize]` | second; same selected policy applied independently to this exact Shape and, when random, the advanced generator |
 | `bias` when configured | `[gateMultiplier * hiddenSize]` | third; deterministic typed zero, no random draw |
 
-`normal`, `uniform`, `zeros`, and `ones` use each exact [matrix](../../../../glossary.md#term-matrix-meanings) Shape without fan [inference](../../../../glossary.md#term-inference). Each
+`normal`, `uniform`, `zeros`, and `ones` use each exact [matrix](../../../../glossary.md#term-matrix-meanings) Shape without fan [inference](../../../../glossary.md#term-inference-meanings). Each
 [Glorot](../../../../glossary.md#term-glorot-uniform)/[Kaiming](../../../../glossary.md#term-kaiming) preset derives its [distribution](../../../../glossary.md#term-distribution) independently from the current complete packed
 [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) Shape. The layer owns matrix schema/order and bias policy; the general value does not.
 
@@ -673,7 +673,7 @@ defaults, and the current [Linear](../../../../glossary.md#term-linear-meanings)
 same [atomic](../../../../glossary.md#resource-transaction-and-rollback) change. Partial rollout would leave duplicate/incompatible policy names or make
 matching recurrent families behave differently. The task may create, delete, or modify at most
 the exact thirty-one paths above. Do not use this exception for ModuleFactory, [Embedding](../../../../glossary.md#embedding),
-directionality, [scan](../../../../glossary.md#term-cumulative-scan), unrelated refactoring, or duplicated utility abstractions.
+directionality, scan, unrelated refactoring, or duplicated utility abstractions.
 
 ## Test requirements
 
@@ -773,9 +773,9 @@ directionality, [scan](../../../../glossary.md#term-cumulative-scan), unrelated 
 
 - Scan source/public bytecode/imports for forbidden Lazy/factory/direction/scan/mask/runtime/
   compiler/training APIs, retained default states/lengths/generators, and dependencies outside
-  Model.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [bytecode glossary](../../../../glossary.md#term-bytecode); [Lazy glossary](../../../../glossary.md#term-lazy-evaluation); [mask glossary](../../../../glossary.md#term-boolean-mask); [runtime glossary](../../../../glossary.md#term-runtime); [compiler glossary](../../../../glossary.md#term-compiler); [Model glossary](../../../../glossary.md#term-model))</span>
+  Model.<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [Lazy glossary](../../../../glossary.md#term-lazy-evaluation); [mask glossary](../../../../glossary.md#term-boolean-mask); [runtime glossary](../../../../glossary.md#term-runtime); [compiler glossary](../../../../glossary.md#term-compiler); [Model glossary](../../../../glossary.md#term-model))</span>
 - Verify no result carrier component, gate formula, parameter name/order, bias packing, sequence
-  packing path, or static <span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [parameter glossary](../../../../glossary.md#term-parameter); [bias glossary](../../../../glossary.md#term-bias))</span>`long[]` meaning changed.
+  packing path, or static <span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter); [bias glossary](../../../../glossary.md#term-bias))</span>`long[]` meaning changed.
 
 ## Documentation requirements
 
@@ -794,7 +794,7 @@ contract, Training API, glossary, and [Checkpoint](../../../../glossary.md#term-
   seed/type/hidden facts, caller-owned advanced constructors, and no global source;<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [dispatch glossary](../../../../glossary.md#term-dispatch); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [PRNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [seed glossary](../../../../glossary.md#term-seed))</span>
 - layers/package Javadocs distinguishing one cell instance from fresh time-step Tensor
   occurrences, default explicit zero-state construction, static all-valid lengths, static packing,
-  and future runtime scan/direction contracts;<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  and future runtime scan/direction contracts;
 - Training API example and explanation of automatic cell/sequence composition, continued explicit
   state, state/load behavior, static-unroll provenance, shared parameter fan-out, compiler-owned
   BPTT construction, and current execution limits;<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [fan-out glossary](../../../../glossary.md#term-fan-out); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt))</span>
@@ -821,7 +821,7 @@ only to compile against the intentional current-API rename and retain their beha
   `LinearWeightInitialization`; neither that legacy type nor a recurrent-specific duplicate/alias
   remains.<span data-glossary-navigation="true"> ([alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - All three existing final cells support automatic first-forward input-width inference through
-  one non-Lazy constructor with explicit hidden size, bias, type, general policy, and seed.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [Lazy glossary](../../../../glossary.md#term-lazy-evaluation); [bias glossary](../../../../glossary.md#term-bias))</span>
+  one non-Lazy constructor with explicit hidden size, bias, type, general policy, and seed.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference-meanings); [Lazy glossary](../../../../glossary.md#term-lazy-evaluation); [bias glossary](../../../../glossary.md#term-bias))</span>
 - High-level automatic recurrent construction exposes no `RandomGeneratorFactory`; it uses exact
   deterministic `L64X128MixRandom` per random attempt and no RNG for zero/one, while existing
   caller-owned `RandomGenerator` [eager](../../../../glossary.md#term-eager-evaluation) constructors remain.
@@ -832,7 +832,7 @@ only to compile against the intentional current-API rename and retain their beha
 - Default state derives batch from static input and hidden size/type from cell schema, is explicit
   non-gradient Tensor data for that call, and is never retained or registered.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Static `long[]` packing remains the honest compatibility contract; runtime lengths/masks and
-  scan remain Draft.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [masks glossary](../../../../glossary.md#term-boolean-mask); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  scan remain Draft.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [masks glossary](../../../../glossary.md#term-boolean-mask))</span>
 - One cell/parameter set is shared across time, every step builds fresh Tensor identities/
   producers, temporal state ancestry is connected, and repeated exact parameter leaves form the
   Model provenance fan-out consumed by existing compiler autograd.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings); [producers glossary](../../../../glossary.md#term-producer); [leaves glossary](../../../../glossary.md#term-leaf))</span><span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [provenance glossary](../../../../glossary.md#provenance); [fan-out glossary](../../../../glossary.md#term-fan-out); [compiler glossary](../../../../glossary.md#term-compiler); [autograd glossary](../../../../glossary.md#autograd))</span>
@@ -889,7 +889,7 @@ The implementation task must [run](../../../../glossary.md#term-run) these tiers
    forbidden legacy/duplicate policy classes, and Java overload usability.
 5. Verify NN production imports only Model/JDK APIs and contains no public Lazy/build/bind/init/
    status, generic recurrent, ModuleFactory, direction, mask, runtime scan, compiler/training, or
-   retained RNG/default-state mechanism.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [Lazy glossary](../../../../glossary.md#term-lazy-evaluation); [mask glossary](../../../../glossary.md#term-boolean-mask); [runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate))</span>
+   retained RNG/default-state mechanism.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [Lazy glossary](../../../../glossary.md#term-lazy-evaluation); [mask glossary](../../../../glossary.md#term-boolean-mask); [runtime glossary](../../../../glossary.md#term-runtime); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate))</span>
 6. Run Markdown local-link/anchor/unique-heading/fence/newline/trailing-whitespace checks for the
    two changed planning files and final docs. Verify exactly one NN task/master row is <span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>[`Ready`](../../../../glossary.md#term-ready)
    during planning; on completion, both task/master are `Complete` and NN 0020A–0020C plus
@@ -924,7 +924,7 @@ the final diff unexpectedly crosses one of those boundaries.
 - [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0020A: initialized [Embedding](../../../../glossary.md#embedding) with explicit vocabulary size, embedding size, [data type](../../../../glossary.md#data-type--datatype),
   `ParameterInitialization`, seed, and the same documented standard PRNG for random policies; no
   vocabulary inference from token IDs. Select how an optional padding row is initialized and kept
-  invariant (including future update behavior) before Ready.<span data-glossary-navigation="true"> ([PRNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [inference glossary](../../../../glossary.md#term-inference); [token glossary](../../../../glossary.md#term-token); [padding glossary](../../../../glossary.md#padding); [invariant glossary](../../../../glossary.md#term-invariant); [Ready glossary](../../../../glossary.md#term-ready))</span>
+  invariant (including future update behavior) before Ready.<span data-glossary-navigation="true"> ([PRNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [inference glossary](../../../../glossary.md#term-inference-meanings); [token glossary](../../../../glossary.md#term-token); [padding glossary](../../../../glossary.md#padding); [invariant glossary](../../../../glossary.md#term-invariant); [Ready glossary](../../../../glossary.md#term-ready))</span>
 - NN 0020B: stateless standard `ModuleFactory` construction recipes after recurrent and Embedding
   initialization contracts are stable. `embedding`, [`linear`](../../../../glossary.md#term-linear-meanings), `rnn`, `gru`, and `lstm` return
   concrete types; recurrent recipes hide standard Cell+Sequence assembly. Every recipe takes
@@ -935,7 +935,7 @@ the final diff unexpectedly crosses one of those boundaries.
   directional cells/parameters/seeds, valid-prefix reverse traversal, an explicit <span data-glossary-navigation="true"> ([parameters glossary](../../../../glossary.md#term-parameter); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings))</span>`CONCAT`/`SUM`
   choice or deliberately narrower first merge policy, and type-specific final states.
 - NN 0021: coordinate genuine recurrent scan/control-flow and runtime input binding across owning
-  modules without specializing topology to one runtime length vector.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [scan glossary](../../../../glossary.md#term-cumulative-scan); [binding glossary](../../../../glossary.md#term-binding); [topology glossary](../../../../glossary.md#term-topology); [vector glossary](../../../../glossary.md#term-vector))</span>
+  modules without specializing topology to one runtime length vector.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [topology glossary](../../../../glossary.md#term-topology); [vector glossary](../../../../glossary.md#term-vector))</span>
 - NN 0022: consume Data-owned [runtime](../../../../glossary.md#term-runtime) valid lengths only after NN 0021.
 - NN 0023: select arbitrary [mask](../../../../glossary.md#term-boolean-mask)-with-holes semantics only for a concrete consumer.
 - NN 0024: [run](../../../../glossary.md#term-run) the typed [Model](../../../../glossary.md#term-model)/recurrent/Data/training/[checkpoint](../../../../glossary.md#term-checkpoint) integration checkpoint.
@@ -1000,7 +1000,7 @@ The documentation agent independently reads the architecture/documentation profi
 source/tests/generated Javadocs, relevant completed tasks, [Tensor](../../../../glossary.md#tensor)/[Compiler](../../../../glossary.md#term-compiler)/Training contracts,
 glossary, and future [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) rows. It must distinguish [parameter](../../../../glossary.md#term-parameter)-[leaf](../../../../glossary.md#term-leaf) initialization from forward
 expression construction, one Java cell from multiple fresh time-step occurrences, static unroll
-from [runtime](../../../../glossary.md#term-runtime) [scan](../../../../glossary.md#term-cumulative-scan), [Model](../../../../glossary.md#term-model) provenance [fan-out](../../../../glossary.md#term-fan-out) from generated [gradients](../../../../glossary.md#term-gradient), and current compiler
+from [runtime](../../../../glossary.md#term-runtime) scan, [Model](../../../../glossary.md#term-model) provenance [fan-out](../../../../glossary.md#term-fan-out) from generated [gradients](../../../../glossary.md#term-gradient), and current compiler
 [autograd](../../../../glossary.md#autograd) from an executable Training workflow. It reuses stable test evidence unless executable
 behavior changes and records all final no-change conclusions.
 
@@ -1030,7 +1030,7 @@ behavior changes and records all final no-change conclusions.
   create independent parameter owners; fresh public Tensor calls already provide the distinct
   expression occurrences required by static unroll and compiler reverse traversal.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [compiler glossary](../../../../glossary.md#term-compiler))</span>
 - Keep future Embedding initialization, construction factory, bidirectionality, and runtime scan
-  separate because each needs an independent policy or cross-module contract.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan); [module glossary](../../../../glossary.md#term-module))</span>
+  separate because each needs an independent policy or cross-module contract.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [module glossary](../../../../glossary.md#term-module))</span>
 
 ## Known limitations
 
@@ -1052,7 +1052,7 @@ behavior changes and records all final no-change conclusions.
 - Static provenance supplies a valid differentiable expression topology, but this task does not
   expose public compilation/training execution, calculate a gradient, prove backend coverage, or
   benchmark BPTT.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [differentiable glossary](../../../../glossary.md#derivative-and-chain-rule); [topology glossary](../../../../glossary.md#term-topology); [compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names); [gradient glossary](../../../../glossary.md#term-gradient); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt))</span>
-- Bidirectional/multidirectional composition and [runtime](../../../../glossary.md#term-runtime) valid-length [scan](../../../../glossary.md#term-cumulative-scan) remain Draft follow-ups.
+- Bidirectional/multidirectional composition and [runtime](../../../../glossary.md#term-runtime) valid-length scan remain Draft follow-ups.
 
 ## [Validation](../../../../glossary.md#term-validation) evidence
 
@@ -1122,7 +1122,7 @@ behavior changes and records all final no-change conclusions.
   fresh-producer static provenance without claiming numerical execution or public training.<span data-glossary-navigation="true"> ([concurrency glossary](../../../../glossary.md#term-concurrency); [parameter glossary](../../../../glossary.md#term-parameter); [producer glossary](../../../../glossary.md#term-producer))</span>
 - Training API and glossary now use the common policy, describe automatic recurrent lifecycle,
   default state/all-valid overloads, and identify the existing Compiler exact-identity fan-out
-  boundary. They keep runtime scan, Tensor <span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>`validLengths`, bidirectionality, `ModuleFactory`, and
+  boundary. They keep runtime scan, Tensor <span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out))</span>`validLengths`, bidirectionality, `ModuleFactory`, and
   initialized Embedding as future work. Completed task 0019 remained unchanged.<span data-glossary-navigation="true"> ([Embedding glossary](../../../../glossary.md#embedding))</span>
 - Final `./gradlew :extensions:nn:javadoc` passed without warnings after documentation-only edits.
   Generated pages were inspected for the policy, dispatcher, exact PRNG/strict-load lifecycle,

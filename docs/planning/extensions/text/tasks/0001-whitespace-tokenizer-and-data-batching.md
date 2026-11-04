@@ -30,8 +30,8 @@ Final independent Text review and the Text program join are complete; evidence i
 ## Non-goals
 
 No [tokenizer](../../../../glossary.md#frozen-whitespace-tokenizer) interface, separate vocabulary/[artifact](../../../../glossary.md#term-artifact)/[fingerprint](../../../../glossary.md#term-fingerprint) family, [BPE](../../../../glossary.md#term-byte-pair-encoding-bpe), vocabulary training,
-[persistence](../../../../glossary.md#term-persistence), decode, [normalization](../../../../glossary.md#term-normalization), [BOS](../../../../glossary.md#term-bos)/[EOS](../../../../glossary.md#term-eos), [truncation](../../../../glossary.md#term-truncation-toward-zero)/limit policy, predictor or corpus reader.
-No [Embedding](../../../../glossary.md#embedding) edit, [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) Data/Text edge, Text [Engine](../../../../glossary.md#term-engine)/[backend](../../../../glossary.md#backend) edge, [runtime](../../../../glossary.md#term-runtime) [binding](../../../../glossary.md#term-binding) or [scan](../../../../glossary.md#term-cumulative-scan)/[BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) change.
+[persistence](../../../../glossary.md#term-persistence), decode, [normalization](../../../../glossary.md#term-normalization), [BOS](../../../../glossary.md#term-bos)/[EOS](../../../../glossary.md#term-eos), truncation/limit policy, predictor or corpus reader.
+No [Embedding](../../../../glossary.md#embedding) edit, [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) Data/Text edge, Text [Engine](../../../../glossary.md#term-engine)/[backend](../../../../glossary.md#backend) edge, [runtime](../../../../glossary.md#term-runtime) [binding](../../../../glossary.md#term-binding) or scan/[BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) change.
 
 ## Contracts
 
@@ -133,14 +133,14 @@ restriction, not a code/test failure. Main handles scoped `require_escalated` ac
 do not change `GRADLE_USER_HOME`, download a replacement distribution or alter build configuration.
 
 Main owns the integration validation commands above and final root gate, reusing worker evidence;
-main [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) Class C code but does not implement Java/plumbing directly.
+main coordinates Class C code but does not implement Java/plumbing directly.
 Architecture fixtures must include positive/negative boundary cases and a Text-only consumer.
 No benchmark/native campaign or duplicate successful suite in documentation review.
 
 ## Documentation and review impact
 
 Implementer drafts meaningful [parameter](../../../../glossary.md#term-parameter)/result/failure/[lifecycle](../../../../glossary.md#lifecycle) [Javadoc](../../../../glossary.md#term-javadoc) and focused Text [API](../../../../glossary.md#term-application-programming-interface-api)
-examples, explicitly distinguishing Data counts from [scan](../../../../glossary.md#term-cumulative-scan) [runtime](../../../../glossary.md#term-runtime) inputs. Independent targeted
+examples, explicitly distinguishing Data counts from scan [runtime](../../../../glossary.md#term-runtime) inputs. Independent targeted
 Class C review finalizes the actual diff/tests and guide under repository documentation profiles.
 After the sole worker stops, the independent reviewer finalizes shared glossary/index/public API
 documentation. Main owns review coordination, shared-document integration, [validation](../../../../glossary.md#term-validation) and final
@@ -164,8 +164,8 @@ Accepted by main on 2026-10-21 after independent code APPROVE and separate final
 - Initial root failure: stale EngineComposition integration-edge expectation fixed to the exact Text test edge; missing Metal environment corrected, no [backend](../../../../glossary.md#backend) code changes.
 - Independent documentation APPROVE: `docs/api/text-api.md` (135 lines), shared API/index/glossary,
   boundary/dependency/layout explanations, root and ADR delivered wording reviewed; Javadoc accurate unchanged.
-  Path/heading-anchor checks PASS, 22 links; scoped whitespace PASS; examples match source/numerical evidence.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [dependency glossary](../../../../glossary.md#term-dependency); [layout glossary](../../../../glossary.md#layout); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
+  Path/heading-anchor checks PASS, 22 links; scoped whitespace PASS; examples match source/numerical evidence.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - HEAD `ef35f2ec001b0c161d1abe825ff3be725b9be49e` plus accepted uncommitted Data0001–0003/Text0001,
-  not merged. No persistence/training/runtime-length/scan extension or performance claim; no acceptance gaps or follow-up.<span data-glossary-navigation="true"> ([persistence glossary](../../../../glossary.md#term-persistence); [runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  not merged. No persistence/training/runtime-length/scan extension or performance claim; no acceptance gaps or follow-up.<span data-glossary-navigation="true"> ([persistence glossary](../../../../glossary.md#term-persistence); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 
 Status: Complete

@@ -25,14 +25,14 @@ This execution is documentation-only in the supplied isolated worktree; no child
 ## Goal
 
 Replace the outputs(actualInputs)-first proposal with one coherent phased program for manual and
-file-restored [tensor](../../../../glossary.md#tensor) models using the same proposed compute/train/save/load workflow, and [prepare](../../../../glossary.md#prepare)
+file-restored [tensor](../../../../glossary.md#tensor) models using the same proposed compute/train/save/load workflow, and prepare
 one independently actionable [backend](../../../../glossary.md#backend)/native-[layout](../../../../glossary.md#layout) successor.
 
 ## [Scope](../../../../glossary.md#term-scope) and non-goals
 
 Revise [ADR0039](../../../../design/decisions/0039-portable-graph-model-persistence.md), this brief,
 [Checkpoint](../../../../glossary.md#term-checkpoint)/[NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training master plans and roadmap; add the
-[cross-area program](../../../model-execution-refactor.md), update [Engine](../../../../glossary.md#term-engine) master and [prepare](../../../../glossary.md#prepare) only
+[cross-area program](../../../model-execution-refactor.md), update [Engine](../../../../glossary.md#term-engine) master and prepare only
 [Engine 0020](../../../modules/engine/tasks/0020-backend-native-layout-relocation.md).
 Preserve completed history and holds. No Java/native/build/test-source/[normative](../../../../glossary.md#term-normative) edits, moves,
 stage/[commit](../../../../glossary.md#term-commit)/push, worktree changes, implementation launch or speculative task cascade.

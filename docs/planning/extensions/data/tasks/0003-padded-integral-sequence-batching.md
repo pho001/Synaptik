@@ -21,14 +21,14 @@ Class C — shared [padding](../../../../glossary.md#padding) semantics, unpubli
 
 Deliver the shared LEFT/RIGHT [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) representation and fluent [INT64](../../../../glossary.md#data-type--datatype) long-sequence batching as
 one complete Data capability, including migration, focused tests, [Javadoc](../../../../glossary.md#term-javadoc) and [API](../../../../glossary.md#term-application-programming-interface-api) documentation.
-The user approved the exact [slice](../../../../glossary.md#slice); main approved enacted authority and verified HEAD, accepted
+The user approved the exact slice; main approved enacted authority and verified HEAD, accepted
 dirty Data0001/Data0002, inactive conflicts, no other writer and unchanged protected files.
 Final independent review APPROVE and main's local acceptance are recorded below.
 
 ## Non-goals
 
-No float/[sample](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters) batchers, [truncation](../../../../glossary.md#term-truncation-toward-zero)/limit system, [tokenization](../../../../glossary.md#frozen-whitespace-tokenizer), [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) changes, [runtime](../../../../glossary.md#term-runtime)-length [binding](../../../../glossary.md#term-binding),
-[scan](../../../../glossary.md#term-cumulative-scan)/[BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) [widening](../../../../glossary.md#term-widening), native [lifetime](../../../../glossary.md#term-lifetime) or [Engine](../../../../glossary.md#term-engine) edge. Deferred Data0005/0006 retain broader work.
+No float/[sample](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters) batchers, truncation/limit system, [tokenization](../../../../glossary.md#frozen-whitespace-tokenizer), [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) changes, [runtime](../../../../glossary.md#term-runtime)-length [binding](../../../../glossary.md#term-binding),
+scan/[BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) [widening](../../../../glossary.md#term-widening), native [lifetime](../../../../glossary.md#term-lifetime) or [Engine](../../../../glossary.md#term-engine) edge. Deferred Data0005/0006 retain broader work.
 
 ## Contracts
 
@@ -69,7 +69,7 @@ Tests are under `extensions/data/src/test/java/io/github/pho001/synaptik/data/`:
 - Sole Data0003 worker also migrates
   `testing/architecture-tests/src/dataApiConsumer/java/io/github/pho001/synaptik/testing/architecture/DataApiConsumer.java`
   and `testing/architecture-tests/src/test/java/io/github/pho001/synaptik/testing/architecture/DataDependencyContractTest.java`
-  within this capability. Main coordinates but does not edit Class C Java.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  within this capability. Main coordinates but does not edit Class C Java.
 - Never touch `THIRD_PARTY_NOTICES.md` or
   `modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuOrdinaryPointwiseCastCleanJavaOracle.java`.
   Preserve accepted Data0001/0002 work and their completed briefs.
@@ -120,7 +120,7 @@ to the external integration-test project, not Data tests.
 Implementer updates affected [Javadoc](../../../../glossary.md#term-javadoc) and may draft the Data [API](../../../../glossary.md#term-application-programming-interface-api) guide, with every [parameter](../../../../glossary.md#term-parameter)/result/failure
 documented under the repository API profile. Independent targeted Class C review finalizes these
 against the actual diff/tests after the sole worker stops, including shared glossary/index/public
-API finalization. Main [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) review, integration [validation](../../../../glossary.md#term-validation) and shared-document integration;
+API finalization. Main coordinates review, integration [validation](../../../../glossary.md#term-validation) and shared-document integration;
 no parallel writers or separate mechanical plumbing tasks. No predecessor brief rewrite.
 
 ## Result

@@ -55,7 +55,7 @@ introducing [optimizer](../../../../glossary.md#term-optimizer)/[checkpoint](../
   tree-wide replacement transaction, and no concurrency guarantee. It is not thread-safe:
   callers must externally synchronize concurrent replacement, declaration, traversal, mode, and
   forward construction when a consistent multi-binding view matters. One successful call changes
-  only one binding; a failed call changes none.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [carrier glossary](../../../../glossary.md#term-storage-carrier); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [transaction glossary](../../../../glossary.md#term-transaction); [concurrency glossary](../../../../glossary.md#term-concurrency); [thread-safe glossary](../../../../glossary.md#term-thread-safe); [view glossary](../../../../glossary.md#term-view-meanings))</span>
+  only one binding; a failed call changes none.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [transaction glossary](../../../../glossary.md#term-transaction); [concurrency glossary](../../../../glossary.md#term-concurrency); [thread-safe glossary](../../../../glossary.md#term-thread-safe); [view glossary](../../../../glossary.md#term-view-meanings))</span>
 - Update all affected public and contract-relevant Javadocs and focused tests. Use an independent
   documentation-focused agent/thread after implementation to finalize Javadoc, glossary impact,
   and this planning record.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [planning glossary](../../../../glossary.md#term-planning))</span>
@@ -160,7 +160,7 @@ This task may create or modify at most:
 - three [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) test files; and
 - these two [planning](../../../../glossary.md#term-planning) files.
 
-If implementation needs a new public [carrier](../../../../glossary.md#term-storage-carrier) type, a new package/[module](../../../../glossary.md#term-module)/build [dependency](../../../../glossary.md#term-dependency),
+If implementation needs a new public carrier type, a new package/[module](../../../../glossary.md#term-module)/build [dependency](../../../../glossary.md#term-dependency),
 [descriptor](../../../../glossary.md#term-descriptor)-[schema](../../../../glossary.md#term-schema) [validation](../../../../glossary.md#term-validation), [checkpoint](../../../../glossary.md#term-checkpoint)/state-dictionary [API](../../../../glossary.md#term-application-programming-interface-api), locking/[concurrency](../../../../glossary.md#term-concurrency) mechanism,
 architecture-test update, or more files, stop and propose a separate follow-up task.
 

@@ -40,7 +40,7 @@ record with `output` and `nextHidden` would duplicate one exact reference and is
   `io.github.pho001.synaptik.nn.module.Module` directly.
 - Add exactly the constructors, parameter accessors, and two-input forward method in the public
   API table below. Add no overload, builder, options object, gate enum, state carrier, size getter,
-  functional facade, or configurable equation policy.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [carrier glossary](../../../../glossary.md#term-storage-carrier); [facade glossary](../../../../glossary.md#term-facade))</span>
+  functional facade, or configurable equation policy.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [facade glossary](../../../../glossary.md#term-facade))</span>
 - Declare positive fully static [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [parameters](../../../../glossary.md#term-parameter) under exact local names `inputWeight` then
   `hiddenWeight`. Their [Shapes](../../../../glossary.md#shape) are `[3 * hiddenSize, inputSize]` and
   `[3 * hiddenSize, hiddenSize]`.
@@ -89,7 +89,7 @@ record with `output` and `nextHidden` would duplicate one exact reference and is
 - Retaining the current or next hidden [Tensor](../../../../glossary.md#tensor) in a field, [`Buffer`](../../../../glossary.md#term-buffer), child, state dictionary,
   thread-local, static, runtime object, session, or any other hidden lifecycle.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - A default or zero hidden state, hidden-state initializer, reset/detach API, stateful forward
-  overload, or result carrier that obscures caller state threading.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [carrier glossary](../../../../glossary.md#term-storage-carrier); [state threading glossary](../../../../glossary.md#state-threading))</span>
+  overload, or result carrier that obscures caller state threading.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [state threading glossary](../../../../glossary.md#state-threading))</span>
 - `UnaryTensorModule`, participation in `Sequential`, an adapter into `Sequential`, or any change
   to `Sequential`, `UnaryTensorModule`, [`Module`](../../../../glossary.md#term-module), [`Parameter`](../../../../glossary.md#term-parameter), or `Buffer`.
 - Separate public gate parameters, six per-gate matrices, separate input/recurrent biases,
@@ -101,7 +101,7 @@ record with `output` and `nextHidden` would duplicate one exact reference and is
   lengths, packed sequence, variable-length handling, bidirectionality, stacking, recurrent
   dropout, static unrolling, or time traversal.<span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis); [masks glossary](../../../../glossary.md#term-boolean-mask); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [unrolling glossary](../../../../glossary.md#term-unrolling))</span>
 - A general recurrent Model scan, loop operation, subgraph/body representation, carried-value
-  tuple, scan result, or Tensor API. Current <span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [scan glossary](../../../../glossary.md#term-cumulative-scan); [operation glossary](../../../../glossary.md#operation))</span>`CUM_SUM` and `CUM_PROD` are associative cumulative
+  tuple, scan result, or Tensor API. Current <span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation))</span>`CUM_SUM` and `CUM_PROD` are associative cumulative
   operations and are not recurrent scan primitives.
 - LSTM state, peepholes, projections, layer normalization, clipping, residuals, attention,
   convolutional recurrence, or another recurrent-cell family.<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [layer normalization glossary](../../../../glossary.md#layer-normalization))</span>
@@ -495,11 +495,11 @@ architecture change, or eighth path, stop and propose a separate follow-up task.
   references. Mode changes do not affect the expression chain.
 - No hidden [recurrent state](../../../../glossary.md#backpropagation-through-time-and-recurrent-state), result record, [unary](../../../../glossary.md#term-unary) adapter, `Sequential` change, context, RNG state,
   sequence/time behavior, scan, Model change, optimizer, execution behavior, or framework-
-  compatibility claim is introduced.<span data-glossary-navigation="true"> ([RNG state glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [scan glossary](../../../../glossary.md#term-cumulative-scan); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
+  compatibility claim is introduced.<span data-glossary-navigation="true"> ([RNG state glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
 - Focused tests cover exact reflection surface, state schema/order, supplied validation, initialized
   draw/ID order, early failures, all gate intervals, exact operation/provenance association,
   broadcasting/type/rank/feature failures, replacement snapshots, mode independence, state
-  discovery, and all explicit exclusions.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-software-feature))</span><span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [operation glossary](../../../../glossary.md#operation); [rank glossary](../../../../glossary.md#term-rank))</span>
+  discovery, and all explicit exclusions.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-feature))</span><span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [operation glossary](../../../../glossary.md#operation); [rank glossary](../../../../glossary.md#term-rank))</span>
 - All new and affected public/package APIs have meaningful complete Javadoc for purpose, equations,
   packing, Shapes/types, ownership, nullability, source lifecycle, side effects, promotion,
   broadcasting, result semantics, failure order, concurrency, mode, and non-execution boundaries.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [nullability glossary](../../../../glossary.md#term-nullability); [concurrency glossary](../../../../glossary.md#term-concurrency))</span>
@@ -565,14 +565,14 @@ only extension [API](../../../../glossary.md#term-application-programming-interf
   return both hidden and cell state explicitly and must not store either in a Buffer or hidden
   field.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [Buffer glossary](../../../../glossary.md#term-buffer))</span>
 - NN 0015 remains Draft: decide static unrolling of concrete cell calls versus a genuinely
-  general recurrent Model scan. <span data-glossary-navigation="true"> ([unrolling glossary](../../../../glossary.md#term-unrolling); [Model glossary](../../../../glossary.md#term-model); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>`CUM_SUM` and `CUM_PROD` do not satisfy that need.
+  general recurrent Model scan. <span data-glossary-navigation="true"> ([unrolling glossary](../../../../glossary.md#term-unrolling); [Model glossary](../../../../glossary.md#term-model))</span>`CUM_SUM` and `CUM_PROD` do not satisfy that need.
 - If NN 0015 selects containers, prefer cell-specific types unless the completed RNN/GRU/LSTM
   signatures prove a shared recurrent contract without casts, state erasure, duplicate carriers,
   or hidden state.<span data-glossary-navigation="true"> ([RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [GRU glossary](../../../../glossary.md#term-gated-recurrent-unit-gru); [signatures glossary](../../../../glossary.md#term-signature))</span>
 - Alternate GRU packing, bias, reset-before, migration, and framework-conversion policies require
   a concrete consumer and separate task; they must not be added as aliases here.<span data-glossary-navigation="true"> ([bias glossary](../../../../glossary.md#term-bias); [aliases glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - Truncation, masking, variable lengths, bidirectionality, stacking, recurrent dropout, checkpoint
-  persistence, training sessions, and backend execution remain separate future work.<span data-glossary-navigation="true"> ([Truncation glossary](../../../../glossary.md#term-truncation-toward-zero); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [persistence glossary](../../../../glossary.md#term-persistence); [backend glossary](../../../../glossary.md#backend))</span>
+  persistence, training sessions, and backend execution remain separate future work.<span data-glossary-navigation="true"> ([dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [persistence glossary](../../../../glossary.md#term-persistence); [backend glossary](../../../../glossary.md#backend))</span>
 
 ## Documentation and no-change review
 
@@ -591,7 +591,7 @@ The separate documentation pass must verify and record these reasoned no-change 
   because state ownership, module direction, and lifecycle boundaries do not change.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Tensor and Compile APIs plus Model source/master/capabilities remain accurate because the cell
   composes existing expressions and adds no Tensor method, semantic kind, split, recurrent scan,
-  capture, derivative, or execution behavior.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Model glossary](../../../../glossary.md#term-model); [scan glossary](../../../../glossary.md#term-cumulative-scan); [capture glossary](../../../../glossary.md#term-capture-meanings); [derivative glossary](../../../../glossary.md#term-derivative))</span>
+  capture, derivative, or execution behavior.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Model glossary](../../../../glossary.md#term-model); [capture glossary](../../../../glossary.md#term-capture-meanings); [derivative glossary](../../../../glossary.md#term-derivative))</span>
 - Training API and training graph remain accurate because recursive parameter discovery and
   replacement consume this direct Module normally; no optimizer, session, gradient publication,
   truncated history, or state orchestration is added.<span data-glossary-navigation="true"> ([training graph glossary](../../../../glossary.md#training-graph); [parameter glossary](../../../../glossary.md#term-parameter); [optimizer glossary](../../../../glossary.md#term-optimizer); [gradient glossary](../../../../glossary.md#term-gradient); [publication glossary](../../../../glossary.md#term-publication))</span>
@@ -673,7 +673,7 @@ After executable Java/tests stabilize, give the clean documentation context:
   concrete layers. The name represents one cell step, not sequence traversal.
 - Extend [`Module`](../../../../glossary.md#term-module) directly and return one Tensor. Two Tensor inputs are intrinsic, and output and
   next hidden are one exact value; a unary adapter or duplicate result carrier would obscure the
-  contract.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [unary glossary](../../../../glossary.md#term-unary); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  contract.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [unary glossary](../../../../glossary.md#term-unary))</span>
 - Pack two matrices and optional bias in reset, update, candidate order. Independent slices make
   gate provenance exact with the current Model API and keep the public state/accessor surface as
   small as <span data-glossary-navigation="true"> ([bias glossary](../../../../glossary.md#term-bias); [provenance glossary](../../../../glossary.md#provenance); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>`RnnCell`. Six public per-gate [matrices](../../../../glossary.md#term-matrix-meanings) would enlarge state without a current consumer.
@@ -703,7 +703,7 @@ After executable Java/tests stabilize, give the clean documentation context:
   binding.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [Dimensions glossary](../../../../glossary.md#dimension); [Model glossary](../../../../glossary.md#term-model); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [binding glossary](../../../../glossary.md#term-binding))</span>
 - Higher-[rank](../../../../glossary.md#term-rank) inputs are one batched cell application, never an implicit sequence.
 - Explicit caller-threaded recurrence may build deep provenance chains. This task adds no
-  detachment, truncation, loop IR, scheduling, or memory-lifetime policy.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
+  detachment, truncation, loop IR, scheduling, or memory-lifetime policy.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
 - Parameter replacement and forward are not thread-safe as one snapshot. The cell retains no
   lock, version, or transaction.<span data-glossary-navigation="true"> ([thread-safe glossary](../../../../glossary.md#term-thread-safe); [snapshot glossary](../../../../glossary.md#term-snapshot); [transaction glossary](../../../../glossary.md#term-transaction))</span>
 - Initialized eager parameters require Java-array-sized host leaves and may consume draws or IDs
@@ -720,7 +720,7 @@ After executable Java/tests stabilize, give the clean documentation context:
   API/graph, glossary, and build/dependency rules before selecting this contract.<span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Javadoc glossary](../../../../glossary.md#term-javadoc); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Model glossary](../../../../glossary.md#term-model); [Tensor glossary](../../../../glossary.md#tensor); [Shape glossary](../../../../glossary.md#shape); [operation glossary](../../../../glossary.md#operation); [graph glossary](../../../../glossary.md#graph); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Planning inspection confirmed the current Model surface can express the complete formula with
   packed linear projections and exact independent <span data-glossary-navigation="true"> ([linear glossary](../../../../glossary.md#term-linear-meanings))</span>`sliceAxis` provenance. No Model split, concat,
-  recurrent scan, semantic kind, result carrier, or new initializer is required.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [scan glossary](../../../../glossary.md#term-cumulative-scan); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  recurrent scan, semantic kind, result carrier, or new initializer is required.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance))</span>
 - Planning selected reset/update/candidate packing, one input-side packed bias, reset-after
   candidate association, and retention-gate interpolation explicitly; no framework-compatibility
   equivalence is claimed.<span data-glossary-navigation="true"> ([bias glossary](../../../../glossary.md#term-bias))</span>
@@ -823,7 +823,7 @@ After executable Java/tests stabilize, give the clean documentation context:
   sufficient because this task only composes existing Model metadata expressions.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance); [CPU glossary](../../../../glossary.md#term-cpu); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [metadata glossary](../../../../glossary.md#term-metadata))</span>
 - Independent documentation context `/root/nn_0013_docs` finalized the public/package Javadocs,
   added the glossary's packed schema and one-step gate example, distinguished the GRU from vanilla
-  RNN, future LSTM, recurrent scan, cumulative scan, and unary <span data-glossary-navigation="true"> ([GRU glossary](../../../../glossary.md#term-gated-recurrent-unit-gru); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [scan glossary](../../../../glossary.md#term-cumulative-scan); [cumulative scan glossary](../../../../glossary.md#cumulative-scan); [unary glossary](../../../../glossary.md#term-unary))</span>`Sequential` composition, and
+  RNN, future LSTM, recurrent scan, cumulative scan, and unary <span data-glossary-navigation="true"> ([GRU glossary](../../../../glossary.md#term-gated-recurrent-unit-gru); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [cumulative scan glossary](../../../../glossary.md#cumulative-scan); [unary glossary](../../../../glossary.md#term-unary))</span>`Sequential` composition, and
   synchronized all final evidence without changing executable Java or tests.
 
 ## Completion summary

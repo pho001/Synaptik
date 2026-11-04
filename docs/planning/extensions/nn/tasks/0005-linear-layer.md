@@ -114,7 +114,7 @@ caller-owned random source.
 ## Out of [scope](../../../../glossary.md#term-scope)
 
 - A generic `Module.forward`, layer interface, abstract layer base, sequential container, block,
-  activation, flattening, lazy/dynamic feature inference, or dynamic parameter Shape.<span data-glossary-navigation="true"> ([activation glossary](../../../../glossary.md#term-activation); [lazy glossary](../../../../glossary.md#term-lazy-evaluation); [feature glossary](../../../../glossary.md#term-software-feature); [inference glossary](../../../../glossary.md#term-inference); [parameter glossary](../../../../glossary.md#term-parameter); [Shape glossary](../../../../glossary.md#shape))</span>
+  activation, flattening, lazy/dynamic feature inference, or dynamic parameter Shape.<span data-glossary-navigation="true"> ([activation glossary](../../../../glossary.md#term-activation); [lazy glossary](../../../../glossary.md#term-lazy-evaluation); [feature glossary](../../../../glossary.md#term-feature); [inference glossary](../../../../glossary.md#term-inference-meanings); [parameter glossary](../../../../glossary.md#term-parameter); [Shape glossary](../../../../glossary.md#shape))</span>
 - A caller-selectable initializer, initializer object, Xavier alias, configurable gain or fan
   policy, random bias, default data type, default seed, hidden or retained RNG, or module-owned
   random state.<span data-glossary-navigation="true"> ([alias glossary](../../../../glossary.md#aliasing-and-arena); [bias glossary](../../../../glossary.md#term-bias); [data type glossary](../../../../glossary.md#data-type--datatype); [seed glossary](../../../../glossary.md#term-seed); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [module glossary](../../../../glossary.md#term-module))</span>
@@ -125,7 +125,7 @@ caller-owned random source.
   or fusion, graph compilation, prepare/runtime/Engine behavior, backend lowering, numerical
   execution, or end-to-end output-value assertions.<span data-glossary-navigation="true"> ([Optimizer glossary](../../../../glossary.md#term-optimizer); [gradient glossary](../../../../glossary.md#term-gradient); [publication glossary](../../../../glossary.md#term-publication); [autograd glossary](../../../../glossary.md#autograd); [compiler glossary](../../../../glossary.md#term-compiler); [capture glossary](../../../../glossary.md#term-capture-meanings); [fusion glossary](../../../../glossary.md#term-fusion); [graph glossary](../../../../glossary.md#graph); [compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names); [prepare glossary](../../../../glossary.md#prepare); [runtime glossary](../../../../glossary.md#term-runtime); [Engine glossary](../../../../glossary.md#term-engine); [backend glossary](../../../../glossary.md#backend); [lowering glossary](../../../../glossary.md#lowering))</span>
 - A new LINEAR operation kind, attrs, producer, result carrier, Tensor overload, MATMUL/ADD/
-  PERMUTE change, or duplicate linear numerical/Shape/provenance implementation.<span data-glossary-navigation="true"> ([LINEAR glossary](../../../../glossary.md#term-linear-meanings); [operation glossary](../../../../glossary.md#operation); [producer glossary](../../../../glossary.md#term-producer); [carrier glossary](../../../../glossary.md#term-storage-carrier); [Tensor glossary](../../../../glossary.md#tensor); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [provenance glossary](../../../../glossary.md#provenance))</span>
+  PERMUTE change, or duplicate linear numerical/Shape/provenance implementation.<span data-glossary-navigation="true"> ([LINEAR glossary](../../../../glossary.md#term-linear-meanings); [operation glossary](../../../../glossary.md#operation); [producer glossary](../../../../glossary.md#term-producer); [Tensor glossary](../../../../glossary.md#tensor); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [provenance glossary](../../../../glossary.md#provenance))</span>
 - Gradle or dependency changes, architecture-contract/ADR/explanatory-architecture changes,
   architecture-test changes, Model changes, Training production changes, CPU work, or global
   roadmap changes.<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [Model glossary](../../../../glossary.md#term-model); [CPU glossary](../../../../glossary.md#term-cpu))</span>
@@ -241,7 +241,7 @@ propose a focused follow-up rather than expanding this task.
   `bias()` is empty or contains the same wrapper present in discovery.
 - Initialized construction requires explicit positive features, explicit floating type, explicit
   caller-owned RNG, and explicit bias selection. Weight delegates once to Glorot uniform with
-  Shape <span data-glossary-navigation="true"> ([features glossary](../../../../glossary.md#term-software-feature); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [Glorot glossary](../../../../glossary.md#term-glorot-uniform))</span>`[outFeatures, inFeatures]`; optional bias delegates once to typed zeros with [Shape](../../../../glossary.md#shape)
+  Shape <span data-glossary-navigation="true"> ([features glossary](../../../../glossary.md#term-feature); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [Glorot glossary](../../../../glossary.md#term-glorot-uniform))</span>`[outFeatures, inFeatures]`; optional bias delegates once to typed zeros with [Shape](../../../../glossary.md#shape)
   `[outFeatures]` and consumes no source draw.
 - Scripted-source tests prove exact Glorot bounds, row-major draw count, exact caller source use,
   all three floating result types as practical, zero bias values, weight-before-bias ID order, and
@@ -389,7 +389,7 @@ reviewed, commands/results, glossary impact, limitations, and unresolved issues 
   role in bias initialization.<span data-glossary-navigation="true"> ([Glorot glossary](../../../../glossary.md#term-glorot-uniform); [weight glossary](../../../../glossary.md#term-weight))</span>
 - Caller-supplied parameters are fully static and positive. This first stateful layer models fixed
   learnable feature axes; lazy and dynamically shaped parameter ownership require a separate
-  contract rather than weakening constructor and replacement schema.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-software-feature); [axes glossary](../../../../glossary.md#term-axis); [lazy glossary](../../../../glossary.md#term-lazy-evaluation); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [schema glossary](../../../../glossary.md#term-schema))</span>
+  contract rather than weakening constructor and replacement schema.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-feature); [axes glossary](../../../../glossary.md#term-axis); [lazy glossary](../../../../glossary.md#term-lazy-evaluation); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [schema glossary](../../../../glossary.md#term-schema))</span>
 - Weight and bias must have the same exact floating type. Allowing final ADD promotion would make
   one layer own two parameter precisions and obscure its declared data type; callers can construct
   explicit casts before supplying state if a later task deliberately permits that policy.<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype))</span>
@@ -403,7 +403,7 @@ reviewed, commands/results, glossary impact, limitations, and unresolved issues 
 ## Known limitations
 
 - Only fixed positive fully static feature dimensions are supported; there is no lazy or dynamic
-  parameter materialization.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-software-feature); [dimensions glossary](../../../../glossary.md#dimension); [lazy glossary](../../../../glossary.md#term-lazy-evaluation); [parameter glossary](../../../../glossary.md#term-parameter); [materialization glossary](../../../../glossary.md#materialization))</span>
+  parameter materialization.<span data-glossary-navigation="true"> ([feature glossary](../../../../glossary.md#term-feature); [dimensions glossary](../../../../glossary.md#dimension); [lazy glossary](../../../../glossary.md#term-lazy-evaluation); [parameter glossary](../../../../glossary.md#term-parameter); [materialization glossary](../../../../glossary.md#materialization))</span>
 - Initialization policy is fixed and not caller-configurable beyond feature counts, bias presence,
   floating type, and random source.<span data-glossary-navigation="true"> ([bias glossary](../../../../glossary.md#term-bias))</span>
 - Parameter replacement is individual and not thread-safe. Callers must synchronize replacement
@@ -441,7 +441,7 @@ reviewed, commands/results, glossary impact, limitations, and unresolved issues 
   three declared methods, and the production import scan found no forbidden extension or
   execution/backend edge. Final Javadoc, Markdown, generated-page, exact seven-path scope,
   glossary, planning, no-change, and final whitespace evidence remain assigned to the mandatory
-  clean documentation pass.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [backend glossary](../../../../glossary.md#backend))</span>
+  clean documentation pass.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 - Clean documentation context `/root/nn_0005_docs` independently read the repository and
   architecture contracts, documentation rules and General/API-Javadoc/Planning/Example profiles,
   NN master/task history, ADR and dependency boundary, final source/tests, Model 0019D and<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [dependency glossary](../../../../glossary.md#term-dependency))</span>

@@ -1,4 +1,4 @@
-# Task 0021A: Fixed Recurrent-[Scan](../../../../glossary.md#term-cumulative-scan) Architecture Decision
+# Task 0021A: Fixed Recurrent-Scan Architecture Decision
 
 > **Editorial reading context — architecture decision, not execution evidence.** Fixed scan
 > puts a predefined recurrent transition behind one multi-output operation. Model owns its
@@ -19,7 +19,7 @@ Complete
 Make the explicit architecture decision required before Synaptik publishes or implements a
 [runtime](../../../../glossary.md#term-runtime)-valid-length recurrent [API](../../../../glossary.md#term-application-programming-interface-api).
 
-The decision must authorize one fixed first-class recurrent-[scan](../../../../glossary.md#term-cumulative-scan) [operation](../../../../glossary.md#operation) family as an ordinary
+The decision must authorize one fixed first-class recurrent-scan [operation](../../../../glossary.md#operation) family as an ordinary
 flat multi-output [Model](../../../../glossary.md#term-model) operation [occurrence](../../../../glossary.md#term-occurrence). It must explicitly decline a general user-defined
 control-flow region, [callback](../../../../glossary.md#term-callback) body, captured subgraph, or loop [intermediate representation](../../../../glossary.md#term-intermediate-representation-ir) at this
 frontier.
@@ -47,7 +47,7 @@ rule, prepared recipe, runtime step, [Engine](../../../../glossary.md#term-engin
 ## Motivation
 
 The current architecture authorizes [Model](../../../../glossary.md#term-model)-owned [operation](../../../../glossary.md#operation) semantics and flat [immutable](../../../../glossary.md#term-immutable) [graphs](../../../../glossary.md#graph),
-[Compiler](../../../../glossary.md#term-compiler)-owned [capture](../../../../glossary.md#term-capture-meanings)/[inference](../../../../glossary.md#term-inference)/[autograd](../../../../glossary.md#autograd), [backend-owned lowering](../../../../glossary.md#backend-owned-lowering), and [Runtime](../../../../glossary.md#term-runtime) execution of
+[Compiler](../../../../glossary.md#term-compiler)-owned [capture](../../../../glossary.md#term-capture-meanings)/[inference](../../../../glossary.md#term-inference-meanings)/[autograd](../../../../glossary.md#autograd), [backend-owned lowering](../../../../glossary.md#backend-owned-lowering), and [Runtime](../../../../glossary.md#term-runtime) execution of
 prepared schedules. It does not authorize a nested graph region, loop body, body capture, region
 [identity](../../../../glossary.md#term-identity-meanings), region [ownership](../../../../glossary.md#term-ownership-meanings), or Runtime graph interpretation.
 
@@ -64,7 +64,7 @@ the semantic and [lifecycle](../../../../glossary.md#lifecycle) contract, after 
 
 ### Fixed [operation](../../../../glossary.md#operation), not general control flow
 
-- The first [runtime](../../../../glossary.md#term-runtime) recurrent [scan](../../../../glossary.md#term-cumulative-scan) is one fixed first-class [Model](../../../../glossary.md#term-model) operation family.
+- The first [runtime](../../../../glossary.md#term-runtime) recurrent scan is one fixed first-class [Model](../../../../glossary.md#term-model) operation family.
 - Its mathematical transition is part of the operation semantics. It is not supplied through a
   Java callback, lambda, <span data-glossary-navigation="true"> ([callback glossary](../../../../glossary.md#term-callback))</span>[`Tensor`](../../../../glossary.md#tensor) body, nested [`CompiledGraphModel`](../../../../glossary.md#compiled-graph--compiledgraphmodel), region, block, callable graph,
   or other user-defined body value.
@@ -108,7 +108,7 @@ REVERSE
 ```
 
 No bidirectional, stacked, arbitrary-cell, configurable-gate, configurable-[activation](../../../../glossary.md#term-activation),
-peephole, projection, recurrent-[dropout](../../../../glossary.md#dropout--inverted-dropout), [residual](../../../../glossary.md#scan-residual-port-and-history-demand), stateful, sparse, or quantized variant belongs
+peephole, projection, recurrent-[dropout](../../../../glossary.md#dropout--inverted-dropout), residual, stateful, sparse, or quantized variant belongs
 to the first family.
 
 The fixed cell equations and [parameter](../../../../glossary.md#term-parameter) packing exactly match the current [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) cells:
@@ -266,7 +266,7 @@ does not select the public exception translation owned by the future [Engine](..
 - NN state dictionaries contain parameter and persistent-buffer Tensor bindings. Future model
   checkpoint artifacts may persist the materialized values of those entries. The scan operation,
   compiler graph, prepared executable, runtime state, and backend artifacts are rebuilt and are
-  not serialized by this decision.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [artifacts glossary](../../../../glossary.md#term-artifact); [scan glossary](../../../../glossary.md#term-cumulative-scan); [graph glossary](../../../../glossary.md#graph); [prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [backend glossary](../../../../glossary.md#backend))</span>
+  not serialized by this decision.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [artifacts glossary](../../../../glossary.md#term-artifact); [graph glossary](../../../../glossary.md#graph); [prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [backend glossary](../../../../glossary.md#backend))</span>
 
 ### [Compiler](../../../../glossary.md#term-compiler), [Planning](../../../../glossary.md#term-planning), [Prepare](../../../../glossary.md#prepare), [Runtime](../../../../glossary.md#term-runtime), [Engine](../../../../glossary.md#term-engine), and [backend](../../../../glossary.md#backend) boundary
 
@@ -274,7 +274,7 @@ does not select the public exception translation owned by the future [Engine](..
   metadata, canonical multi-output provenance, and the public Tensor surface.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [validation glossary](../../../../glossary.md#term-validation); [descriptors glossary](../../../../glossary.md#term-descriptor); [metadata glossary](../../../../glossary.md#term-metadata); [canonical glossary](../../../../glossary.md#term-canonical-form); [provenance glossary](../../../../glossary.md#provenance); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - Compiler captures the producer as one ordinary flat node, owns descriptor inference and final
   validation, updates the exact operation inventory, and initially rejects every backward-capable
-  request reaching the family before constructing any gradient Tensor.<span data-glossary-navigation="true"> ([captures glossary](../../../../glossary.md#term-capture-meanings))</span><span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [inference glossary](../../../../glossary.md#term-inference); [operation glossary](../../../../glossary.md#operation); [gradient glossary](../../../../glossary.md#term-gradient))</span>
+  request reaching the family before constructing any gradient Tensor.<span data-glossary-navigation="true"> ([captures glossary](../../../../glossary.md#term-capture-meanings))</span><span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [inference glossary](../../../../glossary.md#term-inference-meanings); [operation glossary](../../../../glossary.md#operation); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Backpropagation through time is a later explicit Compiler task. This task chooses no saved-gate
   outputs, tape, checkpointing policy, recomputation policy, backward operation, or derivative
   formula.<span data-glossary-navigation="true"> ([Backpropagation through time glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [derivative glossary](../../../../glossary.md#term-derivative))</span>
@@ -301,7 +301,7 @@ gap instead of adding speculative control-flow types now.
 
 ### Performance contract
 
-- One [Model](../../../../glossary.md#term-model) [scan](../../../../glossary.md#term-cumulative-scan) [occurrence](../../../../glossary.md#term-occurrence) remains one [compiled graph](../../../../glossary.md#compiled-graph--compiledgraphmodel) [node](../../../../glossary.md#node) regardless of `time` and valid-length
+- One [Model](../../../../glossary.md#term-model) scan [occurrence](../../../../glossary.md#term-occurrence) remains one [compiled graph](../../../../glossary.md#compiled-graph--compiledgraphmodel) [node](../../../../glossary.md#node) regardless of `time` and valid-length
   values. Graph construction and compiler graph size are <span data-glossary-navigation="true"> ([Graph glossary](../../../../glossary.md#graph); [compiler glossary](../../../../glossary.md#term-compiler))</span>[`O(1)`](../../../../glossary.md#memory-management-atomic-counters-and-complexity) in `time` for that occurrence.
 - Backend analysis compiles or otherwise prepares the transition implementation once per selected
   occurrence/plan. It must not construct, compile, or retain one graph/node/executable body per
@@ -328,7 +328,7 @@ gap instead of adding speculative control-flow types now.
 - NN 0022 later decides whether to add distinct runtime-length overloads, migrate current methods,
   retain them as compatibility APIs, or deprecate them. That decision must acknowledge the result
   shape difference: the new scan returns dense zero-padded original-time-aligned outputs, whereas
-  current static containers expose a list of compact per-step outputs.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [shape glossary](../../../../glossary.md#shape); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  current static containers expose a list of compact per-step outputs.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [shape glossary](../../../../glossary.md#shape))</span>
 - Bidirectional migration must preserve independent parameter ownership, valid-prefix-only
   reverse traversal, forward-first final-axis concatenation, original-time alignment, and
   type-specific final hidden/cell states.<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [axis glossary](../../../../glossary.md#term-axis); [alignment glossary](../../../../glossary.md#term-alignment))</span>
@@ -356,9 +356,9 @@ gap instead of adding speculative control-flow types now.
 - Any production or test Java, Javadoc, package documentation, generated documentation, build
   script, settings file, module dependency, or public API.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - A Model operation kind, attributes type, direction enum, Tensor method, result carrier,
-  descriptor helper, producer, graph node, or source-backed capability update.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation); [Tensor glossary](../../../../glossary.md#tensor); [carrier glossary](../../../../glossary.md#term-storage-carrier); [descriptor glossary](../../../../glossary.md#term-descriptor); [producer glossary](../../../../glossary.md#term-producer); [graph glossary](../../../../glossary.md#graph); [node glossary](../../../../glossary.md#node))</span>
+  descriptor helper, producer, graph node, or source-backed capability update.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation); [Tensor glossary](../../../../glossary.md#tensor); [descriptor glossary](../../../../glossary.md#term-descriptor); [producer glossary](../../../../glossary.md#term-producer); [graph glossary](../../../../glossary.md#graph); [node glossary](../../../../glossary.md#node))</span>
 - Compiler capture, inference, validation, optimization, first-order inventory, gradient rule,
-  BPTT, publication, or compile-artifact behavior.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [capture glossary](../../../../glossary.md#term-capture-meanings); [inference glossary](../../../../glossary.md#term-inference); [validation glossary](../../../../glossary.md#term-validation); [gradient glossary](../../../../glossary.md#term-gradient); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [publication glossary](../../../../glossary.md#term-publication); [compile glossary](../../../../glossary.md#compile); [artifact glossary](../../../../glossary.md#term-artifact))</span>
+  BPTT, publication, or compile-artifact behavior.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [capture glossary](../../../../glossary.md#term-capture-meanings); [inference glossary](../../../../glossary.md#term-inference-meanings); [validation glossary](../../../../glossary.md#term-validation); [gradient glossary](../../../../glossary.md#term-gradient); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [publication glossary](../../../../glossary.md#term-publication); [compile glossary](../../../../glossary.md#compile); [artifact glossary](../../../../glossary.md#term-artifact))</span>
 - [Planning](../../../../glossary.md#term-planning) capability logic, scoring, [ownership](../../../../glossary.md#term-ownership-meanings) rules, partitioning, or logical memory changes.
 - [Prepare](../../../../glossary.md#prepare) projection, analysis, declaration, assignment, finalization, or schedule assembly.
 - Runtime representation, input, slot, executable, bound invocation, schedule, runner,
@@ -521,18 +521,18 @@ build, [dependency](../../../../glossary.md#term-dependency), or executable beha
 - Prepare 0003 and Runtime 0010/0014 are Complete and provide the current static partition,
   caller-input representation, prepared executable, schedule, run-state, and hot-path boundaries.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [partition glossary](../../../../glossary.md#partition); [prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [run glossary](../../../../glossary.md#term-run))</span>
 - Engine remains Draft; its existing 0001–0002 rows own lifecycle composition and typed input/output
-  mapping needed before a public runnable scan claim.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [lifecycle glossary](../../../../glossary.md#lifecycle); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  mapping needed before a public runnable scan claim.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - No CPU, backend, Data, Text, Training, or Checkpoint implementation is a prerequisite for this
   architecture decision.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [backend glossary](../../../../glossary.md#backend); [Checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
 
 ## Follow-up tasks
 
 - [Model](../../../../glossary.md#term-model) 0025E, Draft only: implement the fixed semantic family and exact [Tensor](../../../../glossary.md#tensor) surface.
-- [Compiler](../../../../glossary.md#term-compiler) 0006A, Draft only: adopt forward [capture](../../../../glossary.md#term-capture-meanings)/[inference](../../../../glossary.md#term-inference)/inventory and fail [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) closed.
+- [Compiler](../../../../glossary.md#term-compiler) 0006A, Draft only: adopt forward [capture](../../../../glossary.md#term-capture-meanings)/[inference](../../../../glossary.md#term-inference-meanings)/inventory and fail [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) closed.
 - A later concrete-backend task, not yet detailed: truthfully lower and execute supported static
   variants with complete length prevalidation and skipped invalid-coordinate transition work.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 - [Engine](../../../../glossary.md#term-engine) 0001–0002, already Draft: compose the [lifecycle](../../../../glossary.md#lifecycle) and map typed caller inputs/publications.
-- [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0021B, Draft program row only: [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) the [owner](../../../../glossary.md#term-owner)-specific implementation [checkpoint](../../../../glossary.md#term-checkpoint).
+- [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0021B, Draft program row only: coordinate the [owner](../../../../glossary.md#term-owner)-specific implementation [checkpoint](../../../../glossary.md#term-checkpoint).
 - A later Compiler BPTT task only after the forward executable path is stable and its saved-versus-
   recompute contract is selected.
 - NN 0022, Draft only: add the Data-owned runtime-valid-length NN API and deliberate compatibility
@@ -676,7 +676,7 @@ gate passes.
   exact semantics and planned Model surface, static-Shape/runtime-valid-length boundary, dense
   alignment and final states, complete pre-mutation validation, purity, lifecycle ownership,
   fail-closed initial BPTT boundary, one-node/one-prepared-transition performance contract, and
-  unchanged static-NN migration boundary; added ADR 0012 and synchronized focused explanations.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [Model glossary](../../../../glossary.md#term-model); [Shape glossary](../../../../glossary.md#shape); [runtime glossary](../../../../glossary.md#term-runtime); [alignment glossary](../../../../glossary.md#term-alignment); [validation glossary](../../../../glossary.md#term-validation); [lifecycle glossary](../../../../glossary.md#lifecycle); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [fail-closed glossary](../../../../glossary.md#term-fail-closed); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [node glossary](../../../../glossary.md#node); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
+  unchanged static-NN migration boundary; added ADR 0012 and synchronized focused explanations.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Shape glossary](../../../../glossary.md#shape); [runtime glossary](../../../../glossary.md#term-runtime); [alignment glossary](../../../../glossary.md#term-alignment); [validation glossary](../../../../glossary.md#term-validation); [lifecycle glossary](../../../../glossary.md#lifecycle); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [fail-closed glossary](../../../../glossary.md#term-fail-closed); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [node glossary](../../../../glossary.md#node); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - Files changed or created: exactly the twelve paths listed under Affected files.
 - Tests and validation: architecture tests and all specified Markdown, link/anchor, heading,
   fence, newline, whitespace, terminology, scope, inventory, and status checks passed as recorded

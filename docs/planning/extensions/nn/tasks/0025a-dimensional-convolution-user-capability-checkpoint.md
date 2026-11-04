@@ -47,7 +47,7 @@ The checkpoint adds no execution [facade](../../../../glossary.md#term-facade) t
 - Update `EngineCompositionContractTest.APPROVED_INTEGRATION` with exactly one trailing ordered
   line, `testImplementation(project(":extensions:nn"))`, matching the integration build file.
   Preserve the exact-list equality assertion, ordering, Engine inventory, reverse-dependency scan,
-  and every other test line; do not weaken, generalize, or replace the inventory guard.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [guard glossary](../../../../glossary.md#term-guard))</span>
+  and every other test line; do not weaken, generalize, or replace the inventory guard.<span data-glossary-navigation="true"> ([guard glossary](../../../../glossary.md#term-guard))</span>
 - Construct the three existing concrete layer types through a deliberately small mix of direct
   construction and `ModuleFactory.standard()`:
   - direct `Conv1d`, proving the concrete public constructor without [bias](../../../../glossary.md#term-bias);
@@ -68,7 +68,7 @@ The checkpoint adds no execution [facade](../../../../glossary.md#term-facade) t
   presence, and absence of unexpected state.<span data-glossary-navigation="true"> ([reference identity glossary](../../../../glossary.md#term-reference-identity); [parameter glossary](../../../../glossary.md#term-parameter); [Shape glossary](../../../../glossary.md#shape))</span>
 - Create each runtime input as a separate non-gradient caller-owned host-backed Tensor. The input,
   loaded weight, and loaded bias where present are the only provenance-free value leaves that
-  carry host storage. The layer output is a storage-free expression. Record that <span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [carry glossary](../../../../glossary.md#term-carry); [host storage glossary](../../../../glossary.md#host-storage))</span>`compute` first
+  carry host storage. The layer output is a storage-free expression. Record that <span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [host storage glossary](../../../../glossary.md#host-storage))</span>`compute` first
   inventories reachable leaves by exact Tensor identity, while final <span data-glossary-navigation="true"> ([leaves glossary](../../../../glossary.md#term-leaf))</span>`CompiledGraph.inputs()`
   remains authoritative for membership and binding order.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding))</span>
 - Exercise `Engine.compute(output)` for Conv1d and Conv3d. This proves automatic input discovery,
@@ -289,7 +289,7 @@ specification before proceeding.
   loaded numerical values demonstrably determine Engine output. The selected pre-load Conv1d
   access/export checks reject incomplete state, and strict load makes its first forward usable.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter); [Tensor glossary](../../../../glossary.md#tensor); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Only the input and loaded state leaves carry caller-owned host storage. Explicit compilation
-  reports exactly those bindable Tensor identities; run accepts them in a different order.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [host storage glossary](../../../../glossary.md#host-storage); [compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names); [run glossary](../../../../glossary.md#term-run))</span>
+  reports exactly those bindable Tensor identities; run accepts them in a different order.<span data-glossary-navigation="true"> ([host storage glossary](../../../../glossary.md#host-storage); [compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names); [run glossary](../../../../glossary.md#term-run))</span>
 - Conv1d and [Conv3d](../../../../glossary.md#conv3d--ncdhw) pass one-shot `compute` with detached expected values. Grouped Conv2d passes
   one compile/prepare and two runs through the same prepared handle, with distinct run/publication
   objects and correct explicit materialization.<span data-glossary-navigation="true"> ([detached glossary](../../../../glossary.md#detached-model-results); [compile glossary](../../../../glossary.md#compile); [prepare glossary](../../../../glossary.md#prepare); [materialization glossary](../../../../glossary.md#materialization))</span>

@@ -91,10 +91,10 @@ expression without reading index values or executing it.
 - A `paddingIndex`, special padding row, automatic row zeroing, frozen row, sparse gradient,
   maximum-norm, frequency scaling, or optimizer/update hook.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [gradient glossary](../../../../glossary.md#term-gradient); [norm glossary](../../../../glossary.md#term-norm); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
 - Tokenization, vocabulary construction/freeze/fingerprint, special-token assignment, batching,
-  truncation, valid lengths, masks, runtime input binding, or a Text/Data module implementation.<span data-glossary-navigation="true"> ([Tokenization glossary](../../../../glossary.md#frozen-whitespace-tokenizer); [fingerprint glossary](../../../../glossary.md#term-fingerprint); [token glossary](../../../../glossary.md#term-token); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero); [masks glossary](../../../../glossary.md#term-boolean-mask); [runtime glossary](../../../../glossary.md#term-runtime); [module glossary](../../../../glossary.md#term-module))</span>
+  truncation, valid lengths, masks, runtime input binding, or a Text/Data module implementation.<span data-glossary-navigation="true"> ([Tokenization glossary](../../../../glossary.md#frozen-whitespace-tokenizer); [fingerprint glossary](../../../../glossary.md#term-fingerprint); [token glossary](../../../../glossary.md#term-token); [masks glossary](../../../../glossary.md#term-boolean-mask); [runtime glossary](../../../../glossary.md#term-runtime); [module glossary](../../../../glossary.md#term-module))</span>
 - `ModuleFactory` or another construction [facade](../../../../glossary.md#term-facade); that remains Draft [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0020B.
 - Bidirectional/multidirectional recurrence, runtime recurrent scan/control flow, or valid-length
-  recurrence; those remain later NN tasks.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  recurrence; those remain later NN tasks.
 - Any new operation, numerical lookup, gradient formula, optimizer, compiler, Prepare, Runtime,
   Engine, backend, execution, conformance, integration, build, module-boundary, dependency, ADR,
   or architecture change.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [lookup glossary](../../../../glossary.md#term-lookup); [compiler glossary](../../../../glossary.md#term-compiler); [Prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
@@ -269,7 +269,7 @@ The selected first contract is explicit absence of special padding behavior:
 - `forward` remains ordinary [Gather](../../../../glossary.md#gather) and carries no padding [identity](../../../../glossary.md#term-identity-meanings); and
 - state export/load retains the complete table exactly.
 
-A future Text vocabulary may assign a padding [token ID](../../../../glossary.md#frozen-whitespace-tokenizer), and proposed Data may [carry](../../../../glossary.md#term-carry) valid lengths,
+A future Text vocabulary may assign a padding [token ID](../../../../glossary.md#frozen-whitespace-tokenizer), and proposed Data may carry valid lengths,
 but those [schema](../../../../glossary.md#term-schema) facts do not freeze a [parameter](../../../../glossary.md#term-parameter) row. A future request for an [invariant](../../../../glossary.md#term-invariant) padding
 row is a new capability trigger: it must define compatible gradient, replacement, [optimizer](../../../../glossary.md#term-optimizer)
 update, load, and [checkpoint](../../../../glossary.md#term-checkpoint) semantics before [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) exposes such an [API](../../../../glossary.md#term-application-programming-interface-api). Merely zeroing a row at
@@ -362,7 +362,7 @@ change in the required documentation pass.
 
 - Search source, compiled public surface, tests, Javadocs, and current explanatory docs for
   accidental `LazyEmbedding`, `paddingIndex`, padding-row mutation, ModuleFactory, tokenizer/Data,
-  runtime scan, compiler/backend, or execution implementation.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [tokenizer glossary](../../../../glossary.md#frozen-whitespace-tokenizer); [runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan); [compiler glossary](../../../../glossary.md#term-compiler); [backend glossary](../../../../glossary.md#backend))</span>
+  runtime scan, compiler/backend, or execution implementation.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [tokenizer glossary](../../../../glossary.md#frozen-whitespace-tokenizer); [runtime glossary](../../../../glossary.md#term-runtime); [compiler glossary](../../../../glossary.md#term-compiler); [backend glossary](../../../../glossary.md#backend))</span>
 - Confirm no new module dependency, build path, architecture rule, operation kind, conformance
   fixture, integration fixture, or unrelated refactor is present.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency); [operation glossary](../../../../glossary.md#operation); [conformance glossary](../../../../glossary.md#term-conformance); [fixture glossary](../../../../glossary.md#term-fixture))</span>
 
@@ -466,7 +466,7 @@ behavior. [CI](../../../../glossary.md#term-continuous-integration-ci) or the ne
 - NN 0020B may use the completed initialized Embedding constructor in stateless standard
   construction recipes; it remains Draft and has no task file yet.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Embedding glossary](../../../../glossary.md#embedding))</span>
 - NN 0020C directionality and NN 0021–0024 scan/valid-length/integration work remain Draft and
-  separate.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  separate.
 - A padding-row API is not scheduled. Reopen it only when a concrete consumer supplies an owning
   contract that preserves the invariant across initialization, gradient construction, Parameter
   replacement, optimizer updates, strict load, and checkpoint restore.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [invariant glossary](../../../../glossary.md#term-invariant); [gradient glossary](../../../../glossary.md#term-gradient); [Parameter glossary](../../../../glossary.md#term-parameter); [optimizer glossary](../../../../glossary.md#term-optimizer); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
@@ -495,7 +495,7 @@ constructor. Add exactly the [eager](../../../../glossary.md#term-eager-evaluati
 order, exact `L64X128MixRandom` random path, no-[RNG](../../../../glossary.md#graph-rng-state--graphrngstate) [constant](../../../../glossary.md#term-constant) path, one whole-table dispatcher call,
 one permanent [`weight`](../../../../glossary.md#term-weight), generic [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) fan interpretation, and no [padding](../../../../glossary.md#padding) behavior. Preserve all
 current forward/replacement/mode/state behavior. Do not implement [lazy](../../../../glossary.md#term-lazy-evaluation) state, ModuleFactory,
-[tokenization](../../../../glossary.md#frozen-whitespace-tokenizer)/Data, valid lengths, directionality, [scan](../../../../glossary.md#term-cumulative-scan), execution, [gradient](../../../../glossary.md#term-gradient)/[optimizer](../../../../glossary.md#term-optimizer) behavior, or
+[tokenization](../../../../glossary.md#frozen-whitespace-tokenizer)/Data, valid lengths, directionality, scan, execution, [gradient](../../../../glossary.md#term-gradient)/[optimizer](../../../../glossary.md#term-optimizer) behavior, or
 architecture/build changes.
 
 Use focused tests while iterating, then [run](../../../../glossary.md#term-run) the authoritative NN clean/test/[Javadoc](../../../../glossary.md#term-javadoc) command once.

@@ -22,14 +22,14 @@ implementation and independent targeted [API](../../../../glossary.md#term-appli
 
 ## Goal
 
-[Run](../../../../glossary.md#term-run) already padded numeric [FLOAT32](../../../../glossary.md#term-float32) sequences through existing [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) [scan](../../../../glossary.md#term-cumulative-scan) Models,
+[Run](../../../../glossary.md#term-run) already padded numeric [FLOAT32](../../../../glossary.md#term-float32) sequences through existing [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) scan Models,
 reusing one preparation for fresh values and changing valid counts at the same static [signature](../../../../glossary.md#term-signature).
 Data exports counts; the application passes ordinary [Tensors](../../../../glossary.md#tensor) to existing [Model](../../../../glossary.md#term-model).compute; [Engine](../../../../glossary.md#term-engine)
 retains preparation and [runtime](../../../../glossary.md#term-runtime)-[binding](../../../../glossary.md#term-binding) [ownership](../../../../glossary.md#term-ownership-meanings).
 
 ## [Scope](../../../../glossary.md#term-scope) and approved [API](../../../../glossary.md#term-application-programming-interface-api)
 
-First [slice](../../../../glossary.md#slice): RIGHT [padding](../../../../glossary.md#padding), TIME_MAJOR values, [canonical](../../../../glossary.md#term-canonical-form) [contiguous](../../../../glossary.md#term-contiguous) offset-zero non-[view](../../../../glossary.md#term-view-meanings)
+First slice: RIGHT [padding](../../../../glossary.md#padding), TIME_MAJOR values, [canonical](../../../../glossary.md#term-canonical-form) [contiguous](../../../../glossary.md#term-contiguous) offset-zero non-[view](../../../../glossary.md#term-view-meanings)
 [FLOAT32](../../../../glossary.md#term-float32) `[T,B,F]`, requiresGrad=false, with positive static T/B/F for the fluent builder.
 Applications already holding numeric [tensors](../../../../glossary.md#tensor) wrap them with PaddedSequenceBatch; no new float
 batcher is required. Data0005 remains a separate future capability.
@@ -54,10 +54,10 @@ change counts or another export. Callers retain it for the [synchronous](../../.
 Model storage obligations; no close protocol, native allocation or [device](../../../../glossary.md#term-device) transfer is added.
 
 The new method only materializes counts. Existing two-input compute binds `[values, lengths]`;
-it neither accepts Data objects nor infers side/order. [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn) and [LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) use their existing [scan](../../../../glossary.md#term-cumulative-scan) recipes.
+it neither accepts Data objects nor infers side/order. [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn) and [LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) use their existing scan recipes.
 Omitting finalHidden returns dense `[T,B,H]`, not a compact sequence or the final valid timestep.
 Expression output [layout](../../../../glossary.md#layout) remains unresolved under Model semantics; execution uses the existing
-qualified canonical [CPU](../../../../glossary.md#term-cpu) route, without changing public scan port order or descriptor [inference](../../../../glossary.md#term-inference).
+qualified canonical [CPU](../../../../glossary.md#term-cpu) route, without changing public scan port order or descriptor [inference](../../../../glossary.md#term-inference-meanings).
 
 ## Approval and launch verification
 
@@ -70,7 +70,7 @@ External consumers compose exported public APIs, not a production bridge.
 
 Numeric-only acceptance is approved independently of Text. ModelBuilder.input currently accepts only
 floating types, has no [Embedding](../../../../glossary.md#embedding) recipe, and instantiate passes the original input [dtype](../../../../glossary.md#data-type--datatype) to every
-recipe. Therefore a Data length export cannot enable [INT64](../../../../glossary.md#data-type--datatype) Text IDs → Embedding → [scan](../../../../glossary.md#term-cumulative-scan) in one
+recipe. Therefore a Data length export cannot enable [INT64](../../../../glossary.md#data-type--datatype) Text IDs → Embedding → scan in one
 fluent Model. A separately selected NN builder integer-input/Embedding capability must establish
 typed dtype transitions before that full Text workflow can be promised; it is not part of NN0022A.
 
@@ -86,7 +86,7 @@ SHA256 `57ce4dc701a83d2ed01b96c725197a72f5aa752fe5e200f3a354f9d273f8f842`.
 ## Non-goals
 
 No generic input protocol/interface/[facade](../../../../glossary.md#term-facade), new production type/package, runner/session, [buffer](../../../../glossary.md#term-buffer)
-[owner](../../../../glossary.md#term-owner), hidden sequence copy/repack, arbitrary-[shape](../../../../glossary.md#shape) reuse, LEFT [scan](../../../../glossary.md#term-cumulative-scan), BATCH_MAJOR conversion,
+[owner](../../../../glossary.md#term-owner), hidden sequence copy/repack, arbitrary-[shape](../../../../glossary.md#shape) reuse, LEFT scan, BATCH_MAJOR conversion,
 automatic float batching, Text pipeline, [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt)/training, native route, tuning, performance campaign
 or save-format change. Existing advanced zero-T/B scans remain supported but do not widen the
 builder's positive-input contract. Existing [gradient](../../../../glossary.md#term-gradient) eligibility is preserved, never cleared to
@@ -102,7 +102,7 @@ bypass [inference](../../../../glossary.md#term-inference)-only [admission](../.
   [extensions/text](../../../../architecture/contracts/extensions-training.md#extensionstext),
   [extensions/nn](../../../../architecture/contracts/extensions-training.md#extensionsnn),
   [Owned tensor Models](../../../../architecture/contracts/extensions-training.md#owned-tensor-models)<span data-glossary-navigation="true"> ([tensor glossary](../../../../glossary.md#tensor))</span>.
-- Recurrent [scan](../../../../glossary.md#term-cumulative-scan) [Static Shape and runtime-value boundary](../../../../architecture/contracts/recurrent-scan.md#static-shape-and-runtime-value-boundary)<span data-glossary-navigation="true"> ([Shape glossary](../../../../glossary.md#shape); [runtime glossary](../../../../glossary.md#term-runtime))</span>,
+- Recurrent scan [Static Shape and runtime-value boundary](../../../../architecture/contracts/recurrent-scan.md#static-shape-and-runtime-value-boundary)<span data-glossary-navigation="true"> ([Shape glossary](../../../../glossary.md#shape); [runtime glossary](../../../../glossary.md#term-runtime))</span>,
   [Valid lengths, traversal, and outputs](../../../../architecture/contracts/recurrent-scan.md#valid-lengths-traversal-and-outputs),
   [Purity and lifecycle ownership](../../../../architecture/contracts/recurrent-scan.md#purity-and-lifecycle-ownership)<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle))</span>.
 
@@ -130,7 +130,7 @@ No new Data/Text/[CPU](../../../../glossary.md#term-cpu) frontier or successor i
 - `extensions/data/…/data/PaddedSequenceBatch.java` — only approved production method;
   `ValidSequenceLengths.java` and `LongSequenceBatcher.java` — existing count/allocation references.
 - `extensions/nn/…/nn/module/ModelBuilder.java`, `Model.java` — existing scan recipes,
-  buildWithLengths and compute(firstInput,secondInput); no production NN edit authorized.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  buildWithLengths and compute(firstInput,secondInput); no production NN edit authorized.
 - `extensions/data/src/test/java/io/github/pho001/synaptik/data/PaddedSequenceBatchTest.java`
   — update exact API assertions and export tests.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Existing [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) `RuntimeLengthScanModelTest`, `RuntimeLengthRecurrentSequenceTest` and external
@@ -149,7 +149,7 @@ No new Data/Text/[CPU](../../../../glossary.md#term-cpu) frontier or successor i
   inputs execute without hidden repack; incompatible compute descriptors reject under existing
   Model rules, without implicit dtype/layout/gradient conversion.<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [Model glossary](../../../../glossary.md#term-model); [dtype glossary](../../../../glossary.md#data-type--datatype); [layout glossary](../../../../glossary.md#layout); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - External consumer uses only public Data/NN/Model/Engine APIs. For all three scan families,
-  fresh <span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Engine glossary](../../../../glossary.md#term-engine); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>`[T,B,F]` values and counts `[3,1,0]`, `[0,0,0]`, `[1,3,2]` reuse the same Model preparation;
+  fresh <span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Engine glossary](../../../../glossary.md#term-engine))</span>`[T,B,F]` values and counts `[3,1,0]`, `[0,0,0]`, `[1,3,2]` reuse the same Model preparation;
   independent equations verify dense and final-hidden results, positive-zero padded outputs,
   zero-length initial states and original row order, including NaN sentinels outside valid prefixes.<span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan))</span>
 - Demonstrate Engine.prepare once and repeated Engine.runValues on that same PreparedExecution

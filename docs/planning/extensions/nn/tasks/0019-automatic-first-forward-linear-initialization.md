@@ -220,7 +220,7 @@ clearly instead of returning a partial tree.
   files, versions, materialization, checksums, manifests, optimizer state, or Training resume.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [materialization glossary](../../../../glossary.md#materialization); [optimizer state glossary](../../../../glossary.md#term-optimizer-state); [resume glossary](../../../../glossary.md#schema-serialization-and-checkpoint))</span>
 - New Tensor/operation semantics, numerical evaluation, compiler capture, autograd, backend
   support, lowering, execution, device storage, or a claim that <span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [evaluation glossary](../../../../glossary.md#term-evaluation); [compiler glossary](../../../../glossary.md#term-compiler); [capture glossary](../../../../glossary.md#term-capture-meanings); [autograd glossary](../../../../glossary.md#autograd); [backend glossary](../../../../glossary.md#backend); [lowering glossary](../../../../glossary.md#lowering); [device glossary](../../../../glossary.md#term-device))</span>`forward` calculates values.
-- Data/Text/Vision batching, [tokenizer](../../../../glossary.md#frozen-whitespace-tokenizer), valid-length, [padding](../../../../glossary.md#padding)/[mask](../../../../glossary.md#term-boolean-mask), recurrent [scan](../../../../glossary.md#term-cumulative-scan), or image work.
+- Data/Text/Vision batching, [tokenizer](../../../../glossary.md#frozen-whitespace-tokenizer), valid-length, [padding](../../../../glossary.md#padding)/[mask](../../../../glossary.md#term-boolean-mask), recurrent scan, or image work.
 - Gradle, dependency, architecture-contract, ADR, architecture-test, global-roadmap, CPU, other
   module, conformance, integration, or unrelated refactoring changes.<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [CPU glossary](../../../../glossary.md#term-cpu); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 
@@ -382,7 +382,7 @@ the release, and accessors/discovery read the acquire before reading bound slots
 with layer-local initialization must either reject the unbound reservation or observe the complete
 published set, never a partial direct set. This narrow rule does not make Module tree traversal,
 replacement, mode changes, state load, or arbitrary forward bodies generally [thread-safe](../../../../glossary.md#term-thread-safe) or
-linearizable; callers still [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) those operations.
+linearizable; callers still coordinate those operations.
 
 ## State discovery and strict-load contract
 
@@ -491,7 +491,7 @@ and propose the smallest focused follow-up.
 - Strict load includes reserved paths, initializes them from exact candidates without RNG, retains
   whole-tree ordinary validate-before-install behavior, and makes equivalent eager/automatic
   dictionaries compatible in both directions after Shapes are known.<span data-glossary-navigation="true"> ([RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [Shapes glossary](../../../../glossary.md#shape))</span>
-- A two-Layer functional [Model](../../../../glossary.md#term-model) proves automatic hidden/output input-width [inference](../../../../glossary.md#term-inference) and paths
+- A two-Layer functional [Model](../../../../glossary.md#term-model) proves automatic hidden/output input-width [inference](../../../../glossary.md#term-inference-meanings) and paths
   `hidden.weight`, optional `hidden.bias`, `output.weight`, and optional `output.bias`. An unused
   registered automatic Linear leaves complete discovery/export unavailable. A later-body failure
   proves any earlier successfully initialized layer stays initialized without Model-wide rollback.<span data-glossary-navigation="true"> ([rollback glossary](../../../../glossary.md#term-rollback))</span>
@@ -562,7 +562,7 @@ boundary, shared configuration, runtime input, or numerical execution path.
   recurrent states; add automatic initialization only where a concrete layer policy is complete.
   Embedding still requires explicit vocabulary size and embedding width or supplied state.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [lifecycle glossary](../../../../glossary.md#lifecycle); [weights glossary](../../../../glossary.md#term-weight); [Embedding glossary](../../../../glossary.md#embedding))</span>
 - NN 0021–0022: define genuine runtime recurrent scan/input binding before consuming Data-owned
-  runtime valid lengths.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan); [binding glossary](../../../../glossary.md#term-binding))</span>
+  runtime valid lengths.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [binding glossary](../../../../glossary.md#term-binding))</span>
 - Checkpoint 0003–0004: materialize and persist state downstream, then use strict reservation-aware
   load only after complete artifact validation.<span data-glossary-navigation="true"> ([Checkpoint glossary](../../../../glossary.md#term-checkpoint); [artifact glossary](../../../../glossary.md#term-artifact); [validation glossary](../../../../glossary.md#term-validation))</span>
 - A future concrete consumer may justify model-wide descriptor tracing, seed derivation, schema

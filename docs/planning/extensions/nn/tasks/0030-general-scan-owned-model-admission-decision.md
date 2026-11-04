@@ -1,4 +1,4 @@
-# Task NN0030: General-[scan](../../../../glossary.md#term-cumulative-scan) [owned Model](../../../../glossary.md#model-module-buffer-and-scan-distinctions) [admission](../../../../glossary.md#term-admission) decision
+# Task NN0030: General-scan [owned Model](../../../../glossary.md#model-module-buffer-and-scan-distinctions) [admission](../../../../glossary.md#term-admission) decision
 
 > **Editorial reading context — decision-stage findings, not a new implementation claim.**
 > Cold admission asks whether supported source can be reconstructed, not whether CPU can
@@ -49,7 +49,7 @@ new contracts. Compiler0012's completed Result supersedes its former cold-recons
   `acquireDefinition` inventories state/[constants](../../../../glossary.md#term-constant), copies once and installs wrappers;
   `forward` delegates to `GraphCheckpoint.rebind` unless this is existing builder composition.
   `acquireComposition` uses `Source` only as a borrowed Tensor-list carrier, without codec/capture.
-  Its inventory walks outer operands; body formals must never become external state/constants.<span data-glossary-navigation="true"> ([borrowed glossary](../../../../glossary.md#ownership-borrowing-and-lease); [Tensor glossary](../../../../glossary.md#tensor); [carrier glossary](../../../../glossary.md#term-storage-carrier); [codec glossary](../../../../glossary.md#term-codec); [capture glossary](../../../../glossary.md#term-capture-meanings))</span>
+  Its inventory walks outer operands; body formals must never become external state/constants.<span data-glossary-navigation="true"> ([borrowed glossary](../../../../glossary.md#ownership-borrowing-and-lease); [Tensor glossary](../../../../glossary.md#tensor); [codec glossary](../../../../glossary.md#term-codec); [capture glossary](../../../../glossary.md#term-capture-meanings))</span>
 - [GraphCheckpoint](../../../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
   `copy` / [`rebind`](../../../../glossary.md#capture-graph-ports-and-reconstruction) use `GraphSource.capture`, NOT [artifact](../../../../glossary.md#term-artifact) encoding.
   [GraphSource](../../../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphSource.java)
@@ -117,7 +117,7 @@ one `ScanBody` and one `Scan.apply` per [occurrence](../../../../glossary.md#ter
 residuals and aliased roles; retain unused formals, repeated actual positions and independent scopes.
 Rebind substitutes outer inputs only; keep produced/repeated substitutions' upstream [provenance](../../../../glossary.md#provenance) [opaque](../../../../glossary.md#term-opaque).
 Do not flatten body IDs into outer IDs or let private copies retain external actual leaves/templates.
-The same [immutable](../../../../glossary.md#term-immutable) source template may be reused without merging [scan](../../../../glossary.md#term-cumulative-scan) occurrences or leaking formals.
+The same [immutable](../../../../glossary.md#term-immutable) source template may be reused without merging scan occurrences or leaking formals.
 [Cold reconstruction](../../../../glossary.md#term-cold-reconstruction) is call-local and requested explicitly, never per train/compute invocation.
 
 No added/moved production type selected. Existing records contain body graph, formal order and role
@@ -127,7 +127,7 @@ the duplication/[ownership](../../../../glossary.md#term-ownership-meanings) cos
 
 ## Non-goals and code disposition
 
-No [padding](../../../../glossary.md#padding), row skipping, dense [masks](../../../../glossary.md#term-boolean-mask), body migration, fixed-[scan](../../../../glossary.md#term-cumulative-scan) [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt), `.rnn()`/`.gru()`/`.lstm()`
+No [padding](../../../../glossary.md#padding), row skipping, dense [masks](../../../../glossary.md#term-boolean-mask), body migration, fixed-scan [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt), `.rnn()`/`.gru()`/`.lstm()`
 redirection, new builder recipes, source wire/version, low-type execution, [vector](../../../../glossary.md#term-vector)/parallel/[OpenBLAS](../../../../glossary.md#term-openblas) [widening](../../../../glossary.md#term-widening),
 new executor, [DAG](../../../../glossary.md#term-directed-acyclic-graph-dag), [AD](../../../../glossary.md#autograd) layer, numerical policy or performance-parity claim. T=0 source/compute follows
 existing scan semantics; it does not relax Training's empty/nonfinite/[alias](../../../../glossary.md#aliasing-and-arena)/storage [admission](../../../../glossary.md#term-admission).
@@ -146,7 +146,7 @@ independent pre-code APPROVE/main acceptance; this plan is not authority. Exact 
 
 - [Root](../../../../../ARCHITECTURE.md): `Authority, incorporation, and precedence`, `Core lifecycle`,
   `Core invariants`, `Scope-indexed normative contracts`, `Dependency rules` (preserve all edges).
-- [Scan owner](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [owner glossary](../../../../glossary.md#term-owner))</span>:
+- [Scan owner](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>:
   [`General differentiable scan`](../../../../glossary.md#general-differentiable-scan), especially `Qualification, performance and migration gates`;
   clarify independent all-valid NN admission versus later padding, without changing scan semantics.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [padding glossary](../../../../glossary.md#padding))</span>
 - [Compiler owner](../../../../architecture/contracts/compiler-autograd.md#compile-lifecycle):
@@ -190,7 +190,7 @@ No Java/[Gradle](../../../../glossary.md#term-gradle)/native/benchmark execution
 
 Compiler0012 owns exact constructor/[scope](../../../../glossary.md#term-scope)/consumer acceptance. Later NN [qualification](../../../../glossary.md#term-qualification) must prove
 private [aliases](../../../../glossary.md#aliasing-and-arena), one-shot definition, same owned [weights](../../../../glossary.md#term-weight)/cached [owners](../../../../glossary.md#term-owner), [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) compute/train against
-ordinary [unrolled](../../../../glossary.md#backpropagation-through-time-and-recurrent-state)/direct-session oracles, [lifecycle](../../../../glossary.md#lifecycle)/retry and unchanged mixed fixed-[scan](../../../../glossary.md#term-cumulative-scan) rejection.
+ordinary [unrolled](../../../../glossary.md#backpropagation-through-time-and-recurrent-state)/direct-session oracles, [lifecycle](../../../../glossary.md#lifecycle)/retry and unchanged mixed fixed-scan rejection.
 Body save still rejects before storage/file effects; old wires stay compatible. Reuse accepted
 [CPU](../../../../glossary.md#term-cpu) evidence; main runs one final native root test/[Javadoc](../../../../glossary.md#term-javadoc) at the future NN join, no timing campaign.
 

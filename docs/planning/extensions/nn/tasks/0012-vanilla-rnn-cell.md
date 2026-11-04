@@ -47,7 +47,7 @@ would retain identical references.
   `io.github.pho001.synaptik.nn.module.Module` directly.
 - Add exactly the constructors, parameter accessors, and two-input forward method in the public
   API table below. Add no overload, builder, options object, activation argument, state carrier,
-  size getter, or functional facade.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [argument glossary](../../../../glossary.md#term-argument); [carrier glossary](../../../../glossary.md#term-storage-carrier); [facade glossary](../../../../glossary.md#term-facade))</span>
+  size getter, or functional facade.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [argument glossary](../../../../glossary.md#term-argument); [facade glossary](../../../../glossary.md#term-facade))</span>
 - Declare positive fully static [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [parameters](../../../../glossary.md#term-parameter) under exact local names `inputWeight` then
   `hiddenWeight`. Their [Shapes](../../../../glossary.md#shape) are respectively `[hiddenSize, inputSize]` and
   `[hiddenSize, hiddenSize]`.
@@ -102,7 +102,7 @@ would retain identical references.
   mask input, packed sequence, variable-length handling, bidirectionality, stacking, dropout
   between steps, static unrolling, or any time traversal.<span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis); [mask glossary](../../../../glossary.md#term-boolean-mask); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [unrolling glossary](../../../../glossary.md#term-unrolling))</span>
 - A general recurrent Model scan, loop operation, subgraph/body representation, carried-value
-  tuple, scan result, or Tensor API. Existing <span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [scan glossary](../../../../glossary.md#term-cumulative-scan); [operation glossary](../../../../glossary.md#operation))</span>`CUM_SUM` and `CUM_PROD` are ordered associative
+  tuple, scan result, or Tensor API. Existing <span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation))</span>`CUM_SUM` and `CUM_PROD` are ordered associative
   cumulative operations and must not be treated as recurrent scan.
 - GRU gates, LSTM cell state, peepholes, projections, layer normalization, clipping, residuals,
   attention, convolutional recurrence, or another recurrent-cell family.<span data-glossary-navigation="true"> ([GRU glossary](../../../../glossary.md#term-gated-recurrent-unit-gru); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [layer normalization glossary](../../../../glossary.md#layer-normalization))</span>
@@ -162,7 +162,7 @@ would retain identical references.
   backend support, numerical values, or storage residency.<span data-glossary-navigation="true"> ([leaves glossary](../../../../glossary.md#term-leaf))</span><span data-glossary-navigation="true"> ([eager glossary](../../../../glossary.md#term-eager-evaluation); [gradient glossary](../../../../glossary.md#term-gradient); [graph capture glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [residency glossary](../../../../glossary.md#residency))</span>
 - If implementation needs a new Model operation/helper/public method, result carrier, recurrent
   container, state Buffer, context/RNG input, dependency, architecture rule, or eighth task path,
-  stop and report the exact blocker instead of widening this task.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [carrier glossary](../../../../glossary.md#term-storage-carrier); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [dependency glossary](../../../../glossary.md#term-dependency); [widening glossary](../../../../glossary.md#term-widening))</span>
+  stop and report the exact blocker instead of widening this task.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [dependency glossary](../../../../glossary.md#term-dependency); [widening glossary](../../../../glossary.md#term-widening))</span>
 
 ## Public [API](../../../../glossary.md#term-application-programming-interface-api)
 
@@ -470,7 +470,7 @@ revision rather than expanding this task.
   provenance with the documented ID order, result Shape/type/eligibility/layout/label/storage,
   and fresh identities without reading numerical values.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [layout glossary](../../../../glossary.md#layout))</span>
 - The returned Tensor is used once as both output and next hidden. No duplicate-reference result
-  carrier, state field, Buffer transition, state initialization, or mutation appears.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  carrier, state field, Buffer transition, state initialization, or mutation appears.
 - Training and evaluation modes create the same expression contract. No context, graph RNG,
   random draw during forward, runtime state, or hidden side effect appears.<span data-glossary-navigation="true"> ([evaluation glossary](../../../../glossary.md#term-evaluation); [graph glossary](../../../../glossary.md#graph); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [runtime glossary](../../../../glossary.md#term-runtime); [side effect glossary](../../../../glossary.md#term-side-effect))</span>
 - Compatible parameter replacement affects only later forward expressions; earlier expressions
@@ -567,7 +567,7 @@ tests lock only the cell-owned composition and [preflight](../../../../glossary.
   and must not store either in a Buffer or hidden runtime field.<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [Buffer glossary](../../../../glossary.md#term-buffer); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - NN 0015: recurrent sequence composition and scan decision remains Draft. It must decide static
   unrolling of concrete cell calls versus first introducing a genuinely general recurrent Model
-  scan. <span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [unrolling glossary](../../../../glossary.md#term-unrolling); [Model glossary](../../../../glossary.md#term-model))</span>`CUM_SUM`/`CUM_PROD` do not satisfy that need.
+  scan. <span data-glossary-navigation="true"> ([unrolling glossary](../../../../glossary.md#term-unrolling); [Model glossary](../../../../glossary.md#term-model))</span>`CUM_SUM`/`CUM_PROD` do not satisfy that need.
 - If [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0015 chooses a container, it must prefer type-safe cell-specific
   `RnnSequence`/`GruSequence`/`LstmSequence` APIs unless the actual cell [signatures](../../../../glossary.md#term-signature) prove a shared
   `RecurrentSequence` without casts, state erasure, duplicate carriers, or hidden state. This task
@@ -593,7 +593,7 @@ The separate documentation pass must verify and record these reasoned no-change 
   accurate because state ownership, module direction, and lifecycle boundaries do not change.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Tensor and Compile APIs plus Model source/plans/capabilities remain accurate because the cell
   composes existing expressions and adds no Tensor method, semantic kind, scan, capture, gradient,
-  or execution behavior.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Model glossary](../../../../glossary.md#term-model); [scan glossary](../../../../glossary.md#term-cumulative-scan); [capture glossary](../../../../glossary.md#term-capture-meanings); [gradient glossary](../../../../glossary.md#term-gradient))</span>
+  or execution behavior.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Model glossary](../../../../glossary.md#term-model); [capture glossary](../../../../glossary.md#term-capture-meanings); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Training API and training graph remain accurate because existing recursive parameter discovery
   and replacement consume this direct Module normally; no optimizer, session, gradient
   publication, truncated history, or state orchestration is added.<span data-glossary-navigation="true"> ([training graph glossary](../../../../glossary.md#training-graph); [parameter glossary](../../../../glossary.md#term-parameter); [optimizer glossary](../../../../glossary.md#term-optimizer); [publication glossary](../../../../glossary.md#term-publication))</span>
@@ -709,7 +709,7 @@ After executable Java/tests stabilize, give the required clean documentation con
 - A higher-rank input is processed as one batched cell application. It is never traversed as a
   sequence, even if a caller informally assigns a leading axis the meaning of time.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [axis glossary](../../../../glossary.md#term-axis))</span>
 - Caller-threaded recurrence can build arbitrarily deep provenance chains; this task adds no
-  detachment, truncation, loop IR, scheduling, or memory-lifetime policy.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
+  detachment, truncation, loop IR, scheduling, or memory-lifetime policy.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
 - Parameter replacement and forward construction are not thread-safe as one snapshot. The cell
   retains no lock, version, or transaction.<span data-glossary-navigation="true"> ([thread-safe glossary](../../../../glossary.md#term-thread-safe); [snapshot glossary](../../../../glossary.md#term-snapshot); [transaction glossary](../../../../glossary.md#term-transaction))</span>
 - Initialized eager parameters require Java-array-sized host leaves and may consume source calls
@@ -742,7 +742,7 @@ After executable Java/tests stabilize, give the required clean documentation con
 - Clean implementation context `/root/nn_0012_implementation` added the exact direct-[Module](../../../../glossary.md#term-module)
   `RnnCell`, its focused state/forward and initialization suites, and draft public/package
   Javadocs. The implementation required no Model helper, result carrier, hidden Buffer/state,
-  ForwardContext, sequence/scan abstraction, dependency, or eighth task path.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [Buffer glossary](../../../../glossary.md#term-buffer))</span>
+  ForwardContext, sequence/scan abstraction, dependency, or eighth task path.<span data-glossary-navigation="true"> ([Buffer glossary](../../../../glossary.md#term-buffer))</span>
 - The stabilized focused command passed both new suites with 15 tests and no failures, errors, or
   skips. The sole authoritative `./gradlew :extensions:nn:test` run then passed 19 suites and 125
   tests with no failures, errors, or skips.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run))</span>
