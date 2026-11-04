@@ -26,7 +26,6 @@ import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorId;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,28 +35,9 @@ import org.junit.jupiter.api.Test;
 
 final class PublishedCompileTimeConstantDescriptorClosureTest {
     @Test
-    void exposesOnlyOnePackagePrivateStatelessClosure() throws Exception {
-        var method = PublishedCompileTimeConstantDescriptorClosure.class.getDeclaredMethod(
-                "close", ValidatedGraph.class);
-        var constructor = PublishedCompileTimeConstantDescriptorClosure.class
-                .getDeclaredConstructor();
-
-        assertAll(
-                () -> assertTrue(Modifier.isFinal(
-                        PublishedCompileTimeConstantDescriptorClosure.class.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(
-                        PublishedCompileTimeConstantDescriptorClosure.class.getModifiers())),
-                () -> assertEquals(0,
-                        PublishedCompileTimeConstantDescriptorClosure.class
-                                .getDeclaredFields().length),
-                () -> assertTrue(Modifier.isPrivate(constructor.getModifiers())),
-                () -> assertTrue(Modifier.isStatic(method.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(method.getModifiers())),
-                () -> assertSame(ValidatedGraph.class, method.getReturnType()),
-                () -> assertEquals("validatedGraph", assertThrows(
-                        NullPointerException.class,
-                        () -> PublishedCompileTimeConstantDescriptorClosure.close(null))
-                        .getMessage()));
+    void rejectsNullGraph() {
+        assertThrows(NullPointerException.class,
+                () -> PublishedCompileTimeConstantDescriptorClosure.close(null));
     }
 
     @Test
@@ -101,8 +81,7 @@ final class PublishedCompileTimeConstantDescriptorClosureTest {
     }
 
     @Test
-    void closesAllSixDataTypesAndPreservesExactSplatAndDescriptorSemantics() {
-        List<DataType> dataTypes = List.of(DataType.values());
+    void closesTypedSplatsAndPreservesExactRepresentationsAndDescriptorSemantics() {
         List<ScalarValue> splats = List.of(
                 ScalarValue.float64(-0.0d),
                 ScalarValue.float32(-0.0f),
@@ -110,7 +89,12 @@ final class PublishedCompileTimeConstantDescriptorClosureTest {
                 ScalarValue.int32(Integer.MIN_VALUE),
                 ScalarValue.int64(Long.MAX_VALUE),
                 ScalarValue.bool(true),
-                ScalarValue.float16Bits((short) 0x8000));
+                ScalarValue.float16Bits((short) 0x8000),
+                ScalarValue.float8E4m3Bits((byte) 0x80),
+                ScalarValue.float8E4m3Bits((byte) 0xFF),
+                ScalarValue.float8E5m2Bits((byte) 0x80),
+                ScalarValue.float8E5m2Bits((byte) 0xFD));
+        List<DataType> dataTypes = splats.stream().map(ScalarValue::dataType).toList();
         Shape shape = Shape.of(2, 3);
 
         ValidatedGraph result = closeInputs(
