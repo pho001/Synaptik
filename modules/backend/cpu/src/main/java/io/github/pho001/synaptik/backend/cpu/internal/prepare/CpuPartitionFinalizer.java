@@ -295,7 +295,9 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 || plan.units().size() > 1 || !plan.materializations().isEmpty()
                 || plan.units().getFirst().portablePlan() != null && plan.units().getFirst().portablePlan().portableKernelIr()
                     instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConstantWriteIr
-                || plan.units().getFirst().portablePlan() != null && plan.units().getFirst().portablePlan().specialization().ordinaryBatch()
+                || plan.units().getFirst().portablePlan() != null
+                    && (plan.units().getFirst().portablePlan().specialization().ordinaryBatch()
+                        || plan.units().getFirst().portablePlan().ordinaryBatchGeometry().isPresent())
                 || plan.units().getFirst().runtimeFacts().recurrentScan().isPresent()
                 || plan.units().getFirst().runtimeFacts().generalScan().isPresent()) {
             return finalizeComposite(finalization, selections, workspaceSelections, resources);
@@ -572,7 +574,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             List<io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan> copies,
             List<PreparedExecutable.WorkspaceSelection> copyWorkspaces) {
         var facts = unit.runtimeFacts();
-        if (unit.portablePlan().specialization().ordinaryBatch()) {
+        if (unit.portablePlan().specialization().ordinaryBatch()
+                || unit.portablePlan().ordinaryBatchGeometry().isPresent()) {
             return new CpuPreparedExecutable(finalization.memoryPlan(), selections, artifact,
                     unit.portablePlan(), workspace, concurrencyBudget.orElse(null),
                     unit.selectedRangeCount(),unit.minimumElementsPerWorker(),workers);

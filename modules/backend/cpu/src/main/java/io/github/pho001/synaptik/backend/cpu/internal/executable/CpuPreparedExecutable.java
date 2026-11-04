@@ -176,7 +176,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * Retains one fully prepared ordinary-batch scalar unit without resolving any actual B.
      * Every mutable access/packed array is created by cold binding, never retained here.
      * Boundary dtypes determine element bases, spans and alignment independently, including
-     * the separate eight-byte length CAST output. Added typed cases require checked segments.
+     * low byte/short storage and separate eight-byte length CAST outputs. Generic family geometry
+     * reuses the ordinary ABI and snapshots invocation-specific cursor seeds for repeated calls.
      * @param memoryPlan non-null exact batch-required prepared plan
      * @param selections non-null ordered unique-input-then-output selections
      * @param artifact non-null verified generated artifact matching route
@@ -218,10 +219,13 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         this.batchRoute = Objects.requireNonNull(route, "route");
         this.artifact = Objects.requireNonNull(artifact, "artifact");
         boolean selectedRow = route.specialization().rowFusionEmission().isPresent();
-        if (!memoryPlan.requiresBatchSize() || !route.specialization().ordinaryBatch()
+        if (!memoryPlan.requiresBatchSize()
+                || !route.specialization().ordinaryBatch() && route.ordinaryBatchGeometry().isEmpty()
                 || !artifact.specialization().equals(route.specialization())
                 || selections.size() != route.batchBindings().size()
-                || workspace.isPresent() != (route.batchAggregate().isPresent() || route.specialization().rowFusionEmission().isPresent())
+                || workspace.isPresent() != (route.ordinaryBatchGeometry().isPresent()
+                        ? route.specialization().scratchParameter()
+                        : route.batchAggregate().isPresent() || route.specialization().rowFusionEmission().isPresent())
                 || selectedRangeCount <= 0 || minimumElementsPerWorker <= 0
                 || (selectedRangeCount > 1) != (workerGroup != null)
                 || !selectedRow && (selectedRangeCount != 1 || minimumElementsPerWorker != 1 || workerGroup != null
@@ -1995,6 +1999,44 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         long length; long[] geometry;
         long[] bases = java.util.stream.IntStream.range(0,arguments.size()).mapToLong(i ->
                 arguments.get(i).byteOffset() / artifact.specialization().boundaryDataTypes().get(i).byteWidth()).toArray();
+        if (batchRoute.ordinaryBatchGeometry().isPresent()) {
+            var recipe = batchRoute.ordinaryBatchGeometry().orElseThrow();
+            var lowered = recipe.bind(batch);
+            long expectedScratch = recipe.scratchBytes().byteSize(batch);
+            if ((scratch == null ? 0 : scratch.byteSize()) != expectedScratch
+                    || !lowered.boundaryDataTypes().equals(artifact.specialization().boundaryDataTypes())
+                    || lowered.accessBindings().size() != arguments.size()) {
+                throw new IllegalArgumentException("ordinary batch numeric geometry changed declarations");
+            }
+            geometry = packGeometry(lowered, artifact.specialization(), bases, batch);
+            length = lowered.elementCount();
+            var validations = new ArrayList<Runnable>();
+            for (int index = 0; index < firstWrite; index++) {
+                if (artifact.specialization().boundaryDataTypes().get(index)
+                        == io.github.pho001.synaptik.model.datatype.DataType.BOOL) {
+                    validations.add(CpuBooleanInputValidator.bind(arguments.get(index),
+                            lowered.accessBindings().get(index),
+                            "BOOL condition must use canonical bytes"));
+                }
+            }
+            if (!recipe.resets().isEmpty()) {
+                int[] cells = new int[recipe.resets().size()];
+                long[] seeds = new long[cells.length];
+                for (int index = 0; index < cells.length; index++) {
+                    cells[index] = recipe.resets().get(index).cell();
+                    seeds[index] = geometry[cells[index]];
+                }
+                long[] packed = geometry;
+                validations.add(() -> {
+                    for (int index = 0; index < cells.length; index++)
+                        packed[cells[index]] = seeds[index];
+                });
+            }
+            KernelCall call = length == 0 ? null
+                    : callFor(artifact.entryPoint(), arguments, scratch, geometry, 0, length);
+            return new Invocation(state, null, null, validations.toArray(Runnable[]::new),
+                    null, call, null);
+        }
         if (batchRoute.specialization().rowMapReductionIr().isPresent()) {
             if (artifact.specialization().rowFusionEmission().isPresent())
                 return bindSelectedRow(state,buffers,arguments,resolved,scratch,batch);

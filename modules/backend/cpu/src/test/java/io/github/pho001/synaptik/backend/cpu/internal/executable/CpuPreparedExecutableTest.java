@@ -153,6 +153,66 @@ class CpuPreparedExecutableTest {
                 : Short.toUnsignedInt(storage.getAtIndex(ValueLayout.JAVA_SHORT, index));
     }
 
+    @Test void lowSymbolicMatrixAndReductionsRebindActualBatchAndResetRepeatedCalls() {
+        var batchDimension = new io.github.pho001.synaptik.model.shape.DynamicDimension("B");
+        Shape inputShape = Shape.ofDimensions(batchDimension,
+                new io.github.pho001.synaptik.model.shape.StaticDimension(2));
+        Shape rowShape = Shape.ofDimensions(batchDimension);
+        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            int one = switch (type) {
+                case BFLOAT16 -> 0x3f80;
+                case FLOAT16 -> 0x3c00;
+                case FLOAT8_E4M3 -> 0x38;
+                case FLOAT8_E5M2 -> 0x3c;
+                default -> throw new AssertionError(type);
+            };
+            for (int family = 0; family < 3; family++) {
+                boolean matrix = family == 0, mean = family == 2;
+                var operation = matrix ? new Operation(
+                        io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL,
+                        NoOperationAttrs.INSTANCE) : new Operation(mean
+                                ? AggregateReductionKind.MEAN : AggregateReductionKind.SUM,
+                                new AxisReductionAttrs(1, false));
+                var input = new TensorDescriptor(type, inputShape, Optional.empty(), false);
+                var inputs = matrix ? List.of(input, new TensorDescriptor(type, Shape.of(2, 2),
+                        Optional.of(LayoutDescriptor.contiguous(Shape.of(2, 2))), false))
+                        : List.of(input);
+                var output = new TensorDescriptor(type, matrix ? inputShape : rowShape,
+                        Optional.empty(), false);
+                var context = CpuNonAffineMovementLoweringTest.context(operation,
+                        matrix ? List.of(0, 1) : List.of(0), inputs, output);
+                var analysis = new CpuPartitionPreparer().analyze(context);
+                var unit = analysis.plan().units().getFirst();
+                try (var owner = new CpuRecurrentScanExecutionTest.Fixture(analysis, 1, true,
+                        true, Map.of(), OptionalLong.of(0))) {
+                    for (long batch : new long[] {0, 3, 1, 0, 3}) {
+                        try (var fixture = new CpuRecurrentScanExecutionTest.Fixture(analysis, 1,
+                                true, true, Map.of(), OptionalLong.of(batch), owner)) {
+                            assertSame(owner.executable, fixture.executable);
+                            for (int boundary = 0; boundary < inputs.size(); boundary++) {
+                                var storage = fixture.storage.get(unit.boundaryValues().get(boundary));
+                                for (long index = 0; index < storage.byteSize() / type.byteWidth(); index++) {
+                                    if (type.byteWidth() == 1) storage.setAtIndex(
+                                            ValueLayout.JAVA_BYTE, index, (byte) one);
+                                    else storage.setAtIndex(ValueLayout.JAVA_SHORT, index, (short) one);
+                                }
+                            }
+                            var invocation = fixture.executable.bind(fixture.state);
+                            var storage = fixture.storage.get(unit.boundaryValues().getLast());
+                            int expected = mean ? one : type.byteWidth() == 1 ? 0x40 : 0x4000;
+                            for (int repeat = 0; repeat < 2; repeat++) {
+                                invocation.execute();
+                                for (int index = 0; index < batch * (matrix ? 2 : 1); index++)
+                                    assertEquals(expected, lowBits(type, storage, index));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @Test void fixedOrderingWorkspaceRejectsRunBoundAndWrongFixedScratchInCompleteBatchMode() {
         var base = CpuOrderingLoweringTest.context(new Operation(
                 io.github.pho001.synaptik.model.operation.ordering.OrderingKind.SORT,
