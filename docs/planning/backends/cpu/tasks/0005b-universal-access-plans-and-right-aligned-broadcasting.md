@@ -1,5 +1,26 @@
 # Task 0005B: Universal Access Plans and Right-Aligned [Broadcasting](../../../../glossary.md#broadcasting)
 
+## Reader context
+
+An access plan answers how a generated loop finds each input or output value. CPU lowering
+combined Model broadcasting and logical-layout descriptions into normalized access forms; cold
+bindings supplied concrete extents, offsets, strides, and current carriers. A broadcast input
+could reuse one stored value at many logical positions without first copying it into an expanded
+Tensor.
+
+The ordered choice of Java array versus `MemorySegment` changed the generated signature, while
+the particular array, segment, and run did not identify reusable code. Runtime’s binder checked
+the current storage and write overlap before retaining direct access. Output injectivity meant
+that different logical output positions did not collide on a writable cell. This historical
+FLOAT64 proving slice should not be mistaken for the later family/type inventory.
+
+Current reading alongside this historical record:
+
+- [Resolved logical layouts](../../../../reference/tensor/layouts.md#resolved-layouts)
+  — explains offsets, strides, referenced spans, and why geometry does not own storage.
+- [CPU typed intermediate representation](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalir)
+  — distinguishes code-shaping structure from concrete geometry and live values.
+
 ## Status
 
 Complete

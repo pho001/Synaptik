@@ -1,5 +1,25 @@
 # Task 0009: Portable [CPU](../../../../glossary.md#term-cpu) Coverage and Implementation-Closure [Checkpoint](../../../../glossary.md#term-checkpoint)
 
+## Reader context
+
+This task records portable CPU implementation closure through per-family choices: direct optimized
+typed Java, retained bounded generation, or exact rejection. It supersedes universal
+generated-versus-clean-Java structural closure. CPU prepare cold-selects typed carrier, layout, and
+range-owning entries; Runtime executes immutable prepared recipes, with parallel orchestration
+outside element loops. Direct Java here is an implementation route, not merely a test oracle.
+
+Semantic and invocation coverage remain required, while source/call-site hygiene replaces a
+universal structural oracle. Retained generated reductions, normalization, loss, fold, and other
+families reflect implementation-and-verification cost decisions, not blanket performance
+endorsements. CPU 0009G reconciles 120 live operation forms. Earlier NON_PASSING loss evidence
+remains historical; completion does not promote it or establish universal strategy or performance
+parity.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Complete

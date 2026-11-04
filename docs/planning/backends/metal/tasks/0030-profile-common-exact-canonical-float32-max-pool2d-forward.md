@@ -1,5 +1,20 @@
 # Task 0030: Profile-Common Exact [Canonical](../../../../glossary.md#term-canonical-form) [FLOAT32](../../../../glossary.md#term-float32) MAX_POOL2D Forward
 
+## Reader context
+
+This was a failed authorization gate, not an implemented pooling route. Structural mapping
+of window geometry could not prove which represented value won each window. The frozen corpus
+tested signed-zero preference and NaN propagation as well as ordinary values, and the recorded
+failures stopped production work.
+
+Model owned that exact winner policy; Compiler's later gradient construction needed the same
+winner semantics without a saved-index public output. Metal could not substitute the direct
+selector's observed policy. Input descriptors described geometry and type, while the raw test
+words established value behavior.
+The [current pooling rules and numerical domain](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+state the later NaN-first, positive-zero-preferred implementation boundary without changing this
+historical output or its Blocked status.
+
 ## Status
 
 Blocked

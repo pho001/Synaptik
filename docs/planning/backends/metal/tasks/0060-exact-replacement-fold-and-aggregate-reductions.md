@@ -1,5 +1,14 @@
 # Task 0060: Exact Replacement, Non-overlap Fold, and Aggregate Reductions
 
+## Reader context
+
+Replacement scatter and slice update construct a new target from base/update inputs; they do not mutate the application's base storage. Complete bounds and uniqueness checks precede writes. Non-overlap fold can copy into distinct destinations, whereas overlap and ScatterAdd require arithmetic and a different proof.
+
+Integer PROD and Boolean ALL/ANY have exact carrier rules rather than floating tolerances. The custom program owns the recipe; Runtime owns fresh targets. Recorded blocked arithmetic/fold domains and totals describe this checkpoint; later overlap and aggregate routes are separate qualifications.
+
+- [Current indexing and failure-before-mutation rules](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Distinguishes replacement checks from arithmetic collisions.
+- [Current fold and aggregate coverage](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Locates later overlap support without changing old gates.
+
 ## Status
 
 Complete. [Planning](../../../../glossary.md#term-planning) landed at `dd94e492`, implementation at `d06db07e`, focused native/public

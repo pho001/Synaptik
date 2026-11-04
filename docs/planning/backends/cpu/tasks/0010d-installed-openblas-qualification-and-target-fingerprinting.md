@@ -1,5 +1,17 @@
 # Task 0010D: Installed OpenBLAS Qualification and [Target](../../../../glossary.md#term-target) Fingerprinting
 
+## Reader context — historical integration boundary
+
+Qualification is a cold check of the exact loaded provider, not a declaration that every OpenBLAS
+build or matrix is correct or fast. CPU's qualifier calls the coordinator that owns this session,
+and CPU analysis later consumes only the resulting immutable credential. A file digest describes
+trusted bytes inspected at a path; it does not pin or authenticate already mapped library pages.
+Name-based loading cannot supply a resolved file identity, so same-session reuse and persistent
+compatibility are deliberately different. The credential owns no native handle: keeping the actual
+composition/coordinator alive remains the owner's responsibility.
+
+Current reading: [Current OpenBLAS route](../../../../backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route).
+
 ## Status
 
 Complete

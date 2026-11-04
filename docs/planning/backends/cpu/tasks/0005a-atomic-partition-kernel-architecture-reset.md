@@ -1,5 +1,27 @@
 # Task 0005A: [Atomic](../../../../glossary.md#resource-transaction-and-rollback) [Partition](../../../../glossary.md#partition)-[Kernel](../../../../glossary.md#kernel) Architecture Reset
 
+## Reader context
+
+Atomic here meant a whole implementation cutover, not a Runtime resource transaction. The reset
+changed what CPU generated, not what the application’s graph meant. CPU analysis consumed a
+whole planned partition, grouped eligible work into a computation unit, and lowered that unit to
+CPU intermediate representation (IR). In the ADD–GELU–MUL example, the two intermediate values
+still existed semantically, but the generated loop kept them as local values instead of
+allocating separate buffers or making separate node calls. Only external reads and the final
+stored result crossed the unit’s memory boundary.
+
+“Leaf” in the package discussion means an endpoint package such as `route.portable`, not an
+application input Tensor. The scalar reference was a checking implementation, not Runtime’s
+graph interpreter. Read the original eight-node/unit and topology limits as this checkpoint’s
+bounds; the current lowering explanation describes the later partition decomposition.
+
+Current reading alongside this historical record:
+
+- [CPU partition and unit lowering](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternallowering)
+  — explains virtual intermediates, boundary stores, and family-specific mappings.
+- [CPU typed intermediate representation](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalir)
+  — distinguishes code-shaping structure from concrete geometry and live values.
+
 ## Status
 
 Complete

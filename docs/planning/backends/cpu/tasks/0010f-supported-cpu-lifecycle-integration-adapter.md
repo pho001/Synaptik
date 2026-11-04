@@ -1,5 +1,19 @@
 # Task 0010F: Supported [CPU](../../../../glossary.md#term-cpu) [Lifecycle](../../../../glossary.md#lifecycle) Integration Adapter
 
+## Reader context — historical integration boundary
+
+The caller of this adapter is Engine's composition layer, not necessarily the application. The
+application uses Engine; Engine obtains CPU capability, preparation and borrowing services through
+this supported service-provider interface. CPU then supplies immutable recipes that Runtime realizes
+with fresh run-owned buffers. `borrow(HostTensorStorage)` creates a non-owning representation: it
+does not copy bytes or take responsibility for closing the original array/arena. It can check
+intrinsic storage consistency but cannot compare against an expected logical input absent from that
+call. This record's direct Compiler dependency and `preparations(CompileArtifacts)` signature are
+historical; the maintained integration explanation describes the later shared-Prepare projection
+boundary.
+
+Current reading: [Supported lifecycle integration](../../../../backend-guide/cpu-backend.md#supported-lifecycle-integration).
+
 ## Status
 
 Complete

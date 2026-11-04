@@ -1,5 +1,19 @@
 # Task 0016: Profile-Qualified [FLOAT32](../../../../glossary.md#term-float32) ABS, [EXP](../../../../glossary.md#term-expx), and [SIGMOID](../../../../glossary.md#term-sigmoid)
 
+## Reader context
+
+The historical authorization covered all three operations together. ABS passing did not make
+this a partially delivered task: EXP and SIGMOID failed their numerical gates before production
+edits, and the disposable experiment was removed. Task 0019 later treated ABS as its own slice.
+
+Profiles, shapes and typed records described admissible programs; the oracle checked actual
+FLOAT32 results. A unit in the last place (ULP) measures spacing between adjacent represented
+values, but the additional one-ULP gate did not replace Model's obligations for result classes
+and nonzero subnormals. Preserved inputs and target guards checked buffer behavior, not numerical
+accuracy by themselves.
+The [current unary implementation and dedicated oracles](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+explain the later routes without retroactively qualifying this blocked experiment.
+
 ## Status
 
 Blocked

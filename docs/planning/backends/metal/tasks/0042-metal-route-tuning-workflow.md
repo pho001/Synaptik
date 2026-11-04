@@ -1,5 +1,19 @@
 # Task 0042: [Metal](../../../../glossary.md#term-metal) Route Tuning Workflow
 
+## Reader context
+
+Phase 1 compared two local Metal routes. Phase 2 measured one whole-model candidate already
+fixed to the authenticated local winner; it did not search the routes again. Candidate
+identities and compatibility bytes described opaque choices, not caller-editable route settings,
+input values or native executables.
+
+Metal owned candidate meaning, fresh authentication and declarations. Engine and tuning tools
+owned representative execution, measurement, selection and cleanup. The retained collaborations
+borrowed the integration's lifetime rather than owning another device context. SESSION reuse
+excluded persistent Metal cache hits even where generic cache-file orchestration existed.
+The [current session tuning boundary](../../../../backend-guide/metal-backend.md#session-decision-codec-and-limitations)
+explains those restrictions without turning this singleton workflow into general Metal autotuning.
+
 ## Status
 
 Complete

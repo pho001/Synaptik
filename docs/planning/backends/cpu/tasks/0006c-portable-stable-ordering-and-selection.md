@@ -1,5 +1,26 @@
 # Task 0006C: Portable Stable Ordering and Selection
 
+## Reader context
+
+The ordering family produces values, logical indices, or both. SORT copied selected value
+representations; ARGSORT wrote source-axis positions; TOP_K retained both outputs from one
+semantic occurrence. “Stable” meant that equal values and NaNs preserved original index order,
+including the explicit signed-zero and NaN placement rules below. A logical index is not a byte
+address.
+
+CPU analysis declared the result buffers and exact merge-index workspace before assignment.
+Scalar or parallel-scalar execution processed whole independent axis slices using disjoint
+scratch regions, so a worker did not split one stable merge arbitrarily. Runtime owned that
+run’s result and scratch lifetime. The current sorting reference explains the public value/index
+pairing separately from the original generated implementation.
+
+Current reading alongside this historical record:
+
+- [Stable sort and argsort semantics](../../../../reference/tensor/sort-topk.md#stable-sort-and-argsort-expressions)
+  — explains logical indices, equal-value stability, NaN placement, and represented-bit selection.
+- [CPU binding, validation, and ranges](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalexecutable)
+  — identifies current-value validation, direct invocation state, and worker/resource lifetimes.
+
 ## Status
 
 Complete

@@ -1,5 +1,19 @@
 # CPU0064: Port the measured clean-Java [Scan](../../../../glossary.md#term-cumulative-scan) [shape](../../../../glossary.md#shape)
 
+## Reader context
+
+Unlike J4's off-tree Java experiment, this task changed the CPU generator. The emitter produces
+bytecode from proved IR facts during preparation; it does not run javac or J4 inside each Scan
+step. `CpuGeneralScanStageSchedule` is generation-only: it chooses a safe emitted stage order
+using dependency and physical-destination/lifetime proofs, not a second Runtime scheduler.
+The resulting entry still operates on run-bound carriers and scratch. Reordering is not legal
+merely because a mathematical formula looks independent.
+
+Read [current common MATMUL binding](../../../../backend-guide/cpu-backend.md#common-rank-two-matmul-binding)
+for the retained bank/lifetime and setup boundaries, and [current general Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+for subsequent reuse. The historical v9 port and its limited measurements below are preserved,
+not restated as universal zero-copy or performance guarantees.
+
 ## Status and execution packet
 
 Complete; MAIN accepted on 2026-10-28 after clean implementation, independent code/documentation review and the gates below. User explicitly authorized the generator port after the reviewed J4 experiment; MAIN verified accepted v7 sources, dependencies, empty index/base and no conflicting writer. Class C generated-hot-path change.

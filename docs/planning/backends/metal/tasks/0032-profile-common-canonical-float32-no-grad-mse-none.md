@@ -1,5 +1,18 @@
 # Task 0032: Profile-Common [Canonical](../../../../glossary.md#term-canonical-form) [FLOAT32](../../../../glossary.md#term-float32) No-Grad [MSE](../../../../glossary.md#mean-squared-error--mse) NONE
 
+## Reader context
+
+Mean-squared error (MSE) remained one Model operation even if a backend could spell its formula
+as subtraction followed by square. NONE removed the final reduction; it did not transfer the
+numerical permissions of separately supported binary operations into this loss.
+
+Prediction and target had distinct semantic roles even when backed by the same graph value.
+Equal-shape, type and layout descriptions did not exclude exceptional or subnormal buffer values.
+Model owned the atomic loss contract; Metal needed a route satisfying that contract across the
+candidate domain. No task-specific probe ran, and the proposed schema values were not reserved.
+The [current loss and numerical domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+explain later MSE execution separately from this blocked two-profile assessment.
+
 ## Status
 
 Blocked

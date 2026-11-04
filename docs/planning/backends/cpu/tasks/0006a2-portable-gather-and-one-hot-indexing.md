@@ -1,5 +1,26 @@
 # Task 0006A2: Portable [Gather](../../../../glossary.md#gather) and One-Hot Indexing
 
+## Reader context
+
+Gather reads data at positions selected by an index Tensor; ONE_HOT instead writes indicator
+values for those index choices. Constructing either expression describes that work without
+reading the current index values. This CPU checkpoint therefore separated complete index
+validation from generated output writes: an invalid index had to fail deterministically before
+any output mutation or worker submission.
+
+CPU analysis prepared geometry and resource declarations, finalization realized code, and the
+bound invocation used current direct index/data carriers. The old text’s validation terminology
+belongs to this checkpoint; the current executable explanation explicitly distinguishes binding
+metadata from validators that must wait for earlier producers. Neither a successful Tensor
+construction nor a compatible carrier proves index values are in bounds.
+
+Current reading alongside this historical record:
+
+- [Axis-gather expression semantics](../../../../reference/tensor/gather.md#axis-gather-expressions)
+  — separates data/index roles and expression construction from reading index values.
+- [CPU binding, validation, and ranges](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalexecutable)
+  — identifies current-value validation, direct invocation state, and worker/resource lifetimes.
+
 ## Status
 
 Complete

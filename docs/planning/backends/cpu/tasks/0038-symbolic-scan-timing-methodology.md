@@ -1,5 +1,17 @@
 # Task CPU0038: Repair [symbolic Scan](../../../../glossary.md#symbolic-scan) timing methodology
 
+## Reader context — historical integration boundary
+
+A symbolic-batch prepared family keeps the same generated methods while B changes per invocation;
+reconstructing equal class bytes in a new class would not establish the same JIT profile. This
+test-only repair therefore distinguishes family/method reuse, per-B binding, fixed warmup and
+measured windows. The generated entry and specialized Java reference must perform matching
+public/saved writes, while generator-only constant storage is disclosed separately. Neither
+post-warmup sampling nor C2 availability guarantees steady state. The older large ratio is retained
+as invalid steady-state evidence, not silently relabeled as a production speedup.
+
+Current reading: [Symbolic-batch Scan execution](../../../../backend-guide/cpu-backend.md#symbolic-scan-cpu-execution).
+
 ## Status
 
 Complete — MAIN accepted 2026-10-25 after Sagan's final independent APPROVE (zero open P1/P2)

@@ -1,5 +1,26 @@
 # Task 0007A0: Generated Hot-Path Parity Correction
 
+## Reader context
+
+“Generated” was not sufficient evidence of a fast hot loop. The local audit compared generated
+scalar/vector pointwise, scan, and aggregate bodies with equivalent direct Java loops, exposing
+bridge calls and avoidable long-address work in dense heap-array cases. The correction moved
+typed family work into emitted bytecode and narrowed address state only where a cold proof made
+integer indexing safe.
+
+The universal entry still accepted long range bounds; segments, mixed carriers, and unproved
+layouts retained their general addressing. This was a realization correction, not new Tensor
+semantics or permission for Runtime to choose another route. The recorded generated/direct
+timing ratios qualify the original machine and fixed cases only. Current code-generation
+ownership explains the distinction between an emitted loop and a generic interpreter bridge.
+
+Current reading alongside this historical record:
+
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+- [CPU portable route plans](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalrouteportable)
+  — separates compute form, range orchestration, and invocation-private carriers.
+
 ## Status
 
 Complete

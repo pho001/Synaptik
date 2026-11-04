@@ -5,6 +5,22 @@ Current source: `modules/backend/metal`; [Gradle](../../../glossary.md#term-grad
 Metal. Original [planning](../../../glossary.md#term-planning)/report locations and evidence remain unchanged; use the
 [path migration table](../../../developer-guide/repository-layout.md#backend-path-migration-and-historical-navigation).
 
+## Reader context
+
+Read the task table as a delivery ledger, not as one timeless support matrix. A row's Complete
+status records that task's bounded result; Blocked records its original qualification failure.
+The later frontier and gates have a different purpose: identifying authorized work. Likewise,
+protocol versions and device observations belong to their named checkpoints. None of the
+representative operation counts proves every type, layout or derivative graph.
+
+At the execution boundary, Planning selects the backend owner, Metal analysis fixes the physical
+route, shared Prepare assigns storage positions, and Metal finalization creates reusable native
+resources. Runtime then binds actual input buffers and invokes that fixed work. A Tensor's
+descriptor describes its indexing and type; it is not the buffer containing its values.
+The [current Metal lifecycle explanation](../../../explanation/packages/metal.md#purpose-callers-and-non-goals)
+names these collaborators, while the [production support ledger](../../../backend-guide/production-support.md#metal-production-target)
+separates present bounded qualification from the historical task outcomes below.
+
 ## Goal and authority
 
 Maintain truthful [Metal](../../../glossary.md#term-metal) capability, [MPSGraph](../../../glossary.md#term-mpsgraph)/custom routes, native storage and resources across

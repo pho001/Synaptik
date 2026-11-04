@@ -1,5 +1,17 @@
 # Task CPU0035: General-[scan](../../../../glossary.md#term-cumulative-scan) emission cleanup and specialized [oracle](../../../../glossary.md#term-test-oracle)
 
+## Reader context — historical integration boundary
+
+The specialized Java oracle is a test reference with matching fixed geometry and demanded output
+work, not another production executor. CPU removes only proved redundant local/address work from
+existing generated Scan code; required old/new carry lifetimes and saved sites still determine
+storage. A shorter Class-File or fewer locals alone does not establish faster machine code. The
+result below explicitly retains the roughly threefold gap against this more specialized reference,
+while preserving the older generic oracle and its historical observations. Read those comparisons as
+different evidence boundaries, not a causal before/after speedup.
+
+Current reading: [Retained static Scan resources](../../../../backend-guide/cpu-backend.md#retained-static-scan-qualification-and-resources).
+
 ## Status
 
 Complete — main accepted bounded cleanup, independent final review, [checkpoint](../../../../glossary.md#term-checkpoint) and the single

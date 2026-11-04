@@ -1,5 +1,17 @@
 # [CPU](../../../../glossary.md#term-cpu) 0023 — Align [vector](../../../../glossary.md#term-vector) [ERF](../../../../glossary.md#term-erf) with the direct Java [shape](../../../../glossary.md#shape)
 
+## Reader context — historical integration boundary
+
+This Draft asks about generated code shape, not a new ERF definition. Horner evaluation nests the
+fixed polynomial coefficients so the specialized Java reference and generated vector helper perform
+the intended operations without avoidable coefficient/loop machinery. CPU's emitter selects typed
+operations; the pure math helper implements the chosen formula; neither receives authority to change
+rounding, saturation or special-value behavior. The Draft status and lack of implementation
+authorization below remain intact. The current unary reference explains these owners and the
+retained numerical boundary; it does not close this historical follow-up by implication.
+
+Current reading: [Unary numerical realization](../../../../backend-guide/cpu-backend.md#unary-numerical-closure).
+
 ## Status
 
 Draft

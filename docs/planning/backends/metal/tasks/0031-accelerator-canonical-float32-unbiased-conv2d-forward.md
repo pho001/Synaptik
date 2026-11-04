@@ -1,5 +1,19 @@
 # Task 0031: [ACCELERATOR](../../../../glossary.md#term-accelerator) [Canonical](../../../../glossary.md#term-canonical-form) [FLOAT32](../../../../glossary.md#term-float32) Unbiased [CONV2D](../../../../glossary.md#convolution--conv2d) Forward
 
+## Reader context
+
+“Unbiased” means this candidate had input and weight roles but no bias operand. The direct
+MPSGraph descriptor could express the grouped convolution geometry; that structural match did
+not establish which arithmetic algorithm every compiled shape would use. No device probe ran.
+
+Model defined operation-specific product, accumulation and padding behavior. Permissions attached
+to another operation could not be imported into convolution. Shapes and layouts described the
+candidate, but actual buffers still included exceptional values that its whole-domain proof
+would need to handle. Conditional wire and schema examples below were neither implemented nor
+reserved.
+The [current numerical convolution and geometry boundary](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+explains the later routes; it is not retrospective evidence for this blocked direct mapping.
+
 ## Status
 
 Blocked

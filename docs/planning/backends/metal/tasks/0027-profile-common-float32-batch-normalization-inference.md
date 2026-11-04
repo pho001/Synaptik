@@ -1,5 +1,20 @@
 # Task 0027: Profile-Common [FLOAT32](../../../../glossary.md#term-float32) [Batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)-[Normalization](../../../../glossary.md#term-normalization) [Inference](../../../../glossary.md#term-inference)
 
+## Reader context
+
+This five-input inference proposal stopped at its numerical gate. The later schema and lifecycle
+requirements were conditional; no training or backward capability followed from them.
+Model defined the staged formula and special-value obligations, while Metal would have adapted
+the channel vectors and prepared execution.
+
+Channel axis, vector shapes and epsilon bits described the program. Feed buffers held the
+actual data. One graph value could fill several vector roles while retaining every ordered
+reference; internal reshapes only adapted broadcasting and were not new public outputs.
+The proposed fresh output would not overlap those inputs. An ordinary finite error bound could
+not excuse flushing required nonzero subnormals.
+The [current normalization domain and sibling handling](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+provide present context separately from this inference-only failure.
+
 ## Status
 
 Blocked

@@ -6,6 +6,32 @@
 > diagnostic budgets below are not current requirements, approvals or launch authority.
 > CPU0066's completed planning result remains preserved.<span data-glossary-navigation="true"> ([scalar glossary](../../../glossary.md#term-scalar); [vector glossary](../../../glossary.md#term-vector); [planning glossary](../../../glossary.md#term-planning))</span>
 
+## Reader context
+
+Read the archived proposal below as a superseded implementation direction, not as declarations
+that applications should instantiate. Its useful distinction is between describing a Scan body
+and supplying stored values for execution. In the conceptual `ScanBody` example, `h`,
+`wStep` and `bStep` are formal Tensor descriptions with no producing expression in that body;
+being such a leaf does not require allocated storage. `Scan.apply` relates those formals to
+outer Tensor descriptions `h0`, `W` and `b`; it does not itself execute layers or copy their cells.
+Later execution binds actual representations. The example's borrowed inputs remain the
+supplier's responsibility and are not updated by the generated wrapper.
+
+For its finite scalar-width example, let row $r\in\{0,1\}$ have initial value
+$h_{0,r}\in\{1,2\}$, with layer weights $w_0=2$, $w_1=3$ and biases $b_0=1$, $b_1=-1$.
+The real-number recurrence is $h_{\ell+1,r}=\tanh(h_{\ell,r}w_\ell+b_\ell)$ for
+$\ell\in\{0,1\}$, so $h_{1,0}=\tanh(3)$ and
+$h_{2,0}=\tanh(3\tanh(3)-1)$. This interprets the preserved example;
+actual dtype producing sites round separately and must retain any demanded saved values.
+
+The replacement's [binding-space explanation](existing-emitter-composition-plan.md#three-different-bindings-and-two-emission-lifetimes)
+shows why no new generic binding object follows from sharing math.
+[Source construction without input storage](../../../architecture/general-differentiable-scan.md#static-and-named-batch-source-foundation)
+and [residual metadata versus history memory](../../../architecture/general-differentiable-scan.md#residual-metadata-is-not-history-memory)
+explain the description/value boundary; the
+[current CPU composition](../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+is the navigation point for present implementation rather than the archived type proposal.
+
 ## Purpose and status
 
 This CPU0066 proposal removes two implementations of the same [CPU](../../../glossary.md#term-cpu) math without changing what

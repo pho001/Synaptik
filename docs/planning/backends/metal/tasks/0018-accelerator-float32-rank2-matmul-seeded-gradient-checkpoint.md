@@ -1,5 +1,19 @@
 # Task 0018: [ACCELERATOR](../../../../glossary.md#term-accelerator) [FLOAT32](../../../../glossary.md#term-float32) [Rank-Two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Seeded-[Gradient](../../../../glossary.md#term-gradient) [Checkpoint](../../../../glossary.md#term-checkpoint)
 
+## Reader context
+
+The passing smoke did not complete the planned matrix: the first full single-term contraction
+failed the then-required zero-sign rule. The later Model decision and successor task are separate
+events, not a reopening of this blocked experiment.
+
+Compiler would generate the two operand-gradient graphs from an explicit caller-supplied
+cotangent seed, meaning the output sensitivity to propagate backward. Metal would execute those
+ordinary operations. The local PERMUTE description changed logical operand order only when
+analysis proved its producer edge; it did not authorize arbitrary borrowed view storage or
+hidden packing. This proposed seeded-gradient checkpoint was narrower than general training.
+The [current admission and matrix-multiplication explanation](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection)
+connects those descriptor checks to today's bounded routes, not to unperformed acceptance work here.
+
 ## Status
 
 Blocked

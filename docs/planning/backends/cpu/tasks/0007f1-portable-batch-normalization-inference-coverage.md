@@ -1,5 +1,24 @@
 # Task 0007F1: Portable [Batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)-[Normalization](../../../../glossary.md#term-normalization) [Inference](../../../../glossary.md#term-inference) Coverage
 
+## Reader context
+
+This task records stateless BATCH_NORM_INFERENCE: five ordered inputs supply data, affine vectors,
+and running statistics, and one output receives direct coordinatewise results. Model 0021B owns the
+formula and descriptors; Compiler validates the first-class occurrence. `CpuBatchNormInferenceIr`,
+`CpuBatchNormInferenceLowering`, and `CpuBatchNormInferenceEmitter` keep arbitrary channel-axis
+geometry separate from trailing Layer/RMS reductions and from training transitions.
+
+Here, preparation chooses channel-owned or non-channel-owned ranges before artifact realization.
+Generated code hoists channel reads and square roots; it neither updates running inputs nor
+allocates statistic storage. Cold binding validates storage before direct writes, without rollback.
+Clean Java is the structural algorithm/overhead oracle, while independent accuracy and special-value
+checks are the semantic oracle.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current stateless BatchNorm inference inputs](../../../../reference/tensor/normalization.md#batch-normalization-inference-expressions) — Names data, scale, bias, and read-only running statistics at the Tensor expression boundary.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

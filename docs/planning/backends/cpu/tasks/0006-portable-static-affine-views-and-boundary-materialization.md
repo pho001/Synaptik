@@ -1,5 +1,26 @@
 # Task 0006: Portable Static Affine [Views](../../../../glossary.md#term-view-meanings) and Boundary [Materialization](../../../../glossary.md#materialization)
 
+## Reader context
+
+A logical view changes the mapping from coordinates to source storage; it does not necessarily
+copy any values. CPU analysis composed the admitted static mappings so private intermediate view
+descriptions needed no buffer or generated store. When the result crossed the unit boundary, the
+selected executable instead copied represented bits into the declared result layout. A view flag
+alone did not grant shared physical ownership.
+
+For BFLOAT16, `short[]` was raw two-byte storage: this task’s copy support did not establish
+BFLOAT16 arithmetic. Runtime still bound current source/result representations and guarded
+writes, while the generated copy used the composed mapping. The original affine-chain and type
+limits remain intact below; the current layout and lowering explanations separate geometry from
+allocation.
+
+Current reading alongside this historical record:
+
+- [Resolved logical layouts](../../../../reference/tensor/layouts.md#resolved-layouts)
+  — explains offsets, strides, referenced spans, and why geometry does not own storage.
+- [CPU partition and unit lowering](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternallowering)
+  — explains virtual intermediates, boundary stores, and family-specific mappings.
+
 ## Status
 
 Complete

@@ -1,5 +1,17 @@
 # Task CPU0032: [F32](../../../../glossary.md#floating-point-precision-and-rounding) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) and actual reverse inside emitted [general scan](../../../../glossary.md#general-differentiable-scan)
 
+## Reader context — historical integration boundary
+
+This milestone places rank-two MATMUL inside the generated general-Scan body; it does not call the
+OpenBLAS route once per step. Compiler constructs transpose/contraction operations for the actual
+reverse body, and CPU plans both operands' lifetimes before emitting the time loop. A local cut
+preserves a value across body stages; a demanded history preserves selected values across time for a
+later consumer. Confusing the two can overwrite an operand or old carry too early. The bounded F32
+admission and identity statements below remain historical; the current guide also describes the
+later common contraction owner.
+
+Current reading: [Current general Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition); [Retained static Scan resources](../../../../backend-guide/cpu-backend.md#retained-static-scan-qualification-and-resources).
+
 ## Status
 
 Complete — accepted by main 2026-10-22, 17:09+ UTC; [CPU](../../../../glossary.md#term-cpu) frontier None.

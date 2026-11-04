@@ -1,5 +1,25 @@
 # Task 0008M: [Vector](../../../../glossary.md#term-vector) [MSE](../../../../glossary.md#mean-squared-error--mse) `NONE`
 
+## Reader context
+
+This task records vector execution for the specialized same-typed contiguous `FLOAT32`/`FLOAT64` MSE
+`NONE` family, not a general loss vectorizer. `CpuLossEmitter` emits subtraction,
+self-multiplication, direct stores, and scalar tails. `SUM` and `MEAN` retain increasing-order
+scalar accumulation. `CpuLossIr` preserves semantic identity, including its historical
+`DIRECT_SCALAR` token; `CpuPartitionPreparer` and specialization separately select vector compute
+and schema 62.
+
+Here, scalar loss semantics provide the result oracle, while clean-Java Vector API methods and
+Class-File inspection provide structural comparison. Typed carriers hold data; geometry and ranges
+remain cold invocation facts. Prepared executables remain immutable and runs isolated, with no added
+workspace. Historical SIMD evidence neither establishes current defaults nor closes CPU 0008I's
+missing scalar-performance gate.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current MSE input and reduction roles](../../../../reference/tensor/statistics-losses.md#mean-squared-error-loss-expressions) — Explains prediction versus target, exact-shape requirements, and NONE/SUM/MEAN result boundaries.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Complete

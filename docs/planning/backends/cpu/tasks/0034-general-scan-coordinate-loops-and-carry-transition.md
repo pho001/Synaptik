@@ -1,5 +1,17 @@
 # Task CPU0034: General-[scan](../../../../glossary.md#term-cumulative-scan) [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) loops and [carry](../../../../glossary.md#term-carry) transition
 
+## Reader context — historical integration boundary
+
+There are two independent changes in this record: coordinate induction controls body-cell traversal,
+and carry rebinding selects which stored time version the next step reads. CPU's generator may use
+an int coordinate only under a proved extent bound and must widen it before byte-address arithmetic.
+A carry backed by a demanded emission can be rebound after the complete step only when old-state
+reads and final-next views remain correct; otherwise separate storage/selection stays necessary.
+Runtime does not choose these mappings. The bounded measurement compares one generated/Java workload
+and does not requalify earlier campaign results.
+
+Current reading: [Retained static Scan resources](../../../../backend-guide/cpu-backend.md#retained-static-scan-qualification-and-resources).
+
 ## Status
 
 Complete — main accepted the independently reviewed implementation, [runtime](../../../../glossary.md#term-runtime) gates and bounded evidence on 2026-10-23.

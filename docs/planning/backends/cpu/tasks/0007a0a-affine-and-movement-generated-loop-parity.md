@@ -1,5 +1,25 @@
 # Task 0007A0A: Affine and Movement Generated-Loop Parity
 
+## Reader context
+
+Affine copies and static movement already contained generated typed work; their remaining cost
+here was loop/address shape. The emitters used a cold dense-array proof to narrow bounds and
+geometry once, then ran integer cursor loops. The same long-bound entry signature remained
+usable by the binder, and general segment or strided forms kept typed long traversal.
+
+“General fallback” meant the already-selected generated body’s safe path, not a runtime switch
+to another backend or a copy policy invented after assignment. TILE still had to repeat each
+complete input pattern correctly over partial ranges. The local performance gate and schema
+change below record that specific implementation checkpoint; current layout and generator
+explanations separate the proof from supported semantics.
+
+Current reading alongside this historical record:
+
+- [Resolved logical layouts](../../../../reference/tensor/layouts.md#resolved-layouts)
+  — explains offsets, strides, referenced spans, and why geometry does not own storage.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task 0076: Profile-free [FLOAT32](../../../../glossary.md#term-float32) [SIGMOID](../../../../glossary.md#term-sigmoid) route
 
+## Reader context
+
+The sign guard chooses the stable SIGMOID branch from stored bits before EXP/add/divide sites execute. It is not a floating comparison allowed to erase a subnormal sign decision. Metal's prepared MPSGraph composition can share one exponential while retaining the selected numerator and rounding sites; a direct opaque sigmoid selector is a different algorithm.
+
+An explicit low-to-FLOAT32 cast changes carrier, not low SIGMOID eligibility. Finite gates below test this route rather than install a runtime tolerance engine. Positive-rank/no-gradient admission and identity are the initial checkpoint, not today's full unary domain.
+
+- [Current SIGMOID original-carrier and scalar coverage](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Connects later typed expansion to stable-branch semantics.
+- [Current named-site and qualification boundary](../../../../backend-guide/metal-backend.md#numerical-semantics-and-capability) — Distinguishes formulas from ordinary finite thresholds.
+
 ## Status
 
 Complete — the bounded [FLOAT32](../../../../glossary.md#term-float32) route, source-matched [device](../../../../glossary.md#term-device)/[conformance](../../../../glossary.md#term-conformance)/[Engine](../../../../glossary.md#term-engine) [validation](../../../../glossary.md#term-validation),

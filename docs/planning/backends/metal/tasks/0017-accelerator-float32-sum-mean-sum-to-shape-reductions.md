@@ -1,5 +1,19 @@
 # Task 0017: [ACCELERATOR](../../../../glossary.md#term-accelerator) [FLOAT32](../../../../glossary.md#term-float32) SUM/[MEAN](../../../../glossary.md#term-mean)/SUM_TO_SHAPE Reductions
 
+## Reader context
+
+There were two different failures to distinguish: a probe-lifetime defect was corrected, then
+the valid numerical probe encountered the signed-zero blocker. Native labels and shape strings
+needed to remain alive while Apple APIs used them; fixing that ownership problem did not change
+which reduction results Model permitted.
+
+Axes and bound target shapes described the reduction's terms. Actual input words determined
+the permitted result set, rather than one preferred CPU summation order. A local scalar result
+would be one FLOAT32 value copied to detached host bytes, not a newly supported scalar transfer.
+Model owned the subsequent semantic decision; Metal could not make that decision inside a probe.
+The [current reduction domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+provide present navigation while this task remains a record of its original blocked contract.
+
 ## Status
 
 Blocked

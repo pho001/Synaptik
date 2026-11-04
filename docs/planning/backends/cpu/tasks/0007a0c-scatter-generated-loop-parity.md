@@ -1,5 +1,26 @@
 # Task 0007A0C: Scatter Generated-Loop Parity
 
+## Reader context
+
+This correction changed where scatter work executed: selected family mapping, contribution
+matching, reductions, and stores moved from generic static bridges into the generated class.
+Indices still had to pass the existing complete validation before any range wrote output or
+touched scratch. Parallel ranges retained ownership of disjoint result coordinates, not disjoint
+subsets of updates to a shared output.
+
+The exact-product limbs described floating MUL’s historical scratch algorithm. Those limbs were
+primitive words in assigned run-owned storage, not Java object arithmetic created per factor.
+Their once-rounded numerical target remains a historical claim; the current scatter reference
+now describes the present reduction contract. The generated-code explanation helps distinguish
+generation-time emitter collaboration from calls made inside the emitted hot loop.
+
+Current reading alongside this historical record:
+
+- [Scatter Elements and current reduction semantics](../../../../reference/tensor/scatter.md#scatter-elements-expressions)
+  — explains base/index/update roles, duplicate membership, and the present numerical contract.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

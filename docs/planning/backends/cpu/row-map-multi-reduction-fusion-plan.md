@@ -1,5 +1,30 @@
 # Row-map and multiple-terminal [CPU](../../../glossary.md#term-cpu) [fusion](../../../glossary.md#term-fusion) proposal
 
+## Reader context
+
+This is the preserved CPU0073 scalar design. “Row map” names shared per-row calculation;
+“terminal” names an output that cannot finish until all contributing rows have been visited.
+The ordinary generator or `CpuGeneralScanEmitter` calls `CpuRowMapReductionEmitter.emitBound`
+during code generation, passing local-variable handles and actions that emit bytecode.
+Those handles are not Runtime buffer slots. CPU analysis must already have declared retained
+stores and scratch before shared Prepare assigns resources; finalization does not invent storage.
+
+For the dense-gradient example below, use zero-based row index $r\in\{0,1\}$ and input-feature
+index $f\in\{0,1\}$. Here $X\in\mathbb{R}^{2\times2}$, $D\in\mathbb{R}^{2\times1}$ and
+$dW\in\mathbb{R}^{2\times1}$. Its real-number interpretation is
+$(dW)_{f,0}=\sum_{r=0}^{1}X_{r,f}D_{r,0}$: the first cell is
+$1\cdot14+3\cdot28=98$ and the second is $2\cdot14+4\cdot28=140$.
+These finite integer-valued example products and sums are exactly representable in F32.
+The equation explains terminal dimensions and completion, not permission to simplify actual
+Compiler AD, reorder rounded operations, or replace the separate ordinary exact bias SUM.
+
+The [implemented row-map explanation](../../../backend-guide/cpu-backend.md#implemented-row-map-and-multiple-terminal-fusion)
+connects retained stores to terminal completion; the
+[current general Scan composition](../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+distinguishes this historical region's exclusions from whole-feature admission. The small
+off-tree oracle observation remains provenance only; its temporary evidence is unavailable
+to this reader revision and no new raw-cell comparison is claimed.
+
 ## Purpose and status
 
 **Implemented design, not architecture authority.** The user approved this

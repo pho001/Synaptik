@@ -1,5 +1,19 @@
 # Task 0034: Profile-Common [Canonical](../../../../glossary.md#term-canonical-form) [FLOAT32](../../../../glossary.md#term-float32) No-Grad Ascending SORT
 
+## Reader context
+
+The selector's one-input, one-output structure fit SORT, but its existence did not establish
+Model's complete ordering policy. That policy separately constrained signed-zero order,
+NaNs, stable equal-value ordering and preservation of selected raw representations. A passing
+ordinary vector could not authorize every admitted length and value.
+
+Shape, type, layout and gradient flags described the proposed occurrence; the input buffer's
+words determined its ordering cases. Model owned the policy and Metal would need to qualify
+the route. No probe or implementation followed this assessment, and the listed protocol changes
+remained conditional.
+The [current stable ordering and exact-value domain](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+connects to later SORT, ARGSORT and TOP_K support without turning this Blocked record into delivery.
+
 ## Status
 
 Blocked

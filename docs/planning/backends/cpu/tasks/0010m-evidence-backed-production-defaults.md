@@ -1,5 +1,18 @@
 # Task 0010M: Evidence-backed [CPU](../../../../glossary.md#term-cpu) production defaults
 
+## Reader context — historical integration boundary
+
+The decision under review is CPU's production preparation policy, not Runtime choosing a faster
+implementation during a run. A scalar/vector candidate is an implementation alternative; a benchmark
+report is evidence about a particular workload and target, and does not itself authorize changing
+the default. This task retained the production defaults because the proposed evidence did not span
+the enabled policy. In particular, generated-versus-Java comparisons do not answer
+scalar-versus-vector policy questions. The inventory and machine-local timings below remain
+historical; consult the maintained lifecycle section for ordinary scalar/single-thread composition
+rather than treating every number in the old inventory as a current constant.
+
+Current reading: [Supported lifecycle integration](../../../../backend-guide/cpu-backend.md#supported-lifecycle-integration); [Portable MATMUL realization](../../../../backend-guide/cpu-backend.md#current-portable-matmul-family).
+
 ## Status
 
 Complete

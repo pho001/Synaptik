@@ -4,6 +4,27 @@ Current source: `modules/backend/cpu`; [Gradle](../../../glossary.md#term-gradle
 completed reports retain their original locations; see the
 [path migration table](../../../developer-guide/repository-layout.md#backend-path-migration-and-historical-navigation).
 
+## Reader context
+
+This master plan combines an ordered task index with dated integration checkpoints. Read a
+task's linked structured Status/Result for its exact acceptance and limits; an older paragraph's
+“current” or “frontier None” describes that checkpoint, not a fresh review of every later change.
+The [current CPU Scan composition](../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+explains the implementation boundary without turning this history into an operator whitelist.
+
+In the flow below, shared Prepare is the internal caller of the CPU partition analysis and
+finalization collaborations. Analysis returns a selected private plan plus resource requirements;
+shared Prepare assigns names/positions, then finalization constructs the executable using those
+assignments. A slot is not allocated memory. Runtime later calls the prepared executable's
+`bind` boundary with a `RunState` holding actual representations. Borrowed input storage stays
+under its supplier's cleanup responsibility; run-owned buffers and scratch are cleaned up by
+the run. A Tensor description alone supplies neither stored values nor an allocation.
+The [staged preparation handoff](../../../architecture/runtime-prepare-backend-boundary.md#the-staged-prepare-handoff)
+names the analysis/finalization APIs, and
+[per-run resources and cold binding](../../../architecture/runtime-prepare-backend-boundary.md#per-run-resources-and-cold-binding)
+explains allocation, borrowing and cleanup separately. Temporary evidence paths in the retained
+checkpoints are historical provenance and are unavailable to this reader revision.
+
 ## Goal
 
 Maintain a truthful [CPU](../../../glossary.md#term-cpu) plan. Preparation owns [lowering](../../../glossary.md#lowering), route/representation choice, resources,

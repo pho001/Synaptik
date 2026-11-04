@@ -1,5 +1,24 @@
 # Task 0008Q: [Finite](../../../../glossary.md#term-finite) [Scalar](../../../../glossary.md#term-scalar)-Immediate and Clamp Generated-Code Equivalence
 
+## Reader context
+
+This task records a test-only equivalence mechanism for two `BFLOAT16` scalar-MUL immediates on
+contiguous `SHORT_ARRAY` carriers of shape [8]. `CpuPartitionPreparer` and the selected portable
+generator produce exact artifacts; `CpuKernelIr` and `CpuKernelSpecialization` retain their existing
+identity rules. The Class-File normalizer is a structural oracle: it checks that only declared
+immediate operands differ, without authorizing artifact reuse or changing selection.
+
+The semantic oracle is an independent typed clean-Java loop comparing raw `BFLOAT16` results,
+including exceptional inputs. Structural tests separately reject hidden helpers and avoidable
+hot-path machinery. Checked TSV resources preserve exact hashes and projection provenance. Here,
+completion covers this mechanism only; the document leaves CPU 0009 blocked pending CPU 0008Q1,
+rather than establishing the broader matrix itself.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current exact typed scalar metadata](../../../../reference/tensor/data-types.md#exact-typed-scalar-values) — Distinguishes immutable immediate bits from a rank-zero Tensor or live storage.
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+
 ## Status
 
 Complete

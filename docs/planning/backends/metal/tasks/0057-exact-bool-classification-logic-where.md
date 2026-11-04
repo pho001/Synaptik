@@ -1,5 +1,14 @@
 # Task 0057: Exact [BOOL](../../../../glossary.md#data-type--datatype) Classification, Logic, and WHERE
 
+## Reader context
+
+Classification reads FLOAT32 encodings and produces Boolean values; logic consumes canonical bytes; WHERE chooses and copies a branch's raw word. The condition is not a numerical multiplier: unselected NaNs and signed zeros must not be transformed by arithmetic. Java checks descriptor relationships; native execution validates resources and writes declared targets.
+
+Application BOOL feeds contain values, but Metal borrows their input storage rather than owning its lifetime. Results use fresh run storage. This opened a bounded FLOAT32/BOOL slice; current carrier, rank and gradient coverage has evolved beyond its counts.
+
+- [Current classification logic and WHERE domains](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection) — Locates typed roles and branch-gradient relationships.
+- [Current borrowed inputs and fresh targets](../../../../backend-guide/metal-backend.md#cold-run-setup-and-binding) — Clarifies storage ownership.
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task 0063: Exact Ordering and Arg [Extrema](../../../../glossary.md#saturation-pole-and-extremum)
 
+## Reader context
+
+SORT returns values, ARGSORT returns logical indices, TOP_K returns both as sibling outputs, and arg extrema returns a winning index. Metal's integer-key comparator preserves represented order, NaN policy and ties without floating arithmetic on copied values. Model owns ordering; Compiler owns derivative graphs consuming the indices.
+
+Even when only TOP_K values are public, indices remain a distinct produced value with their own type/lifetime. The unsigned-32-bit, positive-K and backward exclusions below are historical bounds, not a claim that all current empty or generated-gradient forms are unsupported.
+
+- [Current ordering and generated graph coverage](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Separates current roles from the historical positive-domain proof.
+- [Current typed admission and target roles](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection) — Connects sibling outputs to per-occurrence validation.
+
 ## Status
 
 Complete — approved plan review and the external P1 correction preceded implementation

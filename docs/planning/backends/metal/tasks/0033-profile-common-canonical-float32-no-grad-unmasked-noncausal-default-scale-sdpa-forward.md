@@ -1,5 +1,20 @@
 # Task 0033: Profile-Common [Canonical](../../../../glossary.md#term-canonical-form) [FLOAT32](../../../../glossary.md#term-float32) No-Grad Unmasked Noncausal Default-Scale SDPA Forward
 
+## Reader context
+
+Scaled dot-product attention (SDPA) had three independent questions here: could the SDK describe
+the operation, was the selector available on the recorded runtime, and did its numerical
+behavior meet Model's atomic attention contract? Structural fit answered neither of the latter
+questions, and no attention probe ran.
+
+Query, key and value shapes described compatible dimensions; buffers supplied actual values.
+An absent scale meant Model's dimension-derived default, not a freely chosen backend constant.
+The output-only candidate also differed from the complete multi-output occurrence needed by
+Compiler's derivative graph, so it implied no backward support.
+The [current attention and required-sibling domain](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+provides the later route explanation. The old availability observations and conditional encoding
+below remain historical, not current platform guidance.
+
 ## Status
 
 Blocked

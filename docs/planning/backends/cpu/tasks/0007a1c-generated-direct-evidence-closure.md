@@ -1,5 +1,26 @@
 # Task 0007A1C: Generated/Direct Evidence Closure
 
+## Reader context
+
+This is a closure dossier, not one uninterrupted successful benchmark. It starts with a frozen
+comparison whose semantics passed but many timing rows failed, records a stop at the permitted
+code-owner boundary, and then incorporates separately planned corrections and a replacement
+evidence ledger. A row label names one fixed generated/direct case; a schema number identifies
+generated-byte compatibility, not the age of a Tensor value or the current release.
+
+Correct semantics, Class-File shape, and local performance were independent gates. Temporary
+directories, hashes, disassembly, and accepted/rejected fork records are provenance for the
+assertions below, not evidence recreated by this reader-context addition. The current
+code-generation explanation helps decode the member/loop checks; it does not widen those local
+timings into a universal parity promise.
+
+Current reading alongside this historical record:
+
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+- [CPU artifact compatibility and lifetime](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcache)
+  — distinguishes reusable code bytes and loaded artifacts from numerical values and JIT state.
+
 ## Status
 
 Complete

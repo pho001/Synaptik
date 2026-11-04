@@ -1,5 +1,19 @@
 # Task CPU0060: Symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) Java loop [shape](../../../../glossary.md#shape)
 
+## Reader context
+
+“Loop shape” here means generated control flow and address placement, not a Tensor's dimensions.
+`CpuGeneralScanEmitter.Shaped` arranges initialization, activity guards and temporal bindings;
+the MATMUL and reduction subemitters named below generated the historical arithmetic loops.
+Hoisting an address is legal only while its selected carrier and base remain stable. Skipping
+body work at zero maximum length must still publish initialized carries and required padding.
+Neither action transfers ownership of the run's buffers into the prepared recipe.
+
+The [current general Scan overview](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+separates later support from this combined-mode repair; [common MATMUL binding](../../../../backend-guide/cpu-backend.md#common-rank-two-matmul-binding)
+explains today's division between temporal bindings and common arithmetic generation.
+The v7 measurements below remain entry-inclusive observations of their fixed witness.
+
 ## Status
 
 Complete — MAIN accepted the bounded implementation, independent code/docs and actual-result

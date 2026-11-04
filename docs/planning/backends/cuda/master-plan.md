@@ -4,6 +4,23 @@ Current source: `modules/backend/cuda`; [Gradle](../../../glossary.md#term-gradl
 [merged README](../../../../modules/backend/cuda/README.md) retains the native scaffold only;
 no executable CUDA capability or platform tree is added. Historical tasks remain here.
 
+## Reader context
+
+CUDA is NVIDIA's GPU programming platform. In this draft, the Java process is the **host** and
+the GPU would be the **device**. A capability provider would answer whether a particular graph
+operation is supported; a CUDA partition preparer would turn an accepted group into concrete
+executable work. Runtime would invoke that prepared work, not choose kernels or discover a
+device on demand. These are proposed component responsibilities, not implemented calls.
+
+“Backend-owned” describes responsibility for CUDA lowering and resources, not ownership of
+the application's Tensor objects. A Tensor describes a value or expression; that description
+must not be repurposed as a mutable GPU-residency record. Device allocation, transfer completion
+and cleanup need their own future contracts before any borrowed host storage could be released.
+The [planned CUDA guide](../../../backend-guide/cuda-backend.md#planned-scope) explains that
+separation, and its [native/resource prerequisites](../../../backend-guide/cuda-backend.md#native-and-resource-prerequisites)
+identify the unresolved driver, context, stream and lifetime requirements. The Draft statuses
+below remain Draft; this reading key adds neither a runnable CUDA route nor support evidence.
+
 ## Goal
 
 Implement [CUDA](../../../glossary.md#term-cuda) capability, [backend-owned lowering](../../../glossary.md#backend-owned-lowering), [kernels](../../../glossary.md#kernel), storage, native integration, and [prepared execution](../../../glossary.md#prepared-execution--preparedexecution).

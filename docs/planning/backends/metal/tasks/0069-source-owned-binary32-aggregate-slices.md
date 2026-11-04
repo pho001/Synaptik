@@ -1,5 +1,14 @@
 # Task 0069: Source-Owned [Binary32](../../../../glossary.md#floating-point-precision-and-rounding) Aggregate-Floor Slices
 
+## Reader context
+
+A leaf here is one aggregate-tree contributor, not an application Tensor leaf. L1 uses raw ABS contributors; ScatterAdd starts from a base word and includes each matching update occurrence; singleton variance keeps literal arithmetic sites. An invented zero leaf can change signed-zero/rounded behavior despite a real-number identity.
+
+Model owns legal site results. Lean proofs, the source certificate and compiled Apple Intermediate Representation (AIR) inspection connect meaning to specific shader bytes; rebinding maintains evidence, not a runtime certificate. Profile-era slices and later source renewals are distinct checkpoints, not today's entire numerical domain.
+
+- [Current contributors and arithmetic sites](../../../../backend-guide/metal-backend.md#numerical-semantics-and-capability) — Explains aggregate leaves and membership.
+- [Current proof provenance and source qualification](../../../../backend-guide/metal-backend.md#evidence-composition) — Separates retained proofs from approval of changed implementations.
+
 ## Status
 
 Complete. The shared proof substrate and Slices 1–3 are independently approved. The post-cutover

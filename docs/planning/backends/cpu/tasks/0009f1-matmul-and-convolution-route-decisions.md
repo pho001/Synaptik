@@ -1,5 +1,26 @@
 # Task 0009F1: [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) and [Convolution](../../../../glossary.md#term-channels-first-convolution-layers) Route Decisions
 
+## Reader context
+
+This task records four retained-route decisions: generated MATMUL, visible Conv1d composition, and
+separate generated Conv2d/Conv3d bodies. Here, “direct” convolution describes first-class
+rank-specific bodies, not direct-Java migration. `CpuConv1dCompositionLowering` validates virtual
+singleton-height rank edits and delegates to Conv2d; it owns no independent artifact family.
+`CpuMatmulCandidateSelector` chooses among four full-K realizations, while convolution lowerers
+preserve separate geometry and suffix contracts.
+
+`CpuMatmulReferenceKernel` and the rank-specific convolution references are semantic/dataflow
+oracles; generated Class-File tests provide structural hygiene evidence. CPU Prepare selects and
+declares resources, finalization realizes keyed artifacts after assignment validation, and
+`CpuPreparedExecutable` binds typed carriers and run-owned ranges. No workspace is declared for
+convolution. Historical schema-63 vector evidence records a bounded route, not authorization for
+current production defaults.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current visible Conv1d composition](../../../../reference/tensor/convolution.md#grouped-ncw-conv1d-composition) — Shows why singleton-height rank edits surround Conv2d rather than define another operation kind.
+- [current MATMUL-backed linear composition](../../../../reference/tensor/matmul-linear.md#linear-projection-convenience) — Distinguishes Tensor composition and visible transpose/bias boundaries from a state-owning NN layer.
+
 ## Status
 
 Complete

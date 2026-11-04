@@ -1,5 +1,20 @@
 # Task 0007: [MPSGraph](../../../../glossary.md#term-mpsgraph) [FLOAT32](../../../../glossary.md#term-float32) SUM/[MEAN](../../../../glossary.md#term-mean) Reduction Foundation
 
+## Reader context
+
+This probe separated three questions: could MPSGraph represent the reduction, did its computed
+values satisfy Model's numerical rule, and could Metal publish the resulting shape? API and
+shape feasibility did not overcome the cancellation counterexample. The implementation-shaped
+sections below remain requirements of the blocked proposal.
+
+Axes and output Shape describe which input terms belong together; the listed floating-point
+words are actual test values. A rank-zero result is one stored scalar, not an empty tensor.
+Its proposed local publication would copy four bytes into detached host storage, without
+authorizing scalar CPU/Metal transfers. Compiler-generated gradient shapes likewise did not prove
+an executable backward route.
+The [current numerical domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+describe the later reduction implementation independently of this exact-contract failure.
+
 ## Status
 
 Blocked

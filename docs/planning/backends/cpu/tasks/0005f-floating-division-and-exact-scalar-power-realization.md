@@ -1,5 +1,26 @@
 # Task 0005F: Floating Division and Exact [Scalar-Power Realization](../../../../glossary.md#scalar-power-realization)
 
+## Reader context
+
+The exponent in scalar POW was an exact typed attribute supplied when the expression was
+described; it was not a Tensor of exponents read at every position. `CpuScalarPowerAnalysis`
+classified those attribute bits during lowering. The generated body then used the chosen
+direct-power, identity, square, reciprocal, or positive-one realization without a hot policy
+lookup. Tensor division still read its ordered numerator and denominator values from the bound
+carriers.
+
+This did not authorize rewriting the graph or replacing arbitrary powers with multiplication
+chains: intermediate floating-point rounding can change the result. The special cases and proofs
+below belong to this historical numerical contract. The current scalar-expression reference
+explains the public typed-attribute boundary separately from the CPU realization.
+
+Current reading alongside this historical record:
+
+- [Typed scalar arithmetic and clamp construction](../../../../reference/tensor/elementwise.md#scalar-arithmetic-and-clamp-expressions)
+  — identifies exact scalar attributes and the public expression boundary.
+- [CPU typed intermediate representation](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalir)
+  — distinguishes code-shaping structure from concrete geometry and live values.
+
 ## Status
 
 Complete

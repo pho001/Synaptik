@@ -1,5 +1,17 @@
 # Task 0018: Shared external-read recognition [validation](../../../../glossary.md#term-validation)
 
+## Reader context — historical integration boundary
+
+‘Caller-owned weight Tensor’ can originate in application code or in an NN/training component acting
+as Engine's caller. It is a leaf input to this compiled graph, with its current values held in
+external storage; the expression/descriptor alone is not that storage. If two MATMUL units read the
+same weight, neither produced it, so the repeated boundary is still an external read. A value
+produced by an earlier unit is instead a cross-unit dependency. CPU authenticates this distinction
+from the trusted projected node/port graph during preparation, not from a candidate's self-declared
+labels. Borrowing repeated reads does not transfer storage cleanup to CPU.
+
+Current reading: [Retained subgraph recognition](../../../../backend-guide/cpu-backend.md#cpu-private-specialized-subgraph-recognition); [Partition and computation-unit boundaries](../../../../backend-guide/cpu-backend.md#general-partition-dag-and-bounded-pointwise-fusion).
+
 ## Status
 
 Complete — the user selected [CPU](../../../../glossary.md#term-cpu)-private authenticated [`ValueId`](../../../../glossary.md#logical-valueid-versus-physical-memory-slot) [binding](../../../../glossary.md#term-binding) on 2026-10-09. At clean

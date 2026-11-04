@@ -1,5 +1,25 @@
 # Task 0007: Portable [Cumulative Scan](../../../../glossary.md#cumulative-scan) Coverage
 
+## Reader context
+
+A cumulative scan retains one output per input position, unlike an aggregate reduction that
+collapses a domain. CPU lowering identified independent slices along the selected axis. Inside a
+slice, forward/reverse controlled traversal direction and inclusive/exclusive controlled whether
+the current input entered the accumulator before or after its output was written. Only complete
+independent slices could be distributed to workers.
+
+This checkpoint’s generated class bridged to a CPU-owned typed body; it did not yet embed the
+full scan loop. CPU 0007A0 later changed that realization without rewriting this evidence. The
+per-step BFLOAT16 rounding and five-type matrix below likewise remain historical specifics. The
+current scan reference gives a worked mode table without conflating construction with execution.
+
+Current reading alongside this historical record:
+
+- [Cumulative-scan kinds and mode tables](../../../../reference/tensor/operation-reductions.md#cumulative-scan-semantic-kinds-and-attributes)
+  — works through inclusive/exclusive and forward/reverse meanings without implying construction-time execution.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

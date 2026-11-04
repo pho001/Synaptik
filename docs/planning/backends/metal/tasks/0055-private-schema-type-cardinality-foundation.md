@@ -1,5 +1,14 @@
 # Task 0055: Private [Metal](../../../../glossary.md#term-metal) [Schema](../../../../glossary.md#term-schema), Type, and [Cardinality](../../../../glossary.md#term-cardinality) Foundation
 
+## Reader context
+
+The program image is a description crossing Java's Foreign Function and Memory (FFM) boundary, not a Tensor's numerical payload. Metal's Java encoder writes typed descriptors, references and attributes; the Objective-C decoder independently validates them before executable creation. Native creation must copy or compile what it needs because the temporary image pointer is not retained.
+
+Typed CPU/Metal transfer moves represented bytes in separately owned buffers. Carrier and multi-output vocabulary supply representation, not permission to execute every operation using it. ABI-5/schema-13 below are historical; current image fields are documented separately.
+
+- [Current program-image and failure boundary](../../../../backend-guide/metal-backend.md#abi-and-failures) — Shows the evolved wire format without rewriting the cutover.
+- [Current binding and transfer ownership](../../../../backend-guide/metal-backend.md#cold-run-setup-and-binding) — Separates descriptions from borrowed inputs and run-owned outputs.
+
 ## Status
 
 Complete

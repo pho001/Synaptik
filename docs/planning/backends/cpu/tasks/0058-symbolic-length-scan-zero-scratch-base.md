@@ -1,5 +1,18 @@
 # Task CPU0058: Symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) zero scratch-base omission
 
+## Reader context
+
+`CpuGeneralScanEmitter.Shaped` proves facts while generating code; it does not inspect one run's
+batch size and declare it constant. A `Cut` describes an intermediate's scratch placement and
+inclusive lifetime. Omitting a proved zero base changes an address expression, not the owning
+scratch allocation, its size, or the period when its contents remain live.
+
+Write the offset recipe as $o(B)=a+bB$, where $a,b$ are fixed integer byte coefficients and
+$B$ is any admitted nonnegative integer batch extent. This task requires $a=b=0$; observing
+$o(7)=0$ alone would not prove $o(32)=0$. The [current shared binding explanation](../../../../backend-guide/cpu-backend.md#common-rank-two-matmul-binding)
+distinguishes these generation-time proofs from invocation geometry and JVM local indexes.
+The v5/v6 evidence below remains a historical structural comparison, not a speed claim.
+
 ## Status
 
 Complete — MAIN accepted the independently reviewed repair and named [checkpoint](../../../../glossary.md#term-checkpoint) on 2026-10-28.

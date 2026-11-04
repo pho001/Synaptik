@@ -1,5 +1,19 @@
 # Task 0002: [MPSGraph](../../../../glossary.md#term-mpsgraph) [Prepared Execution](../../../../glossary.md#prepared-execution--preparedexecution) Route
 
+## Reader context
+
+This was the first executable Metal slice, not the present operation inventory. Metal Performance
+Shaders Graph (MPSGraph) compiled the admitted negation partition. Metal's preparation plan
+described shapes, ordered inputs and required storage; finalization created the reusable
+executable only after shared Prepare assigned storage positions.
+
+During each run, Runtime borrowed supplied Metal input buffers and owned fresh constant, output
+and address-workspace representations. The prepared execution separately owned the executable.
+Publishing an output leased its existing device storage; an explicit download copied values to
+host storage. Thus direct output did not promise that Apple's implementation used no temporaries.
+The [current lowering and finalization explanation](../../../../explanation/packages/metal.md#2-lower-once-declare-resources-then-compile)
+shows how these responsibilities continue beyond this original NEG-only route.
+
 ## Status
 
 Complete

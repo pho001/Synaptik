@@ -1,5 +1,24 @@
 # Task 0009E1C: [Softmax](../../../../glossary.md#softmax--log-softmax)-Style Reduction Route Decision
 
+## Reader context
+
+This task records retaining bounded generated SOFTMAX and LOG_SOFTMAX for first-class
+shape-preserving nodes, not recognizing decomposed graphs. `CpuSoftmaxIr` identifies the operation;
+lowering fixes complete normalization slices, and `CpuSoftmaxEmitter` specializes the three-pass
+body. `CpuSoftmaxInputValidator` enforces finite represented inputs and shifts before output
+mutation or worker submission, rather than introducing a NaN/infinity result policy.
+
+Here, Prepare selects typed heap/segment carrier and layout forms, finalizes artifacts, and binds
+immutable complete-slice entries; Runtime invokes them with zero workspace. Generated Class-File and
+hot-loop checks are the structural oracle. `CpuSoftmaxReferenceKernel` is the independent semantic
+oracle for stable numerical dataflow. The recorded cost rule includes direct implementation and full
+generated-route retirement, not a speed comparison.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current first-class softmax expression meaning](../../../../reference/tensor/normalization.md#softmax-expressions) — Separates metadata construction and ideal slice meaning from backend-specific admission and execution.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

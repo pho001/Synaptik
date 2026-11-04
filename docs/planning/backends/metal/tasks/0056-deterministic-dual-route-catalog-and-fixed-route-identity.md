@@ -1,5 +1,14 @@
 # Task 0056: Deterministic Dual-Route Catalog and Fixed Route [Identity](../../../../glossary.md#term-identity-meanings)
 
+## Reader context
+
+Planning chooses Metal as backend owner; Metal preparation chooses the implementation route. A catalog cell says an SDK selector or custom implementation is structurally available for some occurrence, not that it is admitted, numerically approved or selected. `MetalPreparedRoute` carries one selected recipe into finalization; Runtime does not try the catalog after failure.
+
+Package-private forcing was a test seam, not an application option. Route names, candidate counts and versions below belong to this checkpoint. Read current routing separately rather than inferring support from `DIRECT`, `COMPOSED` or `AVAILABLE`.
+
+- [Current preparation-fixed routes](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Explains backend ownership versus implementation choice.
+- [Current occurrence and candidate boundary](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection) — Distinguishes structural catalog cells from executable permission.
+
 ## Status
 
 Complete

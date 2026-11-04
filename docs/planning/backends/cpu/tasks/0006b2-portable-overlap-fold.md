@@ -1,5 +1,26 @@
 # Task 0006B2: Portable Overlap Fold
 
+## Reader context
+
+Fold collects overlapping window contributions into a fresh output; unlike unfold, it performs
+addition rather than just copying representations. Each output coordinate began at represented
+positive zero and received the contributions assigned to it in the canonical input order
+recorded here. For image folds, NCHW names batch/channel/height/width, and padding positions
+outside the actual image did not contribute.
+
+CPU lowering described that mapping, the fold emitter realized it, and Runtime supplied current
+input/output carriers. Parallel ranges owned separate complete output coordinates, preserving
+contribution order without atomics or partial-result combination. The recorded per-contribution
+arithmetic is a historical realization and should not be promoted to a present cross-backend
+promise. Current window semantics and generated-family ownership provide the comparison points.
+
+Current reading alongside this historical record:
+
+- [Window-transform expressions](../../../../reference/tensor/windows.md#window-transform-expressions)
+  — distinguishes extraction, columns geometry, and overlap accumulation.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

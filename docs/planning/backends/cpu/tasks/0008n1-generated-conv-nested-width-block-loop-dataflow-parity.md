@@ -1,5 +1,24 @@
 # Task 0008N1: Generated Conv nested width-block loop/[dataflow](../../../../glossary.md#term-dataflow) parity re-spike
 
+## Reader context
+
+This task records the nested-loop re-spike intended to remove repeated coordinate decoding from
+generated Conv2d/Conv3d width blocks. A single start decode initializes coordinates; enclosing loops
+carry row bases, while scalar fragments and vector blocks respect the authoritative half-open worker
+range. Typed carriers hold data, and `long[]` geometry supplies dynamic extents and addresses rather
+than class identity.
+
+Here, semantic checks establish ordered per-cell results; structural dossiers inspect generated
+loop/dataflow shape against direct Java. CPU preparation and cache owners control schema selection
+and publication, separately from provisional test generation. The completion record reports
+schema-63 admission after final Stage B evidence, explicitly superseding failed historical Stage A
+evidence without claiming a green broad CPU suite.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Complete

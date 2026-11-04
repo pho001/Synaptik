@@ -1,5 +1,13 @@
 # Task 0050: Final packaged [Metal](../../../../glossary.md#term-metal) repository verification
 
+## Reader context
+
+This is an artifact-chain receipt, not a new Metal implementation. Native build output becomes a local package, then a ZIP, then an extracted library supplied explicitly to tests. Matching checksums establish byte agreement between stages; the ad-hoc signature does not establish a trusted public publisher.
+
+The extracted temporary directory was verification-owned storage and was removed, whereas input/output ownership belongs to execution. Hashes, command output, test totals and runner/release blockers below describe that exact revision. They are neither fresh verification of current source nor release approval.
+
+- [Current evidence interpretation](../../../../backend-guide/metal-backend.md#evidence-composition) — Separates historical package/device receipts from current route qualification.
+
 ## Status
 
 Complete

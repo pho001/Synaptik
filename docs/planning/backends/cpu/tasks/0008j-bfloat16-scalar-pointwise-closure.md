@@ -1,5 +1,24 @@
 # [CPU](../../../../glossary.md#term-cpu) Task 0008J: [BFLOAT16](../../../../glossary.md#term-bfloat16) [Scalar](../../../../glossary.md#term-scalar) [Pointwise](../../../../glossary.md#term-pointwise) Closure
 
+## Reader context
+
+This task records `BFLOAT16` pointwise closure through generated scalar and caller-parallel scalar
+kernels. Model defines numerical meaning; ScalarValueAttrs and ClampRangeAttrs carry exact typed
+bits into `CpuPartitionLowering`. `CpuScalarEmitter` realizes numerical operations by decoding raw
+`BFLOAT16` locals, evaluating the established `FLOAT32`-domain algorithm, and encoding each logical
+result before consumption. `WHERE` instead preserves selected raw bits; predicates produce canonical
+`BOOL` bytes.
+
+Here, semantic raw-bit tests establish results, while Class-File inspection and optimal clean-Java
+comparison establish structural algorithm, loop, and overhead parity. Typed arrays and
+`MemorySegment` are execution carriers, not descriptor metadata. Preparation selects execution
+before Runtime invocation; fusion adds no intermediate buffer or workspace.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current raw low-format storage and working values](../../../../reference/tensor/data-types.md#sixteen-bit-floating-representations) — Distinguishes represented BFLOAT16 bits from Java FLOAT32 conversion and computation.
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+
 ## Status
 
 Complete

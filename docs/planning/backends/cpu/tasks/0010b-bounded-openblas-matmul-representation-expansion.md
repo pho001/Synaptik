@@ -1,5 +1,17 @@
 # Task 0010B: Bounded [OpenBLAS](../../../../glossary.md#term-openblas) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Representation Expansion
 
+## Reader context — historical integration boundary
+
+The representation expansion changes where values live around one matrix call, not what MATMUL
+means. CPU analysis selects input copies and/or output copy-out; shared Prepare assigns the declared
+workspace slots; Runtime creates distinct physical workspaces for each run. The prepared recipe then
+copies left and right inputs as selected, calls OpenBLAS once, and optionally copies to the logical
+output. Input storage remains borrowed. A reusable copy recipe does not preserve copied matrix
+values between runs, and an output workspace is not an input materialization. The eight masks and
+costs below are historical selection facts, not measured speed guarantees.
+
+Current reading: [Current OpenBLAS route](../../../../backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route).
+
 ## Status
 
 Complete

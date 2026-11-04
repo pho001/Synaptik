@@ -1,5 +1,20 @@
 # Task 0004: Typed [Metal](../../../../glossary.md#term-metal) Route Candidate Generators and [Cache](../../../../glossary.md#term-cache) Compatibility
 
+## Reader context
+
+The cold-path objects here describe choices, not tensor values. A workload signature describes
+the validated partition; a candidate describes a complete implementation alternative; a decision
+identifies the selected candidate. Metal regenerates those facts before trusting a supplied
+decision, then fixes the route before shared Prepare assigns resources.
+
+Structural compatibility ignores incidental graph identifiers, but the context's session nonce
+deliberately prevents another integration from reusing the decision. These encoded bytes contain
+neither native handles nor a compiled executable. This task supplied that backend-private
+foundation, not measurement or cache-file orchestration.
+The [current session decision and tuning boundary](../../../../backend-guide/metal-backend.md#session-decision-codec-and-limitations)
+explains the later public collaborations and why session reuse still does not mean persistent
+Metal executable caching.
+
 ## Status
 
 Complete

@@ -1,5 +1,27 @@
 # Task 0003: Durable Generated-[Kernel](../../../../glossary.md#kernel) [Artifact](../../../../glossary.md#term-artifact) Store and Cold Loading
 
+## Reader context
+
+Read the heading and recorded decisions rather than inferring the design from this retained
+filename: this checkpoint replaced a bounded in-memory-cache proposal with a durable
+generated-class store. CPU finalization supplied the already-selected specialization and
+matching family emitter after shared Prepare assigned storage positions. The explicit root
+belonged to the caller or composition owner; the store held executable class bytes and
+compatibility metadata, not application inputs or numerical outputs.
+
+Loading defined a hidden class in the current JVM. An immutable prepared executable could keep
+that loaded artifact alive, while weak interning alone did not guarantee its lifetime or
+preserve JIT machine code. The trusted-root and atomic-publication rules below are historical
+requirements; the focused current cache explanation distinguishes the later optional-persistence
+policy.
+
+Current reading alongside this historical record:
+
+- [CPU artifact compatibility and lifetime](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcache)
+  — distinguishes reusable code bytes and loaded artifacts from numerical values and JIT state.
+- [CPU analysis and finalization](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalprepare)
+  — explains declaration before assignment and realization afterward.
+
 ## Status
 
 Superseded

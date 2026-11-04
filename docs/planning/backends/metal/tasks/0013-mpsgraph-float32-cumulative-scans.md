@@ -1,5 +1,19 @@
 # Task 0013: [MPSGraph](../../../../glossary.md#term-mpsgraph) [FLOAT32](../../../../glossary.md#term-float32) Cumulative Scans
 
+## Reader context
+
+These cumulative scans visit values along a tensor axis; they are not the later general Scan
+operation that repeats a body with carried state. Inclusive/exclusive controls whether the
+current value contributes before publication, and reverse controls traversal direction. The
+sequential oracle below was this route's conservative gate, not a new Model-wide arithmetic rule.
+
+Compiler supplied capture and Metal would have lowered those descriptions into prepared work.
+The corrected result matters: the valid axis worked, but arithmetic flushed represented
+subnormal values. Identity and target guards isolated that failure without proving scan
+correctness.
+The [current numerical and cumulative-operation domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+explain the later implementation separately from this removed probe and its blocked route.
+
 ## Status
 
 Blocked

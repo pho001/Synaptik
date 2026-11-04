@@ -1,5 +1,17 @@
 # Task CPU0037: General-[scan](../../../../glossary.md#term-cumulative-scan) dense actual read [views](../../../../glossary.md#term-view-meanings)
 
+## Reader context — historical integration boundary
+
+An actual read Tensor can be marked as a view while still addressing exactly the same dense
+zero-offset cells as its canonical twin. CPU reads its descriptor's geometry and borrows the
+existing values; the view flag alone need not force a copy. This task admits that proved read case,
+including actual reverse seeds/saved/primal inputs, without relaxing internal formal or output/write
+requirements. Read/read aliases remain distinct from unsafe writable overlap. The retained identity
+equality means no new generated computation was required; it is not permission to accept arbitrary
+offsets/strides or to migrate an NN workflow automatically.
+
+Current reading: [Retained static Scan resources](../../../../backend-guide/cpu-backend.md#retained-static-scan-qualification-and-resources); [Current general Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition).
+
 ## Status
 
 Complete — main accepted Newton's final independent APPROVE (zero P1/P2) and all final gates,

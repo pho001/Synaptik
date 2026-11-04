@@ -1,5 +1,19 @@
 # Task CPU0056: [Scan](../../../../glossary.md#term-cumulative-scan) invocation [binding](../../../../glossary.md#term-binding)
 
+## Reader context
+
+This rejected candidate changes binding, not emitted mathematics. Runtime calls
+`PreparedExecutable.bind(RunState)` to obtain one invocation for that run.
+`CpuGeneralScanPreparedExecutable`'s candidate captured segments and packed geometry into a
+two-long MethodHandle at that cold boundary; its hot entry then supplied only the range.
+Captured references borrow the run's storage rather than copying Tensor values or taking
+ownership. They cannot be retained as mutable state in a reusable prepared recipe.
+The Result records why the candidate was withdrawn; “Complete” is not an installed optimization.
+
+See [prepared versus bound execution](../../../../explanation/packages/execution.md#iogithubpho001synaptikruntimeexecution)
+for the API and lifetime boundary, and [run creation and cleanup](../../../../explanation/packages/execution.md#iogithubpho001synaptikruntimerun)
+for the actual internal caller and borrowed-input ownership.
+
 ## Status
 
 Complete — reviewed rejected optimization; CPU0056-only candidate withdrawn exactly on 2026-10-28.

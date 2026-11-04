@@ -1,5 +1,27 @@
 # Task 0008L: [Pointwise](../../../../glossary.md#term-pointwise) [SIMD](../../../../glossary.md#simd) [Mask](../../../../glossary.md#term-boolean-mask) Output Closure
 
+## Reader context
+
+This task records dense `FLOAT32`/`FLOAT64` predicate publication and `WHERE`-condition reload
+across the `VectorMask`/canonical-`BOOL` boundary. `CpuCarrierEmitter` uses packed lane bits and a
+bounded fixed-species `ByteVector` bridge; private predicates remain live masks. Existing lowering
+alone determines whether a graph-required mask gets storage, and same-unit fan-out reuses that mask
+after its ordered store.
+
+Here, `CpuPartitionPreparer` owns vector eligibility and fallback, while executable preflight
+validates actual `BOOL` bytes before workers or writes. Scalar reference results provide the
+semantic oracle; retained Class-Files and clean-Java Vector API comparison provide structural
+evidence. Invocation-local bridge masks are neither persistent model state nor workspace. These
+historical SIMD measurements do not authorize current production defaults.
+
+The opening arrows describe mask representation changes, not new Model operations: a private
+predicate can stay in a vector mask, while a graph-visible result needs canonical Boolean bytes.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Complete

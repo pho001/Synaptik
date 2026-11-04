@@ -1,5 +1,17 @@
 # Task CPU0031: [F32](../../../../glossary.md#floating-point-precision-and-rounding) general-[scan](../../../../glossary.md#term-cumulative-scan) broadcast, SUM and [layout](../../../../glossary.md#layout) closure
 
+## Reader context — historical integration boundary
+
+Broadcasting and SUM make a general Scan's values have different shapes, so one common element count
+no longer describes every carry or intermediate. Compiler's reverse body may reduce a broadcast
+parameter's contributions back to its original shape; CPU must qualify those actual SUM/view
+operations rather than assume source forward support implies reverse closure. CPU plans each live
+intermediate cut and temporal carry before shared slot assignment. An internal derived view is an
+address mapping, not permission to accept every strided outer input. The maintained composition
+section distinguishes this historical closed FLOAT32 algebra from current ordinary-unit composition.
+
+Current reading: [Current general Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition); [Retained static Scan resources](../../../../backend-guide/cpu-backend.md#retained-static-scan-qualification-and-resources).
+
 ## Status
 
 Complete — main accepted the bounded capability on 2026-10-22, 14:38+ UTC, after final

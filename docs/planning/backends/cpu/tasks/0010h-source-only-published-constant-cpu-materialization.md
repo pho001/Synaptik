@@ -1,5 +1,17 @@
 # Task 0010H: Source-Only Published-[Constant](../../../../glossary.md#term-constant) [CPU](../../../../glossary.md#term-cpu) [Materialization](../../../../glossary.md#materialization)
 
+## Reader context — historical integration boundary
+
+A source-only published constant is a graph input with a known splat value and a requested
+publication, but no producing or consuming operation. It is not a missing CPU kernel. In this
+milestone CPU contributes byte geometry and an initializer recipe; Prepare assigns its buffer;
+Runtime's creation phase invokes that recipe once for each fresh `RunState`. ‘Once’ is per run, not
+per reusable preparation or per publication alias. The graph/descriptor supplies meaning, while each
+created CPU buffer holds actual values and is cleaned up by run/result ownership. Host snapshot
+export later reads that initialized publication; it does not initialize it or take over the buffer.
+
+Current reading: [Supported lifecycle integration](../../../../backend-guide/cpu-backend.md#supported-lifecycle-integration); [Canonical host snapshot ownership](../../../../backend-guide/cpu-backend.md#canonical-caller-owned-host-snapshots).
+
 ## Status
 
 Complete

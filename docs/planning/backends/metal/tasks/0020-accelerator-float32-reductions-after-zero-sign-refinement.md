@@ -1,5 +1,19 @@
 # Task 0020: [ACCELERATOR](../../../../glossary.md#term-accelerator) [FLOAT32](../../../../glossary.md#term-float32) Reductions After Exact-Zero Sign Refinement
 
+## Reader context
+
+Model's separate zero-sign decision made this a new reduction qualification, not a correction
+of task 0017's observed output. The refined freedom applied at the specified completed arithmetic
+result; it was not permission to alter every intermediate or bit-preserving identity case.
+
+Metal derived terms and counts from shapes, ordered axes and attributes, then prepared the
+MPSGraph route. Bound FLOAT32 buffers supplied the values. Empty-axis, equal-shape and one-term
+SUM cases preserved their required bits rather than acquiring an extra zero addition. Local
+rank-zero publication meant copying one stored value into detached host storage, not admitting
+arbitrary scalar feeds or cross-owner transfers.
+The [current reduction implementation domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+are separate from this completed profile-era checkpoint and its frozen schema identities.
+
 ## Status
 
 Complete

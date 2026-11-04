@@ -1,5 +1,14 @@
 # Task 0075: [BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT16](../../../../glossary.md#term-float16) [EXP](../../../../glossary.md#term-expx) custom route
 
+## Reader context
+
+Low EXP decodes BFLOAT16/FLOAT16 stored words into FLOAT32 working values, evaluates EXP and narrows once into the original output type. Working in FLOAT32 does not turn the low Tensor descriptor into FLOAT32; equal storage width does not make the low formats interchangeable.
+
+Metal fixes the custom route; native execution computes and writes the assigned target. Dtype-specific finite/underflow gates below are qualification evidence, not public accuracy promises or host correction. Later shared numerical source retired the separate low library; these kernel names and no-gradient limits remain historical.
+
+- [Current original-carrier decoding and publication](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Explains shared codec ownership after low-library retirement.
+- [Current fixed low route](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Locates the internal FLOAT32-step distinction.
+
 ## Status
 
 Complete — [BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT16](../../../../glossary.md#term-float16) custom [EXP](../../../../glossary.md#term-expx) implementation, source-matched [device](../../../../glossary.md#term-device) suites,

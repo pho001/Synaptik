@@ -1,5 +1,22 @@
 # Task 0080: Shared generation-time [kernel](../../../../glossary.md#kernel) method emission
 
+## Reader context
+
+`CpuClassFileKernelGenerator.emitMethods` is called while **building a Java class**, not while
+evaluating each tensor element. Its internal caller supplies a `ClassBuilder`, the class's
+declaring identity, a deterministic name prefix and checked specialization/IR facts. The method
+adds static methods to that builder and returns descriptions of the declarations it actually
+emitted. The caller still owns completing and verifying the class; the returned inventory is
+not tensor storage, a Runtime executor or a list interpreted for every step.
+
+The prefix prevents helpers for different ordinary units from colliding in one generated
+class. Direct calls in those methods must name the same declaring class and prefix, including
+loss helpers; merely renaming the entry would leave a broken internal call boundary.
+[Current Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+explains how the later composition uses ordinary helpers under one time loop. This task's
+historical entry predates controlled composition; its recorded nested-Scan rejection, retained
+bytes and consumer failures remain unchanged rather than being rewritten as current API promises.
+
 ## Status
 
 Complete — MAIN integrated the two exact reviewed source [owners](../../../../glossary.md#term-owner) after the [CPU](../../../../glossary.md#term-cpu)/[Javadoc](../../../../glossary.md#term-javadoc) gate,

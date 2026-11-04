@@ -1,5 +1,17 @@
 # Task CPU0030: [FLOAT32](../../../../glossary.md#term-float32) [pointwise](../../../../glossary.md#term-pointwise) general-[scan](../../../../glossary.md#term-cumulative-scan) forward and automatic reverse execution
 
+## Reader context — historical integration boundary
+
+General Scan repeats a captured ordinary Tensor body, passing carry state from one step to the next
+and saving only demanded emissions/residual histories. Compiler, not CPU, constructs the actual
+reverse body for automatic differentiation. CPU independently qualifies each complete
+forward/reverse body, prepares its operations once and emits a time loop; Runtime invokes that
+prepared loop with isolated run state. Body formals describe roles and shapes, not permanent step
+buffers. The FLOAT32 same-shape algebra below is the first historical vertical slice, not today's
+operator whitelist or a promise that every admitted forward has an admitted reverse.
+
+Current reading: [Current general Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition); [Retained static Scan resources](../../../../backend-guide/cpu-backend.md#retained-static-scan-qualification-and-resources).
+
 ## Status
 
 Complete — bounded [FLOAT32](../../../../glossary.md#term-float32) [pointwise](../../../../glossary.md#term-pointwise) forward/actual automatic-reverse milestone accepted by main

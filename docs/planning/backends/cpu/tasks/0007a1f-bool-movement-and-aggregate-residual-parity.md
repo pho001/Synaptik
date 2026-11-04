@@ -1,5 +1,26 @@
 # Task 0007A1F: [BOOL](../../../../glossary.md#data-type--datatype) Movement and Aggregate [Residual](../../../../glossary.md#scan-residual-port-and-history-demand) Parity
 
+## Reader context
+
+The BOOL residuals were remaining timing gaps, not values saved for differentiation. The two
+cases shared a representation rule, not a new numerical operation. STACK copied each semantic
+input occurrence into a distinct output region—even when the same source declaration appeared
+repeatedly. ANY reduced a complete logical selected-axis domain; a zero input stride meant
+repeated logical reads of the same stored truth byte, not deletion of that domain.
+
+Each emitter guarded only its frozen geometry before using a direct primitive loop; all unproved
+forms retained the existing general body. BOOL was canonical zero/one data, not arbitrary raw
+bytes. Runtime’s storage/validation responsibilities and public capability were unchanged.
+Current composition and executable explanations help distinguish repeated occurrences, repeated
+addresses, and validation of actual truth values.
+
+Current reading alongside this historical record:
+
+- [Tensor composition expressions](../../../../reference/tensor/composition.md#tensor-composition-expressions)
+  — explains ordered input occurrences and storage-free construction.
+- [CPU binding, validation, and ranges](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalexecutable)
+  — identifies current-value validation, direct invocation state, and worker/resource lifetimes.
+
 ## Status
 
 Complete

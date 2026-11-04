@@ -1,5 +1,18 @@
 # Task CPU0044: Symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) code-[shape](../../../../glossary.md#shape) optimization
 
+## Reader context — historical integration boundary
+
+The combined mode varies B and length values while retaining fixed prepared time/features. CPU's
+four repairs remove only proved repeated scalar/address setup; they do not replace actual scalar
+initializers with literal zero or move required shared-state initialization under an activity gate.
+Runtime still allocates run-owned state and the emitted body preserves saved values, contributor
+order and inactive-row behavior. Baked v3/v4 identities below identify historical generated
+variants, not today's current version. The retained comparison includes unequal generated/direct
+entry paths and explicitly leaves Java parity unresolved; the later current reference explains the
+repair without reopening its protocol.
+
+Current reading: [CPU0044 code-shape reading key](../../../../backend-guide/cpu-backend.md#cpu0044-combined-code-shape-repair); [Symbolic batch plus runtime lengths](../../../../backend-guide/cpu-backend.md#symbolic-length-scan-cpu-execution).
+
 ## Status
 
 Complete — MAIN accepted the bounded four-fix v4 repair and sole comparison on 2026-10-27 13:11 UTC. Java parity remains unresolved; [CPU](../../../../glossary.md#term-cpu) source/authority frontiers None. All four bodies consumed; no fifth/retry or automatic follow-up.

@@ -1,5 +1,26 @@
 # Task 0009B: Ordinary [Pointwise](../../../../glossary.md#term-pointwise) and CAST Structural-[Oracle](../../../../glossary.md#term-test-oracle) Closure
 
+## Reader context
+
+This task records ordinary pointwise and `CAST` closure for 845 generated rows: 665 pointwise and
+180 `CAST`, excluding 0009A's scalar-immediate/clamp forms.
+`CpuOrdinaryPointwiseCastCleanJavaOracle` supplies independently authored typed execution.
+`CpuOrdinaryPointwiseCastStructuralOracleTest` instead compares a bounded Class-File projection,
+including ordered carrier accesses, conversions, invokes, realization, and branch direction.
+Negative controls test that changed compared facts are rejected; hashes and catalog membership are
+not equivalence proof.
+
+CPU Prepare owns lowering and selection, while Runtime invokes prepared artifacts. Array and
+`MemorySegment` input/output roles belong to the typed entry boundary, including layout width and
+access direction. The codegen.emit test package owns this evidence without changing production
+capability or admission. Semantic, structural, and performance dispositions remain independent;
+recorded strategy coverage does not select production defaults.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current ordered CAST conversion meanings](../../../../reference/tensor/selection-casts.md#cast-expressions) — Explains direct rounding, saturation, bit preservation, and why conversion pairs are directional.
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+
 ## Status
 
 Complete

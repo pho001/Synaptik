@@ -1,5 +1,24 @@
 # Task 0009E1A: [Masked Reduction](../../../../glossary.md#masked-reduction) Route Decision
 
+## Reader context
+
+This task records retaining generated masked floating `SUM`/`MEAN` as one specialized family.
+`CpuMaskedReductionIr` identifies the case; `CpuMaskedReductionLowering.Geometry` resolves
+directional broadcast and addresses; `CpuMaskedReductionEmitter` uses `CpuExactSumEmitter` for exact
+accumulation. The mask is tested before data loading or classification, and only selected positions
+advance the invocation-local count used by `MEAN`.
+
+Here, CPU Prepare validates ordered data/mask/output boundaries and binds typed carrier/layout
+entries before `CpuPreparedExecutable` invokes them. Borrowed carriers remain distinct from
+range-private, run-owned exact-state scratch, which is not persistent model state. Class-File checks
+are structural oracles for entry shape and branch order; independent scalar comparisons across 180
+inventory owners supply semantic evidence.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current directional masking and selected counts](../../../../reference/tensor/masked-index-reductions.md#masked-sum-and-mean-expressions) — Explains why the mask cannot enlarge the data Shape and why excluded values never contribute.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

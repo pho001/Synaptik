@@ -1,5 +1,27 @@
 # Task 0008C: Typed Specialized-Subgraph and [Epilogue](../../../../glossary.md#term-epilogue) Recognition
 
+## Reader context
+
+This task records cold classification rather than new kernels. `CpuSpecializedSubgraph` holds four
+sealed fact variants, and `CpuSpecializedSubgraphRecognizer` associates eligible literal subgraphs
+with established baseline units. Recognition identity describes semantic topology; existing portable
+IR and specialization keys still identify generated artifacts. MATMUL facts may be inspected as
+`UNSUPPORTED_ANCHOR` but cannot enter successful preparation or authorize capability.
+
+Here, `CpuPartitionPreparer` retains the CPU 0008B execution baseline and attaches validated
+metadata. First-class softmax and normalization kinds are semantic authorities, not patterns
+inferred from similar arithmetic. Baseline snapshots act as structural execution-plan oracles;
+class-byte comparisons prove artifact reuse. Numerical oracles remain with owning execution tasks,
+and Runtime receives no recognition facts or new hot-path behavior.
+
+The recognition flow describes relationships, not a new invocation sequence. `ORDINARY_SPLIT` facts
+describe existing units; they do not fuse those units or admit an unsupported anchor.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current MATMUL-backed linear composition](../../../../reference/tensor/matmul-linear.md#linear-projection-convenience) — Distinguishes Tensor composition and visible transpose/bias boundaries from a state-owning NN layer.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

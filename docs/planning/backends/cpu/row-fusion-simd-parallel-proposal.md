@@ -1,5 +1,29 @@
 # CPU0074 proposed row-[fusion](../../../glossary.md#term-fusion) execution boundary
 
+## Reader context
+
+This packet preserves the CPU0074 selected-region design and its acceptance limits. Its internal
+declaration excerpts are not application APIs, and functional acceptance is not a timing result.
+The emitted Scan loop is the runtime caller of `StepDispatch.execute`; that dispatch lends the
+invocation's existing concurrency reservation to `CpuWorkerGroup`, waits for workers, then lets
+the generated caller merge partials and advance time. The reservation is permission to use
+worker capacity, not ownership of input values. Run-owned operand/frame arrays expose the
+same mutable arrays without copying; they must not be shared between concurrent runs or reused
+while workers still read them.
+
+To read the range rule, let $R\in\mathbb{Z}_{\ge0}$ be rows, $W\in\mathbb{Z}_{>0}$ the prepared
+maximum range count and $m\in\mathbb{Z}_{>0}$ the minimum rows per worker. The packet fixes
+$N=\min(W,\lceil R/m\rceil)$ for $R>0$ and $N=0$ for $R=0$. For $R=7$, $W=2$, $m=3$,
+$N=2$, and quotient/remainder partitioning gives ranges $[0,4)$ and $[4,7)$.
+This is integer scheduling arithmetic, not a floating-point reduction or a profitability estimate;
+grouping row contributions can change rounding as the numerical-permission section explains.
+
+The [synchronous row-region boundary](../../../architecture/runtime-prepare-backend-boundary.md#cpu0074-implemented-synchronous-row-region-exception)
+explains reservation lending and cleanup after workers stop. The
+[selected exec-v1 implementation guide](../../../backend-guide/cpu-backend.md#implemented-and-accepted-row-fusion-exec-v1)
+separates this mechanism from broader Scan admission. The frozen classes and comparison reports
+at absolute temporary paths below are unavailable to this reader revision; no experiment was rerun.
+
 ## Purpose and approval boundary
 
 This [planning](../../../glossary.md#term-planning) packet specifies one extension of CPU0073, not a new architecture authority.

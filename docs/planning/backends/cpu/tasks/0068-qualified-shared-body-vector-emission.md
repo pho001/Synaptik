@@ -1,5 +1,19 @@
 # CPU0068: Qualify shared [feature](../../../../glossary.md#term-software-feature)-[vector](../../../../glossary.md#term-vector) body emission
 
+## Reader context
+
+This superseded Draft proposed qualifying feature-lane execution, not simply enabling a
+vector opcode. Preparation must prove that every lane may read its inputs and publish its
+saved values under the enclosing Scan's activity rules. A masked result cannot repair an
+invalid read that happened first. Scalar tails, full-K contributor order and exact saved
+forward bits are separate obligations; vector TANH need not equal scalar TANH bit for bit.
+None of those generation choices by itself submits workers or creates parallel run ownership.
+
+For the existing ordinary realization, [portable MATMUL](../../../../backend-guide/cpu-backend.md#current-portable-matmul-family)
+explains vector interiors, scalar tails and range ownership. The [current Scan overview](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+is the present support entry point; the archived type names and budgets below are not current
+capability or launch authority.
+
 > Superseded by CPU0070's [replacement plan](../existing-emitter-composition-plan.md#simd-admission-and-parallel-composition-gates).
 > The original Draft below is archived, not executable. Shared existing SIMD mathematics is
 > retained; Scan SIMD admission still requires bounded authority and whole-binder qualification.

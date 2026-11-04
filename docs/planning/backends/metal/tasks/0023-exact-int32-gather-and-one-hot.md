@@ -1,5 +1,20 @@
 # Task 0023: Exact [INT32](../../../../glossary.md#data-type--datatype) [GATHER](../../../../glossary.md#gather) and ONE_HOT
 
+## Reader context
+
+There are three boundaries here: admitting descriptors, validating actual index values, and
+publishing computed results. Shapes, axis and depth described the operation; the INT32 buffer
+contents determined whether its indices were valid. Native validation happened before dispatch
+or destination writes. Java's exceptional download reconstructed a matching error message,
+not a CPU fallback result.
+
+GATHER copied selected FLOAT32 representations; ONE_HOT constructed canonical Boolean bytes.
+Neither acquired relaxed numerical semantics from a profile. Local INT32 ingress and BOOL
+publication did not themselves authorize cross-owner transfer or the generated scatter needed
+for backward execution.
+The [current exact indexing and movement domain](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection)
+connects this original forward slice to later typed routes without expanding its historical proof.
+
 ## Status
 
 Complete

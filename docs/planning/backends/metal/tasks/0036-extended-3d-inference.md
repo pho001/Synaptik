@@ -1,5 +1,18 @@
 # Task 0036: Extended 3D [Inference](../../../../glossary.md#term-inference)
 
+## Reader context
+
+Only bias-free accelerator CONV3D was the smallest candidate; Pool3d was assessed separately
+and window unfold/fold remained other work. NCDHW names batch, channel, depth, height and width
+axes; OIDHW names the weight's output-channel, grouped-input-channel and spatial axes. Those
+orders describe tensors, not a proof of the arithmetic used for their stored values.
+
+Model owned geometry, padding and numerical meaning; Metal's direct descriptor mapping established
+structural compatibility only. A higher-dimensional pooling API with a singleton dimension did
+not by itself prove the required 3D pooling behavior. No device experiment ran for this task.
+The [current 3D and selected-derivative support ledger](../../../../backend-guide/production-support.md#metal-production-target)
+provides the later bounded qualification path while preserving these original independent blockers.
+
 ## Status
 
 Blocked

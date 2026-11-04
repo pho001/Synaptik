@@ -1,5 +1,18 @@
 # Task CPU0025 Scatter [validation](../../../../glossary.md#term-validation) [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [rank](../../../../glossary.md#term-rank) repair
 
+## Reader context — historical integration boundary
+
+This failure concerns validator traversal state, not scatter's numerical kernel. Indices and updates
+can have different logical ranks, while one reusable coordinate array is large enough for both.
+CPU's addressing helper must use the currently selected extents/strides to decide how many
+coordinates participate; scratch capacity is only storage capacity, not active geometry. The
+consumer's complete index validation still runs after producers and before scatter writes.
+Compiler-generated gradients are real framework callers of this path: a Gather adjoint can supply
+exactly the rank combination that exposed the defect without an application directly invoking a
+validator.
+
+Current reading: [Scatter validation and update domains](../../../../backend-guide/cpu-backend.md#current-functional-scatter-family); [Metadata binding versus produced-value checks](../../../../backend-guide/cpu-backend.md#binding-metadata-and-validating-produced-values).
+
 ## Status
 
 Complete — independent Class C APPROVE, zero findings, and main's combined native root gate passed (2026-10-19).

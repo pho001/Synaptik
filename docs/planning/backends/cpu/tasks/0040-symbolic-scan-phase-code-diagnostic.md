@@ -1,5 +1,18 @@
 # Task CPU0040: [Symbolic Scan](../../../../glossary.md#symbolic-scan) phase and optimized-code diagnostic
 
+## Reader context — historical integration boundary
+
+This diagnostic separates forward execution, Compiler-generated reverse and their joint workload
+using the same prepared family. dH is reverse carry, dW the weight-gradient contribution and dX the
+input-gradient contribution; these are real consumers of saved forward values, not replayed
+activations. Timing localizes the observed excess to reverse, while optimized-code inspection asks
+which checks/dataflow remain. Neither a C2 log entry nor decoded instructions proves which
+instruction every invocation executed or how many cycles one check caused. The frozen test-only
+scope and unresolved original issue below are part of the result, not omissions to fill with a
+speculative fix.
+
+Current reading: [Symbolic-batch Scan execution](../../../../backend-guide/cpu-backend.md#symbolic-scan-cpu-execution).
+
 ## Status
 
 Complete — MAIN accepted the bounded diagnostic only after final independent approval.

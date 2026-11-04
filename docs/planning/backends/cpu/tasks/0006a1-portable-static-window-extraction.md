@@ -1,5 +1,26 @@
 # Task 0006A1: Portable Static Window Extraction
 
+## Reader context
+
+Unfolding extracts sliding windows into an explicit result; it is not overlap accumulation or
+pooling. Model attributes described the axis or image-window geometry, and CPU analysis derived
+compact source mappings before assigning the input and distinct output buffers. The generated
+scalar body copied each selected representation, including the exact padding bits required by
+the chosen UNFOLD2D attribute form.
+
+The image notation NCHW means batch, channel, height, and width; the columns result groups
+window positions for later consumers. The original BFLOAT16 support was raw movement, not newly
+granted arithmetic, and the historical six-type/three-floating-type matrix remains below.
+Current window-transform semantics explain the mapping independently of CPU’s selected carriers
+and strategy.
+
+Current reading alongside this historical record:
+
+- [Window-transform expressions](../../../../reference/tensor/windows.md#window-transform-expressions)
+  — distinguishes extraction, columns geometry, and overlap accumulation.
+- [CPU partition and unit lowering](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternallowering)
+  — explains virtual intermediates, boundary stores, and family-specific mappings.
+
 ## Status
 
 Complete

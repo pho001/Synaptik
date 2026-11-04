@@ -1,5 +1,28 @@
 # Task 0008A: Portable Channels-First Dimensional [Convolution](../../../../glossary.md#term-channels-first-convolution-layers) Closure
 
+## Reader context
+
+This task records two different dimensional-convolution routes. `CpuConv1dCompositionLowering`
+recognizes the literal two-expansion, Conv2d, squeeze graph and delegates equivalent
+singleton-height access geometry to the existing Conv2d unit. Virtual intermediate graph values
+receive no separate buffers; original rank-three carrier offsets and strides remain the storage
+boundary. Conv3d instead uses `CpuConv3dIr`, `CpuConv3dLowering`, and `CpuConv3dEmitter` for a
+first-class rank-five occurrence.
+
+Here, `CpuConv3dReferenceKernel` supplies the independent semantic and performance oracle, while the
+generated-form ledger and Class-File scans provide structural coverage evidence. Analysis declares
+external buffers and zero workspace; cold binding validates carriers and workers. Runtime retains
+publication ownership, and parallel work divides complete output cells rather than partial sums.
+
+The two Conv1d expansion branches in the diagram are graph dependencies, not separate convolution
+calls. Virtual rank edits preserve the checked storage mapping without allocating intermediate
+values.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current visible Conv1d composition](../../../../reference/tensor/convolution.md#grouped-ncw-conv1d-composition) — Shows why singleton-height rank edits surround Conv2d rather than define another operation kind.
+- [current first-class NCDHW convolution meaning](../../../../reference/tensor/convolution.md#grouped-ncdhw-conv3d-expressions) — Keeps the rank-five geometry and first-class operation distinct from the Conv1d composition.
+
 ## Status
 
 Complete

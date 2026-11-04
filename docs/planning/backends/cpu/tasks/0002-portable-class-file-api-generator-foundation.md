@@ -1,5 +1,26 @@
 # Task 0002: Portable [Class-File API](../../../../glossary.md#term-class-file-api) Generator Foundation
 
+## Reader context
+
+This generator checkpoint separated writing executable code from executing a Tensor operation. A
+family emitter supplied generation-time instructions to the Java Class-File API; the generator
+verified the resulting bytes, defined a hidden JVM class, and resolved its exact static
+`MethodHandle`. The signature and build snippets describe that historical internal seam, not a
+public Tensor execution API.
+
+A specialization described the types and facts that changed generated code. Actual arrays,
+segments, and per-run values were invocation arguments, not cached Tensor results. The synthetic
+probes demonstrated this mechanism without establishing Model-operation support. Parallel probes
+borrowed the worker infrastructure outside the generated class; the class itself did not own
+threads or their cleanup. This record predates the later partition architecture reset.
+
+Current reading alongside this historical record:
+
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+- [CPU preparation/run handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages)
+  — names the participants and separates descriptions, assigned positions, and live run memory.
+
 ## Status
 
 Superseded

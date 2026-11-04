@@ -1,5 +1,17 @@
 # Task 0019: [CPU](../../../../glossary.md#term-cpu) [Partition](../../../../glossary.md#partition) Size Independent of [Fusion](../../../../glossary.md#term-fusion)-Unit Size
 
+## Reader context — historical integration boundary
+
+Planning's CPU partition is an ownership region; a CPU computation unit is a smaller execution group
+inside that region. A long all-CPU graph need not change backend owner just because a single fused
+loop has a size budget. CPU decomposes it into a stable sequence of legal units, shared Prepare
+assigns their declared buffers/workspaces, and Runtime invokes the resulting composite recipe.
+Removing the partition admission ceiling therefore does not remove per-unit fusion budgets or make
+complete-plan enumeration exhaustive for long graphs. Internal split buffers hold produced values
+between units; external borrowed inputs remain owned by the component that supplied them.
+
+Current reading: [Partition and computation-unit boundaries](../../../../backend-guide/cpu-backend.md#general-partition-dag-and-bounded-pointwise-fusion); [Complete-plan tuning collaboration](../../../../backend-guide/cpu-backend.md#cold-complete-plan-candidate-collaboration).
+
 ## Status
 
 Complete

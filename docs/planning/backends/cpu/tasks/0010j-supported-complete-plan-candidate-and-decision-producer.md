@@ -1,5 +1,18 @@
 # Task 0010J: Supported [Complete-Plan Candidate](../../../../glossary.md#complete-plan-candidate) and Decision [Producer](../../../../glossary.md#term-producer)
 
+## Reader context — historical integration boundary
+
+‘Complete plan’ here means a complete alternative inside one retained CPU partition, not a new
+Compiler graph, Planning owner assignment or mixed-backend model. CPU combines an already legal
+fused/split unit topology with an eligible direct/copied representation while keeping the
+authenticated Phase-1 route decision fixed. The outer Engine/tuning collaboration compares complete
+trials; CPU returns fresh recipes and Runtime only executes the chosen one. Candidate handles own no
+physical workspace, and session-scoped encoded decisions are not persistent executable artifacts.
+The historical artifact-consuming preparation flow below is distinct from today's shared-Prepare
+projection path.
+
+Current reading: [Complete-plan tuning collaboration](../../../../backend-guide/cpu-backend.md#cold-complete-plan-candidate-collaboration).
+
 ## Status
 
 Complete

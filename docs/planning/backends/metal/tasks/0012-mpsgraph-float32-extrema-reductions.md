@@ -1,5 +1,20 @@
 # Task 0012: [MPSGraph](../../../../glossary.md#term-mpsgraph) [FLOAT32](../../../../glossary.md#term-float32) [Extrema](../../../../glossary.md#saturation-pole-and-extremum) Reductions
 
+## Reader context
+
+A selector advertised as NaN-propagating did not prove the full minimum/maximum contract.
+This gate also tested signed-zero preference and represented subnormal ordering; failures there
+stopped implementation despite passing NaN classification.
+
+Reduction axes and Shape described the grouping, while raw input and output words established
+the value behavior. An empty-axis identity would preserve bits without arithmetic. The proposed
+rank-zero publication was a backend-local result path, not permission to transfer arbitrary
+scalars between owners. Model defined the result obligations; Metal could not relax them because
+the API had a convenient selector.
+The [current exact and numerical reduction domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+provide the present reading path. The later-frontier statements below belong to this blocked
+task's own chronology.
+
 ## Status
 
 Blocked

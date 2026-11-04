@@ -1,5 +1,17 @@
 # Task CPU0028 Fixed recurrent [scan](../../../../glossary.md#term-cumulative-scan) forward execution
 
+## Reader context — historical integration boundary
+
+A fixed recurrent occurrence packages one Model-defined RNN, GRU or LSTM recurrence with ordered
+state, weight, bias and length inputs. Engine/Prepare ask CPU to realize that occurrence once;
+Runtime then invokes a reusable direct Java kernel with run-owned outputs and scratch. The INT64
+lengths vector controls which time steps each row visits and must be checked after any producer has
+filled it, before scan writes. Gradient flags describe graph metadata here, not an implemented
+backward kernel. This milestone's canonical FLOAT32-only domain is historical; the maintained
+fixed-recurrent section describes the later type/layout coverage separately from general Scan.
+
+Current reading: [Fixed recurrent execution](../../../../backend-guide/cpu-backend.md#fixed-recurrent-forward-execution).
+
 ## Status
 
 Complete — main accepted the independently approved implementation and root gate on 2026-10-20.

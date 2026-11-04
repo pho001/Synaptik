@@ -1,5 +1,14 @@
 # Task 0071: Authenticated [Metal](../../../../glossary.md#term-metal) Anchor-[Epilogue](../../../../glossary.md#term-epilogue) [Fusion](../../../../glossary.md#term-fusion) and Structural Tracing
 
+## Reader context
+
+An anchor is the MATMUL/Conv2d whose result feeds a bounded suffix; an epilogue is the ordered scalar/add/activation work absorbed into that native step. Metal can remove intermediate buffers only if values are private: no public target or other consumer needs them. An external ADD operand remains a distinct input, unlike Conv2d's intrinsic channel bias.
+
+Preparation authenticates the recipe; native code rechecks and runs it. Trace reports selected structure rather than choosing it or certifying quality. Versions/profiles below are historical; current low-containing partitions retain a separate no-fusion restriction.
+
+- [Current anchor recognition and admission](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection) — Locates suffix privacy and operand-order conditions.
+- [Current low and fixed-route boundaries](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Prevents interpreting fusion as a runtime low-route option.
+
 ## Status
 
 Complete.

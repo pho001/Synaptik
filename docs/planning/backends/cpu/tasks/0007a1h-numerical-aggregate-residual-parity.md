@@ -1,5 +1,27 @@
 # Task 0007A1H: Numerical Aggregate [Residual](../../../../glossary.md#scan-residual-port-and-history-demand) Parity
 
+## Reader context
+
+The residuals here were remaining timing gaps, not saved differentiation values. Both rows used
+exact run-owned state but different mathematics. N-MEAN-GENERAL retained signed exact-sum limbs
+and the declared divisor; N-PROD-MULTI retained significand-product limbs and exponent handling.
+`CpuAggregateEmitter` specialized only the frozen geometry after complete guards, while the
+exact-state emitters and their ownership contracts stayed unchanged. A limb is a primitive word
+of numerical state, not a separate Tensor or object per term.
+
+The guarded mean preserved the workspace state and final rounding; the product preserved factor
+order and the existing fallback. These historically exact numerical targets should not be
+inferred from the current public aggregate API alone. Current reduction semantics and generation
+ownership provide the comparison without replacing the recorded formulas, timings, or schema-36
+evidence.
+
+Current reading alongside this historical record:
+
+- [Numeric aggregate expressions](../../../../reference/tensor/reductions.md#numeric-aggregate-expressions)
+  — distinguishes output-shape derivation, selected domains, and current numerical semantics.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

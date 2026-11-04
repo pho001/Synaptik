@@ -1,5 +1,20 @@
 # Task 0021: [ACCELERATOR](../../../../glossary.md#term-accelerator) [FLOAT32](../../../../glossary.md#term-float32) [Rank-Two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) After Exact-Zero Sign Refinement
 
+## Reader context
+
+This completed successor used a separately refined Model contract and fresh evidence; task
+0018's blocked result stayed historical. Zero-sign freedom concerned the completed contraction,
+not arbitrary changes to individual products or intermediate sums.
+
+Compiler generated each operand derivative from a supplied output-sensitivity seed; Metal
+authenticated the local transpose edges and executed the resulting ordinary graphs. Shapes
+described their dimensions, whereas operand and seed buffers contained the numerical values.
+A local transpose was not a hidden packing stage, and this seeded proof did not establish every
+training graph. The evidence-remediation chain below also distinguishes actual device-enabled
+passes from ordinary-build skips.
+The [current admission and matrix-multiplication boundary](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection)
+provides the later implementation context without merging those historical receipts.
+
 ## Status
 
 Complete

@@ -1,5 +1,13 @@
 # Task 0054: Current [ACCELERATOR](../../../../glossary.md#term-accelerator) 115-Kind Completeness Audit
 
+## Reader context
+
+The counted unit is an operation-kind constant, not an executable graph, signature, dtype or shader. A kind counts true here if at least one bounded occurrence was supported at the audit base; other descriptor combinations still needed separate admission. Likewise, 16 CLAMP-inclusive candidates do not mean 16 distinct kinds.
+
+The auditor inspected Model, Compiler-generated graphs and Metal provider/schema without execution. “Current” below is relative to the recorded revision. Later capability/profile changes do not rewrite this inventory; use live occurrence admission rather than carrying historical totals into a new integration.
+
+- [Current occurrence-level admission](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection) — Explains why kind counts are weaker than complete graph or gradient support.
+
 ## Status
 
 Complete

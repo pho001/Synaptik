@@ -1,5 +1,19 @@
 # Task 0003: Single-NEG Custom [Metal](../../../../glossary.md#term-metal) [Kernel](../../../../glossary.md#kernel) Route
 
+## Reader context
+
+The second route changed how an already-supported negation ran, not which backend owned it.
+Metal analysis selected either its own compiled shader pipeline or MPSGraph before declaring
+resources. A larger eligible negation choosing MPSGraph was planned selection, not recovery after
+a failed custom invocation. The unsigned grid-index limit explained the custom route's bound.
+
+The prepared execution owned the reusable pipeline; Runtime borrowed input buffers and owned
+the run's outputs. Only the MPSGraph alternative needed the address workspace. Shapes and element
+counts selected the route, not the input's numerical contents.
+The [current route-selection explanation](../../../../explanation/packages/metal.md#2-lower-once-declare-resources-then-compile)
+places this singleton optimization beside whole-program routes. Nothing in the historical
+completion record below is a measured speed comparison.
+
 ## Status
 
 Complete

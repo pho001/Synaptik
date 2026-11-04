@@ -1,5 +1,25 @@
 # [CPU](../../../../glossary.md#term-cpu) Task 0008I: Portable [Loss](../../../../glossary.md#loss)-Family Execution
 
+## Reader context
+
+This task records generated MSE, dense-target categorical, and index-target categorical loss
+execution, with completion explicitly separated from the waived full performance gate.
+`CpuLossLowering` proves static descriptors and cold geometry; `CpuLossIr` identifies emitted forms;
+`CpuLossEmitter` produces typed loops. `CpuLossInputValidator` owns pre-write index checks.
+`CpuLossReferenceKernel` is an evidence oracle, not Runtime fallback; equivalent timing requires the
+same geometry-bound traversal, not fixture-literal trip counts.
+
+Here, each loss is an atomic PartitionDag numerical barrier. `NONE` ranges own independent elements
+or samples; `SUM` and `MEAN` use one complete ordered range. Shared Prepare assigns declared buffers
+with zero workspace, and Runtime invokes prepared state. Gradient eligibility is descriptor
+metadata, not gradient storage or training execution. CPU 0009 receives missing performance
+evidence, not a parity claim.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current MSE input and reduction roles](../../../../reference/tensor/statistics-losses.md#mean-squared-error-loss-expressions) — Explains prediction versus target, exact-shape requirements, and NONE/SUM/MEAN result boundaries.
+- [current dense and index categorical targets](../../../../reference/tensor/statistics-losses.md#categorical-cross-entropy-with-logits-expressions) — Distinguishes target data, class-axis semantics, and typed ignore-index metadata.
+
 ## Status
 
 Complete, with the corrected full performance gate waived/closed by project decision.

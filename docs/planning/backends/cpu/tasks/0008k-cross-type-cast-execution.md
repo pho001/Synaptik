@@ -1,5 +1,24 @@
 # [CPU](../../../../glossary.md#term-cpu) Task 0008K: Cross-Type CAST Execution
 
+## Reader context
+
+This task records generated scalar `CAST` execution for all 36 ordered `CAST` pairs, including
+identities that preserve represented bits. Model 0025L supplies the semantic oracle;
+`CpuCastEmitter` constructs conversion bytecode during generation rather than serving as a runtime
+helper. `CpuPartitionPreparer` keeps cross-type `CAST` scalar-only, and each fused `CAST` commits
+its target representation before another consumer.
+
+Here, descriptors establish types and static access geometry; actual array or `MemorySegment`
+contents receive executable preflight, including canonical `BOOL` validation. Structural Class-File
+checks and clean-Java comparison complement semantic tests without replacing them.
+`CpuPartitionFinalizer` realizes artifacts after assignment; Runtime invokes immutable prepared
+execution. `CAST` introduces no workspace or persistent model state.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current ordered CAST conversion meanings](../../../../reference/tensor/selection-casts.md#cast-expressions) — Explains direct rounding, saturation, bit preservation, and why conversion pairs are directional.
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+
 ## Status
 
 Complete

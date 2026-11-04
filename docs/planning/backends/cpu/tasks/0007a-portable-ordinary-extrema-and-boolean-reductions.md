@@ -1,5 +1,25 @@
 # Task 0007A: Portable Ordinary [Extrema](../../../../glossary.md#saturation-pole-and-extremum) and [Boolean](../../../../glossary.md#data-type--datatype) Reductions
 
+## Reader context
+
+Ordinary aggregate geometry associates each output cell with all input positions selected for
+its reduction. CPU analysis derived that geometry once, and scalar or parallel-scalar execution
+assigned complete output cells to ranges. No worker computed a partial reduction that another
+worker later combined; extrema and Boolean rows therefore needed no accumulator workspace here.
+
+An empty selected domain still had a result identity when an output cell existed, while an empty
+output domain had no cell to write. Those are different cases. This checkpoint’s generated entry
+called a CPU-owned static body rather than containing the reduction loop; later parity work
+replaced that bridge. The current aggregate reference distinguishes axis removal/retention and
+public expression descriptions from actual value reduction.
+
+Current reading alongside this historical record:
+
+- [Numeric aggregate expressions](../../../../reference/tensor/reductions.md#numeric-aggregate-expressions)
+  — distinguishes output-shape derivation, selected domains, and current numerical semantics.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

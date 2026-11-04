@@ -1,5 +1,19 @@
 # Task CPU0063: Clean [Scan](../../../../glossary.md#term-cumulative-scan) Java with generated entry [ABI](../../../../glossary.md#term-application-binary-interface-abi)
 
+## Reader context
+
+This experiment asks whether E's loop/dataflow organization can be expressed at G7's entry
+boundary. J4 receives invocation data through the same segment/pack/range ABI as generated code;
+it is not allowed to call E as a helper or bake one observed B/T. The external launcher owns the
+independent writable test resources and supplies their references to each target. Runtime and
+Engine are not measured participants. A successful experiment informs a separately authorized
+generator change; it does not itself install a runtime javac pipeline.
+
+The [current shared binding explanation](../../../../backend-guide/cpu-backend.md#common-rank-two-matmul-binding)
+distinguishes generation-time callbacks, packed numeric geometry and JVM local allocation.
+The [current Scan overview](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+is the navigation point for present support rather than this fixed experimental domain.
+
 ## Status and goal
 
 Complete; bounded J4 experiment and independent review accepted on 2026-10-28. MAIN verified accepted CPU0062, base/empty index, dependencies and inactive conflicts before launch. Class A: align J4 with unchanged E, no production change. CPU0062 slots remain closed; subsequent generator work required and received separate CPU0064 authorization.

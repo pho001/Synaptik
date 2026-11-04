@@ -1,5 +1,14 @@
 # [Metal](../../../../glossary.md#term-metal) 0078 — Repair native boundaries and exact low-value behavior
 
+## Reader context
+
+These repair different boundaries: WHERE needs complete per-role shape metadata; untouched ScatterAdd cells need raw copying; scan initialization uses the actual first contributor; native buffers need their exact creating context. None relaxes numerical meaning or adds an operation. Same physical GPU does not mean same native owner.
+
+Run calls borrow authenticated inputs and write assigned outputs only after validation. A context identity token must survive comparison without retaining or authenticating a reused context address. Historical totals/source receipts remain those of this repair; the current resource explanation is separate.
+
+- [Current exact creating-context lifetime](../../../../backend-guide/metal-backend.md#completion-and-device-topology) — Explains same-device versus same-context ownership.
+- [Current failure-before-write authentication](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Connects metadata and raw-copy repairs to native validation.
+
 ## Status
 
 Complete

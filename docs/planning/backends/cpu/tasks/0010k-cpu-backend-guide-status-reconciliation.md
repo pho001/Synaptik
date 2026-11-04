@@ -1,5 +1,18 @@
 # Task 0010K: [CPU](../../../../glossary.md#term-cpu) [Backend](../../../../glossary.md#backend) Guide Status Reconciliation
 
+## Reader context — historical integration boundary
+
+This is a documentation reconciliation record, not a new tuning implementation. Its participants
+have separate jobs: Config expresses the request, Engine composes preparation and representative
+trial execution, CPU produces and validates candidate choices, tools/tuning measures and manages
+cache selection, and Runtime executes only the final recipe. Calling CPU's service-provider
+interface directly is therefore not the ordinary application workflow. Read its corrected/future
+status statements against their recorded date; the maintained collaboration sections below explain
+the corresponding boundaries without turning this task's historical limitations into current global
+capability limits.
+
+Current reading: [Local-workload tuning collaboration](../../../../backend-guide/cpu-backend.md#cold-local-workload-tuning-collaboration); [Complete-plan tuning collaboration](../../../../backend-guide/cpu-backend.md#cold-complete-plan-candidate-collaboration).
+
 ## Status
 
 Complete

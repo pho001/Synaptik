@@ -1,5 +1,18 @@
 # Task CPU0054: Verify current [Scan](../../../../glossary.md#term-cumulative-scan) ClassFile and historical [ABI](../../../../glossary.md#term-application-binary-interface-abi)
 
+## Reader context
+
+The probe in this record compares three different questions: generated-code identity, call
+compatibility and computed values. A changed binary class name can change a whole-file hash
+without changing arithmetic instructions; matching instructions alone cannot prove that a
+caller supplies the correct argument order or scratch span. The off-tree probe owns separate
+writable resources for each diagnostic target and calls old code only through the explicit
+diagnostic seam. It does not admit an old ClassFile into the production artifact store.
+
+The [current generated-byte explanation](../../../../backend-guide/cpu-backend.md#generated-class-byte-persistence-and-evidence)
+separates class bytes, hidden-class reuse and JIT code. The [current Scan composition overview](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+locates body reuse without extending this witness's ABI or numerical evidence to other shapes.
+
 ## Status
 
 Complete — MAIN accepted the untimed verification on 2026-10-28 after independent actual-result

@@ -1,5 +1,18 @@
 # Task CPU0047: Absorb private [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) transposes into [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) reads
 
+## Reader context
+
+Here “private” means that CPU analysis has proved no other consumer needs the transpose result.
+`CpuMatmulLowering` gives the existing MATMUL emitter the original backing value with swapped
+read strides; it does not transfer ownership or expose a public alias. The Tensor expression
+still describes a transpose, but the selected executable needs no separate transpose buffer.
+Public, saved or multiply used results retain their stores. OpenBLAS is a different callee:
+its canonical-input requirement can still require a declared copy.
+
+The current [private-transpose explanation](../../../../backend-guide/cpu-backend.md#private-transpose-inputs-of-matmul)
+shows backing addresses, before/after resources and the native-copy limit. The source-array
+mistake in the Result is about `fromFlatArray` copying input values, not failed prepared reuse.
+
 ## Status
 
 Complete — MAIN accepted the bounded repair and targeted review on 2026-10-28.

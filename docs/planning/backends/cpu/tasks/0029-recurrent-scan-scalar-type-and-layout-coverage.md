@@ -1,5 +1,17 @@
 # Task CPU0029: Recurrent [scan](../../../../glossary.md#term-cumulative-scan) [scalar](../../../../glossary.md#term-scalar) type and [layout](../../../../glossary.md#layout) coverage
 
+## Reader context — historical integration boundary
+
+This extends the fixed RNN/GRU/LSTM family, not the captured-body general Scan family. A Tensor
+descriptor supplies logical coordinates and strides; borrowed heap/native storage contains values at
+those addresses. Strided or repeated read views therefore need exact span checks without a carrier
+copy, while outputs remain distinct dense run-owned buffers. Low-precision inputs work at the
+specified FLOAT32 sites and narrow stored state as recorded; later time steps read that stored
+state. Runtime owns each run's writable state, not the input owner or reusable recipe. The timing
+comparison includes different route/oracle entry checks and cannot isolate kernel speed by itself.
+
+Current reading: [Fixed recurrent execution](../../../../backend-guide/cpu-backend.md#fixed-recurrent-forward-execution).
+
 ## Status
 
 Complete — accepted 2026-10-21 after independent Class C code/docs APPROVE and

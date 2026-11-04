@@ -1,5 +1,26 @@
 # Task 0007A1N: Multi-[axis](../../../../glossary.md#term-axis) MIN [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
 
+## Reader context
+
+The final residual was a remaining timing gap, not saved differentiation state. Its case
+selected a minimum over axes zero and two while retaining the middle axis. Each range ordinal
+owned one complete middle-axis output cell; it visited the selected outer and inner coordinates
+in the recorded order. For BFLOAT16, comparison used the represented value, but the winner’s raw
+short bits were preserved, including first-NaN and signed-zero selection.
+
+The aggregate emitter guarded the exact segment-input/strided-short-output geometry before
+writing; other forms retained the existing general body. No exact-sum scratch, partial
+reduction, or combine phase was needed for selecting a winner. Current multi-axis semantics
+explain how axes determine domains and retained dimensions, while the generator explanation
+locates the bounded realization rather than promising universal parity.
+
+Current reading alongside this historical record:
+
+- [Multi-axis reduction expressions](../../../../reference/tensor/reductions.md#multi-axis-and-statistical-reduction-expressions)
+  — explains selected-axis membership and retained dimensions.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

@@ -1,5 +1,17 @@
 # Task 0017: Explicit [ACCELERATOR](../../../../glossary.md#term-accelerator) Numerical-Profile Realization
 
+## Reader context — historical integration boundary
+
+This task records an earlier numerical-profile interface: allowing the accelerator result set did
+not force CPU to use relaxed arithmetic. CPU capability/preparation accepted the request, retained
+it in identity, and executed the same strict realization; Runtime did not interpret profile policy.
+That is the meaning of parity in this record, not proof that every native provider has identical
+arithmetic. The profile names, identity versions and test outputs below remain historical. The
+maintained integration reference now describes a profile-free CPU composition, so these old request
+types are not instructions to add a profile parameter to today's API.
+
+Current reading: [Supported lifecycle integration](../../../../backend-guide/cpu-backend.md#supported-lifecycle-integration).
+
 ## Status
 
 Complete

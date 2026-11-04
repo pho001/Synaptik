@@ -1,5 +1,26 @@
 # Task 0007A1L: [Pointwise](../../../../glossary.md#term-pointwise) general-loop [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
 
+## Reader context
+
+The pointwise residual was a remaining timing gap, not saved differentiation state. Its row
+fused FLOAT32 DIV, SIGMOID, and MUL but still had broadcast and strided boundaries. The class
+generator recognized the exact structural instruction/carrier pattern; the loop emitter checked
+concrete geometry and range state before selecting a bounded direct cursor loop. All other cases
+retained the existing general-long state machine.
+
+The optimization preserved each arithmetic site: FLOAT32 division, the stable sign-dependent
+sigmoid using binary64 exponential and final narrowing, then FLOAT32 multiplication. Fusing
+storage did not authorize changing that sequence or sharing run values. Runtime still bound
+current inputs and the distinct output. Current typed IR and generation ownership explain the
+division between code-shaping facts and per-invocation geometry.
+
+Current reading alongside this historical record:
+
+- [CPU typed intermediate representation](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalir)
+  — distinguishes code-shaping structure from concrete geometry and live values.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

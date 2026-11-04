@@ -1,5 +1,26 @@
 # Task 0007A1B: Scatter Algorithmic Parity
 
+## Reader context
+
+The expensive old traversal reconsidered the whole update domain for each result coordinate.
+This task made scratch-free scatter copy each owned base interval once, then visit updates in
+canonical order and apply only targets belonging to that range. A worker owned result positions;
+it could inspect an update without owning the destination selected for another range. That
+preserved race-free functional output without mutating input data.
+
+Floating MUL retained its separately grouped historical exact-product path and scratch contract.
+Replacement duplicate validation also remained mandatory in public execution; the raw-entry
+bypass observations below are not permission to accept duplicate replacements. The current
+scatter reference explains destination membership and multiplicity, while the executable
+explanation locates validation before numerical writes.
+
+Current reading alongside this historical record:
+
+- [Scatter Elements and current reduction semantics](../../../../reference/tensor/scatter.md#scatter-elements-expressions)
+  — explains base/index/update roles, duplicate membership, and the present numerical contract.
+- [CPU binding, validation, and ranges](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalexecutable)
+  — identifies current-value validation, direct invocation state, and worker/resource lifetimes.
+
 ## Status
 
 Complete

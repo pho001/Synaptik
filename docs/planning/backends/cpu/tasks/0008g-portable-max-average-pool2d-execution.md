@@ -1,5 +1,24 @@
 # [CPU](../../../../glossary.md#term-cpu) Task 0008G: Portable Max/Average Pool2d Execution
 
+## Reader context
+
+This task records portable generated execution for static NCHW max and fixed-divisor average Pool2d.
+`CpuPool2dLowering` validates descriptors, geometry, layouts, and ranges; `CpuPool2dIr` captures
+code-shaping facts; `CpuPool2dEmitter` produces the `DIRECT_SCALAR` body. `CpuPool2dReferenceKernel`
+is the semantic and performance oracle, not a Runtime fallback. Max selects a represented value,
+whereas average uses its specified accumulator and explicit signed-zero policy.
+
+Here, PartitionDag supplies authoritative structure, not numerical expected results. CPU analysis
+declares only input/output buffers before shared Prepare assigns slots; finalization binds the
+selected artifact. Runtime invokes typed carriers and primitive geometry. The CPU executable borrows
+its supplied workers to divide complete output cells, with no persistent model state, workspace,
+pooling fusion, or input materialization.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current fixed-divisor Pool2d meaning](../../../../reference/tensor/pooling.md#nchw-average-pooling-expressions) — Explains that all kernel positions, including padding, count in average pooling.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete.

@@ -1,5 +1,17 @@
 # Task CPU0026: Stacked [LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) cold preparation diagnostic
 
+## Reader context — historical integration boundary
+
+The measured caller is a diagnostic harness using public Model/Engine composition, not the cached
+`model.train` workflow. Building an LSTM expression describes a graph; compile constructs logical
+forward/seeded graphs; CPU preparation analyzes their unit topology before any training kernel or
+optimizer update runs. A stack sample inside `topological` therefore locates cold analysis, not hot
+recurrent arithmetic. The unfinished combined-prepare duration is censored at the watchdog deadline,
+not a completed latency. Reconstructed values, temporary evidence paths and recorded samples below
+retain their stated limits; no universal complexity or historical regression claim is added here.
+
+Current reading: [Partition and computation-unit boundaries](../../../../backend-guide/cpu-backend.md#general-partition-dag-and-bounded-pointwise-fusion).
+
 ## Status
 
 Complete — Pasteur final [binding](../../../../glossary.md#term-binding) APPROVE, zero findings; main accepted the diagnostic on 2026-10-20. Any fix requires separate authorization.

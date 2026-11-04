@@ -1,5 +1,14 @@
 # Task 0073: Custom-Only [Metal](../../../../glossary.md#term-metal) Low-[Precision](../../../../glossary.md#term-precision) Cutover
 
+## Reader context
+
+A whole-partition route is not an individual native step. A BFLOAT16/FLOAT16-containing partition is fixed to `CUSTOM_PROGRAM`; a separately typed FLOAT32 step can still use an approved internal MPSGraph boundary. That neither lets MPSGraph consume low-valued data nor substitutes FLOAT16 for BFLOAT16.
+
+Metal preparation owns routing, the executable resource owns native lifetime, and trace reports logical boundary types rather than an inferred accumulator policy. Removing the old certificate path did not remove Model working-precision rules. Test totals and the heap override below retain their stated shared-tree limits; they are not a fresh stock-build claim.
+
+- [Current low-containing partition route](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Explains whole route versus internal FLOAT32 steps.
+- [Current shared original-carrier implementation](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Locates later source evolution without reviving certificates.
+
 ## Status
 
 Complete — the [BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT16](../../../../glossary.md#term-float16) (16-bit [floating-point](../../../../glossary.md#term-floating-point)) cutover, integrated [validation](../../../../glossary.md#term-validation), and final

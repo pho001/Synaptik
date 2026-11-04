@@ -1,5 +1,19 @@
 # Task 0037: Profile-Common [Canonical](../../../../glossary.md#term-canonical-form) [FLOAT32](../../../../glossary.md#term-float32) No-Grad FORWARD RNN_TANH
 
+## Reader context
+
+This recurrent neural network (RNN) candidate was one operation with two mandatory outputs,
+not a host loop invoking a child graph each time step. Shapes described time, batch, input
+and hidden dimensions. The validLengths buffer instead supplied execution-time values that
+could change without rebuilding the prepared work.
+
+Model required invalid transitions not to run; calculating everything and masking published
+results afterward would not satisfy that rule, especially with exceptional inactive inputs.
+Compiler captured the complete occurrence without reading lengths. Metal would need to validate
+all lengths and storage access before mutation, but this task implemented no such route.
+The [current fixed-recurrent and runtime-length qualification](../../../../backend-guide/production-support.md#metal-production-target)
+distinguishes later evidence from this original forward-only, no-probe assessment.
+
 ## Status
 
 Blocked

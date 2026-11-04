@@ -1,5 +1,20 @@
 # Task 0038: Current [Metal](../../../../glossary.md#term-metal) Profile Capability [Manifest](../../../../glossary.md#term-manifest) Closure
 
+## Reader context
+
+“Current” in this title refers to this closure's historical checkpoint. The task synchronized
+documentation with implemented occurrence boundaries; it did not add a provider API that
+enumerated a manifest or turn Model-permitted operations into Metal capabilities.
+
+Planning queried one occurrence at a time, including its type, shape, layout and roles.
+Metal analysis additionally authenticated partition-local provenance before preparation.
+Thus an operation-name list was only a shorthand for the restrictions that followed it.
+The profile, schema, wire and identity numbers below describe that frozen protocol, not today's
+support inventory.
+The [current occurrence admission explanation](../../../../explanation/packages/metal.md#1-admit-an-occurrence-not-an-operation-name)
+and [present qualification ledger](../../../../backend-guide/production-support.md#metal-production-target)
+separate implementation admission from actual bounded execution and numerical evidence.
+
 ## Status
 
 Complete

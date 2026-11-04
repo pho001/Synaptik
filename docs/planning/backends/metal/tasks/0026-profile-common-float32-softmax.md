@@ -1,5 +1,19 @@
 # Task 0026: Profile-Common [Canonical](../../../../glossary.md#term-canonical-form) [FLOAT32](../../../../glossary.md#term-float32) [SOFTMAX](../../../../glossary.md#softmax--log-softmax)
 
+## Reader context
+
+This task stopped after its sole authorized numerical execution. The schema, capability and
+gradient sections describe what a passing gate would have permitted, not work that followed
+the failure. The first mismatch also stopped checking; it cannot stand in for a completed
+input-preservation or classification scan.
+
+Unlike raw movement, SOFTMAX computes new values. Shape, axis and layout described admitted
+work, but did not restrict the input buffer to easy numerical cases. Model owned the operation's
+meaning; Metal's proposed finite-value reference and ULP gate were qualification tools, not
+a runtime input filter or new public tolerance.
+The [current normalization and numerical domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+explain the later implementation independently of this blocked direct-selector proposal.
+
 ## Status
 
 Blocked

@@ -1,5 +1,20 @@
 # Task CPU0048: Proven static typed-one count folding
 
+## Reader context
+
+`CpuAggregateLowering` consumes explicit immutable facts from `PrepareContext.constants()`,
+not values sampled from a run's input storage. A leaf Tensor has no producing expression;
+that alone does not mean it has storage or is constant. `CpuConstantWriteIr` describes output
+stores, which finalization turns into code after slot assignment. Shared Prepare still retains
+and initializes the original constant sources; only proved private expanded intermediates vanish.
+
+For a finite static domain, let $D$ be the selected contributor coordinates for one output cell
+and $n=|D|$. Exact positive-one contributions give $\sum_{i\in D}1=n$; the existing result
+representation determines rounding or integral modular bits. A `[2,3]` domain reduced over its
+second axis has $n=3$ twice, hence `[3,3]`. This is not a proof about mutable inputs containing ones.
+See [static typed-one folding](../../../../backend-guide/cpu-backend.md#static-typed-one-count-folding)
+for the source-initialization exception and direct-to-result rounding.
+
 ## Status
 
 Complete — MAIN accepted 2026-10-31 after independent source/docs approval and final [CPU](../../../../glossary.md#term-cpu)/[Javadoc](../../../../glossary.md#term-javadoc)

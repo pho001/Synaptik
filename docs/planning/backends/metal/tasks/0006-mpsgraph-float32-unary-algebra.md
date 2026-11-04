@@ -1,5 +1,19 @@
 # Task 0006: [MPSGraph](../../../../glossary.md#term-mpsgraph) [FLOAT32](../../../../glossary.md#term-float32) [Unary](../../../../glossary.md#term-unary) Algebra Route
 
+## Reader context
+
+The nine-operation scope below was conditional work that did not ship through this task.
+Three passing selectors did not authorize that whole slice: ordinary finite error checks could
+not excuse failures involving signed zero, subnormal values, infinities or NaNs. The retained
+goal also refers to the then-approved binary baseline, whose later withdrawal is recorded in
+task 0005.
+
+Model defined numerical meaning; Metal would have implemented and qualified the native route.
+The proposed typed records described the computation, not its input buffer contents. No
+reverted probe is a prepared resource that applications can still use.
+For the present implementation rather than this failed MPSGraph proposal, read the
+[current numerical domains and dedicated unary oracles](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains).
+
 ## Status
 
 Blocked

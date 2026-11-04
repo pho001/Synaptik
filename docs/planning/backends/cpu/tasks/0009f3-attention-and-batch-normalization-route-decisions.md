@@ -1,5 +1,26 @@
 # Task 0009F3: Attention and [Batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)-[Normalization](../../../../glossary.md#term-normalization) Route Decisions
 
+## Reader context
+
+This task records separate retention decisions for schema-57 attention, schema-49 BatchNorm
+inference, and schema-50 BatchNorm training. The attention lowerer, intermediate representation,
+emitter, and independent reference own masked complete-row attention and range-private score/weight
+scratch. `CpuBatchNormInferenceLowering` and its family owners implement five-input/one-output
+arbitrary-axis normalization without workspace. The training family instead publishes five ordered
+outputs and owns complete-channel, three-pass work with exact-state scratch.
+
+Here, clean-Java semantic oracles establish numerical behavior, while structural comparisons and
+generated-class inspection examine loop/dataflow/store shape and prohibited machinery. Preparation
+declares resources and validates boundaries; finalization realizes artifacts after assignment;
+prepared invocation does not select routes. Attention and training scratch are run-owned temporary
+workspace, not persistent model state. The attention mapping-count correction changes evidence
+accounting, not generated behavior.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current attention roles and result forms](../../../../reference/tensor/attention.md#scaled-dot-product-attention-expressions) — Names query/key/value, eligibility, and explicit one-output versus two-output requests.
+- [current BatchNorm transition and saved-output roles](../../../../reference/tensor/statistics-losses.md#batch-normalization-training-and-statistic-transition-expressions) — Explains five outputs, biased versus unbiased variance, and pure next-statistic values rather than mutation.
+
 ## Status
 
 Complete

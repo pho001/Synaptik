@@ -1,5 +1,19 @@
 # Task 0008: [MPSGraph](../../../../glossary.md#term-mpsgraph) [FLOAT32](../../../../glossary.md#term-float32) Affine Transforms
 
+## Reader context
+
+An affine descriptor explains logical coordinates, not necessarily the physical arrangement of
+this backend's output bytes. Here MPSGraph wrote a separate dense buffer in logical coordinate
+order while the result retained its Model/Compiler view description. It did not alias or borrow
+the source's storage.
+
+A terminal leaf in this task means a result with no consuming operation inside the partition;
+it is not the application's input leaf Tensor. Metal authenticated that private result
+representation before publication could copy detached canonical host bytes. The completed slice
+did not thereby admit arbitrary view consumers or widen cross-owner transfer.
+The [current lowering and physical-geometry explanation](../../../../explanation/packages/metal.md#2-lower-once-declare-resources-then-compile)
+explains why logical view ancestry alone is still not proof of a physical buffer's geometry.
+
 ## Status
 
 Complete

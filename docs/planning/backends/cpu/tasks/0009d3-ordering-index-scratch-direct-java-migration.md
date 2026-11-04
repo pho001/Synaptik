@@ -1,5 +1,23 @@
 # Task 0009D3: Ordering, Index, and Scratch Direct-Java Route Decision
 
+## Reader context
+
+This task records retaining generated SORT, ARGSORT, and TOP_K because replacing the complete typed
+family would increase implementation and verification work. `CpuOrderingLowering` and
+`CpuOrderingIr` hold structural facts; `CpuClassFileKernelGenerator` selects `CpuOrderingEmitter`.
+The 192-row inventory is structural coverage evidence, while the independent scalar reference is the
+semantic oracle for ordering results, not a Runtime interpreter.
+
+Here, CPU Prepare selects carrier, layout, and scalar or parallel-scalar entries before Runtime
+invokes the bound entry through `CpuPreparedExecutable`. Workers own complete axis slices; each
+active range owns disjoint merge scratch. That run scratch is not persistent model state. Catalogue
+vector labels do not establish vector execution or authorize production defaults.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current stable ordering and paired Top-K results](../../../../reference/tensor/sort-topk.md#top-k-values-and-indices) — Explains value/index pairing, stable logical indices, and sorted versus original-index output.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

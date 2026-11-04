@@ -1,5 +1,25 @@
 # Task 0009E1: Partial Integral Reduction Direct-Java Migration
 
+## Reader context
+
+This task records retaining the generated `INT32`/`INT64` partial `SUM`/`PROD` candidate without
+enabling it. `CpuPartialReductionIr` fixes aggregate form and partial count;
+`CpuPartialReductionEmitter` contains typed modular bodies and ordered combines. The candidate
+remains unselected behind historical 0008P fail-closed evidence, while eligible established
+whole-cell execution remains the fallback. Retention is a complexity decision, not admission or
+performance evidence.
+
+Here, CPU Prepare owns structural admission, worker/workspace facts, and finalization; Runtime
+invokes immutable work rather than selecting per element. Caller arrays are borrowed, while aligned
+partial-state slots are run-owned scratch, not persistent model state. Independent modular tests are
+semantic oracles; artifact and no-selected-reference checks address structural routing and
+retirement.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current selected-domain reduction meanings](../../../../reference/tensor/reductions.md#multi-axis-and-statistical-reduction-expressions) — Separates axes, correction, norms, and numerical semantics from historical CPU algorithm choices.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

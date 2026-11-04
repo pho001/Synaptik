@@ -1,5 +1,22 @@
 # Task CPU0075: [Scalar](../../../../glossary.md#term-scalar) row-[fusion](../../../../glossary.md#term-fusion) load and address reuse
 
+## Reader context
+
+The generator is optimizing repeated **reads of the same cell within one active row**, not
+copying every input into a new tensor. It may put a previously loaded represented value in a
+typed JVM local and reuse it only while the address and stored value are proved unchanged.
+“Store epoch” distinguishes periods separated by a write that might change that cell; an
+uncertain alias or intervening write requires another checked read.
+
+`CpuRowMapReductionLowering` and preparation prove the lifetime and local-slot budget before
+generation; the ordinary generator and Scan emitter consume those proofs. JVM local slots are
+generated method variables, not Runtime buffer slots and not a count of physical CPU registers.
+The [load/address reuse explanation](../../../../backend-guide/cpu-backend.md#implemented-scalar-loadaddress-reuse-cutover)
+gives a cell-reuse example. Compare [later invariant staging](../../../../backend-guide/cpu-backend.md#cpu0076-implemented-scalar-invariant-staging)
+for a deliberately wider lifetime: this task alone does not hoist matrix loads outside rows
+or retain carry values across time. Old/new timing ratios below retain their unequal-JIT and
+entry-wrapper limitations; fewer load sites alone do not prove a speedup.
+
 ## Status
 
 Complete — 2026-10-30, independent final code/[Javadoc](../../../../glossary.md#term-javadoc)/docs APPROVE and MAIN owning gate PASS.

@@ -1,5 +1,26 @@
 # Task 0005H: Portable [Unary](../../../../glossary.md#term-unary), Transcendental, and [Activation](../../../../glossary.md#term-activation) Closure
 
+## Reader context
+
+Unary means that each output position is derived from one corresponding input position, without
+a reduction across neighbors. CPU’s family switches mapped the nineteen Model kinds to generated
+scalar instructions and, where qualified, vector instructions. `CpuScalarReferenceKernel`
+supplied a cold checking oracle over lowered IR; it was not an additional backend or a Runtime
+interpreter.
+
+“Exact GELU” named the semantic function, while its finite portable realization used the
+explicitly bounded approximation recorded below. That distinction, exceptional-value handling,
+and the order of FLOAT32 widening/narrowing mattered independently of which route was selected.
+The original tolerances and helper calls remain historical; the current unary reference and
+generator explanation describe the present semantic/construction and realization boundaries.
+
+Current reading alongside this historical record:
+
+- [Unary transforms and exceptional values](../../../../reference/tensor/elementwise.md#unary-numeric-transforms-and-floating-classifications)
+  — provides current Model meanings independently of historical CPU realization choices.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

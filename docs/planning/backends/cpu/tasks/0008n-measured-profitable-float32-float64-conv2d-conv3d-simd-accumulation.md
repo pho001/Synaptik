@@ -1,5 +1,24 @@
 # Task 0008N: Measured profitable [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) [Conv2d](../../../../glossary.md#convolution--conv2d)/[Conv3d](../../../../glossary.md#conv3d--ncdhw) [SIMD](../../../../glossary.md#simd) accumulation
 
+## Reader context
+
+This task records a stopped attempt to vectorize Conv2d/Conv3d across output width: each lane owns a
+complete output cell while preserving its scalar channel/kernel accumulation order. `CpuConv2dIr`
+and `CpuConv3dIr` describe the direct convolution route, excluding external epilogues. Primitive
+arrays and native-order MemorySegments carry data; geometry and worker ranges remain invocation
+inputs rather than generated-class identity.
+
+Here, raw-bit comparison is the semantic oracle, while class-file inspection checks structural
+parity and forbidden overhead. Independently compiled direct Java supplies the performance parity
+control. CPU preparation owns selection; shared Prepare and Runtime gain no vector knowledge. The
+generated diagnostic beat scalar but failed direct-oracle parity, so transient code was removed and
+schema 62 retained.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current grouped NCHW convolution meaning](../../../../reference/tensor/convolution.md#grouped-nchw-conv2d-expressions) — Explains channel groups, intrinsic bias, and checked spatial geometry without implying backend support.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Incomplete (bounded [scalar](../../../../glossary.md#term-scalar) stop)

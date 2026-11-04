@@ -1,5 +1,24 @@
 # Task 0009E1B1: [Log-Sum-Exp](../../../../glossary.md#log-sum-exp) Route Decision
 
+## Reader context
+
+This task records retaining generated LOG_SUM_EXP because a finite direct replacement would add
+typed implementation, binding, and retirement verification work. `CpuLogSumExpEmitter` owns the
+numerical body; `CpuAdvancedReductionIr` identifies the operation, while
+`CpuAdvancedReductionLowering.Geometry` describes static addressing and complete-output-cell ranges.
+The shared geometry does not make statistical or norm algorithms part of this decision.
+
+Here, Prepare selects and finalizes typed heap/`MemorySegment` entries; Runtime invokes immutable
+prepared work over borrowed boundary carriers with zero scratch. The structural oracle checks
+generated entry shape, member ownership, and hot-loop hygiene. `CpuAdvancedReductionReferenceKernel`
+supplies the independent semantic oracle for numerical results. Neither structural inspection nor
+the retained-route cost comparison establishes performance.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current selected-domain reduction meanings](../../../../reference/tensor/reductions.md#multi-axis-and-statistical-reduction-expressions) — Separates axes, correction, norms, and numerical semantics from historical CPU algorithm choices.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

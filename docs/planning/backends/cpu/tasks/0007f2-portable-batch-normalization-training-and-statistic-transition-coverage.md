@@ -1,5 +1,24 @@
 # Task 0007F2: Portable [Batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)-[Normalization](../../../../glossary.md#term-normalization) Training and [Statistic](../../../../glossary.md#term-statistic)-Transition Coverage
 
+## Reader context
+
+This task records BATCH_NORM_TRAINING as a pure five-input/five-output operation, not an in-place
+running-statistic update or inference mode. Model 0021C owns statistic meanings and momentum;
+Compiler owns output-slot metadata, gradients, and saved-value lifetime. `CpuBatchNormTrainingIr`
+and `CpuBatchNormTrainingLowering` preserve those roles, while `CpuBatchNormTrainingEmitter`
+generates complete-channel passes and direct stores to five ordinary graph buffers.
+
+Here, each active range reuses disjoint `AGGREGATE_EXACT_STATE` scratch; that run scratch is not
+persistent model state. Saved mean and inverse standard deviation are outputs, not backend-created
+tape. Prepare assigns declared resources, and cold binding validates all output and workspace
+overlaps. Clean Java supplies the structural oracle; independent accuracy and special-class checks
+supply the semantic oracle.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current BatchNorm transition and saved-output roles](../../../../reference/tensor/statistics-losses.md#batch-normalization-training-and-statistic-transition-expressions) — Explains five outputs, biased versus unbiased variance, and pure next-statistic values rather than mutation.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

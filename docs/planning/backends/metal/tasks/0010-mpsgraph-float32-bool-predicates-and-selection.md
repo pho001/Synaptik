@@ -1,5 +1,18 @@
 # Task 0010: [MPSGraph](../../../../glossary.md#term-mpsgraph) [FLOAT32](../../../../glossary.md#term-float32)/[BOOL](../../../../glossary.md#data-type--datatype) Predicates and Selection
 
+## Reader context
+
+This proposed Boolean storage and predicate extension stopped at its comparison gate. Shapes,
+types and layout described a legal query; represented FLOAT32 input values still had to compare
+correctly. Preserved input bits and canonical zero-or-one Boolean bytes ruled out some transport
+errors, but did not repair the observed collapse of subnormal comparisons into zero comparisons.
+
+Model owned those comparison rules. Metal's planned validation, storage and publication sections
+did not become a delivered BOOL route through this task, and the controls were not proof that
+every planned logic or selection case passed.
+The [current exact comparison, Boolean and selection domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+connect to the later implementation; both historical status formulations below remain as recorded.
+
 ## Status
 
 Blocked

@@ -1,5 +1,24 @@
 # Task 0009D1: Aggregate Generated-Route Retention Decision
 
+## Reader context
+
+This task records retaining ordinary aggregate generation rather than porting `SUM`, `MEAN`, `PROD`,
+extrema, Boolean reductions, and SUM_TO_SHAPE to direct Java. `CpuAggregateEmitter` owns the family
+matrix and delegates exact floating arithmetic to `CpuExactSumEmitter` and `CpuExactProductEmitter`.
+Their primitive-limb state represents exact numerical accumulation without promoting the
+BigInteger-based `CpuScalarReferenceKernel` into production.
+
+Here, the reference kernel supplies independent semantic comparisons, while inventory and structural
+evidence describe generated artifacts and implementation shape. Prepare retains selected-kernel
+ownership and Runtime invokes prepared work. Packed scratch is private to an invocation, not
+persistent model state. The two unsuccessful direct-migration contexts support the effort decision
+only; this planning task accepts no executable replacement and makes no speed claim.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current selected-domain reduction meanings](../../../../reference/tensor/reductions.md#multi-axis-and-statistical-reduction-expressions) — Separates axes, correction, norms, and numerical semantics from historical CPU algorithm choices.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

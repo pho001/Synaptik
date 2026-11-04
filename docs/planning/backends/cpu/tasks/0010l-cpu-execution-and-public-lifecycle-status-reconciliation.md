@@ -1,5 +1,17 @@
 # Task 0010L: [CPU](../../../../glossary.md#term-cpu) execution and public [lifecycle](../../../../glossary.md#lifecycle) status reconciliation
 
+## Reader context — historical integration boundary
+
+This record separates logical operation support from an executable lifecycle. Model defines what
+Tensor expressions mean, Compiler constructs forward/derivative graphs, CPU prepares supported
+occurrences, and Engine gives the application compile/prepare/run ownership. A supported Model
+operation alone does not promise every backend, layout, dynamic shape or derivative can execute it.
+The edits and gate results below are historical documentation evidence, not a newly run capability
+inventory. The maintained lifecycle reference connects the stages; the CPU guide explains how
+current preparation contributes recipes without making CPU the application facade.
+
+Current reading: [Supported lifecycle integration](../../../../backend-guide/cpu-backend.md#supported-lifecycle-integration).
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task 0077: [BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT16](../../../../glossary.md#term-float16) [SIGMOID](../../../../glossary.md#term-sigmoid) custom route
 
+## Reader context
+
+Low SIGMOID keeps the original carrier and chooses a branch from raw bits. Custom work uses FLOAT32 EXP, addition and division, then one final ties-to-even BFLOAT16/FLOAT16 store. Working intermediates are not separately narrowed low tensors, and the two low formats are not substitutes.
+
+Metal owns the fixed recipe and native writes; provider/current-ledger answers are independently qualified. Observed errors, source hashes and no-gradient limits below are task-era evidence, not new measurements here. Current source shares numerical implementation through a common codec rather than the historical separate low-kernel owner.
+
+- [Current shared numerical source and original carriers](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Shows evolved implementation and typed domains.
+- [Current low partition boundaries](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Explains why FLOAT32 working sites do not enable low MPSGraph.
+
 ## Status
 
 Complete — separately qualified [BFLOAT16](../../../../glossary.md#term-bfloat16) and [FLOAT16](../../../../glossary.md#term-float16) [SIGMOID](../../../../glossary.md#term-sigmoid) custom routes passed source-matched

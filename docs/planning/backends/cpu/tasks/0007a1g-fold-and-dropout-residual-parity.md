@@ -1,5 +1,27 @@
 # Task 0007A1G: Fold and [Dropout](../../../../glossary.md#dropout--inverted-dropout) [Residual](../../../../glossary.md#scan-residual-port-and-history-demand) Parity
 
+## Reader context
+
+These remaining timing gaps—not saved differentiation values—belonged to different emitters:
+FOLD2D accumulated overlapping image-window contributions, while DROPOUT mapped explicit
+key/counter state to keep decisions. Each gained a fully guarded body for one frozen FLOAT32
+mixed-carrier geometry, alongside the original general path in the same class. “Mixed carrier”
+meant that different arguments used arrays and segments; it did not mean mixed numerical
+precision.
+
+Fold retained output-owned contribution order and positive-zero initialization. Dropout retained
+global-ordinal replay, next-state handling, and arbitrary legal subranges. Neither acquired
+hidden shared state or changed Runtime ownership. The unusually small recorded fold ratio is
+evidence for the guarded comparator case, not a claim about every fold. Current window and
+randomness references explain the separate meanings.
+
+Current reading alongside this historical record:
+
+- [Window-transform expressions](../../../../reference/tensor/windows.md#window-transform-expressions)
+  — distinguishes extraction, columns geometry, and overlap accumulation.
+- [Explicit-state dropout construction](../../../../reference/tensor/graph-randomness.md#explicit-state-dropout-construction)
+  — names value, mask, and next-state positions without promising a portable bitstream.
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task 0052: [ACCELERATOR](../../../../glossary.md#term-accelerator) [FLOAT32](../../../../glossary.md#term-float32) Comparisons, [Extrema](../../../../glossary.md#saturation-pole-and-extremum), and Scans
 
+## Reader context
+
+Comparison produces canonical Boolean bytes; extrema selects a represented source value; a cumulative scan produces a result for each ordered prefix. Those remain different contracts even with shared input storage. Metal's custom kernels and native preflight own coordinate mapping, contributor order and direct target writes; Model owns legal results.
+
+Proof, bounded device oracle and cost adjudication are separate evidence gates. Timing did not choose CLAMP: the recorded choice used dispatch and temporary-storage dominance. The profiles, operation counts and schema cutovers below are checkpoint facts, not the live capability matrix.
+
+- [Current contributor and arithmetic-site obligations](../../../../backend-guide/metal-backend.md#numerical-semantics-and-capability) — Distinguishes exact membership from final-output error bounds.
+- [Current fixed-route and mutation boundaries](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Locates geometry and buffer authentication before execution.
+
 ## Status
 
 Completed

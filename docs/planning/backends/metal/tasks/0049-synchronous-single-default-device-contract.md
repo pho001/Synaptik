@@ -1,5 +1,13 @@
 # Task 0049: [Synchronous](../../../../glossary.md#term-synchronous) single-default-[device](../../../../glossary.md#term-device) [Metal](../../../../glossary.md#term-metal) contract
 
+## Reader context
+
+The application calls Engine or Runtime `run(...)`; the Metal executable submits native device work and waits before a successful return. `RunResult` then keeps completed output storage available for publication—it is not a future for unfinished GPU work. A result can therefore still need closing after computation finishes.
+
+One `MetalBackendIntegration` owns its creating context and default-device queue. Two contexts on the same GPU remain different resource owners. The recorded ABI, schema and tuning versions are the task's preserved snapshot, not today's versions; the completion/lifetime distinction is the reason for this decision.
+
+- [Current completion and context topology](../../../../backend-guide/metal-backend.md#completion-and-device-topology) — Connects synchronous return to result lifetime and exact-context authentication.
+
 ## Status
 
 Complete

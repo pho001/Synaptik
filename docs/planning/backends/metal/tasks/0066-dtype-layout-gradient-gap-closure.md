@@ -1,5 +1,14 @@
 # Task 0066: [Dtype](../../../../glossary.md#data-type--datatype), [Layout](../../../../glossary.md#layout), and [Gradient](../../../../glossary.md#term-gradient) Gap Closure
 
+## Reader context
+
+This closed descriptor/representation gaps inside existing kinds rather than adding mathematics. Model describes carrier, shape and gradient eligibility; Compiler emits actual backward operations; Metal's provider/preparer and independent native preflight authenticate physical mappings. A logical affine value can share source addressing, while a materialized value has a distinct destination.
+
+Movement preserves bits across mappings; CAST obeys its conversion rule. The six-carrier/36-pair inventory and blocked adjoints below are the selected historical domain. Neither true-kind counts nor a forward gradient flag proves complete present-day derivatives.
+
+- [Current logical and physical authentication](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Explains the representation distinction driving the cutover.
+- [Current casts carriers and derivatives](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Locates subsequent expansion.
+
 ## Status
 
 Complete — independently approved implementation

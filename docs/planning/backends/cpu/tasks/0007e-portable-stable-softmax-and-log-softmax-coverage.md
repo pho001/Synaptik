@@ -1,5 +1,24 @@
 # Task 0007E: Portable Stable [Softmax](../../../../glossary.md#softmax--log-softmax) and [Log-Softmax](../../../../glossary.md#softmax--log-softmax) Coverage
 
+## Reader context
+
+This task records stable forward execution of explicit SOFTMAX and LOG_SOFTMAX nodes, not
+recognition of equivalent arithmetic graphs. Model owns kind, axis, Shape, type, and gradient
+metadata; those descriptors are not storage carriers. Compiler preserves the occurrence.
+`CpuSoftmaxIr` and `CpuSoftmaxLowering` describe complete normalization slices, while
+`CpuSoftmaxEmitter` generates a kind-specialized body over bound arrays or segments.
+
+Here, `CpuSoftmaxInputValidator` checks the CPU-private finite domain before writes or worker
+submission. Prepare assigns declared buffers; Runtime invokes the prepared recipe without semantic
+dispatch. The clean Java comparison is the structural oracle for algorithm and overhead; independent
+mathematical checks are the semantic oracle. Neither the zero-workspace execution nor its primitive
+locals introduce persistent model state.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current first-class softmax expression meaning](../../../../reference/tensor/normalization.md#softmax-expressions) — Separates metadata construction and ideal slice meaning from backend-specific admission and execution.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

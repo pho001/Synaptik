@@ -1,5 +1,20 @@
 # Task 0046: Explicit Verified [Metal](../../../../glossary.md#term-metal) Native Local Archive
 
+## Reader context
+
+Task 0045 supplied the reviewed three-file native package and verifier. This task added only
+explicit Gradle verification and ZIP transport: it neither built nor signed a library and
+did not add installation discovery. The supplied property named an absolute package directory,
+not a default path to search.
+
+The application operator retained responsibility for permission-preserving extraction,
+reverification, keeping the extracted library available and eventually removing it. Java opened
+its explicit absolute path. Forwarding the original path spelling mattered because normalization
+could hide inputs the verifier was intended to reject. Archive integrity still did not authenticate
+a publisher.
+The [current opt-in archive and extraction workflow](../../../../../modules/backend/metal/macos-arm64/README.md#optional-verified-local-gradle-archive)
+explains that handoff separately from the exact historical ZIP bytes and validation facts below.
+
 ## Status
 
 Complete

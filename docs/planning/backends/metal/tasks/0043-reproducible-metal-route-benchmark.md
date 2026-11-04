@@ -1,5 +1,20 @@
 # Task 0043: Reproducible [Metal](../../../../glossary.md#term-metal) Route Benchmark
 
+## Reader context
+
+This benchmark pinned both implementation candidates and reported measurements; it did not
+select a production winner. An untimed traced integration attested route identity and exact
+results, then a fresh ordinary integration measured execution without observer overhead.
+Opaque candidate bytes connected the choices, not native resources shared between integrations.
+
+The uploaded input remained caller-owned and each run borrowed it. RunResult cleanup was
+deliberately inside the hot timing boundary; download and checksum work belonged to separate
+materializing runs. Report schema and input-generator schema described different formats,
+and their historical versions below must not be merged.
+The [current fixed report-only benchmark reference](../../../../backend-guide/metal-backend.md#fixed-report-only-route-benchmark)
+describes the current protocol while retaining the distinction between within-JVM samples and
+independent experiments.
+
 ## Status
 
 Complete

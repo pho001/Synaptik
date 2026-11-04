@@ -1,5 +1,24 @@
 # Task 0009D4: Fold and Window Route Decision and Possible Direct-Java Migration
 
+## Reader context
+
+This task records retaining generated FOLD_AXIS and FOLD2D overlap-add, not migrating all window
+operations. `CpuFoldLowering` and `CpuFoldIr` retain resolved mapping facts; `CpuFoldEmitter`
+supplies typed bodies selected through `CpuClassFileKernelGenerator`. The 32-row inventory and wider
+SHA-bound projection provide structural evidence, while scalar-reference comparisons provide an
+independent semantic oracle for represented results.
+
+Here, CPU Prepare selects and binds carrier/layout forms before `CpuPreparedExecutable` invokes
+immutable work. Each range owns output ordinals, initializes them to positive zero, and accumulates
+in canonical input-row-major order. This differs from input-owned scatter: independent output ranges
+need no workspace. Model semantics, public APIs, and shared Prepare/Runtime contracts remain outside
+the planning-only decision.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current unfold and overlap-fold mappings](../../../../reference/tensor/windows.md#window-transform-expressions) — Distinguishes window extraction from overlap-add and gives the Tensor expression boundary.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

@@ -1,5 +1,20 @@
 # Task 0015: [ACCELERATOR](../../../../glossary.md#term-accelerator) [FLOAT32](../../../../glossary.md#term-float32) [Tensor](../../../../glossary.md#tensor) [Binary](../../../../glossary.md#term-binary-descriptor-and-metadata) Arithmetic
 
+## Reader context
+
+ACCELERATOR and STRICT_IEEE below are historical profile identities, not current configuration
+advice. This task restored four tensor binary operations under a Model-authorized set of
+permitted represented results. Denormals-are-zero (DAZ) allowed specified subnormal inputs to
+act as signed zero; flush-to-zero (FTZ) allowed specified subnormal results to become signed
+zero. Neither meant an arbitrary error tolerance.
+
+Shape and layout still described exact broadcasting, while actual buffer values determined
+which permitted result applied. Metal checked profile policy during preparation; Runtime did
+not select a profile during execution. A broadcast tensor was not the embedded scalar attribute
+of task 0011.
+The [current profile-free numerical implementation](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+is the present reading path, not a reinterpretation of these old profile matrices.
+
 ## Status
 
 Complete

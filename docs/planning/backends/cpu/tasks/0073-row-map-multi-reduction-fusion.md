@@ -1,5 +1,23 @@
 # Task CPU0073: Row-map and multiple-terminal reduction [fusion](../../../../glossary.md#term-fusion)
 
+## Reader context
+
+A **row map** computes the ordered intermediate values for one logical row. A **terminal**
+combines contributions from rows into a final result, such as a weight gradient. Fusion here
+lets several consumers reuse the row's computed value rather than storing and rereading every
+private intermediate. It does not permit deleting a value that an output, saved history or
+separate exact reduction still needs.
+
+`CpuRowMapReductionLowering` proves that sharing is legal before Prepare assigns memory slots.
+Ordinary CPU generation emits one whole-body work item; Scan generation embeds the region
+inside its existing time loop. Runtime later invokes those prepared executables, not the
+lowerer or an application callback for each row. The
+[focused row-fusion example](../../../../backend-guide/cpu-backend.md#implemented-row-map-and-multiple-terminal-fusion)
+shows why ordinary exact bias SUM still needs its stored input. For the broader present-day body
+domain, use [current Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+rather than treating this task's bounded admission matrix as a current operation whitelist.
+The recorded failed full run and evidence-transfer limits below remain unchanged.
+
 ## Status
 
 Complete — MAIN accepted implementation, Hooke's final code/tests/[Javadoc](../../../../glossary.md#term-javadoc)/evidence-transfer

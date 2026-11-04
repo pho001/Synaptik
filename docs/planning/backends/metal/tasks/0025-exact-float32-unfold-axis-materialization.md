@@ -1,5 +1,20 @@
 # Task 0025: Exact [FLOAT32](../../../../glossary.md#term-float32) UNFOLD_AXIS [Materialization](../../../../glossary.md#materialization)
 
+## Reader context
+
+UNFOLD_AXIS here copied window values into fresh canonical storage; it did not return a borrowed
+strided view of the input. Overlapping windows therefore repeated the same source bits in
+different output positions without adding them. The formulas below explain window positions,
+appended offset coordinates and omitted tails.
+
+Model defined that mapping and Compiler inferred its shape. Metal compiled a fixed slice,
+expand and concatenate composition from axis, size and step descriptions; the input buffer
+provided actual values. The rank limit and the separately reviewed selector-expansion limit
+constrained different resources. Forward materialization also did not prove its fold-based
+derivative.
+The [current movement and fold admission boundary](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection)
+connects this bounded delivery to later window operations without rewriting its review history.
+
 ## Status
 
 Complete

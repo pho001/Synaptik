@@ -1,5 +1,24 @@
 # [CPU](../../../../glossary.md#term-cpu) Task 0008O: Stable-Reduction [Vector](../../../../glossary.md#term-vector) Numerical Spike
 
+## Reader context
+
+This task records a numerical-permission spike for softmax/log-softmax, categorical losses with
+logits, and attention, not production SIMD admission. `CpuSoftmaxIr`, `CpuLossIr`, and
+`CpuAttentionIr` remain scalar identities. Candidate 2 maps vectors but folds in logical scalar
+order; candidates 3 and 4 alter reduction grouping and encounter the Model-owned reassociation
+boundary. Complete slices, samples, or query rows remain the units of caller-parallel ownership.
+
+Here, Stage A provides semantic permission and result checks; Stage B supplies structural dossiers
+excluding hidden helpers or fallback. Stage C compares candidate performance with scalar and
+direct-Java controls. The retained fork-0 failures justify KEEP_SCALAR for candidate 2, but
+interruption and cancellation leave no five-fork aggregate. No production route, schema, resource,
+or shared contract changed.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current first-class softmax expression meaning](../../../../reference/tensor/normalization.md#softmax-expressions) — Separates metadata construction and ideal slice meaning from backend-specific admission and execution.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Cancelled

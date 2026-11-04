@@ -1,5 +1,25 @@
 # Compose existing [CPU](../../../glossary.md#term-cpu) [operation](../../../glossary.md#operation) emission
 
+## Reader context
+
+Read this as the CPU0070–0074 composition history. Its completed tasks and closed measurement
+budgets are preserved checkpoints, not new source-launch permission or today's full Scan support list.
+The internal callers at the central seam are the ordinary entry generator and
+`CpuGeneralScanEmitter`: they call common family emitters while constructing bytecode.
+Their generation-time callbacks describe where to emit loads, arithmetic and stores; they do
+not borrow application input arrays for computation at generation time. Actual values are
+bound later by the prepared executable under a run's storage/lifetime rules.
+
+The existing binding tables and unfused-intermediate example below explain the mechanism in detail.
+For focused implementation explanations, use
+[common rank-two MATMUL binding](../../../backend-guide/cpu-backend.md#common-rank-two-matmul-binding)
+for setup versus contraction emission,
+[common pointwise and SUM composition](../../../backend-guide/cpu-backend.md#common-pointwise-and-sum-composition)
+for producing stores and the exact/sequential algorithm distinction, and
+[current general Scan composition](../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+for the boundary between legacy qualification and current admission. The off-tree Job experiments
+remain recorded observations; their temporary evidence is unavailable to this reader revision.
+
 ## Purpose and status
 
 CPU0070 replaces the active CPU0066 [scalar](../../../glossary.md#term-scalar) → [vector](../../../glossary.md#term-vector) → worker sequence. Its original

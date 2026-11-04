@@ -1,5 +1,25 @@
 # Task 0009E3: [Loss](../../../../glossary.md#loss) Route Decision and Possible Direct-Java Migration
 
+## Reader context
+
+This task records three independent retained-generated decisions: MSE, dense categorical
+cross-entropy with logits, and index categorical cross-entropy with logits. `CpuLossIr` fixes
+schema-58 specialization identity; axis, extents, layouts, addresses, and ignore values remain cold
+geometry. `CpuLossEmitter` owns generated numerical loops, while `CpuLossReferenceKernel` supplies
+the semantic oracle. Class-File evidence checks prohibited operations and dependencies across the
+792-class matrix; it is not a substitute for numerical comparison.
+
+Here, Model owns loss meaning and Compiler owns capture, inference, and gradients. CPU Prepare
+lowers and binds typed carriers; `CpuLossInputValidator` checks the complete index domain before
+writes or submission. Finalization publishes immutable prepared invocation. These routes declare
+zero workspace. A direct replacement would need complete family implementation and generated
+artifact/cache/inventory retirement, not merely alternative loops.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current MSE input and reduction roles](../../../../reference/tensor/statistics-losses.md#mean-squared-error-loss-expressions) — Explains prediction versus target, exact-shape requirements, and NONE/SUM/MEAN result boundaries.
+- [current dense and index categorical targets](../../../../reference/tensor/statistics-losses.md#categorical-cross-entropy-with-logits-expressions) — Distinguishes target data, class-axis semantics, and typed ignore-index metadata.
+
 ## Status
 
 Complete

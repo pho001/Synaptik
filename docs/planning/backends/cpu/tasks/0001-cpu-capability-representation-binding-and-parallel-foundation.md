@@ -1,5 +1,28 @@
 # Task 0001: [CPU](../../../../glossary.md#term-cpu) Capability, Representation, [Binding](../../../../glossary.md#term-binding), and Parallel Foundation
 
+## Reader context
+
+The first CPU boundary was about permission and memory, not arithmetic. Planning called
+`CpuCapabilityProvider.supports` with an operation description; a negative answer meant that the
+new allocation and worker machinery did not yet justify executing that operation. The
+declaration-only Java blocks below specify the proposed API shape, rather than runnable
+application examples.
+
+An application input leaf is a Tensor with no producing operation. If backed by
+`HostTensorStorage`, it refers to current values: `CpuBorrowedBuffer` wrapped that exact storage
+without copying or taking its close responsibility. The application had to keep it alive. By
+contrast, Runtime arranged creation and cleanup of internal run-owned buffers; CPU implemented
+their arena allocation and physical close. `PreparedExecutable.bind` checked those
+representations before a later typed invocation could use them. This superseded checkpoint must
+not be read as today’s CPU capability inventory.
+
+Current reading alongside this historical record:
+
+- [CPU preparation/run handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages)
+  — names the participants and separates descriptions, assigned positions, and live run memory.
+- [CPU physical storage ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalmemory)
+  — distinguishes borrowed application storage from run-owned buffers and scratch.
+
 ## Status
 
 Superseded

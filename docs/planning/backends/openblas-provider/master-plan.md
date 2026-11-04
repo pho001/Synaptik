@@ -1,5 +1,14 @@
 # [OpenBLAS](../../../glossary.md#term-openblas) Provider Master Plan
 
+## Reader context
+
+“Leaf” means a dependency leaf, not an application Tensor without a graph producer. `modules/backend/openblas-provider` depends only on JDK interoperability; CPU calls it, never the reverse. The provider loads/binds an external library, invokes normalized GEMM and exposes thread control. CPU separately interprets graphs/layouts, selects routes and owns prepared execution.
+
+The handle owns its FFM lookup lifetime, not caller matrix segments or a private thread setting. Mandatory FLOAT32/FLOAT64 and the blocked direct-BFLOAT16 side branch are separate. Checkpoint totals are not new verification, and proposed optional API shapes are not implemented capabilities.
+
+- [Current provider API and borrowed storage](../../../backend-guide/cpu-backend.md#current-low-level-openblas-foundation) — Explains dependency leaf and library-versus-buffer ownership.
+- [Current CPU-qualified MATMUL route](../../../backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route) — Locates policy and preparation above the provider.
+
 Current source: `modules/backend/openblas-provider`; [Gradle](../../../glossary.md#term-gradle) [identity](../../../glossary.md#term-identity-meanings) remains
 `:backends:openblas-provider`. Historical [planning](../../../glossary.md#term-planning)/report locations remain unchanged; see the
 [path migration table](../../../developer-guide/repository-layout.md#backend-path-migration-and-historical-navigation).

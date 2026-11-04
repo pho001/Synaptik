@@ -1,5 +1,26 @@
 # Task CPU0076: Generic row-[invariant](../../../../glossary.md#term-invariant) external-cell load staging
 
+## Reader context
+
+Staging means loading a proved unchanged external cell into a generated method local earlier,
+then reusing that value while it remains valid. A matrix supplied as a Scan invariant may stay
+unchanged throughout one invocation; a SHARED history instead supplies a different value at
+each original time position even if its shape is identical. The proof must distinguish those
+cases before moving any read.
+
+`CpuRowMapReductionLowering.invariantLoadStaging` supplies the common cold proof used by
+preparation and the ordinary/Scan emitters. It proves both the caller's generated entry and a
+worker helper's local lifetimes; “caller” here can mean the generated Scan entry that calls its
+helper, not the application. The locals belong to that invocation/helper call and cannot cache
+weights across later runs with changed storage. Inactive work must not read a source merely
+because the source would be invariant if used.
+
+The [current staging explanation](../../../../backend-guide/cpu-backend.md#cpu0076-implemented-scalar-invariant-staging)
+contrasts a fixed matrix with a time-indexed history and explains checked fallback when the
+proof fails. Its [within-row predecessor](../../../../backend-guide/cpu-backend.md#implemented-scalar-loadaddress-reuse-cutover)
+has a narrower reuse lifetime. The finite experiment, recorded percentages and JIT limits below
+are unchanged historical observations, not a new measurement or universal benefit claim.
+
 ## Status
 
 Complete — 2026-10-31. MAIN accepted source, bounded result and final [CPU](../../../../glossary.md#term-cpu)/[Engine](../../../../glossary.md#term-engine) gates;

@@ -1,5 +1,14 @@
 # Task 0065: Explicit-State [RNG](../../../../glossary.md#graph-rng-state--graphrngstate), [Dropout](../../../../glossary.md#dropout--inverted-dropout), and Recurrent Boundary
 
+## Reader context
+
+Graph dropout takes value plus explicit key/counter state and produces value, saved keep-mask and next state. The mask is a Boolean output used by that same occurrence's backward graph, not reconstructed from dropped values. A prepared executable owns no advancing cursor: equal explicit inputs replay within the recorded algorithm identity.
+
+Eager `TensorRandoms` factories are different: the application supplies a host `RandomGenerator`; the returned leaf is a stored input with no graph producer, not a request for Metal to sample later. Recurrent blockers and replay identity below are history; current numerical/recurrent admission evolved separately.
+
+- [Current numerical and recurrent domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Avoids treating the recurrent stop as current capability.
+- [Current run-local bindings and ownership](../../../../backend-guide/metal-backend.md#cold-run-setup-and-binding) — Connects explicit state to isolated invocation storage.
+
 ## Status
 
 Complete — approved plan `9ceee2b53c88a8c87ca4b8a42cdd2c92682074c9` was implemented by

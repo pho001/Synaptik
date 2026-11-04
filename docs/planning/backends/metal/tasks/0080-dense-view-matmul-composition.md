@@ -1,5 +1,14 @@
 # Task 0080: Dense-[view](../../../../glossary.md#term-view-meanings) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) composition for production consumers
 
+## Reader context
+
+A dense logical view can still refer to ordinary row-major storage. MATMUL needs the selected buffer plus effective strides, offset and span. Rejecting every `view=true` loses legal composition; accepting any equal-sized ancestor reads the wrong values. A transpose elided into source addressing must apply exactly once, including for other consumers/publication.
+
+Compiler owns generated derivatives; Metal authenticates each original-typed occurrence. MLP/CNN training/save-load receipts below are component evidence, not workaround graphs or joined release approval. The earlier failed aggregate remains failed; the separate RESHAPE packet owns the materialization repair completing those consumers.
+
+- [Current dense-view operands and generated derivatives](../../../../backend-guide/metal-backend.md#general-static-matmul-and-generated-gradients) — Explains operand and actual backward boundaries.
+- [Current logical versus physical source checks](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Connects truthful views to actual buffer selection.
+
 ## Status
 
 Complete — exact reviewed dense-[view](../../../../glossary.md#term-view-meanings) prerequisites and the explicit Metal0081 RESHAPE extension

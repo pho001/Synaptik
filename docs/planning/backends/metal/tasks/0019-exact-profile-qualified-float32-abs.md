@@ -1,5 +1,19 @@
 # Task 0019: Exact Profile-Qualified [FLOAT32](../../../../glossary.md#term-float32) ABS
 
+## Reader context
+
+This was the independently delivered ABS slice; it did not complete the blocked three-operation
+task 0016. Its two-profile table is a historical checkpoint, not today's complete capability list.
+For non-NaN values, ABS's exact magnitude-bit behavior included changing negative zero to positive
+zero, rather than applying a general floating-point tolerance.
+
+Metal checked the occurrence's type, shape, state and layout before preparing the route.
+A logical affine view needed the explicit CONTIGUOUS step required by this slice; matching
+element counts alone did not turn it into canonical input storage. Reused selector evidence
+and fresh implementation/lifecycle tests had different roles.
+The [current exact and numerical operation domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+explain the later, profile-free boundary without changing the evidence reuse recorded below.
+
 ## Status
 
 Complete

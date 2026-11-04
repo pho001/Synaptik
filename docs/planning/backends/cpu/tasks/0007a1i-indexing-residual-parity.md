@@ -1,5 +1,26 @@
 # [CPU](../../../../glossary.md#term-cpu) 0007A1I: Indexing [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
 
+## Reader context
+
+The indexing residuals were remaining timing gaps, not saved differentiation values. They
+concerned repeated address/tuple work, not missing bounds checks. The GATHER form advanced
+primitive row/column cursors; the GATHER_ND form loaded one coordinate tuple per suffix block
+and used direct stores or a partial-range cursor loop. A suffix block is the trailing data slice
+selected by a tuple, not an additional index Tensor.
+
+The generated writer was reached only after complete index validation. A failed
+shape/carrier/range proof selected the existing general-long body, not another backend, while
+invalid index values still failed before writes. CPU capabilities, resources, and borrowed-input
+lifetime did not widen. Current gather semantics and the executable validation explanation
+separate the expression, the current index values, and the guarded writer.
+
+Current reading alongside this historical record:
+
+- [Axis-gather expression semantics](../../../../reference/tensor/gather.md#axis-gather-expressions)
+  — separates data/index roles and expression construction from reading index values.
+- [CPU binding, validation, and ranges](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalexecutable)
+  — identifies current-value validation, direct invocation state, and worker/resource lifetimes.
+
 ## Status
 
 Complete

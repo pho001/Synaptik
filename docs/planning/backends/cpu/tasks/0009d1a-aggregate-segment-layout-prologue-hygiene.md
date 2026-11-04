@@ -1,5 +1,25 @@
 # Task 0009D1A: Aggregate Segment-[Layout](../../../../glossary.md#layout) Prologue Hygiene
 
+## Reader context
+
+This task records a narrow aggregate-entry correction: `CpuCarrierEmitter.prepareSegmentLayouts`
+retains predefined typed native-endian unaligned FFM layouts instead of recreating equivalent
+layouts. `MemorySegment` is the accessed storage carrier; `ValueLayout` describes how typed reads
+and writes access it. `CpuClassFileKernelGenerator` supplies the aggregate-family boundary so
+unrelated shared-layout callers retain their prior byte shape.
+
+Here, structural inspection and mutation checks establish removal of redundant prologue calls, while
+semantic canaries check preserved execution behavior. Neither proves performance parity or completes
+D1's then-outstanding proofs. `CpuGeneratorSchema` version 66 rejects incompatible persistent
+generated-code envelopes despite unchanged generated-class identity. Those cache envelopes are
+distinct from invocation scratch or model state; Prepare's selected-realization ownership and
+Runtime invocation remain unchanged.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task 0059: Casts, [Layout](../../../../glossary.md#layout), and Indexing
 
+## Reader context
+
+A cast changes values under a conversion rule; indexing and raw movement copy selected bits. Native kernels need logical coordinates and physical geometry: SELECT/SLICE can describe holes or offsets even when publication returns a compact logical sequence. A Tensor description is not the buffer containing those bytes.
+
+Java and native preflight independently check mapping and bounds before writes. Publication gathers logical values; transfer honors physical span and Boolean-byte validation. The six-carrier cast matrix, no-gradient boundary and schema-15 cutover below are historical, not today's full movement/cast domain.
+
+- [Current logical versus physical authentication](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Explains offsets, spans and mutation boundaries.
+- [Current cast indexing and movement admission](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection) — Locates later carrier and gradient coverage.
+
 ## Status
 
 Complete at [schema](../../../../glossary.md#term-schema)/[layout](../../../../glossary.md#layout) cutover plan `6478d249`, implementation and focused proof `783eabe1`,

@@ -1,5 +1,19 @@
 # Task 0035: Profile-Common [Canonical](../../../../glossary.md#term-canonical-form) [FLOAT32](../../../../glossary.md#term-float32) No-Grad Explicit-State [Dropout](../../../../glossary.md#dropout--inverted-dropout)
 
+## Reader context
+
+Explicit dropout state meant two Model-defined raw integer words passed through the graph,
+not an opaque provider random-generator object. Its shape described those words; their key
+and counter contents were runtime values. A backend-private replay algorithm still had to obey
+Model's draw count, probability and state-transition rules.
+
+The keep mask and next state were mandatory sibling results even when not publicly selected;
+“hidden” did not mean optional allocation or disposable output. Compiler preserved that complete
+occurrence, and Metal would need typed multi-output binding and validation before mutation.
+No such lifecycle was implemented by this blocked assessment.
+The [current dropout qualification and replay boundary](../../../../backend-guide/production-support.md#metal-production-target)
+connects to later evidence without importing the old direct selector's opaque state semantics.
+
 ## Status
 
 Blocked

@@ -1,5 +1,25 @@
 # [CPU](../../../../glossary.md#term-cpu) Task 0008P: Deterministic Modular Partial-Reduction Parallelism
 
+## Reader context
+
+This task records a separate partial-reduction architecture for ordinary `INT32`/`INT64` `SUM` and
+`PROD`, not a wider interpretation of `CpuAggregateIr`'s complete-output-cell ranges.
+`CpuPartialReductionIr` separates generated partial bodies from ordered combine. Primitive arrays
+carry input/output data; each partial writes a disjoint aligned state slice, and the invoking thread
+combines only after worker join. This workspace belongs to one `RunState` and is not persistent
+model state.
+
+Here, Model permission comes from same-width modular arithmetic, not floating reassociation. CPU
+analysis fixes partition count and workspace before shared assignment; Runtime executes the prepared
+recipe without selecting a route. Structural/semantic oracle checks establish algorithm parity, not
+speed. The sole profitability root failed before sealing, so the completed machinery remained
+non-admitted and production kept whole-cell execution.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current selected-domain reduction meanings](../../../../reference/tensor/reductions.md#multi-axis-and-statistical-reduction-expressions) — Separates axes, correction, norms, and numerical semantics from historical CPU algorithm choices.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Complete

@@ -1,5 +1,24 @@
 # Task 0009D: Aggregate, [Scan](../../../../glossary.md#term-cumulative-scan), Ordering, and Fold Route-Closure Parent
 
+## Reader context
+
+This task records orchestration of four retained-generated-route decisions: ordinary aggregates,
+cumulative scans, ordering, and folds. Direct typed Java was an alternative only where it reduced
+implementation and verification work. The historical structural oracle accounts for generated
+implementation shapes; semantic and invocation evidence checks behavior and execution. Neither the
+old row denominator nor completion establishes a performance benefit.
+
+Here, Prepare selects a concrete typed kernel, the worker or caller supplies execution ranges, and
+Runtime invokes prepared work. Generated versus direct describes implementation ownership behind
+that boundary, not a public API change. D1 through D4 retain their family-specific evidence; this
+parent synchronizes decisions and dependencies rather than implementing kernels or reopening
+completed children.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

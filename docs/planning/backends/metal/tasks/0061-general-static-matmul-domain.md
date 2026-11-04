@@ -1,5 +1,13 @@
 # Task 0061: General Static [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Domain
 
+## Reader context
+
+Model determines vector promotion, batch broadcasting, result type and generated derivatives. Metal authenticates which physical buffer and strides each operand uses. A local PERMUTE can describe a transpose of existing storage; reading it as a canonical copy gives wrong coordinates. Native execution writes a separate output and visits contraction contributors.
+
+This widened geometry without increasing true kind names. Its FLOAT32/mixed-carrier exclusions are the historical domain. A generated backward works only if every emitted rank edit, transpose, reduction and MATMUL is admitted—not merely because the forward Tensor carries a gradient flag.
+
+- [Current operands and generated MATMUL gradients](../../../../backend-guide/metal-backend.md#general-static-matmul-and-generated-gradients) — Connects vector/batch semantics to physical addressing and later typed coverage.
+
 ## Status
 
 Complete at corrected approved plan `d81ec940` and reviewed implementation head `3913bac1`.

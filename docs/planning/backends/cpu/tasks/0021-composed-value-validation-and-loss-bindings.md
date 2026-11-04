@@ -1,5 +1,18 @@
 # [CPU](../../../../glossary.md#term-cpu) 0021 — Repair composed value [validation](../../../../glossary.md#term-validation) and [loss](../../../../glossary.md#loss) [bindings](../../../../glossary.md#term-binding)
 
+## Reader context — historical integration boundary
+
+Binding can validate a buffer's type, accessible span and write role before execution, but cannot
+validate values that an earlier computation has not produced yet. The CPU composite binds all
+children first, then executes producers before consumers. The repair therefore captures typed
+readers at binding and scans current softmax/index-loss/mask values immediately before each consumer
+writes or submits workers. That preserves consumer output on validation failure, not rollback of
+earlier producer writes. Engine and Runtime still own run failure cleanup; CPU's consumer owns its
+numerical-domain check. This is distinct from changing the logical loss binding merely to match a
+cache projection.
+
+Current reading: [Metadata binding versus produced-value checks](../../../../backend-guide/cpu-backend.md#binding-metadata-and-validating-produced-values).
+
 ## Status
 
 Complete

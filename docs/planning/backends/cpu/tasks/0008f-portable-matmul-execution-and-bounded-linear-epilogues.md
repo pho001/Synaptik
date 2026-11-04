@@ -1,5 +1,26 @@
 # [CPU](../../../../glossary.md#term-cpu) Task 0008F: Portable [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Execution and Bounded [Linear](../../../../glossary.md#term-linear-meanings) Epilogues
 
+## Reader context
+
+This task records portable generated MATMUL execution, including rank-one promotion, batch
+broadcasting, numeric promotion, and bounded linear epilogues. `CpuMatmulLowering` produces
+`CpuMatmulIr` and checked geometry; `CpuMatmulCandidateSelector` chooses among four family-local
+scalar/vector and direct/tiled realizations. These choices differ from `CpuFusionDecision`'s
+fused-versus-split epilogue selection and `CpuRepresentationPlanner`'s candidate-only input-copy
+alternatives.
+
+`CpuMatmulEmitter` generates the production body; `CpuMatmulReferenceKernel` is a semantic and
+specialized-algorithm oracle, not a Runtime interpreter. Class-File inspection is the structural
+oracle. Shared Prepare assigns declared resources, finalization binds artifacts, and CPU execution
+borrows its supplied `CpuWorkerGroup`; worker ranges own disjoint outputs while each accumulator
+traverses full K. Geometry describes resolved invocation storage; declared copy workspaces are run
+scratch, not persistent model state.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current MATMUL-backed linear composition](../../../../reference/tensor/matmul-linear.md#linear-projection-convenience) — Distinguishes Tensor composition and visible transpose/bias boundaries from a state-owning NN layer.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Complete.

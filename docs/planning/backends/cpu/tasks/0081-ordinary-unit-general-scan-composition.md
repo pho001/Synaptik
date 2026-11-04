@@ -1,5 +1,33 @@
 # CPU0081: [General Scan](../../../../glossary.md#general-differentiable-scan) through existing ordinary physical units
 
+## Reader context
+
+This record connects three distinct boundaries:
+
+- **Source construction:** application code supplies `ScanBody` formals and actual tensors.
+  A formal is a leaf with no producing expression, standing for one body input; it need not
+  contain stored values. [Scan source roles](../../../../reference/tensor/general-scan.md#formals-actual-positions-and-source-closure)
+  explain positional carry, sequence and invariant binding.
+- **Compilation and preparation:** Compiler passes a captured body and activity facts;
+  Prepare checks the bindings and CPU decomposes that body using ordinary physical units.
+  Lowerers and emitters are internal callers here, not application callbacks. Analysis declares
+  cuts, scratch and control before shared slot assignment; generation emits fixed helper calls.
+- **Invocation:** Runtime binds an invocation's actual storage and executes the generated time
+  loop. Mutable packs, cursors, control and scratch belong to that run, not shared class state.
+  Old carry values stay valid until every required old-state read has finished.
+
+“Caller seed” in the zero-time result means the actual seed supplied for the selected derivative
+request. With no body step producing a replacement, the source-resource path borrows that seed;
+it does not invent a producer, initialize a substitute, or take over the supplier's storage
+lifetime. “Structurally absent” means a derivative channel was not supplied by the selected
+graph; it differs from a present tensor whose numerical cells happen to be zero, because the
+latter still participates in validation and arithmetic.
+
+Read [current general Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+for present qualification boundaries. The frozen interfaces, original failures and finite
+ownership/allocation observations below remain this checkpoint's evidence, not a universal
+zero-copy, zero-allocation, concurrency or whole-release guarantee.
+
 ## Status
 
 Complete — MAIN integrated the coordinated Compiler0017/CPU0081 cutover after exact [Ready](../../../../glossary.md#term-ready)/source

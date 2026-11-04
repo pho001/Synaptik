@@ -1,5 +1,25 @@
 # Task 0007F: Portable Layer and [RMS Normalization](../../../../glossary.md#rms-normalization) Coverage
 
+## Reader context
+
+This task records four explicit Layer/RMS normalization forms over trailing normalized Shapes,
+rather than recognizing decomposed reductions. Model owns signatures, promotion, epsilon, metadata,
+and special-value behavior; Compiler revalidates them. `CpuTrailingNormalizationIr` and
+`CpuTrailingNormalizationLowering` preserve ordered operand roles while mapping repeated logical
+inputs to unique storage boundaries. Separate `CpuLayerNormEmitter` and `CpuRmsNormEmitter` owners
+generate their numerical bodies.
+
+Here, Layer's exact-mean pass uses `AGGREGATE_EXACT_STATE` scratch per simultaneous range; this run
+scratch is not persistent model state or saved statistics. RMS declares no workspace. Prepare
+assigns resources, cold binding validates carriers and overlap, and Runtime invokes complete-slice
+ranges. Clean Java supplies the structural algorithm/overhead oracle; independent mathematical
+checks supply the semantic oracle.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current trailing Layer-normalization form](../../../../reference/tensor/normalization.md#layer-normalization-expressions) — Explains normalized Shape, ordered inputs, epsilon, and centered population normalization.
+- [current RMS-normalization form](../../../../reference/tensor/normalization.md#rms-normalization-expressions) — Contrasts uncentered mean square and optional scale with Layer normalization.
+
 ## Status
 
 Complete

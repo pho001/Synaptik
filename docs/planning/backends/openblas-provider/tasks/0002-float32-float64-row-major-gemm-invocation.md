@@ -1,5 +1,14 @@
 # Task 0002: [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) [Row-Major](../../../../glossary.md#term-row-major) [GEMM](../../../../glossary.md#general-matrix-multiplication--gemm) Invocation
 
+## Reader context
+
+The caller supplies native `MemorySegment` objects containing A/B/C values, not Tensor descriptors. `OpenBlasLibrary.sgemm/dgemm` checks open lifetime, delegates validation to `OpenBlasGemmInvocation` and borrows segments for one synchronous CBLAS downcall. A/B are read inputs, C writable output; allocation and close remain the caller's responsibility.
+
+CPU normalizes layout and chooses the route before this API. Empty output skips native work only after validation; empty contraction with nonempty C still invokes GEMM so beta can act on C. Historical fake-handle tests prove forwarding/rejection, not arbitrary OpenBLAS numerical conformance.
+
+- [Current GEMM ownership and zero behavior](../../../../backend-guide/cpu-backend.md#current-low-level-openblas-foundation) — Connects matrix values to low-level borrowing.
+- [Current CPU normalization and selection](../../../../backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route) — Shows why graph/layout policy stays outside the provider.
+
 ## Status
 
 Complete

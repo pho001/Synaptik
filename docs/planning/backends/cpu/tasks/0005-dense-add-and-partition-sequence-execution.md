@@ -1,5 +1,26 @@
 # Task 0005: Dense Add and [Partition](../../../../glossary.md#partition)-Sequence Execution
 
+## Reader context
+
+This was the first real arithmetic slice, but its unit of generated work was still one graph
+node. Planning could group consecutive supported ADD occurrences into one CPU-owned partition;
+CPU preparation therefore had to share intermediate buffer declarations and retain child calls
+in producer-before-consumer order. Runtime invoked one partition-level bound object, which
+called those already-bound children rather than rediscovering graph dependencies.
+
+The Tensor/graph descriptions supplied shapes and types; native segments held the actual left,
+right, and result values. Each ADD wrote a distinct result buffer instead of modifying either
+input. The later atomic reset replaced this per-node implementation with computation-oriented
+units and virtual intermediates. The superseded status protects that distinction: the narrow
+matrix and historical test receipts are not a current support table.
+
+Current reading alongside this historical record:
+
+- [CPU partition and unit lowering](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternallowering)
+  — explains virtual intermediates, boundary stores, and family-specific mappings.
+- [CPU binding, validation, and ranges](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalexecutable)
+  — identifies current-value validation, direct invocation state, and worker/resource lifetimes.
+
 ## Status
 
 Superseded

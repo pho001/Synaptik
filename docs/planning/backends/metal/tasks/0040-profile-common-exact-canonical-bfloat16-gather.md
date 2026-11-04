@@ -1,5 +1,19 @@
 # Task 0040: Profile-Common Exact [Canonical](../../../../glossary.md#term-canonical-form) [BFLOAT16](../../../../glossary.md#term-bfloat16) [Gather](../../../../glossary.md#gather)
 
+## Reader context
+
+Exact Gather meant copying the selected 16-bit BFLOAT16 representation, including its NaN
+sign, payload and signaling state, not merely producing a numerically equivalent NaN.
+Canonical layout describes address order; NaN canonicalization changes a stored value.
+The direct selector failed that distinction at the first checked output.
+
+Both input buffers were checked unchanged, but the early failure left later output words and
+target guards unchecked. The implementation requirements below therefore remained conditional,
+not delivered ingress, publication or allocated schema values. Model owned exact selection;
+Metal could not repair the result on the host or silently substitute another type.
+The [current original-carrier exact movement domain](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+provides the later route context without widening this sole failed execution's evidence.
+
 ## Status
 
 Blocked

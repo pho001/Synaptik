@@ -1,5 +1,20 @@
 # CPU0070: Replan composition of existing [operation](../../../../glossary.md#operation) emitters
 
+## Reader context
+
+The replacement plan distinguishes three binding spaces. CodeBuilder allocates JVM local
+indexes while generating a method; emitter callers select operands and temporal addresses
+while composing operation regions; a later invocation supplies numeric geometry and actual
+storage. These are not three names for Runtime memory slots. Scan can surround a common
+arithmetic region with activity/history work without invoking a nested prepared executable.
+Non-fused regions still need declared intermediate storage and completion before consumption.
+
+Read [common MATMUL binding](../../../../backend-guide/cpu-backend.md#common-rank-two-matmul-binding)
+for the concrete caller/owner split and a non-fused intermediate example, and
+[common pointwise/SUM composition](../../../../backend-guide/cpu-backend.md#common-pointwise-and-sum-composition)
+for later shared ownership without numerical unification. Completion below means accepted
+planning delivery, not permission to launch its successor commands or measurements.
+
 ## Status and goal
 
 Complete for [planning](../../../../glossary.md#term-planning) delivery; independent APPROVE and MAIN acceptance on 2026-10-29.

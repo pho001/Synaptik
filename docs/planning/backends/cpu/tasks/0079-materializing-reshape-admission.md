@@ -1,5 +1,22 @@
 # Task 0079: Materializing RESHAPE [admission](../../../../glossary.md#term-admission)
 
+## Reader context
+
+RESHAPE changes the logical arrangement of elements. A genuine **view** can describe that
+arrangement with the original storage, offset and strides; a **materializing** reshape copies
+the logical element sequence into a separately declared destination when that view is unproved.
+This task admits the second case for the recorded static noncontiguous input. It does not make
+every reshape copy or permit writing into the input.
+
+Compiler supplies the proved result geometry; `CpuCapabilityProvider.supportsAffine` decides
+whether CPU accepts that occurrence. CPU lowering and preparation then retain the ordinary
+checked-copy and separate-destination lifetime rules. A successful provider query is only the
+first decision, not proof that allocation, binding and execution have succeeded.
+The [CPU layout-completion and raw-copy discussion](../../../../backend-guide/cpu-backend.md#ordinary-named-batch-cpu-execution)
+distinguishes this case from exact views. The before failure and seven-carrier after receipts
+below are the historical consumer evidence; no numerical low-type arithmetic is implied by
+copying those types' represented bits.
+
 ## Status
 
 Complete — independent final source/evidence/documentation APPROVE0; exact four-file source is

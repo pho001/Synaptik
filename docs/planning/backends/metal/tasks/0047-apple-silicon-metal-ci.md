@@ -1,5 +1,21 @@
 # Task 0047: Apple Silicon [Metal](../../../../glossary.md#term-metal) [CI](../../../../glossary.md#term-continuous-integration-ci)
 
+## Reader context
+
+The executable-looking workflow below was a gated proposal, not an installed continuous
+integration (CI) system. A macOS job compiling successfully could not prove real GPU execution,
+and skipped device tests could not satisfy the proposed functional job. Runner labels, action
+pins, prices and account eligibility were recorded planning facts, not present-day provider
+guarantees.
+
+An authorized repository owner needed to resolve provider access and obtain actual device
+evidence before implementation could be authorized. The proposed ephemeral job would own its
+generated packages, extraction and cleanup; it was not a distribution service or a timing-based
+performance gate.
+The [current Metal qualification and hosted-runner boundary](../../../../backend-guide/production-support.md#metal-production-target)
+keeps local source-build acceptance separate from hosted GPU CI and trusted public prebuilts.
+The original Blocked status and proposed commands remain unchanged.
+
 ## Status
 
 Blocked

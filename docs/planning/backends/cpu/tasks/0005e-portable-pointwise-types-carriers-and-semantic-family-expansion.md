@@ -1,5 +1,25 @@
 # Task 0005E: Portable [Pointwise](../../../../glossary.md#term-pointwise) Types, Carriers, and Semantic-Family Expansion
 
+## Reader context
+
+This checkpoint generalized the proving chain into a bounded pointwise family. A Model
+occurrence described an operation and its typed inputs; CPU lowering translated it into a closed
+opcode in one unit’s IR. Generated code calculated each logical output position, retaining
+eligible intermediate results as typed locals rather than separate stored Tensors. The external
+input and final output boundaries determined the invocation arguments.
+
+A carrier was the container for represented bits—such as `float[]` or `byte[]`—not a new
+numerical type or backend. BOOL bytes had to be canonical truth values, whereas numeric values
+followed their own type rules. The five-type inventory, vector restrictions, and cross-type-cast
+exclusions below are historical boundaries, not statements about every current Model method.
+
+Current reading alongside this historical record:
+
+- [CPU typed intermediate representation](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalir)
+  — distinguishes code-shaping structure from concrete geometry and live values.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

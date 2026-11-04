@@ -1,5 +1,19 @@
 # Task CPU0050: AveragePool2d backward compact-source fold
 
+## Reader context
+
+Compiler's `PoolingGradientRules.average` describes the backward recipe, including a typed
+division that produces stored per-position cotangents. CPU lowering removes only the later
+private repetition/copy chain. `CpuFoldEmitter` then gathers those existing rounded values
+directly from compact storage and writes a separate output. Neither the logical expanded
+Tensor shape nor its disappearance from physical declarations licenses recomputing DIV.
+The low-precision defect and its separate repair below are historical boundaries, not
+qualification of low compact-input folding.
+
+See [compact-source AveragePool2d backward](../../../../backend-guide/cpu-backend.md#compact-source-averagepool2d-backward)
+for the physical/logical shapes and gather mapping, and [overlap-fold arithmetic](../../../../backend-guide/cpu-backend.md#current-overlap-fold-family)
+for the distinct ordinary low-precision accumulation rule.
+
 ## Status
 
 Complete — MAIN accepted 2026-10-31 after Dirac FINAL APPROVE (0 P1/P2) and all gates PASS.

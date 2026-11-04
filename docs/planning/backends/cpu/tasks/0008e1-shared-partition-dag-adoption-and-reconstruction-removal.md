@@ -1,5 +1,25 @@
 # Task 0008E1: Shared [partition](../../../../glossary.md#partition)-[DAG](../../../../glossary.md#term-directed-acyclic-graph-dag) adoption and reconstruction removal
 
+## Reader context
+
+This task records removal of duplicate partition-topology reconstruction, not a change to fusion or
+representation policy. PrepareContext.partitionDag() supplies validated stable nodes,
+producer/output-port occurrences, consumer/input-port occurrences, and edges. Repeated ports remain
+separate occurrences. `CpuPartitionDagDecomposer` maps those facts into CPU-owned unit membership
+and dependencies rather than retaining another complete adjacency index.
+
+`CpuPartitionLowering`, `CpuAffineLayoutLowering`, and `CpuSpecializedSubgraphRecognizer` consume
+shared occurrences only where equivalent. `CpuFusionProfitabilitySelector` still derives CPU
+boundary roles, while logical-memory facts determine publication. `CpuRepresentationPlanner` retains
+lowered instruction-use counts because they differ from graph occurrences. Structural oracles
+compare ordering, identities, resources, and class bytes; existing semantic and performance evidence
+remains controlling because generated and executable work is recorded as unchanged.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

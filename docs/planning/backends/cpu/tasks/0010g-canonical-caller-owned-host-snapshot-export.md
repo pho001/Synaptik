@@ -1,5 +1,28 @@
 # Task 0010G: [Canonical](../../../../glossary.md#term-canonical-form) Caller-Owned [Host](../../../../glossary.md#term-host) [Snapshot](../../../../glossary.md#term-snapshot) Export
 
+## Reader context — historical integration boundary
+
+‘Caller-owned host snapshot’ names the result of a copy, not ownership of the source buffer. At the
+CPU service-provider boundary, Engine's result-materialization code is the caller of
+`copyToCanonicalHostBytes(...)`; ordinary application code receives Engine's detached
+`HostTensorValue`. Engine pairs one publication representation borrowed from an open Runtime result
+with that same occurrence's final descriptor. The descriptor describes logical shape and addressing;
+the representation contains the current values. CPU synchronously reads those values into a fresh
+mutable `byte[]` owned by its immediate caller, retaining neither array nor source. Engine owns
+result-close coordination and the outward immutable wrapper. The source remains leased, must stay
+accessible and unmodified throughout copying, and is not closed by export; the detached result can
+survive source closure. This explains the later consumer without changing the future-Engine
+assertions below.
+
+For a concrete address calculation, assume a valid INT32 source with at least seven elements,
+logical shape `[2,2]`, element offset 1 and element strides `[3,2]`. For integer coordinates
+$i,j\in\{0,1\}$ the source element index is $a(i,j)=1+3i+2j$. Row-major traversal therefore reads
+$a(0,0)=1$, $a(0,1)=3$, $a(1,0)=4$ and $a(1,1)=6$, in that order. Four INT32 elements require
+$4\times4=16$ output bytes. Those bytes are encoded big-endian; source gaps are not copied, and this
+storage-index calculation makes no floating-point arithmetic claim.
+
+Current reading: [Canonical host snapshot ownership](../../../../backend-guide/cpu-backend.md#canonical-caller-owned-host-snapshots).
+
 ## Status
 
 Complete

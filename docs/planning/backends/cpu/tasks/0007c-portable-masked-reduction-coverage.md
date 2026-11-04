@@ -1,5 +1,23 @@
 # Task 0007C: Portable [Masked Reduction](../../../../glossary.md#masked-reduction) Coverage
 
+## Reader context
+
+This task records masked `SUM`/`MEAN` through `CpuMaskedReductionIr`, `CpuMaskedReductionLowering`,
+and `CpuMaskedReductionEmitter`. Their ordered boundaries are floating data, canonical `BOOL` mask,
+and same-type output. Model owns directional right-aligned broadcast and selected-count meaning; CPU
+proves that the mask cannot enlarge the data Shape. Generated code tests the mask before loading or
+classifying data, so excluded NaNs and infinities never enter aggregation.
+
+Here, an independent integer/rational reference is the semantic oracle; decompilation checks early
+branching and direct loop structure against clean Java. `CpuExactSumEmitter` remains the
+generation-time arithmetic owner. Runtime supplies isolated per-range exact-state scratch, not
+persistent model state; selected count stays primitive-local, and workers own complete output cells.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current directional masking and selected counts](../../../../reference/tensor/masked-index-reductions.md#masked-sum-and-mean-expressions) — Explains why the mask cannot enlarge the data Shape and why excluded values never contribute.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

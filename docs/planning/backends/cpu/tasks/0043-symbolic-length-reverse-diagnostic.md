@@ -1,5 +1,17 @@
 # Task CPU0043: Symbolic-length actual reverse diagnostic
 
+## Reader context — historical integration boundary
+
+This is a diagnosis of the actual Compiler reverse under both changing B and runtime lengths, not a
+new Scan capability. Original fixture lookup, prebound generated entry and direct typed Java have
+different invocation boundaries; timing ratios include those differences. C1/OSR failures and later
+normal-C2 installations also mean call counts alone cannot prove matching compiled execution. CPU
+kept production unchanged because the residual data did not isolate a justified local repair. The
+evidence roots and cause limits below remain historical, including missing historical JIT traces;
+they do not imply that every measured difference was binding overhead.
+
+Current reading: [Symbolic batch plus runtime lengths](../../../../backend-guide/cpu-backend.md#symbolic-length-scan-cpu-execution).
+
 ## Status
 
 Complete — MAIN accepted frozen diagnostic source/evidence 2026-10-27 after independent Class C APPROVE, zero open P1/P2, and verified [module](../../../../glossary.md#term-module)/preservation gates; final documentation closeout delegated exclusively to the independent review context, with MAIN retaining integration [ownership](../../../../glossary.md#term-ownership-meanings).

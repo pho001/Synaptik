@@ -1,5 +1,14 @@
 # Task 0004: Optional Direct [BFLOAT16](../../../../glossary.md#term-bfloat16)-Output [GEMM](../../../../glossary.md#general-matrix-multiplication--gemm) Capability
 
+## Reader context
+
+This is a blocked proposal, not an implemented `OpenBlasBFloat16Gemm` API. Required FLOAT32/FLOAT64/thread functionality remained usable. A header and related `cblas_sbgemm` export did not establish a direct BFLOAT16-output ABI; the source audit also found intermediate contraction-panel narrowing, a separate semantic failure.
+
+The proposed provider would borrow BFLOAT16 A/B/C segments only after both gates passed; CPU would still qualify the binary and select the route. Missing prerequisites are upstream/exported-binary evidence satisfying both gates—not conversion staging, smaller fixtures or a claim that portable BFLOAT16 is unsupported.
+
+- [Current absent low OpenBLAS route and exact requirements](../../../../backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route) — Separates the optional side branch from portable low types.
+- [Current mandatory provider surface](../../../../backend-guide/cpu-backend.md#current-low-level-openblas-foundation) — Distinguishes proposed optional symbols from the working baseline.
+
 ## Status
 
 Blocked

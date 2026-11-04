@@ -1,5 +1,26 @@
 # Task 0009G1: [Scalar](../../../../glossary.md#term-scalar)-Strategy Evidence Correction
 
+## Reader context
+
+This task records an evidence-only repair adding selected-`SCALAR` witnesses for seven
+scalar-immediate forms while retaining `SCALAR_ADD`’s four-strategy orchestration basis.
+`CpuScalarImmediateClampMatrixOracle` constructs finite fixtures; `CpuPartitionPreparer` supplies
+observed selection; `CpuGeneratedCoverageCheckpointTest` requires a generated scalar owner wherever
+live fixtures establish that scalar is meaningful. Scalar-immediate describes an operation’s
+argument form, whereas `SCALAR` names its selected execution strategy.
+
+Here, inventory hashes bind six regenerated resources and their direct Java consumers into one
+fail-closed accounting chain. Semantic closure concerns generated-entry results; structural-oracle
+evidence concerns implementation shape. Adding selection witnesses does not upgrade either
+disposition. `CpuScalarEmitter`, schemas, preparation policy, and Runtime behavior remain unchanged
+in this record; Runtime executes prepared work rather than selecting strategies. The correction does
+not authorize new production defaults.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current exact typed scalar metadata](../../../../reference/tensor/data-types.md#exact-typed-scalar-values) — Distinguishes immutable immediate bits from a rank-zero Tensor or live storage.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Complete

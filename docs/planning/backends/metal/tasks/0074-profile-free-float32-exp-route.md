@@ -1,5 +1,14 @@
 # Task 0074: Profile-free [FLOAT32](../../../../glossary.md#term-float32) [EXP](../../../../glossary.md#term-expx) route
 
+## Reader context
+
+This profile-free FLOAT32 EXP route is not completion of Task 0053's formal candidate. Model supplies semantics; Metal queries the occurrence, fixes a MPSGraph recipe during preparation and checks native buffers before writes. Finite test thresholds qualify the route; Runtime gains no tolerance object or per-element checker.
+
+An explicit low-to-FLOAT32 cast changes its output carrier. EXP after that cast is FLOAT32 work even in a custom low-containing partition; it does not imply low EXP. The initial no-gradient domain and identity below are checkpoint facts; current scalar/gradient coverage is separate.
+
+- [Current EXP carrier scalar and gradient domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Connects the initial route to later typed expansion.
+- [Current sites and ledger interpretation](../../../../backend-guide/metal-backend.md#numerical-semantics-and-capability) — Distinguishes tests from runtime policy.
+
 ## Status
 
 Complete — [FLOAT32](../../../../glossary.md#term-float32)-only [EXP](../../../../glossary.md#term-expx) [qualification](../../../../glossary.md#term-qualification), 0069 source/[AIR](../../../../glossary.md#term-air) evidence rebinding, independent Class C

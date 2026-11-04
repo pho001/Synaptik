@@ -1,5 +1,26 @@
 # Task 0007A1D: Native-Order Segment [Layout](../../../../glossary.md#layout) Hoisting
 
+## Reader context
+
+A MemorySegment primitive access needs a typed memory layout describing width, alignment, and
+byte order. The defect here was rebuilding that unchanged layout inside repeated generated
+accesses. The carrier emitter instead initialized typed layout locals once at entry, then reused
+them for scalar loads and stores. This changed emitted setup, not Tensor geometry, values, or
+ownership.
+
+Crucially, hoisting was not a complete performance fix: the retained final fork failed the
+task’s thirteen-target gate. Its later superseded disposition and the downstream movement
+corrections must not be read as retroactively passing that gate. Current generation and memory
+explanations identify the emitter and physical carrier boundary while the original failed
+evidence remains authoritative for this checkpoint.
+
+Current reading alongside this historical record:
+
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+- [CPU physical storage ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalmemory)
+  — distinguishes borrowed application storage from run-owned buffers and scratch.
+
 ## Status
 
 Superseded — review closed on 2026-10-09. The retained [schema](../../../../glossary.md#term-schema)-32 [layout](../../../../glossary.md#layout) hoisting passed semantic

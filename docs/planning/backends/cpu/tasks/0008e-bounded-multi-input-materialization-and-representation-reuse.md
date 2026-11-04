@@ -1,5 +1,25 @@
 # Task 0008E: Bounded Multi-Input [Materialization](../../../../glossary.md#materialization) and Representation Reuse
 
+## Reader context
+
+This task records complete external-read representation alternatives while withdrawing ordinary
+static materialization promotion. `CpuRepresentationPlanner` retains direct, single-copy, and
+eligible disjoint-pair variants in `CpuRepresentationDecision`, but ordinary preparation selects the
+exact direct representation of 0008D's selected topology. `DIRECT_MATERIALIZATION_UNPROVED`
+distinguishes missing promotion proof from illegality or incomplete enumeration; `CO_CONSUMED_PAIR`
+rejects two sources consumed by one represented instruction.
+
+Explicit affine-copy units use declared anonymous workspaces, distinct from 0008B graph-split
+Buffer(`ValueId`) resources; this run scratch is not persistent model state. Tests explicitly
+realize retained candidates through `CpuPartitionFinalizer` and prepared execution. Semantic oracles
+check copy-plus-consumer results, structural oracles check identities and Class-Files, and
+complete-plan timing—not isolated generated-copy parity—governs promotion evidence.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Complete

@@ -1,5 +1,24 @@
 # Task 0009A: [Scalar](../../../../glossary.md#term-scalar)-Immediate and Clamp Generated Support and Clean-Java Semantic Closure
 
+## Reader context
+
+This task records support and semantic closure for CPU 0008Q1's exact 256 scalar-immediate/clamp
+forms. The independent typed clean-Java counterpart is the semantic oracle: execution results are
+compared with generated entries without using lowering or reference kernels inside the counterpart.
+Class-File inspection supplies separate structural and hot-path evidence; equivalent `BFLOAT16`
+guard/latch placement makes literal generated-versus-javac control-flow equality unsuitable.
+
+CPU Prepare owns lowering and route selection; Runtime invokes prepared artifacts. The test-only
+io.github.pho001.synaptik.backend.cpu.internal.codegen.emit package owns fixtures, invocation, and
+evidence, not production admission or policy. Ordered carriers, access regimes, selected strategies,
+and materialization are evidence boundaries. Completion leaves every generated inventory row
+structurally partial and performance-partial; it does not authorize production strategy changes.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current exact typed scalar metadata](../../../../reference/tensor/data-types.md#exact-typed-scalar-values) — Distinguishes immutable immediate bits from a rank-zero Tensor or live storage.
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+
 ## Status
 
 Complete

@@ -1,5 +1,13 @@
 # Task 0048: Persistent [immutable](../../../../glossary.md#term-immutable) [Metal](../../../../glossary.md#term-metal) splats and no-general-pool closure
 
+## Reader context
+
+A splat is a graph constant described by one scalar repeated over a Tensor's shape, not a fresh application input. Metal finalization uploads its exact bytes once; `PreparedExecution` owns that immutable native buffer. Runtime creates a separate read-only binding for each run, so prepared-owner close prevents new bindings without invalidating an already-issued `RunResult`. The last outstanding binding permits physical release.
+
+The counts below concern avoided constant allocation/upload, not faster GPU arithmetic. Outputs and address workspaces remain mutable run resources; persisting constants does not establish a general buffer pool. Versions and measured counts belong to this checkpoint.
+
+- [Current prepared-resource and child-binding ownership](../../../../backend-guide/metal-backend.md#finalization-and-persistent-ownership) — Explains why owner close and physical release occur at different times.
+
 ## Status
 
 Complete

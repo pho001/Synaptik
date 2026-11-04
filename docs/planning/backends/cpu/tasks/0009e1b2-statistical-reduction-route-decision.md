@@ -1,5 +1,24 @@
 # Task 0009E1B2: Statistical Reduction Route Decision
 
+## Reader context
+
+This task records retaining generated VARIANCE and STANDARD_DEVIATION as one statistical family:
+they share corrected two-pass processing and differ at the final square root.
+`CpuStatisticalReductionEmitter` owns that body, and `CpuExactSumEmitter` supplies exact-mean state.
+`CpuAdvancedReductionIr` and `CpuAdvancedReductionLowering.Geometry` define identity and static
+complete-output-cell geometry, not the statistical algorithm itself.
+
+Here, Prepare declares aligned exact-state resources, finalizes artifacts, and binds typed carriers;
+Runtime invokes immutable entries. Each concurrent complete-cell range receives isolated run
+scratch, not persistent model state. Generated Class-File inspection is a structural oracle for
+typed entries and dispatch hygiene. The independent reference kernel is the semantic oracle,
+implementing mathematical order without consuming packed lowering geometry or exact-state workspace.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current selected-domain reduction meanings](../../../../reference/tensor/reductions.md#multi-axis-and-statistical-reduction-expressions) — Separates axes, correction, norms, and numerical semantics from historical CPU algorithm choices.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

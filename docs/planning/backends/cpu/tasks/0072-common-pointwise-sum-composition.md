@@ -1,9 +1,26 @@
 # CPU0072: Common [pointwise](../../../../glossary.md#term-pointwise) and SUM composition
 
+## Reader context
+
+Here the two callers are ordinary CPU code generation and Scan body code generation. They reuse
+`emitBoundPointwise` for load/math/store ordering and the aggregate emitter for reductions.
+“Common” means one implementation owner, **not one summation algorithm**: ordinary SUM retains
+exact accumulated state followed by final rounding, while the recorded Scan path performs
+ordered represented additions, rounding at each addition. The cancellation example below
+illustrates why exchanging those algorithms would change observable values.
+
+The Scan adapter still owns time traversal, activity and saved forward values needed by reverse
+computation. A saved producing site is a value that must remain stored, not a disposable temporary
+merely because its arithmetic was fused. The [current composition explanation](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+connects these components; the [row-fusion explanation](../../../../backend-guide/cpu-backend.md#implemented-row-map-and-multiple-terminal-fusion)
+explains the separate ordinary exact-SUM boundary. The old frozen-byte receipts below concern
+artifact origins and compatibility, not Tensor producer metadata; their old paths and failures
+remain historical evidence.
+
 ## Status and change class
 
 Complete, MAIN accepted implementation/review and combined [module](../../../../glossary.md#term-module)/[Javadoc](../../../../glossary.md#term-javadoc)/named gates 2026-10-29.
-Banach's independent Class C source/Javadoc/documentation/[provenance](../../../../glossary.md#provenance) APPROVE has no open findings.
+Banach's independent Class C source/Javadoc/documentation/[provenance](../../../../glossary.md#term-artifact-provenance) APPROVE has no open findings.
 The historical Avicenna [planning](../../../../glossary.md#term-planning) approval and MAIN [Ready](../../../../glossary.md#term-ready)/GO authorized CPU0072 only; writer closed.
 Class C: generated composition, represented arithmetic, exact saved sites and resource invariants.
 Next priority is complete backward-versus-optimized-Java code comparison, not another timing [run](../../../../glossary.md#term-run).

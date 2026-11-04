@@ -1,5 +1,24 @@
 # Task 0008Q1A: [Vector](../../../../glossary.md#term-vector) [Scalar](../../../../glossary.md#term-scalar)-Power Hot-Path Self-Containment
 
+## Reader context
+
+This task records remediation of Synaptik helper calls discovered in the vector scalar-power family
+during CPU 0008Q1 review. `CpuVectorInstructionEmitter` owns generation-time emission of
+`FLOAT32`/`FLOAT64` `POSITIVE_ONE`, `IDENTITY`, `SQUARE`, and `RECIPROCAL` bodies. CPU preparation
+retains realization and route selection; Runtime invokes typed prepared entries. `DIRECT` remains
+scalar fallback, and `CpuVectorMath` retains ownership of unrelated vector formulas.
+
+The semantic oracle checks numerical behavior against independent clean-Java specializations. The
+structural oracle checks direct carrier access, vector chunks, scalar tails, and absence of Synaptik
+calls; equal results alone would not establish that boundary. Schema 64 invalidates older generated
+envelopes without changing exponent identity. Sealed paired timing evidence supports this historical
+remediation only, not current vector defaults or identical JIT assembly.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Complete

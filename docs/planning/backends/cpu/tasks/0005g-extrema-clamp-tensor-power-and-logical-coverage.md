@@ -1,5 +1,26 @@
 # Task 0005G: [Extrema](../../../../glossary.md#saturation-pole-and-extremum), Clamp, [Tensor](../../../../glossary.md#tensor) Power, and Logical Coverage
 
+## Reader context
+
+The MIN/MAX rows here are pairwise pointwise selections, not aggregate reductions over an axis.
+CPU lowering retained two ordered Tensor inputs or one Tensor plus an exact scalar attribute.
+CLAMP remained one semantic instruction carrying both bounds even though its realization
+performed lower-bound maximum before upper-bound minimum. Tensor POW read a runtime exponent
+value and therefore could not use scalar-exponent classification.
+
+Logical AND/OR/NOT operated on canonical BOOL values, not arbitrary byte patterns. These new
+rows deliberately used scalar computation with optional disjoint parallel ranges; semantic
+support did not imply Vector API eligibility. The preserved cast exclusions and type matrix
+record the contemporary boundary. Current scalar/clamp semantics and typed IR are linked for
+comparison, not retrospective qualification.
+
+Current reading alongside this historical record:
+
+- [Typed scalar arithmetic and clamp construction](../../../../reference/tensor/elementwise.md#scalar-arithmetic-and-clamp-expressions)
+  — identifies exact scalar attributes and the public expression boundary.
+- [CPU typed intermediate representation](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalir)
+  — distinguishes code-shaping structure from concrete geometry and live values.
+
 ## Status
 
 Complete

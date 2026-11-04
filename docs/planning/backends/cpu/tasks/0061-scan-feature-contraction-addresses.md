@@ -1,5 +1,19 @@
 # Task CPU0061: [Scan](../../../../glossary.md#term-cumulative-scan) [feature](../../../../glossary.md#term-software-feature)-[contraction](../../../../glossary.md#contraction-dimension) affine addresses
 
+## Reader context
+
+The proposed affine-address change ran during code generation in `CpuGeneralScanMatmulEmitter`;
+the generated entry, not that Java emitter, performed the contraction when invoked.
+Its feature axis K counts ordered products within an output cell, unlike invocation batch B.
+The candidate attempted to replace two evolving address cursors with direct indexed addresses
+only after a geometry proof. Identical arithmetic and fewer cursor recurrences did not satisfy
+the frozen retention rule. The accepted source was restored to v7; experimental v8 is not a
+current capability or a version readers should select.
+
+The [current common MATMUL explanation](../../../../backend-guide/cpu-backend.md#common-rank-two-matmul-binding)
+locates the later shared arithmetic owner and its activity adapters. It does not convert this
+cancelled candidate or its consumed benchmark slot into accepted implementation evidence.
+
 ## Status
 
 Cancelled — the sole candidate failed its frozen retention gate on 2026-10-28 and was restored exactly to accepted dirty v7. The user-requested performance-only experiment is complete; no retained implementation, functional suites, retry or successor. All [CPU](../../../../glossary.md#term-cpu) frontiers are None; older budgets stay closed.

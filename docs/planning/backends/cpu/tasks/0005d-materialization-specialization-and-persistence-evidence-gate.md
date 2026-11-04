@@ -1,5 +1,26 @@
 # Task 0005D: [Materialization](../../../../glossary.md#materialization), [Specialization](../../../../glossary.md#term-specialization), and [Persistence](../../../../glossary.md#term-persistence) Evidence Gate
 
+## Reader context
+
+Materialization here means a selected per-run copy, not construction of a new Model operation.
+CPU analysis compared direct strided reads with a contiguous copy of one input and declared the
+possible scratch before shared Prepare assigned it. Runtime then bound the original source and
+assigned workspace; the copy completed before the generated consumer used that workspace.
+Borrowing the source did not transfer the application’s storage ownership.
+
+The persistence experiment addressed a different cost: recreating generated class bytes during
+preparation. A persisted Class-File is neither cached numerical data nor saved JVM JIT machine
+code. The recorded KEEP_DISABLED verdict concerns the original opt-in experiment and does not
+ask readers to rerun it. Current preparation and cache explanations show where these separate
+decisions live.
+
+Current reading alongside this historical record:
+
+- [CPU analysis and finalization](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalprepare)
+  — explains declaration before assignment and realization afterward.
+- [CPU artifact compatibility and lifetime](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcache)
+  — distinguishes reusable code bytes and loaded artifacts from numerical values and JIT state.
+
 ## Status
 
 Complete

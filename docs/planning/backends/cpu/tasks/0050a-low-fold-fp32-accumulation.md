@@ -1,5 +1,19 @@
 # Task CPU0050A: Repair low overlap-fold [FP32](../../../../glossary.md#term-fp32) accumulation
 
+## Reader context
+
+This is a numerical repair, not removal of AveragePool's expanded low-precision storage.
+`CpuFoldEmitter` generates FLOAT32 accumulation and the final conversion; the independent cold
+`CpuScalarReferenceKernel` must implement the same rule. Neither component owns the input
+storage. The bound invocation reads it and writes its separately declared output.
+
+For the finite BFLOAT16 witness, each stored value is exactly decoded into FLOAT32:
+$1+2^{-8}+2^{-8}=1+2^{-7}$. Those three partial sums are exactly representable in FLOAT32,
+so one final BFLOAT16 rounding retains the increment. Rounding to BFLOAT16 after each addition
+loses each half-ulp increment instead. This example does not authorize reassociation for
+general inputs or change NaN handling. The [current fold explanation](../../../../backend-guide/cpu-backend.md#current-overlap-fold-family)
+also distinguishes this repaired arithmetic from the deliberately retained generic traversal.
+
 ## Status
 
 Complete — MAIN accepted 2026-10-31 after Raman FINAL APPROVE, 0 open P1/P2, and qualified gate closure.

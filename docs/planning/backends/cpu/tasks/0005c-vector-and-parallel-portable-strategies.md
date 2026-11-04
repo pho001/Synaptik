@@ -1,5 +1,25 @@
 # Task 0005C: [Vector](../../../../glossary.md#term-vector) and Parallel Portable Strategies
 
+## Reader context
+
+Compute strategy and work distribution are separate decisions. CPU analysis chose scalar
+instructions or Java Vector API lane operations, then chose one range or several disjoint output
+ranges. Parallel-scalar and parallel-vector plans reused the corresponding generated body;
+neither required a second graph evaluator or a scheduler inside the class.
+
+CPU finalization borrowed an explicitly supplied `CpuWorkerGroup`, and Runtime binding captured
+the direct carriers and each range’s primitive geometry. The group’s external owner retained its
+close duty; reusable prepared code did not acquire that ownership. Joining all started ranges
+before return is why synchronous failure handling matters for storage lifetime. The exact
+FLOAT64 topology and vector eligibility below qualify this checkpoint only.
+
+Current reading alongside this historical record:
+
+- [CPU portable route plans](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalrouteportable)
+  — separates compute form, range orchestration, and invocation-private carriers.
+- [CPU binding, validation, and ranges](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalexecutable)
+  — identifies current-value validation, direct invocation state, and worker/resource lifetimes.
+
 ## Status
 
 Complete

@@ -1,5 +1,19 @@
 # Task 0009: [MPSGraph](../../../../glossary.md#term-mpsgraph) [FLOAT32](../../../../glossary.md#term-float32) [Rank-Two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Training [Checkpoint](../../../../glossary.md#term-checkpoint)
 
+## Reader context
+
+“Training checkpoint” names the intended proof, not delivered training support. The mandatory
+matrix-multiplication probe failed before the planned implementation: one contraction term
+multiplied by one lost a nonzero subnormal, so rearranging a sum could not explain the result.
+
+Compiler would have constructed derivative graphs from an explicit caller-supplied cotangent
+seed, meaning the output sensitivity to propagate to each operand. Metal would have executed
+those ordinary graphs. That is narrower than an implicit scalar loss or a training session.
+The proposed local transpose rule authenticated a producer edge and logical operand order,
+not arbitrary external view storage.
+The [current descriptor admission and matrix-multiplication boundary](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection)
+provides present navigation without reopening this blocked qualification.
+
 ## Status
 
 Blocked

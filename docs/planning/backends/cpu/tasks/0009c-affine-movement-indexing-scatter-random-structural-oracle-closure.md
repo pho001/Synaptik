@@ -1,5 +1,26 @@
 # Task 0009C: Affine, Movement, Indexing, Scatter, and Random Structural-[Oracle](../../../../glossary.md#term-test-oracle) Closure
 
+## Reader context
+
+This task records a 2,252-row paired-oracle closure across affine, non-fold movement, indexing,
+scatter, and random entries. `CpuAffineMovementIndexingScatterRandomCleanJavaOracle` supplies
+independent typed semantics; its StructuralOracleTest counterpart compares family-specific artifact
+facts. Affine address progression, CONCAT/STACK occurrence selection, prevalidated indexing, scatter
+update topology, and dropout state progression are not interchangeable structural schemas. Fold and
+ordering remain outside this denominator.
+
+Prepare owns validation, lowering, and selection; generated entries execute prepared inputs rather
+than performing generic validation. Ordered array/`MemorySegment` roles, output ranges, represented
+bits, and scratch/state topology cross the typed invocation boundary. Scatter run scratch is not
+persistent model state; random state stores are separate explicit output facts. The test-only
+registry resolves exact applicability relations, while performance remains separately partial
+despite the recorded structural promotions.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

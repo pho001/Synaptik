@@ -1,5 +1,25 @@
 # Task 0009G: Final Support, Correctness, Hygiene, and Inventory [Checkpoint](../../../../glossary.md#term-checkpoint)
 
+## Reader context
+
+This task records a final accounting checkpoint joining the live CPU fixture inventory to
+operation-family-form-ledger-v3.tsv. `CpuGeneratedCoverageCheckpointTest` reconstructs provider,
+preparer, and finalizer/generator outcomes so each finite owner is classified as generated, direct,
+or exactly rejected. Requested strategies are distinguished from selected strategies; observing four
+selected strategies across the inventory does not grant every strategy to every operation form.
+
+Here, semantic witnesses invoke generated entries against independent expected behavior.
+Structural-oracle and source/class-file hygiene evidence instead examine implementation shape and
+forbidden hot-path machinery; neither substitutes for the other or establishes performance success.
+Analysis owns route and resource decisions, finalization constructs prepared work after assignment,
+and Runtime invokes it. Run-owned workspace remains temporary execution storage, not persistent
+model state.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+- [current ordinary-production route policy](../../../../design/notes/cpu-kernel-strategy.md#current-ordinary-production-decision) — Prevents historical vector or parallel evidence from being read as current production-default authorization.
+
 ## Status
 
 Complete

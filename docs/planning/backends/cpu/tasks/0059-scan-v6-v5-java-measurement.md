@@ -1,5 +1,19 @@
 # Task CPU0059: Bounded [Scan](../../../../glossary.md#term-cumulative-scan) v6/v5/Java entry comparison
 
+## Reader context
+
+G5 and G6 are different generated artifacts; “standard” and “typed” are two ways the external
+launcher calls those artifacts, not different Scan algorithms. The standard action uses a
+captured segment-array spreader; the typed action supplies the ordered segments, geometry and
+range directly to `MethodHandle.invokeExact`. Reusing a code target across mechanisms borrows
+code, not writable state: each target/mechanism keeps independent outputs and scratch.
+E remains the unchanged direct-Java comparator in both mechanisms.
+
+Read [class bytes versus JIT code](../../../../backend-guide/cpu-backend.md#generated-class-byte-persistence-and-evidence)
+before interpreting pins or compilation windows, and [current Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+for current support. The alignment repair and every failed or successful slot below stay part
+of this historical experiment rather than instructions to rerun it.
+
 ## Status
 
 Complete — repaired [preflight](../../../../glossary.md#term-preflight) and three measured JVMs passed; independent result review APPROVE,

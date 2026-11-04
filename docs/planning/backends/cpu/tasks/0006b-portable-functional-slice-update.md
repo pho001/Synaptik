@@ -1,5 +1,26 @@
 # Task 0006B: Portable Functional [Slice Update](../../../../glossary.md#slice-update)
 
+## Reader context
+
+Functional SLICE_UPDATE creates a result whose selected coordinates come from `update` and whose
+remaining coordinates come from `base`. The base and update are inputs, not destinations to
+mutate. CPU lowering translated both signed finite-coordinate and target-relative placement
+descriptions into compact mapping state; the generated output-domain loop selected one
+represented input value for each result cell.
+
+Unlike scatter, placement did not depend on values read from an index Tensor, so this slice
+needed no runtime index-domain validation. Runtime still bound distinct writable output storage
+and checked overlap. Negative steps described the selection mapping, not permission to invent a
+negative physical-stride contract. The current slicing reference names the two public placement
+APIs without replacing the historical implementation details.
+
+Current reading alongside this historical record:
+
+- [Functional slice-update construction](../../../../reference/tensor/slicing.md#slice-update-and-target-relative-crop-expressions)
+  — explains unchanged base/update inputs and both placement forms.
+- [Resolved logical layouts](../../../../reference/tensor/layouts.md#resolved-layouts)
+  — explains offsets, strides, referenced spans, and why geometry does not own storage.
+
 ## Status
 
 Complete

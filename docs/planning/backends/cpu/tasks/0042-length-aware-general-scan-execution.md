@@ -1,5 +1,17 @@
 # Task CPU0042: Length-aware [general Scan](../../../../glossary.md#general-differentiable-scan) execution
 
+## Reader context — historical integration boundary
+
+Runtime length values determine activity inside a fixed-geometry general Scan. The INT64 `[B]`
+control input is not a differentiable body formal; Compiler builds the reverse while CPU proves ROW
+versus SHARED roles and emits guarded work. ROW identifies the batch axis, whereas SHARED means one
+parameter/state value independent of rows, even if an extent equals B. CPU validates all lengths
+after their producers but before any scan output/history/scratch write. Inactive rows preserve
+required initial bits and avoid padded loads, not ‘compute then multiply by zero’. The fixed-B
+boundary and separate combined symbolic-length path remain distinct.
+
+Current reading: [Length-aware activity and resources](../../../../backend-guide/cpu-backend.md#length-aware-fixed-batch-execution); [Current general Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition).
+
 ## Status
 
 Complete — MAIN accepted 2026-10-26 after independent Class C code/docs APPROVE and recorded gates.

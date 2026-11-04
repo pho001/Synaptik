@@ -1,5 +1,17 @@
 # Task CPU0033: General-[scan](../../../../glossary.md#term-cumulative-scan) [FLOAT64](../../../../glossary.md#term-float64) domain closure
 
+## Reader context — historical integration boundary
+
+FLOAT64 closure here means support for the whole then-declared general-Scan algebra and the actual
+Compiler-produced first-order reverse, not just retyping a pointwise kernel. Eight-byte values
+affect addressing, resource sizes and JVM local slots as well as arithmetic. CPU derives those facts
+before shared assignment; Runtime receives only the typed recipe and per-run resources. ‘Closure’
+does not prove every mathematically valid body or derivative fits the independent budgets. The
+retained timing gap and limits below remain unresolved historical observations, not universal
+current performance claims or permission to weaken the oracle.
+
+Current reading: [Current general Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition); [Retained static Scan resources](../../../../backend-guide/cpu-backend.md#retained-static-scan-qualification-and-resources).
+
 ## Status
 
 Complete — main accepted 2026-10-22; [CPU](../../../../glossary.md#term-cpu) frontier None. ImplementationAuthorized=true.

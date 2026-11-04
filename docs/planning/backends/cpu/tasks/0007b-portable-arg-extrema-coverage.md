@@ -1,5 +1,24 @@
 # Task 0007B: Portable Arg-[Extrema](../../../../glossary.md#saturation-pole-and-extremum) Coverage
 
+## Reader context
+
+This task records a specialized arg-extrema family because numeric input becomes an `INT64` logical
+coordinate rather than a same-type aggregate value. `CpuArgExtremaIr`, `CpuArgExtremaLowering`, and
+`CpuArgExtremaEmitter` keep that boundary separate from `CpuAggregateIr`. Model owns normalized
+axes, NaN and signed-zero ordering, and `FIRST_INDEX`/`LAST_INDEX` ties; CPU validates the static
+occurrence and traverses the selected axis in logical order.
+
+Here, the independent scalar reference checks semantic results, while clean primitive Java supplies
+the structural and performance oracle for generated loops. Runtime invokes typed entries over
+complete output-cell ranges without interpreting comparisons. The recorded family needs no workspace
+or materialization; immutable geometry and invocation-private primitive state support disjoint-cell
+execution.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current logical arg-extrema indices](../../../../reference/tensor/masked-index-reductions.md#arg-extrema-expressions) — Distinguishes axis coordinates from addresses and defines ties and empty-axis admission.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

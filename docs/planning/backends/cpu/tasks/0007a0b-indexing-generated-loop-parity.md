@@ -1,5 +1,26 @@
 # Task 0007A0B: Indexing Generated-Loop Parity
 
+## Reader context
+
+Index validation and output production had separate owners. The bound validator checked every
+logical index before any writer ran; `CpuIndexingEmitter` then emitted carrier- and
+type-specific loads, mapping, and stores for GATHER, GATHER_ELEMENTS, GATHER_ND, and ONE_HOT.
+Removing a generic bridge did not remove the validation boundary or turn Tensor construction
+into a value-reading operation.
+
+The dense GATHER_ELEMENTS optimization processed row fragments so each inner step could load an
+index and copy its selected value directly. Other layouts retained generated general mapping.
+The two timed representatives did not establish performance for every indexing shape or type.
+Current gather semantics and invocation validation explain these roles independently of the
+historical schema number.
+
+Current reading alongside this historical record:
+
+- [Axis-gather expression semantics](../../../../reference/tensor/gather.md#axis-gather-expressions)
+  — separates data/index roles and expression construction from reading index values.
+- [CPU binding, validation, and ranges](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalexecutable)
+  — identifies current-value validation, direct invocation state, and worker/resource lifetimes.
+
 ## Status
 
 Complete

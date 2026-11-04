@@ -1,5 +1,27 @@
 # Task 0007A2: Portable [Binding](../../../../glossary.md#term-binding)-Aware [Sum-to-Shape](../../../../glossary.md#sum-to-shape) Reduction
 
+## Reader context
+
+This task records `SUM`-to-Shape as an extension of `CpuAggregateIr`, `CpuAggregateLowering`, and
+`CpuAggregateEmitter`, not a separate reduction pipeline. Model owns `SumToShapeAttrs` semantics;
+Compiler owns binding proof; CPU consumes static Shapes and resolved layouts. Leading axes reduce,
+while aligned equal extents preserve coordinates before target-one reduction is considered. With no
+reduced axes, generated code copies represented bits into a distinct output.
+
+Here, independent mapping and exact-arithmetic tests are semantic oracles; Class-File inspection is
+the structural oracle. Direct Java supplies algorithm and timing comparisons, not the execution
+route. Runtime owns isolated run scratch, not persistent model state; complete output cells define
+worker ownership. Schema 43 compatibility remains separate from historical schema-42 ledger
+evidence.
+
+In the opening flow, arrows connect Shape proofs and execution forms; they do not depict live values
+moving between allocated buffers.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current SUM-to-Shape expression meaning](../../../../reference/tensor/reductions.md#binding-aware-sum-to-shape-expressions) — Explains target alignment, deferred binding obligations, and raw-bit no-reduction behavior.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task 0003: Thread Control and Native Provider [Checkpoint](../../../../glossary.md#term-checkpoint)
 
+## Reader context
+
+`threadCount()` and `setThreadCount(int)` invoke bound native functions, not a per-handle Java preference. Two owners may observe shared library/process state. A coordinating caller excludes conflicting work, keeps the library open and restores temporary choices in `finally`; provider close does not restore automatically.
+
+The checkpoint takes one supplied absolute binary path; it is test source, not production discovery. Two small GEMMs and cross-owner observation cover the recorded process/binary only. Today's CPU coordinator separately owns budget/admission/restoration policy. Direct thread control alone neither selects nor qualifies a CPU route.
+
+- [Current shared-state and restoration API](../../../../backend-guide/cpu-backend.md#direct-thread-control) — Explains setter semantics and caller coordination.
+- [Current CPU coordinator and budget](../../../../backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route) — Locates higher-level policy absent from the provider milestone.
+
 ## Status
 
 Complete

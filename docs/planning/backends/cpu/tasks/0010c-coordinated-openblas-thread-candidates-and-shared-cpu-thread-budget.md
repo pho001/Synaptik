@@ -1,5 +1,18 @@
 # Task 0010C: Coordinated [OpenBLAS](../../../../glossary.md#term-openblas) Thread Candidates and Shared [CPU](../../../../glossary.md#term-cpu) Thread Budget
 
+## Reader context — historical integration boundary
+
+There are two different resources here: CPU permits limit admitted work, while the coordinator
+protects the mutable OpenBLAS thread setting and owns the transferred library. CPU finalization
+calls the coordinator to install the already selected count; portable workers or the native recipe
+acquire permits when executing. Neither action makes Runtime a route selector. Exclusion covers only
+callers sharing that same coordinator, and capacity covers only work sharing that same budget;
+another framework instance or native consumer is not automatically coordinated. Closing the
+coordinator waits for admitted calls, restores the captured count through the still-open library,
+then closes it.
+
+Current reading: [Current OpenBLAS route](../../../../backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route).
+
 ## Status
 
 Complete

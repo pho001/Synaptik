@@ -1,5 +1,13 @@
 # Task 0001: Library Loading and Required [Symbol](../../../../glossary.md#term-symbol) [Binding](../../../../glossary.md#term-binding)
 
+## Reader context
+
+Application integration or CPU loader composition calls `OpenBlasLibrary.open(name/path)`. JDK Foreign Function and Memory (FFM) lookup receives one explicit selection; package-private native access binds four C symbols and returns one closeable owner. Binding establishes machine call signatures, not a GEMM result or numerical qualification.
+
+This task stopped at loading; later tasks added calls/thread control. Its leaf boundary is architectural: no Tensor/Compiler/Runtime dependency flows back from provider into CPU. Close ends the handle's lookup lifetime, not necessarily process-library residency, and does not close caller matrix memory.
+
+- [Current complete loading and invocation boundary](../../../../backend-guide/cpu-backend.md#current-low-level-openblas-foundation) — Locates later methods while preserving the loading-only milestone.
+
 ## Status
 
 Complete

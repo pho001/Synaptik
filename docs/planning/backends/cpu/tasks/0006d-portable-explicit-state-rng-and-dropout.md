@@ -1,5 +1,26 @@
 # Task 0006D: Portable Explicit-State [RNG](../../../../glossary.md#graph-rng-state--graphrngstate) and [Dropout](../../../../glossary.md#dropout--inverted-dropout) Coverage
 
+## Reader context
+
+RNG means random-number generator. This family made its continuation explicit: the key selected
+a stream and the counter selected the next logical draw position. INITIAL_STATE materialized
+those two words without sampling; DROPOUT consumed input values plus that state and produced
+dropped values, a keep mask, and next state. Passing next state advanced the sequence, while
+reusing the original state requested replay.
+
+The CPU-private V1 counter mapping used global logical ordinals, not worker-local mutable
+generators, so changing chunk boundaries did not change draw membership. Runtime held actual
+state/mask/result storage for the run; the reusable executable held no hidden changing RNG
+state. The current graph-randomness reference explains which outputs the public result exposes
+and why no cross-backend bitstream is promised.
+
+Current reading alongside this historical record:
+
+- [Explicit-state dropout construction](../../../../reference/tensor/graph-randomness.md#explicit-state-dropout-construction)
+  — names value, mask, and next-state positions without promising a portable bitstream.
+- [CPU binding, validation, and ranges](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalexecutable)
+  — identifies current-value validation, direct invocation state, and worker/resource lifetimes.
+
 ## Status
 
 Complete

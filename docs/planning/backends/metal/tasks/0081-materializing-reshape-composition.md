@@ -1,5 +1,14 @@
 # Task 0081: Materializing RESHAPE composition and backward closure
 
+## Reader context
+
+RESHAPE is a view when new coordinates correctly address existing storage, or materialization when logical order requires copying. Materialization needs a distinct canonical destination and raw movement; it cannot pretend to alias or let MATMUL reinterpret an unrelated ancestor. Compiler supplies final geometry; Metal independently checks physical source/destination.
+
+Unchanged original-typed derivative graphs and leaf targets matter: handwritten derivatives or consumer copies would test a different problem. Here a leaf target is an original input/parameter Tensor selected for differentiation, not a node inside the copy implementation. Receipts qualify this component only, with their stated release limits.
+
+- [Current materialization and view authentication](../../../../backend-guide/metal-backend.md#physical-authentication-and-fixed-routes) — Separates canonical destinations from source aliases.
+- [Current generated MATMUL consumers](../../../../backend-guide/metal-backend.md#general-static-matmul-and-generated-gradients) — Connects the repaired primitive to unchanged backward graphs.
+
 ## Status
 
 Complete — exact independently reviewed cumulative twenty-file final38 source is integrated.

@@ -1,5 +1,20 @@
 # Task 0022: [ACCELERATOR](../../../../glossary.md#term-accelerator) Profile Capability Monotonicity
 
+## Reader context
+
+Monotonicity here compared the same operation occurrence under two historical profiles:
+support in the stricter profile had to remain support in the accelerator profile. It did not
+enlarge shapes, types or layouts, and newly admitted movement and negation still retained their
+exact result rules.
+
+Planning queried occurrence capability; Metal's whole-partition analysis additionally
+authenticated a view's local producer and the specific transpose edge consumed by MATMUL.
+A descriptor could describe eligible geometry without proving that provenance. CONTIGUOUS
+explicitly materialized canonical order; it did not authorize automatic canonicalization elsewhere.
+The [current occurrence admission explanation](../../../../explanation/packages/metal.md#1-admit-an-occurrence-not-an-operation-name)
+shows why these two checks remain distinct after profile removal. The original initial BLOCK,
+documentation repair and final approval are preserved below.
+
 ## Status
 
 Complete

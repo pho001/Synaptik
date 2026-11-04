@@ -1,5 +1,14 @@
 # Task 0064: [Convolution](../../../../glossary.md#term-channels-first-convolution-layers), [Pooling](../../../../glossary.md#term-pooling), and Attention Boundary
 
+## Reader context
+
+Convolution consumes input, weights and optional bias; pooling selects or combines window values. Their native kernels share geometry validation but not meaning: maximum pooling copies a winning raw word; convolution and average pooling have arithmetic contributors and divisors. Compiler builds backward graphs from ordinary operations, not a special Metal backward API.
+
+The six admitted rows, attention blocker and non-overlap derivative limits below belong to this revision. A missing transposed-convolution Model kind was different from a missing numerical proof. Current attention and broader convolution/pooling derivatives have separate qualification; they do not rewrite this evidence.
+
+- [Current convolution pooling and Compiler collaboration](../../../../backend-guide/metal-backend.md#convolution-pooling-and-bounded-generated-gradients) — Explains the ordinary-operation gradient path.
+- [Current attention and numerical families](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Separates later support from the old blocker.
+
 ## Status
 
 Complete — the exact six-row production cutover, documentation, signed native package, focused

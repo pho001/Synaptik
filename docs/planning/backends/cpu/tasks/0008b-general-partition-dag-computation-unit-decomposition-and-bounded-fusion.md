@@ -1,5 +1,27 @@
 # Task 0008B: General [Partition](../../../../glossary.md#partition)-[DAG](../../../../glossary.md#term-directed-acyclic-graph-dag) Computation-Unit [Decomposition](../../../../glossary.md#term-decomposition) and Bounded [Fusion](../../../../glossary.md#term-fusion)
 
+## Reader context
+
+This task records replacement of the Conv2d-only sequence with `CpuPartitionDagDecomposer` and
+`CpuPreparedPartitionExecutable`. Established numerical families remain indivisible seeds; only
+ordinary `CpuKernelIr` pointwise work gains bounded vertical and horizontal fusion. The maximally
+split plan is the semantic fallback. Cross-unit `ValueId` edges become ordinary buffers, while
+family workspace remains explicit run scratch, not persistent model state or optional external-read
+copying.
+
+Here, finalization resolves all assignments before artifact lookup, and composite binding validates
+every child before writes. Hot execution follows fixed topological order with child completion
+between calls; Runtime owns the atomic validity transition. The two-store Java oracle tests
+semantic/performance equivalence, while Class-File inspection proves direct primitive structure.
+
+The diagram describes cold decomposition and resource declarations. Its dependency edges do not
+create a run-time scheduler: bound units execute in fixed order.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+
 ## Status
 
 Complete

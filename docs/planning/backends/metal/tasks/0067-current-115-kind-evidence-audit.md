@@ -1,5 +1,14 @@
 # Task 0067: Current [Metal](../../../../glossary.md#term-metal) 115-Kind Evidence Audit and Reconciliation
 
+## Reader context
+
+This audit follows an occurrence through several owners: Model defines its contract, Compiler supplies inferred/generated roles, Metal answers capability and fixes a route, and native validation/execution runs the recipe. A catalog row, provider answer, structural native recipe and public Engine execution are different evidence claims.
+
+The 115-row partitions are the baseline at the named revision, not a timeless completeness certificate or current-provider snapshot after profile-free changes. Historical blocker codes explain where a row stopped then; they do not override later independently admitted occurrences.
+
+- [Current occurrence-to-route collaboration](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection) — Makes ledger evidence categories distinct.
+- [Current use of historical audits](../../../../backend-guide/metal-backend.md#evidence-composition) — Explains changed-source qualification.
+
 ## Status
 
 Complete. The [canonical](../../../../glossary.md#term-canonical-form) plan/ledger progressed through `dbdf8b06`, corrected plan `4b583efe`, and

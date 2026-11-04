@@ -1,5 +1,25 @@
 # Task 0005J: Bounded [Pointwise](../../../../glossary.md#term-pointwise) Coverage and Parity Hardening
 
+## Reader context
+
+This hardening task separated three questions: does CPU admit this exact Model occurrence, does
+its typed IR support the operation, and can this particular unit use vector computation?
+Unsupported vector forms still used admitted scalar execution; they did not become unsupported
+Tensor operations merely because lane processing was unavailable.
+
+An internal BOOL comparison result could remain a virtual `VectorMask` consumed immediately by
+WHERE. That did not define a physical mask format for a stored BOOL Tensor, nor permit arbitrary
+external masks to use the same lane arrangement. The floating, integral, and canonical-byte
+forms below were bounded additions to existing code generation. Their topology/materialization
+limits and schema number are historical checkpoints, not today’s complete capability policy.
+
+Current reading alongside this historical record:
+
+- [CPU typed intermediate representation](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalir)
+  — distinguishes code-shaping structure from concrete geometry and live values.
+- [CPU portable route plans](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalrouteportable)
+  — separates compute form, range orchestration, and invocation-private carriers.
+
 ## Status
 
 Complete

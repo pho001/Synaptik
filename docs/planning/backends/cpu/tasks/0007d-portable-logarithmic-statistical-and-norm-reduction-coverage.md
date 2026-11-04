@@ -1,5 +1,25 @@
 # Task 0007D: Portable Logarithmic, Statistical, and [Norm](../../../../glossary.md#term-norm) Reduction Coverage
 
+## Reader context
+
+This task records five advanced reductions sharing `CpuAdvancedReductionIr` and
+`CpuAdvancedReductionLowering` geometry while `CpuLogSumExpEmitter`,
+`CpuStatisticalReductionEmitter`, and `CpuNormEmitter` retain distinct numerical algorithms. Model
+owns ordered axes, correction, output metadata, and special values. CPU preserves axis-list identity
+but traverses selected domains in canonical input-axis order; Runtime receives typed entries rather
+than interpreting numerical policy.
+
+Here, independent mathematical references check finite accuracy and exact special values; clean Java
+supplies the structural/performance oracle and raw-bit algorithm comparison. L1 and statistical mean
+passes reuse the existing exact-sum emitter and per-range run scratch, not persistent model state.
+Log-sum-exp and L2 use primitive-local state. Every worker owns all passes for each complete output
+cell.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current selected-domain reduction meanings](../../../../reference/tensor/reductions.md#multi-axis-and-statistical-reduction-expressions) — Separates axes, correction, norms, and numerical semantics from historical CPU algorithm choices.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

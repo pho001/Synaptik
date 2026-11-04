@@ -1,5 +1,19 @@
 # CPU0066: Plan shared ordinary and [Scan body](../../../../glossary.md#backpropagation-through-time-and-recurrent-state) emission
 
+## Reader context
+
+The delivery here is a plan, not a common-body implementation. It separates Scan's time,
+carry, activity and saved-history bindings from the arithmetic emitted inside each step.
+An emitter callback runs while CPU prepares class bytes; an execution callback would run
+inside the numerical loop. That distinction is why sharing generation code need not create
+a per-step Runtime call. Worker submission and run-owned mutable scratch are separate
+execution responsibilities, not automatic consequences of sharing scalar or vector math.
+
+The supersession notice below remains controlling for this archived proposal. For the later
+concrete seams, read [common MATMUL binding](../../../../backend-guide/cpu-backend.md#common-rank-two-matmul-binding)
+and [common pointwise/SUM composition](../../../../backend-guide/cpu-backend.md#common-pointwise-and-sum-composition).
+They explain reuse without carrying forward the old named-type or diagnostic proposals.
+
 > Historical completed [planning](../../../../glossary.md#term-planning) delivery preserved. CPU0070 replaces its active direction with
 > [existing-emitter composition](../existing-emitter-composition-plan.md); CPU0067/0068 and the
 > CPU0069 outline are superseded. The old type/diagnostic/worker proposals are not current gates.

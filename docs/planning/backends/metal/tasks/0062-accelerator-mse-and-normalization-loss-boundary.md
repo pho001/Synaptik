@@ -1,5 +1,14 @@
 # Task 0062: [ACCELERATOR](../../../../glossary.md#term-accelerator) [MSE](../../../../glossary.md#mean-squared-error--mse) and [Normalization](../../../../glossary.md#term-normalization)/[Loss](../../../../glossary.md#loss) Proof Boundary
 
+## Reader context
+
+Prediction and target are two stored inputs with exactly equal shapes. MSE is one Model occurrence lowered to subtraction, self-multiplication and optional sum/mean. The subtraction result is shared by both multiplication operands, not independently recomputed. Metal's MPSGraph recipe executes the sites; Runtime publishes the assigned output, including a scalar reduced loss.
+
+A forward gradient flag did not prove its Compiler-generated backward graph was Metal-capable. Neighboring blocked families and profile restrictions below belong to this checkpoint. Current normalization/loss support comes from later qualification, not this MSE receipt.
+
+- [Current recursive arithmetic-site meaning](../../../../backend-guide/metal-backend.md#numerical-semantics-and-capability) — Explains why a loss-wide tolerance cannot replace site semantics.
+- [Current loss normalization and derivative families](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Locates evolved support separately from old blockers.
+
 ## Status
 
 Complete — implementation/proof `1cf8a6ef`, documentation `3e0e4ea4`, native/custom remediation

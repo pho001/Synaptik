@@ -1,5 +1,18 @@
 # Task CPU0055: Verified [Scan](../../../../glossary.md#term-cumulative-scan) versus Java measurement
 
+## Reader context
+
+The standalone launcher, rather than Runtime or Engine, calls the four prebound targets here.
+Generated G4/G5 enter through captured MethodHandle machinery; E/J use direct Java actions.
+Their numeric inputs represent the same witness, but their entry mechanisms are not identical.
+Each target has independent writable carriers and packed geometry; sharing a retained code
+artifact does not mean sharing mutable outputs or scratch. The repaired wrapper admitted
+previously unused slots without rerunning the successful preflight.
+
+For today's component boundary, [prepared recipes and bound invocations](../../../../explanation/packages/execution.md#iogithubpho001synaptikruntimeexecution)
+explains what Runtime binds; [current Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+separates present support from the historical measurement domain.
+
 ## Status
 
 Complete — MAIN accepted on 2026-10-28 after independent actual-result APPROVE, no open P1/P2.

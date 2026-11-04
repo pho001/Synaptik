@@ -1,5 +1,14 @@
 # Task 0074A: Post-cutover capability evolution contract
 
+## Reader context
+
+Frozen v1 records provider answers at a semantic cutover; v2 records evolving current answers. A new FLOAT32 answer cannot proxy a low dtype: `MetalCapabilityProvider` must answer for each original descriptor, with Metal owning the matching implementation. This changes evidence interpretation, not a kernel or fallback rule.
+
+“Complete” here means the contract prerequisite was accepted, not that EXP had already executed. The implementation packet owns provider/native/device evidence. Frozen rows remain useful comparison history, not an instruction to keep every future occurrence permanently false.
+
+- [Current frozen and live evidence](../../../../backend-guide/metal-backend.md#numerical-semantics-and-capability) — Explains later additions without rewriting history.
+- [Current original-typed queries](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection) — Connects ledgers to admission.
+
 ## Status
 
 Complete — the user-approved contract distinction was implemented and independently reviewed

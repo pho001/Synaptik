@@ -1,5 +1,19 @@
 # Task 0001: [Metal](../../../../glossary.md#term-metal) Capability, Storage, and Native Foundation
 
+## Reader context
+
+This foundation deliberately separated having a device from being able to execute an operation.
+Planning's `MetalCapabilityProvider.supports(...)` query described proposed tensor work; the
+new buffers held bytes but established no numerical capability. Upload and download copied
+checked ranges rather than turning the application's host storage into Metal storage.
+
+The Java buffer wrapper owned one native handle and a child lease keeping its context alive.
+Closing the context rejected new access without secretly closing those children. Java's repeatable
+`close()` therefore wrapped a native release that consumed its handle exactly once.
+The [current Java-to-buffer ownership explanation](../../../../explanation/packages/metal.md#ownership-from-java-to-mtlbuffer)
+connects that foundation to prepared and per-run resources; it does not change this task's
+non-executing completion result.
+
 ## Status
 
 Complete

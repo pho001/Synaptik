@@ -1,5 +1,17 @@
 # Task CPU0045: Equivalent clean Java for symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) reverse
 
+## Reader context — historical integration boundary
+
+An equivalent Java oracle must retain the generated entry's actual scalar inputs and runtime T/B,
+rather than substituting a literal fixed-time/zero/one algorithm that happens to match one fixture.
+That runtime-T argument does not grant variable-T prepared execution. CPU's bounded production
+change shares proved read/write offsets only for a carry with its own final output and no changing
+bank; raw initial copies and other views retain their required mappings. The literal fastest Java
+reference remains a separate target. Structural work removal is therefore distinct from measured
+improvement: this record demonstrated no v5 speedup and did not close the remaining parity question.
+
+Current reading: [CPU0045 equivalent Java boundary](../../../../backend-guide/cpu-backend.md#cpu0045-equivalent-java-and-stable-carry-offsets); [Symbolic batch plus runtime lengths](../../../../backend-guide/cpu-backend.md#symbolic-length-scan-cpu-execution).
+
 ## Status
 
 Complete — MAIN accepted the independent source/evidence reviews and actual documentation diff

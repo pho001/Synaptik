@@ -1,5 +1,25 @@
 # Task 0008Q1: [Finite](../../../../glossary.md#term-finite) [Scalar](../../../../glossary.md#term-scalar)-Immediate and Clamp [Matrix](../../../../glossary.md#term-matrix-meanings)
 
+## Reader context
+
+This task records finite scalar-immediate and clamp coverage derived from CPU source predicates, not
+an assumed Cartesian product. `CpuCapabilityProvider` describes admission, `CpuPartitionLowering`
+checks whole partitions, and `CpuPartitionPreparer` records eligible and selected strategies
+separately. Model owns typed semantics; Runtime invokes prepared artifacts through exact
+array/`MemorySegment` carrier signatures. Materialization candidates are alternatives, not selected
+work in the recorded matrix.
+
+Independent clean-Java loops serve as semantic oracles; Class-File inspection and mutation controls
+serve as structural oracles for carrier access, loops, and prohibited calls. The completed evidence
+separates 203 semantic fixtures from 256 generated forms. Only two byte-identical
+caller-orchestration projections survive. Generator schema 64 is distinct from unchanged family
+class-identity schemas 52 and 59; normalization never relaxes production identity.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current exact typed scalar metadata](../../../../reference/tensor/data-types.md#exact-typed-scalar-values) — Distinguishes immutable immediate bits from a rank-zero Tensor or live storage.
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+
 ## Status
 
 Complete

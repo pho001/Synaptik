@@ -1,5 +1,25 @@
 # Task 0009C1: CONCAT and STACK Generated-Entry Hot-Path Hygiene
 
+## Reader context
+
+This task records the narrow CONCAT/STACK production correction that unblocked 0009C's 48
+composition rows. `CpuDataMovementEmitter` replaces an impossible terminal exception with the final
+statically prepared occurrence arm. Prepare's exhaustive occurrence partition justifies that arm; it
+is not a runtime catch-all. Independent clean-Java execution checks represented-bit semantics, while
+opcode scans and paired topology evidence address structural hygiene.
+
+`CpuGeneratorSchema` advances compatibility from 64 to 65, and `CpuGeneratedKernelArtifactStoreTest`
+checks stale-envelope rejection and subsequent persisted hits. Inventory `DENSE_LINEAR` does not
+imply `DENSE_HEAP_ARRAY_INT`: segment-contiguous entries can use `GENERAL_LONG`. Normalized
+structural equality was not proved, so the bounded generated-versus-direct fallback protocol ran.
+Its eight representative cases do not establish broad performance closure or authorize production
+strategy defaults.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current generated-class boundary](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit) — Explains emitters, typed entries, hidden classes, and the limits of Class-File inspection.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

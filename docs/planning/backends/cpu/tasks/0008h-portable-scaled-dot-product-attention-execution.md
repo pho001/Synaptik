@@ -1,5 +1,25 @@
 # [CPU](../../../../glossary.md#term-cpu) Task 0008H: Portable [Scaled Dot-Product Attention](../../../../glossary.md#scaled-dot-product-attention) Execution
 
+## Reader context
+
+This task records first-class attention execution, not recognition of a MATMUL–softmax
+decomposition. `CpuAttentionLowering` validates broadcast shapes, type promotion, output metadata,
+semantic-role sharing, and resolved scale; `CpuAttentionEmitter` generates the scalar score,
+normalization, and value loops. Tensor descriptors supply metadata, not storage.
+`CpuAttentionMaskValidator` checks canonical `BOOL` values before mutation, while
+`CpuAttentionReferenceKernel` remains an evidence oracle rather than a production fallback.
+
+Here, PartitionDag establishes atomic structure; generated-class inspection establishes structural
+evidence, not numerical correctness. Shared Prepare assigns the declared per-range score/weight
+scratch, which is run workspace, not persistent model state. Runtime receives bound carriers,
+geometry, ranges, and a handle. Output validity follows successful completion; two outputs share one
+occurrence and the same normalized scratch weights.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current attention roles and result forms](../../../../reference/tensor/attention.md#scaled-dot-product-attention-expressions) — Names query/key/value, eligibility, and explicit one-output versus two-output requests.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete.

@@ -1,5 +1,19 @@
 # Task 0014: [MPSGraph](../../../../glossary.md#term-mpsgraph) [FLOAT32](../../../../glossary.md#term-float32) Affine [Layout](../../../../glossary.md#layout) Composition
 
+## Reader context
+
+This extended terminal view results into authenticated, partition-local compositions. A
+LayoutDescriptor described logical indexing; Metal's published target still contained separate
+dense represented-order values, not an alias of the source. “Local” meant that analysis proved
+the view's producer inside this partition, not merely that a matching descriptor existed.
+
+Occurrence capability checked eligible geometry; whole-partition analysis then checked those
+producer relationships. The explicit CONTIGUOUS operation made canonical logical order available
+before a consumer such as NEG. It was not an instruction for Runtime to insert a hidden copy or
+choose a new route.
+The [current lowering and source-geometry explanation](../../../../explanation/packages/metal.md#2-lower-once-declare-resources-then-compile)
+shows the continuing distinction between logical descriptions and physically materialized buffers.
+
 ## Status
 Complete
 

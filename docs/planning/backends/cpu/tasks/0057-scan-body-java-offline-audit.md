@@ -1,5 +1,18 @@
 # Task CPU0057: [Scan body](../../../../glossary.md#backpropagation-through-time-and-recurrent-state) versus equivalent Java offline audit
 
+## Reader context
+
+This task reads existing artifacts; it does not call the Scan witness again.
+`CpuGeneralScanEmitter` and its historical subemitters produced bytecode during preparation,
+whereas the JVM's just-in-time compiler later chose machine code during the recorded runs.
+Comparing Java source, ClassFile instructions and retained JIT events therefore compares
+different stages, not interchangeable measures of cost. An extra bytecode local is not evidence
+of a hardware spill, and fewer instructions are not a measured speedup.
+
+The [current shared MATMUL binding explanation](../../../../backend-guide/cpu-backend.md#common-rank-two-matmul-binding)
+names the generation participants and temporal-address adapter; [shared pointwise and SUM composition](../../../../backend-guide/cpu-backend.md#common-pointwise-and-sum-composition)
+explains later math ownership. These links do not retroactively change the audited G5 source.
+
 ## Status
 
 Complete — MAIN accepted the independently reviewed offline audit on 2026-10-28.

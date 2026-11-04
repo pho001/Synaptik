@@ -1,5 +1,27 @@
 # Task 0007A1: Portable Ordinary Numerical Aggregate Reductions
 
+## Reader context
+
+This task’s numerical target was stronger than merely choosing a convenient summation loop:
+floating SUM/MEAN accumulated exact represented terms in signed multiword state, and PROD
+accumulated exact significands before final conversion. A limb was one primitive word of that
+exact state. CPU analysis calculated workspace size and alignment before shared assignment;
+Runtime supplied disjoint run-owned slices for simultaneously executing output ranges.
+
+The generated emitters were generation-time helpers, while the independent BigInteger/rational
+reference was a checking oracle, not hot execution. Integral rows used fixed-width modular
+arithmetic instead of floating scratch. These once-rounded targets and state formulas are
+historical choices, not a substitute for today’s Model reduction contract. The current aggregate
+and generator explanations separate requested semantics, selected realization, and storage
+lifetime.
+
+Current reading alongside this historical record:
+
+- [Numeric aggregate expressions](../../../../reference/tensor/reductions.md#numeric-aggregate-expressions)
+  — distinguishes output-shape derivation, selected domains, and current numerical semantics.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

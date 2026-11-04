@@ -1,5 +1,25 @@
 # Task 0009E1B3: [Norm](../../../../glossary.md#term-norm) Reduction Route Decision
 
+## Reader context
+
+This task records retaining generated L1_NORM and L2_NORM while keeping their numerical ownership
+distinct. `CpuNormEmitter` generates both bodies, but L1 uses `CpuExactSumEmitter` for exact
+represented absolute summation, whereas L2 uses scaled squares and a final square root.
+`CpuAdvancedReductionIr` and `CpuAdvancedReductionLowering.Geometry` share identity and addressing
+infrastructure without merging those algorithms.
+
+Here, Prepare validates carriers and complete-cell ownership before writes, declares L1's isolated
+per-range exact-state slices, and binds immutable typed entries. That scratch belongs to the run,
+not persistent model state; L2 declares none. Class-File/member and hot-loop checks provide
+structural evidence. `CpuAdvancedReductionReferenceKernel` provides independent semantic evidence
+without consuming lowering geometry, packed invocation data, generated helpers, or exact-state
+workspace.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current selected-domain reduction meanings](../../../../reference/tensor/reductions.md#multi-axis-and-statistical-reduction-expressions) — Separates axes, correction, norms, and numerical semantics from historical CPU algorithm choices.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

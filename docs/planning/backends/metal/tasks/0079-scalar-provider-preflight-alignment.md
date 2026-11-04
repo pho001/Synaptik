@@ -1,5 +1,14 @@
 # [Metal](../../../../glossary.md#term-metal) 0079 — Align [scalar](../../../../glossary.md#term-scalar) provider [admission](../../../../glossary.md#term-admission) and program [preflight](../../../../glossary.md#term-preflight)
 
+## Reader context
+
+Provider true promises that ordinary preparation can execute the exact descriptor, not merely that it could appear inside a fused anchor. This aligns scalar RELU/MUL across provider, Java image preflight and native decoder. Rank zero is one value; a rank-one literal without restored scalar output shape is a representation mismatch.
+
+The mixed CPU/Metal example retains its actual owner sequence rather than being called GPU-only. Actual fused records still need anchor authentication. Removing the obsolete standalone guard is not generic scalar/fusion expansion; identities and observed failures below remain checkpoint history.
+
+- [Current admission and anchor checks](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection) — Distinguishes standalone permission from fused-record authentication.
+- [Current scalar numerical domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Clarifies scalar rank and independent dtype answers.
+
 ## Status
 
 Complete

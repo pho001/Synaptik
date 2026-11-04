@@ -1,5 +1,27 @@
 # Task 0007A1K: Affine-copy [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
 
+## Reader context
+
+The affine-copy residual was a remaining timing gap, not a value saved for differentiation.
+A-GENERAL copied raw BFLOAT16 representations through a composed PERMUTE/SLICE mapping.
+`CpuAffineCopyEmitter` guarded the exact segment-to-short-array geometry and used ordinal
+shifts/masks to derive positions directly. Loading or storing a short here did not decode,
+round, or otherwise perform BFLOAT16 arithmetic; NaN payloads and signed-zero bits remained copy
+data.
+
+Source/result offsets and strides were element geometry, while Runtime binding supplied the
+current carriers and valid spans. Every unproved mapping retained the general-long copy, so the
+frozen case did not become a new capability limit. Current layout semantics and CPU lowering
+explain why a logical view chain can end in a distinct materialized result without transferring
+ownership of the source.
+
+Current reading alongside this historical record:
+
+- [Resolved logical layouts](../../../../reference/tensor/layouts.md#resolved-layouts)
+  — explains offsets, strides, referenced spans, and why geometry does not own storage.
+- [CPU partition and unit lowering](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternallowering)
+  — explains virtual intermediates, boundary stores, and family-specific mappings.
+
 ## Status
 
 Complete

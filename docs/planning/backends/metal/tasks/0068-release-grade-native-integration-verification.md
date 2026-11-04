@@ -1,5 +1,13 @@
 # Task 0068: [Release](../../../../glossary.md#term-release)-Grade Native Integration Verification
 
+## Reader context
+
+The chain starts with exact native source and ends with tests loading a verified ZIP-extracted library by absolute path. Metadata, hashes and JUnit totals answer different questions: package structure, byte identity and exercised behavior. An ad-hoc-signed local artifact is not an authenticated public distribution.
+
+This verification introduces no capability. Its named Metal subset is narrower than the repository result; full-suite tuning API tests are not a standalone selection experiment. Commands, paths and totals below remain the original checkpoint, not verification performed by this reader-context edit.
+
+- [Current source-matched qualification boundary](../../../../backend-guide/metal-backend.md#evidence-composition) — Explains why an old extracted-library pass cannot qualify new native bytes.
+
 ## Status
 
 Complete — gates `V0..V14` passed from Task-0067 native/source base

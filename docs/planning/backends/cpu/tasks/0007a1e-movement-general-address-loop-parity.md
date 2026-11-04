@@ -1,5 +1,26 @@
 # Task 0007A1E: Movement General-Address-Loop Parity
 
+## Reader context
+
+The four row names identify one movement-emitter cluster, not four new Tensor APIs. CPU’s
+selected generated entry first checked that bounds, coordinates, addresses, and cursor
+transitions fit a bounded representation. A successful proof allowed repeated work to keep
+primitive state instead of repeatedly unpacking general geometry; otherwise the same entry used
+its typed general-long path.
+
+A segment carrier did not itself require every logical cursor to be long, just as an array did
+not prove every address fits an int. This correction preserved the mapping for PAD, CONCAT, and
+the two unfold forms and changed neither resource declarations nor input ownership. The current
+layout reference explains the coordinate/address distinction; the generator explanation locates
+these guarded forms.
+
+Current reading alongside this historical record:
+
+- [Resolved logical layouts](../../../../reference/tensor/layouts.md#resolved-layouts)
+  — explains offsets, strides, referenced spans, and why geometry does not own storage.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

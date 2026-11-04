@@ -1,5 +1,17 @@
 # Task CPU0041: [Symbolic Scan](../../../../glossary.md#symbolic-scan) reverse [carrier](../../../../glossary.md#term-storage-carrier) [specialization](../../../../glossary.md#term-specialization)
 
+## Reader context — historical integration boundary
+
+The correction concerns the storage receiver used by generated reverse contractions: dH, the reverse
+carry, supplies values consumed in dW and dX. CPU proves a demanded port-backed cut has a stable
+entry receiver and uses that fact without removing checked Foreign Function and Memory access. The
+composition still lends source storage and Runtime still owns run outputs/workspaces; no unsafe
+pointer or new execution owner appears. Source intervention and final code observations support this
+bounded correction, while the near-Java result belongs only to the named workload/host and does not
+establish a universal JIT or speed guarantee.
+
+Current reading: [Symbolic-batch Scan execution](../../../../backend-guide/cpu-backend.md#symbolic-scan-cpu-execution).
+
 ## Status
 
 Complete — MAIN accepted the bounded fix on 2026-10-26 after final independent approval and gates.

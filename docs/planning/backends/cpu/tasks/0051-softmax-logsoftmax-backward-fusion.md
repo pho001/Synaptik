@@ -1,5 +1,19 @@
 # Task CPU0051: Specialized [Softmax](../../../../glossary.md#softmax--log-softmax) and LogSoftmax backward [fusion](../../../../glossary.md#term-fusion)
 
+## Reader context
+
+Compiler's `ReductionGradientRules.apply` constructs the derivative graph. CPU recognizes that
+graph; it does not invent a derivative from an operation name. The incoming cotangent `g` and
+the exact saved forward output `y` or `logY` remain stored read boundaries, even when private
+product/reduction intermediates disappear. `CpuSoftmaxBackwardEmitter` generates two passes:
+finish the existing exact SUM first, then evaluate the typed output sites. Run-owned scratch
+holds exact state; the prepared recipe does not retain mutable accumulators between runs.
+
+The [current two-pass explanation](../../../../backend-guide/cpu-backend.md#ordinary-softmax-and-log-softmax-backward-fusion)
+shows the saved-value roles, scalar admission and a worked gradient. Its mathematical pattern
+does not waive the historical rounding sites, failed-gate disposition or unresolved performance
+parity recorded here.
+
 ## Status
 
 Complete — MAIN accepted 2026-10-31 after final independent APPROVE and qualified gate closure.

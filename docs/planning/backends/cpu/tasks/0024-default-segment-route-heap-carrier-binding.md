@@ -1,5 +1,17 @@
 # [CPU](../../../../glossary.md#term-cpu) 0024 — Bind [heap](../../../../glossary.md#term-heap) inputs to the prepared default segment route
 
+## Reader context — historical integration boundary
+
+Here a ‘heap leaf’ is a source Tensor whose current host values occupy a primitive Java array, not a
+computed expression waiting to execute. Its immediate Engine caller may be application code or
+Checkpoint/NN code supplying restored/model storage. Engine asks CPU to borrow that storage, and CPU
+cold binding chooses the argument form required by the already prepared route. Passing an exact
+array-backed `MemorySegment` is not copying values to native memory or transferring array ownership.
+Closing a borrowed wrapper does not close the original storage. Mixed array/segment aliases must
+still be compared physically, because two wrappers can address overlapping bytes of the same array.
+
+Current reading: [Supported lifecycle integration](../../../../backend-guide/cpu-backend.md#supported-lifecycle-integration); [Metadata binding versus produced-value checks](../../../../backend-guide/cpu-backend.md#binding-metadata-and-validating-produced-values).
+
 ## Status and launch verification
 
 Complete — launched as the authorized [CPU](../../../../glossary.md#term-cpu) frontier on 2026-10-14. The user approved a separate

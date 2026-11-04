@@ -1,5 +1,19 @@
 # CPU0065: [Vector](../../../../glossary.md#term-vector) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) [TANH](../../../../glossary.md#term-tanh) [epilogue](../../../../glossary.md#term-epilogue)
 
+## Reader context
+
+CPU preparation selects an ordinary MATMUL realization; `CpuMatmulEmitter` generates its
+full-K accumulation, ordered bias ADD and terminal TANH. Existing vector math handles complete
+N lanes, while existing scalar math handles the remaining N tail. Combining those sites into
+one output store removes an intermediate boundary, not the arithmetic order.
+`CpuPreparedExecutable`'s range orchestration is separate from emitter reuse: vector code does
+not itself submit workers or grant vector/parallel Scan support.
+
+The [current portable MATMUL explanation](../../../../backend-guide/cpu-backend.md#current-portable-matmul-family)
+connects direct/tiled work-unit ownership, scalar defaults, vector eligibility and disjoint
+output ranges. Its later context should not broaden this task's historical capability or
+the single diagnostic's evidence.
+
 ## Status and [scope](../../../../glossary.md#term-scope)
 
 Complete; MAIN accepted on 2026-10-28 after clean implementation, independent code/documentation APPROVE and the final gates below. User explicitly authorized [TANH](../../../../glossary.md#term-tanh) as the additional [vector](../../../../glossary.md#term-vector) [activation](../../../../glossary.md#term-activation) [epilogue](../../../../glossary.md#term-epilogue). Before launch MAIN verified CPU0064 Complete, HEAD=origin `07a281edd3086efde2853211b71b48288db027e1`, no conflicting agent/writer and the accepted dirty tree. Class C generated-code/capability change.

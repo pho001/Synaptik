@@ -1,5 +1,26 @@
 # Task 0007A1J: [Cumulative scan](../../../../glossary.md#cumulative-scan) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
 
+## Reader context
+
+Residual here meant a remaining timing gap, not saved differentiation state. C-SCAN-GENERAL
+named one fixed exclusive reverse INT64 product case. Each range owned complete independent
+rows. Within a row, the generated body started at the final axis position, stored the
+accumulator before consuming the current input, multiplied with Java long wraparound, and moved
+its cursors backward. The reversal changed traversal, not output indexing or ownership.
+
+The guard checked the exact shape, strides, type, mode, carriers, and legal slice range before
+this direct path; every unproved case retained the typed general implementation. No state
+crossed rows and no workspace was introduced. The current scan mode tables explain
+exclusive/reverse behavior separately from this checkpoint’s geometry and local performance
+evidence.
+
+Current reading alongside this historical record:
+
+- [Cumulative-scan kinds and mode tables](../../../../reference/tensor/operation-reductions.md#cumulative-scan-semantic-kinds-and-attributes)
+  — works through inclusive/exclusive and forward/reverse meanings without implying construction-time execution.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

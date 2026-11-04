@@ -1,5 +1,17 @@
 # Task 0010A: Automatic [OpenBLAS](../../../../glossary.md#term-openblas) Discovery and Internal Composition Foundation
 
+## Reader context — historical integration boundary
+
+Discovery answers ‘which exact library could be loaded?’, not ‘which implementation should execute
+this graph?’. In this milestone the CPU-local composition/test code calls discovery, the
+exact-loading provider opens each candidate, and a separate session owns the successful library
+until close or a later explicit transfer. Immutable attempt metadata does not own that handle. An
+application is not required to invoke this internal seam. A loaded library is not yet a qualified
+route, and a failed exact override is not permission to try a different library. The future-Engine
+wording below records the stage at which this foundation was written.
+
+Current reading: [Current OpenBLAS route](../../../../backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route); [Supported lifecycle integration](../../../../backend-guide/cpu-backend.md#supported-lifecycle-integration).
+
 ## Status
 
 Complete

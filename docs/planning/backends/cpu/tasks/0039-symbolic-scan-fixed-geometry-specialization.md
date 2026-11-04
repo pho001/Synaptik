@@ -1,5 +1,17 @@
 # Task CPU0039: [Symbolic Scan](../../../../glossary.md#symbolic-scan) fixed-geometry [specialization](../../../../glossary.md#term-specialization)
 
+## Reader context — historical integration boundary
+
+B is the invocation batch size; fixed T, feature widths and state widths belong to the prepared
+family. CPU can bake an extent/stride only when its symbolic recipe proves independence from B, not
+because sample dimensions happen to be equal. For example, a shared parameter frame and a per-row
+sequence frame have different roles even at the same numerical size. Runtime binds the remaining
+geometry afresh and owns writable per-run arrays. The baked-identity change below invalidates
+changed generated artifacts, not logical Tensor meaning; the accepted structural repair did not
+close the original performance gap.
+
+Current reading: [Symbolic-batch Scan execution](../../../../backend-guide/cpu-backend.md#symbolic-scan-cpu-execution).
+
 ## Status
 
 Complete

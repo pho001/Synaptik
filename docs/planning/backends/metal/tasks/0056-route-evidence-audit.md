@@ -1,5 +1,14 @@
 # Task 0056 route-evidence audit
 
+## Reader context
+
+Read each row from meaning to mechanism: Model source specifies inputs, outputs and attributes; a header key locates an Objective-C selector; a composition describes multiple selectors wired together. These columns do not prove numerical behavior or expose a public forcing API. The executor is Metal's prepared native recipe, not the application calling MPSGraph directly.
+
+SDK paths and totals remain audit-era assertions. Differing totals in companion history are not a live support rule; this note does not amend the protected ledger. Changed SDKs or signatures require fresh evidence.
+
+- [Current admission before route selection](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection) — Explains the authority absent from selector presence alone.
+- [Current historical-evidence boundary](../../../../backend-guide/metal-backend.md#evidence-composition) — Prevents treating an installed-header snapshot as current qualification.
+
 Status: **[Normative](../../../../glossary.md#term-normative) [planning](../../../../glossary.md#term-planning) evidence for Task 0056**
 
 This companion ledger closes the selector/source-evidence requirement for the

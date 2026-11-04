@@ -1,5 +1,25 @@
 # Task 0009F2: [Pooling](../../../../glossary.md#term-pooling) Route Decisions
 
+## Reader context
+
+This task records independent retention decisions for exact Pool1d composition and generated
+Pool2d/Pool3d window bodies. “Direct” in `DIRECT_SCALAR` describes window traversal, not replacement
+of generation. `CpuPool1dCompositionLowering` validates private expand/squeeze rank edits and
+delegates to `CpuPool2dLowering`; those virtual intermediates do not establish a separate Pool1d
+kernel or materialization. Pool2d and Pool3d retain separate lowerer, IR, emitter, reference, and
+artifact identities.
+
+Here, clean-Java references provide semantic oracles for pooling results and structural expectations
+for loop, accumulator, and store shape; class-file checks supply bounded structural evidence, not
+universal proof. Preparation owns geometry, carriers, overlap checks, and range selection;
+finalization realizes artifacts after assignment. `CpuPreparedExecutable` invokes prepared
+complete-cell ranges. These routes declare zero workspace.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current visible Pool1d composition](../../../../reference/tensor/pooling.md#ncw-pool1d-composition) — Shows exact rank edits and the inherited singleton-height Pool2d semantics.
+- [current rank-five pooling semantics](../../../../reference/tensor/pooling.md#ncdhw-pool3d-expressions) — Separates the first-class 3D window operation and literal-ceiling rules from composition recognition.
+
 ## Status
 
 Complete

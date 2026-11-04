@@ -1,5 +1,24 @@
 # Task 0009D2: [Scan](../../../../glossary.md#term-cumulative-scan) Route Decision and Possible Direct-Java Migration
 
+## Reader context
+
+This task records retaining generated CUM_SUM and CUM_PROD across admitted numeric types, scan
+modes, and carrier/layout forms. `CpuScanLowering` produces `CpuScanIr` with two boundaries and zero
+workspace; `CpuPartitionPreparer` and `CpuPartitionFinalizer` preserve scan geometry, and
+`CpuClassFileKernelGenerator` selects `CpuScanEmitter`. A direct route would have to replace that
+complete typed surface and its evidence, not merely supply an arithmetic loop.
+
+Here, the CPU executable assigns workers complete scan slices, keeping sequential accumulation
+within each slice. Preparation resolves carrier and layout choices before execution. Semantic tests
+compare results with an independent scalar reference, including per-value `BFLOAT16` rounding and
+integral wraparound; the inventory checkpoint identifies generated artifacts. `BOOL` and scalar
+inputs remain recorded rejections, and retention supplies no new performance claim.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current cumulative scan modes](../../../../reference/tensor/fixed-scans.md#cumulative-scan-expressions) — Explains axis slices, inclusion, direction, identities, and the metadata-versus-evaluation boundary.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

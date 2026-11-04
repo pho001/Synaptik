@@ -1,5 +1,17 @@
 # Task 0010E: [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) [OpenBLAS](../../../../glossary.md#term-openblas) Tuning Candidates and Compatible Decisions
 
+## Reader context — historical integration boundary
+
+This milestone defines CPU-owned alternatives before any outer tuning runner measures them. CPU
+analysis produces the complete portable candidate and eligible OpenBLAS thread/copy candidates; a
+selected decision names one exact candidate for one compatible workload. It is neither an executable
+nor timing evidence. Shared Prepare may transport that value without interpreting native-route
+meaning, and Runtime receives only the finalized choice. An incompatible optional decision is a miss
+at this internal layer, not authority to run stale work. The later supported collaboration has its
+own stricter fresh selected-preparation boundary, described in the current reference.
+
+Current reading: [Current OpenBLAS route](../../../../backend-guide/cpu-backend.md#current-narrow-openblas-matmul-route); [Local-workload tuning collaboration](../../../../backend-guide/cpu-backend.md#cold-local-workload-tuning-collaboration).
+
 ## Status
 
 Complete

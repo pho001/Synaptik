@@ -1,5 +1,19 @@
 # Task 0045: Verified Local macOS [arm64](../../../../glossary.md#native-packaging-and-platform-vocabulary) Native Package
 
+## Reader context
+
+The operator built the library and explicitly ad-hoc signed it; packaging then copied those
+final bytes into private staging, wrote metadata, verified the package and published the local
+directory. The verifier derived facts from the Mach-O binary rather than trusting manifest
+descriptions alone. Mach-O is macOS's native executable-file format.
+
+The `@rpath` install name was binary metadata, not Java library discovery or permission to add
+runtime search paths. Checksums and ad-hoc signing checked integrity, not a trusted publisher's
+identity. Java still opened the application's explicitly selected absolute library path.
+The [current build, sign and local-package workflow](../../../../../modules/backend/metal/macos-arm64/README.md#build-prerequisites-and-local-package)
+provides usable commands; the original versions, review findings and packaged-device evidence
+below remain tied to this development-package checkpoint, not a public release.
+
 ## Status
 
 Complete

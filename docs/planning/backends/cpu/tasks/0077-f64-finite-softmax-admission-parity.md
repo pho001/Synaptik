@@ -1,5 +1,26 @@
 # Task 0077: [F64](../../../../glossary.md#floating-point-precision-and-rounding) [finite](../../../../glossary.md#term-finite)-[softmax](../../../../glossary.md#softmax--log-softmax) [admission](../../../../glossary.md#term-admission) parity
 
+## Reader context
+
+This checkpoint corrected **which input values were accepted**, not how the generated softmax
+calculation was performed. `CpuSoftmaxInputValidator` inspected invocation values before output
+writes. Its extra FLOAT64 pass rejected a working subtraction overflow even though both source
+operands were finite and the existing stable algorithm already defined the resulting shift.
+FLOAT32 and FLOAT64 denote the two represented floating types, not exact real arithmetic.
+
+In the extreme examples below, subtracting the largest finite positive value from the largest
+finite negative value can round to negative infinity. That is a working intermediate, not proof
+that the input contained infinity. Exponentiating that shift gives represented positive zero,
+while a maximum contributor has zero shift and supplies a positive term. This reading applies
+to the recorded nonempty finite-input case; it does not extend its claims to NaN, infinite input
+or empty domains.
+
+The [current stable-softmax explanation](../../../../backend-guide/cpu-backend.md#current-stable-softmax-family)
+now describes the broader present value domain and explicitly identifies CPU0077 as historical.
+Use it for current nonfinite-input behavior; retain the old rejection/failure-atomicity assertions
+below as the evidence for this earlier change. The named before/after logs are not reconstructed
+or rerun by this editorial explanation.
+
 ## Status
 
 Complete — independently reviewed and MAIN accepted after source-matched targeted gates and the

@@ -1,5 +1,14 @@
 # Task 0082: Native [host](../../../../glossary.md#term-host)-copy autorelease boundaries
 
+## Reader context
+
+Upload/download crosses two ownership systems: Java/FFM borrows a live native handle, while Objective-C may create temporary Foundation objects when obtaining buffer contents. A local `@autoreleasepool` drains temporaries, not the explicitly retained buffer; the application need not own an Objective-C pool. Keeping `@try/@catch` inside permits mapped failures to return normally through its drain boundary.
+
+Finite footprint receipts below isolate host-copy lifetime from graph execution. They are not a universal allocation proof, an exercised out-of-memory path or a trusted public release. This reader-context edit reruns none of those probes.
+
+- [Current native buffer and run ownership](../../../../backend-guide/metal-backend.md#cold-run-setup-and-binding) — Separates retained handles from temporary host-call objects.
+- [Current context and completed-result lifetime](../../../../backend-guide/metal-backend.md#completion-and-device-topology) — Explains why pool draining preserves owned buffers.
+
 ## Status
 
 Complete — the reviewed two-method fix is integrated in MAIN after source-matched native packaging,

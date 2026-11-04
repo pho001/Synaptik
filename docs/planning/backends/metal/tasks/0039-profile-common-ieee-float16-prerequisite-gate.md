@@ -1,5 +1,19 @@
 # Task 0039: Profile-Common [IEEE](../../../../glossary.md#term-ieee) [FLOAT16](../../../../glossary.md#term-float16) Prerequisite Gate
 
+## Reader context
+
+This dependency record predates the later FLOAT16 implementation. Model first needed to define
+what binary16 values, conversions and operations meant; an SDK type name or two-byte buffer
+did not supply that contract. BFLOAT16 also occupies two bytes but encodes different values,
+so exchanging the types would not be a storage-only substitution.
+
+Metal's prospective CONTIGUOUS candidate, host ingress and detached publication were conditional
+steps, not delivered capability or reserved protocol numbers. They likewise established no
+CPU arithmetic or cross-owner transfer promise. The original Draft dependency and Blocked status
+remain historical assertions.
+The [current original-carrier admission and low-type execution explanation](../../../../explanation/packages/metal.md#1-admit-an-occurrence-not-an-operation-name)
+shows how later typed qualification differs from merely having a representation available.
+
 ## Status
 
 Blocked

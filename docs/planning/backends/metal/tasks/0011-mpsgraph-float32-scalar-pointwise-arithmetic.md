@@ -1,5 +1,19 @@
 # Task 0011: [MPSGraph](../../../../glossary.md#term-mpsgraph) [FLOAT32](../../../../glossary.md#term-float32) [Scalar](../../../../glossary.md#term-scalar) [Pointwise](../../../../glossary.md#term-pointwise) Arithmetic
 
+## Reader context
+
+“Scalar” here meant an exact FLOAT32 attribute used as the ordered right operand, not a public
+rank-zero input Tensor. Its proposed native constant would belong to the reusable executable;
+it would not be borrowed caller storage or uploaded as a fresh feed each run.
+
+Compiler captured that attribute and Metal would encode its bits and lower the operation.
+The tensor descriptor still described a positive-rank input. Reusing a familiar arithmetic
+selector did not establish that constant-specialized execution preserved tensor-tensor semantics:
+the recorded counterexamples blocked this proposal.
+The [current numerical domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+describe later scalar arithmetic, including its actual rank-zero boundary, rather than treating
+the prospective schema below as an implemented migration.
+
 ## Status
 
 Blocked

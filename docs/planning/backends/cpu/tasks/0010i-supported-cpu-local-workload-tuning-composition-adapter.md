@@ -1,5 +1,18 @@
 # Task 0010I: Supported [CPU](../../../../glossary.md#term-cpu) Local-Workload Tuning Composition Adapter
 
+## Reader context — historical integration boundary
+
+The supported collaboration is a boundary for an outer tuning owner, subsequently Engine, to ask CPU
+for valid alternatives and fresh preparations. `candidateHandoff(...)` enumerates; trial/selected
+preparation constructs a recipe; neither call runs representative inputs or chooses a measured
+winner. Engine binds those inputs, invokes Runtime and closes trial results, while tools/tuning owns
+measurements and cache policy. A returned candidate or decision is tied to its owning
+integration/batch and owns no storage. The historical artifact-consuming method names below precede
+the current artifact-free `PrepareContext` collaboration; follow the current reference for the
+maintained API rather than copying old signatures.
+
+Current reading: [Local-workload tuning collaboration](../../../../backend-guide/cpu-backend.md#cold-local-workload-tuning-collaboration).
+
 ## Status
 
 Complete

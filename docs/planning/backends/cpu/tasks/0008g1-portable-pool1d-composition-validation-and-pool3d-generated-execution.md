@@ -1,5 +1,25 @@
 # [CPU](../../../../glossary.md#term-cpu) Task 0008G1: Portable [Pool1d Composition](../../../../glossary.md#pool1d-composition) [Validation](../../../../glossary.md#term-validation) and [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling) Generated Execution
 
+## Reader context
+
+This task records two different pooling boundaries: exact NCW Pool1d composition recognition and
+dedicated NCDHW Pool3d execution. `CpuPool1dCompositionLowering` accepts only the private
+expand–Pool2d–squeeze chain and reuses schema-55 Pool2d code; component capability answers alone do
+not establish recognition. Virtual rank edits describe validated views and introduce no intermediate
+storage slots. Pool3d instead receives `CpuPool3dIr`, `CpuPool3dLowering`, `CpuPool3dEmitter`, and a
+schema-56 identity.
+
+Here, PartitionDag supplies structural topology, while `CpuPool3dReferenceKernel` supplies numerical
+and performance comparisons. CPU preparation declares only external input/output buffers; shared
+Prepare assigns them, and Runtime invokes bound geometry and carriers. Worker ranges own complete
+output cells and their depth-height-width windows. No workspace, persistent model state, or generic
+PoolNd runtime bridge is introduced.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current visible Pool1d composition](../../../../reference/tensor/pooling.md#ncw-pool1d-composition) — Shows exact rank edits and the inherited singleton-height Pool2d semantics.
+- [current rank-five pooling semantics](../../../../reference/tensor/pooling.md#ncdhw-pool3d-expressions) — Separates the first-class 3D window operation and literal-ceiling rules from composition recognition.
+
 ## Status
 
 Complete.

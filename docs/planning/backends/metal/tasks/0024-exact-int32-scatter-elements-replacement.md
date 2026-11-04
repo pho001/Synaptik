@@ -1,5 +1,19 @@
 # Task 0024: Exact [INT32](../../../../glossary.md#data-type--datatype) SCATTER_ELEMENTS Replacement
 
+## Reader context
+
+Replacement scatter was not an in-place arithmetic update. Metal read the base, indices and
+updates, then wrote a distinct output: untouched positions retained base bits and addressed
+positions received update bits. Reusing one logical value as two inputs did not make that output
+alias either input.
+
+Preparation authenticated shapes, types, axes and input roles. Native execution still had to
+inspect actual indices before any write, including checking complete destination coordinates
+for duplicates. Equal index numbers alone do not imply the same destination when other
+coordinates differ. Executable-owned scratch supported these checks under synchronized execution.
+The [current replacement-versus-arithmetic scatter boundary](../../../../backend-guide/metal-backend.md#capability-whole-partition-analysis-and-route-selection)
+explains later collision rules separately from this exact, unique-destination delivery.
+
 ## Status
 
 Complete

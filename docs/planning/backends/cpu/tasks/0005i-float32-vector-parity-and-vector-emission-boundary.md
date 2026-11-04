@@ -1,5 +1,25 @@
 # Task 0005I: [FLOAT32](../../../../glossary.md#term-float32) [vector](../../../../glossary.md#term-vector) parity and vector-emission boundary
 
+## Reader context
+
+FLOAT32 parity here meant bringing an already-qualified subset to `FloatVector`, not vectorizing
+every supported operation. CPU preparation first proved one homogeneous lane type, an exact
+species, suitable access, and sufficient work. The generator still owned loops, carriers,
+stores, tails, and class definition; `CpuVectorInstructionEmitter` owned operation-level
+emission, and `CpuVectorMath` held the pure multi-instruction formulas.
+
+The ERF/GELU coefficient work documented the approximation’s provenance and precision rather
+than changing Tensor ownership. Scalar tails continued to calculate remaining positions. A
+Vector API call was not proof of a hardware intrinsic or a speedup, and the retained
+experimental receipts should be read under their recorded environment and tolerance bounds.
+
+Current reading alongside this historical record:
+
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+- [CPU portable route plans](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalrouteportable)
+  — separates compute form, range orchestration, and invocation-private carriers.
+
 ## Status
 
 Complete

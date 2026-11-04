@@ -1,5 +1,27 @@
 # Task 0004: Typed Portable Analysis, [Specialization](../../../../glossary.md#term-specialization), and Finalization
 
+## Reader context
+
+The participants here are CPU analysis, shared Prepare, CPU finalization, and Runtime—not four
+interchangeable execution stages. Analysis returned candidate descriptions and exact
+buffer/workspace requirements without allocating Tensor storage. Shared Prepare assigned
+positions. CPU finalization then loaded or generated the selected code and returned an immutable
+executable recipe. Runtime supplied current run representations to `PreparedExecutable.bind`,
+which constructed a signature-specific invocation.
+
+The prepared recipe strongly retained its generated artifact but only borrowed the supplied
+worker group. Application input storage remained borrowed through `CpuBorrowedBuffer`; internal
+storage remained run-owned. The candidates and emitters used to prove this checkpoint were
+synthetic, so its completed lifecycle was not evidence of real operation support. The old
+package-private surface below is preserved as a superseded design.
+
+Current reading alongside this historical record:
+
+- [CPU analysis and finalization](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalprepare)
+  — explains declaration before assignment and realization afterward.
+- [CPU binding, validation, and ranges](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalexecutable)
+  — identifies current-value validation, direct invocation state, and worker/resource lifetimes.
+
 ## Status
 
 Superseded

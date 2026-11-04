@@ -1,5 +1,14 @@
 # Task 0051: [ACCELERATOR](../../../../glossary.md#term-accelerator) [FLOAT32](../../../../glossary.md#term-float32) [EXP](../../../../glossary.md#term-expx)/[SIGMOID](../../../../glossary.md#term-sigmoid) Recursive-Floor Realization
 
+## Reader context
+
+This blocked attempt separates three questions: can the Java/native boundary describe a candidate, does its algorithm meet the then-required full-domain result set, and did a bounded device sample reject it? An 83-word pass answered only the last question. It did not turn a MPSGraph selector into a complete-domain proof. The consumed invocation and rejected candidates remain history.
+
+Model owned the formula and rounding choices; Metal owned candidate preparation and execution. Later profile-free routes have different evidence rules, so this task's status does not describe current EXP/SIGMOID support.
+
+- [Current numerical-site and capability explanation](../../../../backend-guide/metal-backend.md#numerical-semantics-and-capability) — Explains current semantics without certifying this historical attempt.
+- [Current independently typed numerical domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Locates later supported routes separately from these blocked candidates.
+
 ## Status
 
 Blocked

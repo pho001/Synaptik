@@ -1,5 +1,20 @@
 # Task CPU0049: Ordinary [producer](../../../../glossary.md#term-producer)/reduction [fusion](../../../../glossary.md#term-fusion) and executable epilogues
 
+## Reader context
+
+Compiler supplies ordinary operation descriptions; CPU's aggregate lowering proves which
+intermediate stores are private and builds `CpuAggregateFusionIr`. During generation,
+`CpuAggregateEmitter` composes pointwise sites with `CpuExactSumEmitter`. During execution,
+the generated entry reads bound inputs and uses run-owned exact-state scratch: it does not
+call Compiler or reinterpret the graph. Removing a buffer does not remove its rounding site.
+Public or saved values still require their physical stores.
+
+For the finite integer-valued example below, rows $[1,2,3]$ and $[4,5,6]$ multiplied by twos
+give $2(1+2+3)=12$ and $2(4+5+6)=30$; every value is exactly representable here. General
+floating inputs still round each product before exact SUM and round SUM before a tail.
+The [current fusion explanation](../../../../backend-guide/cpu-backend.md#ordinary-exact-aggregate-fusion)
+details these distinct domains and the retained scratch ownership.
+
 ## Status
 
 Complete — MAIN accepted 2026-10-31 after independent approval and final gates.

@@ -1,5 +1,25 @@
 # Task CPU0074: Row-[fusion](../../../../glossary.md#term-fusion) [SIMD](../../../../glossary.md#simd) and parallel realizations
 
+## Reader context
+
+This task adds ways to execute a previously selected fused row region. SIMD means one instruction
+processes several feature cells; parallel execution means worker ranges process disjoint rows
+and private partial results. Neither name means that every Scan body becomes vectorized or that
+adding threads is profitable.
+
+CPU preparation chooses the strategy and declares scratch storage. A bound Scan invocation
+borrows a sufficient live reservation from the existing CPU concurrency budget, dispatches
+ranges through `CpuWorkerGroup`, and waits for completion before merging partials or reusing
+scratch. That internal invocation is the borrower; the run's existing owner retains cleanup
+responsibility. “Quiescence” means the workers have stopped using the borrowed resources,
+including on failure, so returning from dispatch cannot leave writes racing with cleanup.
+
+Read the [selected-region execution explanation](../../../../backend-guide/cpu-backend.md#implemented-and-accepted-row-fusion-exec-v1)
+for range/merge relationships and the distinction between functional qualification and the
+unqualified profitability reported here. The broader
+[current Scan composition boundary](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+is separate from this historical region's dtype and strategy matrix.
+
 ## Status
 
 Complete — MAIN accepted functional capability and bounded [validation](../../../../glossary.md#term-validation), 2026-10-30.

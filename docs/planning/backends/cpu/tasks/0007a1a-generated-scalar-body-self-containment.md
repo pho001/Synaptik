@@ -1,5 +1,26 @@
 # Task 0007A1A: Generated [Scalar](../../../../glossary.md#term-scalar)-Body Self-Containment
 
+## Reader context
+
+Self-containment here means that covered generated scalar bodies no longer called Synaptik
+production helpers during execution. `CpuScalarEmitter`, `CpuScanEmitter`, and
+`CpuAggregateEmitter` used generation-time builders to place the activation, BFLOAT16
+conversion, or reduction instructions inside the class. Calls to required JDK mathematics
+remained allowed; this was not a ban on all method calls.
+
+The vector formula helper remained a deliberate chunk-level boundary. Even a vector entry’s
+scalar tail had to satisfy the scalar rule, because it executes the leftover positions rather
+than disappearing from the workload. No input/output ownership changed: current arrays and
+segments were still bound per run. The code-generation explanation distinguishes these roles
+without treating the old schema-30 rule as universal to every later composed body.
+
+Current reading alongside this historical record:
+
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+- [CPU portable route plans](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalrouteportable)
+  — separates compute form, range orchestration, and invocation-private carriers.
+
 ## Status
 
 Complete

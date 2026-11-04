@@ -1,5 +1,17 @@
 # Task 0020: Bare [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) realization and strategy [alignment](../../../../glossary.md#term-alignment)
 
+## Reader context — historical integration boundary
+
+Vector-eligible geometry is not the same as selecting a vector realization. CPU's cold MATMUL
+selector must agree with the requested compute preference, generated strategy and species width
+before finalization; Runtime does not repair a mismatch. The scalar preference still computes every
+matrix output and contraction, merely using scalar instructions/work units. The public INT32
+regression intentionally avoids the optional FLOAT32/FLOAT64 OpenBLAS peer, so that it exercises the
+portable path rather than hiding it behind native selection. Historical red/green commands below
+describe the original repair, not checks rerun by this reading pass.
+
+Current reading: [Portable MATMUL realization](../../../../backend-guide/cpu-backend.md#current-portable-matmul-family).
+
 ## Status
 
 Complete — implemented and independently reviewed on 2026-10-10 from clean `main` at

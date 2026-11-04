@@ -1,5 +1,29 @@
 # CPU0057: [Scan](../../../glossary.md#term-cumulative-scan) reverse body versus equivalent Java
 
+## Reader context
+
+This is the preserved CPU0057 comparison, not an audit of today's generated classes. Here
+`CpuGeneralScanEmitter` builds the generated `invoke` method during preparation; later the
+CPU prepared invocation calls that method with bound memory segments and numeric geometry.
+The direct Java method E is a comparison oracle, not another production execution owner.
+The [current Scan composition guide](../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+separates current admission from these legacy routes, while
+[per-run resources and cold binding](../../../architecture/runtime-prepare-backend-boundary.md#per-run-resources-and-cold-binding)
+explains why binding a segment is not copying its cells or transferring ownership of borrowed input storage.
+
+For the count arithmetic below, let $B$ be the nonnegative integer batch size, $T=4$ the
+number of time steps, and $A_t$ the active-row count at original time $t\in\{0,1,2,3\}$.
+Then $S=\sum_{t=0}^{3}A_t$ counts active row-times and $TB-S$ counts inactive row-times.
+At $B=7$, $S=5+3+2+1=11$ and $TB-S=28-11=17$. Thus the recorded zero-base
+opportunity is $4S=44$ additions, while the inactive-cursor observation is
+$20(TB-S)=340$ additions. These integer counts describe different bytecode sites;
+neither equation estimates native instructions, elapsed time or floating-point rounding.
+
+The absolute temporary-file evidence named below is unavailable to this reader revision.
+Its recorded hashes, commands, outputs and conclusions remain historical evidence, not newly
+reproduced results. In particular, the missing native-code and sample-to-version correlation
+cannot be reconstructed from the summary tables.
+
 ## Purpose and conclusion
 
 This diagnostic explains where the current generated [Scan](../../../glossary.md#term-cumulative-scan) reverse differs from direct equivalent

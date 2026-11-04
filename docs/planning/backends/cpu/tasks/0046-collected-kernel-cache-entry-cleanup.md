@@ -1,5 +1,18 @@
 # Task CPU0046: Reclaim collected generated-[kernel](../../../../glossary.md#kernel) [cache](../../../../glossary.md#term-cache) entries
 
+## Reader context
+
+This repair concerns the lifetime of generated code, not Tensor values. During CPU finalization,
+`CpuGeneratedKernelArtifactStore.loadOrGenerateObserved` finds or creates a generated artifact;
+the prepared executable retains that artifact strongly so its hidden class remains available.
+The store's weak reference permits collection after those strong users disappear. Queue cleanup
+removes a dead map entry only when its exact reference still matches, so an older notification
+cannot erase a replacement. Runtime invokes the retained executable; it does not drain this queue.
+The historical failed performance gate below remains a failed gate.
+
+Related current explanation: [weak-object reuse versus persisted class bytes](../../../../backend-guide/cpu-backend.md#generated-class-byte-persistence-and-evidence)
+distinguishes code lifetime from disk persistence and JIT machine code.
+
 ## Status
 
 Complete — MAIN accepted the bounded [cache](../../../../glossary.md#term-cache) repair on 2026-10-28; the full-suite legacy

@@ -1,5 +1,22 @@
 # CPU0071: Common [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) [binding](../../../../glossary.md#term-binding) and setup foundation
 
+## Reader context
+
+This completed extraction separates **generating code** from **running that code**. During CPU
+preparation, ordinary MATMUL lowering and Scan body lowering call `CpuMatmulLowering` to check
+matrix dimensions. Their emitters then call the common contraction-emission methods. The
+ordinary emitter supplies entry operands and ranges; `CpuGeneralScanEmitter` supplies the
+current time slice, carry version and activity condition. These are internal framework callers,
+not separate application calls for every time step.
+
+A generation-time callback writes bytecode into the class being built; it is not retained as a
+callback invoked by the generated loop. Shared math therefore does not create a second Runtime
+owner or a new per-step allocation. Read [current Scan composition](../../../../backend-guide/cpu-backend.md#current-general-scan-composition)
+for the present relationship between ordinary units and Scan, and
+[Scan source roles](../../../../reference/tensor/general-scan.md#formals-actual-positions-and-source-closure)
+for what carry, sequence and invariant inputs describe. The timings and CPU0072 launch status
+below belong to this checkpoint; they are not renewed by those current-reference links.
+
 ## Status and change class
 
 Complete, 2026-10-29. Independent corrected source/[Javadoc](../../../../glossary.md#term-javadoc) review APPROVE; MAIN accepted

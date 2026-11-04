@@ -1,5 +1,18 @@
 # Task CPU0027: Unit [topology](../../../../glossary.md#term-topology) adjacency ordering
 
+## Reader context — historical integration boundary
+
+Shared Prepare supplies node/port edges; CPU must also order its own contracted computation units,
+whose membership can change during fusion trials. This repair builds unit-level producer/consumer
+adjacency for the current invocation, then uses stable Kahn ordering: units become ready only after
+their direct producer units, with original node order breaking ties. That adjacency is not a second
+owner of the shared graph and cannot be cached across changed membership. The resulting dependency
+indices describe the finalized CPU recipe; Runtime does not repeat topological analysis. The one
+reconstructed LSTM observation below is cold-preparation evidence, not a training-throughput
+guarantee.
+
+Current reading: [Partition and computation-unit boundaries](../../../../backend-guide/cpu-backend.md#general-partition-dag-and-bounded-pointwise-fusion).
+
 ## Status
 
 Complete — independent code/docs review APPROVE, zero findings; main accepted the unchanged source and focused integration gate on 2026-10-20. [Ready](../../../../glossary.md#term-ready) dependencies, base/contracts and inactive conflicts were verified before launch.

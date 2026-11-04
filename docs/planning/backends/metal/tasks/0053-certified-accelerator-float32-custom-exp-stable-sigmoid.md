@@ -1,5 +1,14 @@
 # Task 0053: Certified [ACCELERATOR](../../../../glossary.md#term-accelerator) [FLOAT32](../../../../glossary.md#term-float32) Custom [EXP](../../../../glossary.md#term-expx) and Stable [SIGMOID](../../../../glossary.md#term-sigmoid)
 
+## Reader context
+
+This preserves an unfinished certification route, not proof that no Metal implementation is possible. The custom shader manipulates integer binary32 encodings; its formal model and independent checker are different participants. Exhaustive checker agreement did not supply the missing theorem connecting the candidate to mathematical exponential.
+
+The constructive-real bridge and source-to-proof obligations are blockers for this candidate. Dormant schema vocabulary did not authorize execution. Later profile-free qualification is separate: current EXP/SIGMOID support does not retroactively grant `DOMAIN-PASS` to these proofs or revive their device authorization.
+
+- [Current numerical implementations and original carriers](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Separates executable current routes from the blocked proof candidate.
+- [Current historical-certificate interpretation](../../../../backend-guide/metal-backend.md#evidence-composition) — Explains why old certificates alone cannot qualify changed source.
+
 ## Status
 
 Blocked

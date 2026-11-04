@@ -1,5 +1,27 @@
 # Task 0007A1O: [Pointwise](../../../../glossary.md#term-pointwise) Ledger Evidence Reconciliation
 
+## Reader context
+
+A ledger row maps an operation/form to evidence; it is not itself a benchmark or a capability
+answer. This reconciliation kept the original checksummed ledger immutable and supplied a
+repository-retained replacement with executable expectations. The new mapping distinguished
+formula branches, value selection, type/result roles, carriers, ranges, stores, and forbidden
+hot-path constructs instead of treating an opcode name as proof of one straight-line
+instruction.
+
+The task changed tests and evidence accounting, not production bytes or schema. INITIAL_STATE’s
+fixed two-word write was structural-only, whereas pointwise rows needed compatible
+generated/direct evidence. Temporary bundles and checksums below remain historical provenance,
+not newly exercised verification. Current code-generation and cache explanations clarify which
+properties belong to an emitted artifact and which are external observations about it.
+
+Current reading alongside this historical record:
+
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+- [CPU artifact compatibility and lifetime](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcache)
+  — distinguishes reusable code bytes and loaded artifacts from numerical values and JIT state.
+
 ## Status
 
 Complete

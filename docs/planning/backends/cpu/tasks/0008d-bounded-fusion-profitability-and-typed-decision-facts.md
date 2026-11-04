@@ -1,5 +1,25 @@
 # Task 0008D: Bounded [Fusion](../../../../glossary.md#term-fusion) Profitability and Typed Decision Facts
 
+## Reader context
+
+This task records bounded selection among complete ordinary-pointwise partition topologies, not new
+kernel semantics. `CpuPartitionDagDecomposer` supplies canonical split seeds and the unchanged 0008B
+baseline; `CpuFusionProfitabilitySelector` enumerates legal contractions and ranks complete
+candidates. `CpuFusionDecision` separates hard legality failures from profitability rejection and
+final selection. The canonical split is the conservative fallback, while the baseline is a mandatory
+comparison candidate.
+
+`CpuPartitionPreparationPlan` retains these CPU-private cold facts and validates selected units and
+resources. Shared Prepare assigns selected declarations; finalization realizes them, and Runtime
+only executes prepared work. Structural keys and Class-File comparisons are structural oracles for
+unchanged generated forms; clean-Java comparisons address semantic and performance equivalence, not
+universal fusion benefit.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

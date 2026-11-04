@@ -1,5 +1,20 @@
 # Task 0005: [MPSGraph](../../../../glossary.md#term-mpsgraph) Mixed NEG/[Binary](../../../../glossary.md#term-binary-descriptor-and-metadata) [FLOAT32](../../../../glossary.md#term-float32) Whole-[Partition](../../../../glossary.md#partition) Route
 
+## Reader context
+
+Read both parts of this chronology: the route passed its recorded integration and lifecycle
+checks, then a later numerical audit withdrew its binary capability. Passing a storage,
+binding or cleanup test does not prove the complete floating-point result contract. Complete
+here preserves the original delivery history, not an endorsement of the subsequently withdrawn
+arithmetic.
+
+The typed program records described operations, operand references and geometry; actual values
+remained in buffers. Metal retained the reusable native executable, while local autorelease
+pools drained transient Apple framework objects rather than closing borrowed caller buffers.
+The [current numerical and exact domains](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains)
+explain today's guarded implementation boundary separately from this withdrawal and its old
+ABI and schema versions.
+
 ## Status
 
 Complete

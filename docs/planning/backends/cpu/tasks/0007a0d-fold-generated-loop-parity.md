@@ -1,5 +1,26 @@
 # Task 0007A0D: Fold Generated-Loop Parity
 
+## Reader context
+
+A fold emitter translates a known overlap mapping into code; it is not a fold evaluator
+consulted for every input contribution. Here the generated class began to contain the selected
+family mapping, typed addition, and carrier access directly instead of calling a generic static
+body. A cold dense-array proof enabled integer cursors, while arbitrary layouts and
+segment/mixed carriers retained long addressing.
+
+Each output cell still began at positive zero and consumed its historical canonical contribution
+order. Parallelism remained disjoint output ownership, with no new atomics, scratch, or partial
+reductions. The preserved BFLOAT16 per-contribution rounding and measured dense FOLD_AXIS case
+are checkpoint-specific, not a universal numerical or speed promise. Current window semantics
+and emission ownership explain the stable boundaries.
+
+Current reading alongside this historical record:
+
+- [Window-transform expressions](../../../../reference/tensor/windows.md#window-transform-expressions)
+  — distinguishes extraction, columns geometry, and overlap accumulation.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

@@ -1,5 +1,26 @@
 # Task 0009E2: [Normalization](../../../../glossary.md#term-normalization) Route Decision and Possible Direct-Java Migration
 
+## Reader context
+
+This task records retention of generated execution for four first-class trailing Layer/RMS forms,
+not a normalization performance result. `CpuTrailingNormalizationIr` and
+`CpuTrailingNormalizationLowering` define admitted identities and complete-slice geometry;
+`CpuLayerNormEmitter` and `CpuRmsNormEmitter` own distinct numerical bodies.
+`CpuTrailingNormalizationReferenceKernel` is the independent semantic oracle. Generated Class-File
+tests supply structural evidence about entry signatures and forbidden dependencies, not numerical
+correctness by themselves.
+
+Here, CPU Prepare owns cold selection, validation, resource declaration, and post-slot finalization;
+Runtime invokes immutable prepared work. Typed arrays and native-order MemorySegments are invocation
+storage, while Shape/layout facts describe admitted geometry. Layer exact-state scratch belongs to
+simultaneously active run ranges, not persistent model state; RMS declares none. Direct Java would
+also require retiring artifact/cache, invocation, and evidence machinery.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current trailing Layer-normalization form](../../../../reference/tensor/normalization.md#layer-normalization-expressions) — Explains normalized Shape, ordered inputs, epsilon, and centered population normalization.
+- [current RMS-normalization form](../../../../reference/tensor/normalization.md#rms-normalization-expressions) — Contrasts uncentered mean square and optional scale with Layer normalization.
+
 ## Status
 
 Complete

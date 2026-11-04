@@ -1,5 +1,25 @@
 # Task 0007A0F: Random and [Dropout](../../../../glossary.md#dropout--inverted-dropout) Generated-Loop Parity
 
+## Reader context
+
+The state prologue and per-element dropout calculation became generated work in this correction.
+INITIAL_STATE still wrote key and counter without drawing, while DROPOUT used the same explicit
+CPU-private counter mapping, global ordinal, threshold, keep mask, and next-state contract as
+its predecessor. Direct generation did not introduce a hidden mutable random generator.
+
+CPU preparation fixed the family/type/carrier facts; Runtime bound current values and state into
+invocation-local ranges. Dense array forms narrowed cursors once, while general layouts retained
+typed long geometry. The recorded FLOAT32 widening/division/narrowing sequence and dense timing
+gates apply to this historical realization. Current graph-randomness semantics explain the
+public state threading without promising CPU/Metal stream identity.
+
+Current reading alongside this historical record:
+
+- [Explicit-state dropout construction](../../../../reference/tensor/graph-randomness.md#explicit-state-dropout-construction)
+  — names value, mask, and next-state positions without promising a portable bitstream.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

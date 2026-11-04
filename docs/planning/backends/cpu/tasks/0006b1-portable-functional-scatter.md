@@ -1,5 +1,26 @@
 # Task 0006B1: Portable Functional Scatter
 
+## Reader context
+
+Scatter reverses the direction of indexing: `[data, indices, updates]` describes how update
+values contribute to a fresh data-shaped result. “Functional” means that neither base data nor
+updates are modified. This checkpoint validated all indices, and replacement-target uniqueness
+where required, before starting result work. A range owned complete output coordinates so
+parallel workers could not race on one destination.
+
+Floating MUL’s once-rounded exact-product scratch was a specific historical numerical choice,
+not a rule to infer for today’s Model contract. Its per-range temporary storage was declared
+before assignment and released with the run, while input storage remained borrowed. Compare the
+current scatter reference for present reduction semantics and the executable explanation for
+validation timing; preserve the old exact-product claims as history.
+
+Current reading alongside this historical record:
+
+- [Scatter Elements and current reduction semantics](../../../../reference/tensor/scatter.md#scatter-elements-expressions)
+  — explains base/index/update roles, duplicate membership, and the present numerical contract.
+- [CPU binding, validation, and ranges](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalexecutable)
+  — identifies current-value validation, direct invocation state, and worker/resource lifetimes.
+
 ## Status
 
 Complete

@@ -1,5 +1,18 @@
 # Task CPU0062: Decompiled [Scan](../../../../glossary.md#term-cumulative-scan) Java lab
 
+## Reader context
+
+J0–J3 are off-tree Java programs compiled from the retained decompile, not changes to CPU's
+production generator. The launcher invokes their hidden classes through the generated entry
+ABI: nineteen segments plus packed geometry and range. Each target has its own writable
+fixtures, so matching input values do not imply shared scratch or output ownership.
+E is a separately prebound direct Java reference. A J0/G7 difference can therefore expose a
+translation effect before any of the later manual optimizations are considered.
+
+For the actual code-generation participants, see [common MATMUL binding](../../../../backend-guide/cpu-backend.md#common-rank-two-matmul-binding).
+For why smaller ClassFiles do not imply faster machine code, see [generated-byte evidence](../../../../backend-guide/cpu-backend.md#generated-class-byte-persistence-and-evidence).
+Nothing in this lab's completed status means its manual code was installed.
+
 ## Status
 
 Complete; MAIN accepted independent prelaunch/result approval on 2026-10-28. Both slots/frontier closed.

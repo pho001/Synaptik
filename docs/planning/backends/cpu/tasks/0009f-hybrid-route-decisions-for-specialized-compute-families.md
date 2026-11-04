@@ -1,5 +1,26 @@
 # Task 0009F: Hybrid Route Decisions for Specialized Compute Families
 
+## Reader context
+
+This task records coordination of separate specialized-family decisions, not one generic migration.
+F1 covers MATMUL and rank-specific convolution; F2 distinguishes exact Pool1d composition from
+generated Pool2d/Pool3d; F3 separates attention, inference BatchNorm, and
+training/statistic-transition BatchNorm. Retained clean-Java semantic oracles describe each family's
+algorithm and loop dataflow; proportionate Class-File inspection supplies structural evidence rather
+than universal verification.
+
+Here, CPU analysis/Prepare owns admission, selection, specialization, and exact resources.
+Finalization follows shared slot assignment; Runtime only invokes prepared work. Attention
+score/weight scratch and training BatchNorm exact-state scratch are run resources, not persistent
+model state. Inference BatchNorm declares no workspace. Complete replacement would include binding,
+invocation, artifacts, cache, inventory, and evidence; the parent records that no route migrated or
+retired.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+- [backend ownership versus implementation route](../../../../design/notes/cpu-kernel-strategy.md#strategy) — Separates Planning ownership, CPU route choice, finalization, and Runtime invocation.
+
 ## Status
 
 Complete

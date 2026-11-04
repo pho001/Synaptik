@@ -1,5 +1,14 @@
 # Task 0075A: Authorize separately qualified low-[precision](../../../../glossary.md#term-precision) [EXP](../../../../glossary.md#term-expx)
 
+## Reader context
+
+This contract permitted future separately qualified low EXP while leaving then-current provider answers false. It neither uploaded input values nor created a shader. Task 0075 owned the support change after implementation, conformance and review.
+
+The participants are an original-typed provider query, Metal's fixed custom preparation and the current ledger recording its answer. FLOAT32 EXP after an explicit cast is a different occurrence from low EXP. The dated prohibition/permission below is a checkpoint distinction, not a present claim that low EXP is unavailable.
+
+- [Current typed EXP support](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Separates implementation from conditional authorization.
+- [Current live versus frozen ledger meaning](../../../../backend-guide/metal-backend.md#numerical-semantics-and-capability) — Explains coexistence of later true answers and preserved history.
+
 ## Status
 
 Complete — the conditional future capability is authorized without changing current provider

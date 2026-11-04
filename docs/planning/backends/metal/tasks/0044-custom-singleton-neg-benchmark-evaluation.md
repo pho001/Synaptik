@@ -1,5 +1,20 @@
 # Task 0044: Custom [Singleton](../../../../glossary.md#term-singleton)-NEG Benchmark [Evaluation](../../../../glossary.md#term-evaluation) and No-Change Closure
 
+## Reader context
+
+This was an evidence-limits decision with no new measurement or implementation. Retaining the
+existing custom-singleton heuristic did not declare it the faster route. The recorded timing
+samples came from one independent JVM process and one frozen workload, narrower than the
+heuristic's full element-count domain.
+
+CUSTOM_SINGLE_NEG and MPSGRAPH named backend choices; CUSTOM_KERNEL and GRAPH_EXECUTABLE were
+their trace descriptions. Neither a favorable timing summary nor exact outputs for that corpus
+authorized a general production policy change. Metal's existing analysis and authenticated
+session decisions therefore remained unchanged.
+The [current report-only benchmark boundary](../../../../backend-guide/metal-backend.md#fixed-report-only-route-benchmark)
+explains why attestation, descriptive timing and production selection are separate claims.
+The historical timing arrays below are retained observations, not newly reproduced results.
+
 ## Status
 
 Complete

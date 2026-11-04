@@ -1,5 +1,26 @@
 # Task 0007A0E: Ordering Generated-Loop Parity
 
+## Reader context
+
+The stable ordering algorithm and its workspace did not change here; its comparison, merge,
+selection, and stores moved into generated typed bodies. CPU lowering still described complete
+logical-axis slices, and shared assignment still supplied two INT64 merge-index regions per
+executing range. Those scratch indices named source positions, while value stores preserved the
+selected representations.
+
+The emitter specialized on known type/family/carrier facts before execution. Runtime binding
+supplied current storage and whole-slice ranges; it did not reinterpret SORT or choose a
+different merge algorithm on each element. The local FLOAT32 comparisons and schema-27 receipts
+remain historical. The current sorting reference clarifies stability and TOP_K value/index
+pairing, and the generator explanation locates the realization work.
+
+Current reading alongside this historical record:
+
+- [Stable sort and argsort semantics](../../../../reference/tensor/sort-topk.md#stable-sort-and-argsort-expressions)
+  — explains logical indices, equal-value stability, NaN placement, and represented-bit selection.
+- [CPU generated-code ownership](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalcodegenemit)
+  — separates generation-time emitters, emitted typed work, and JVM compilation.
+
 ## Status
 
 Complete

@@ -1,5 +1,26 @@
 # Task 0006A: Portable Pad, Tile, and [Tensor](../../../../glossary.md#tensor)-Composition Movement
 
+## Reader context
+
+PAD, TILE, CONCAT, and STACK require logical mapping beyond one affine source view. CPU lowering
+selected a movement family and compact geometry; the generated output loop chose a source
+position or the exact padding value and copied represented bits. A distinct injective output
+prevented those writes from modifying an input. No numeric conversion was implied by moving a
+floating representation.
+
+Repeated composition inputs illustrate why declarations and occurrences differ: a source buffer
+was declared once, but its appearance twice in CONCAT or STACK still contributed twice in the
+requested order. Cold geometry retained that occurrence mapping rather than building a table
+entry for every output element. Current composition semantics explain the public request; CPU IR
+explains its generated representation.
+
+Current reading alongside this historical record:
+
+- [Tensor composition expressions](../../../../reference/tensor/composition.md#tensor-composition-expressions)
+  — explains ordered input occurrences and storage-free construction.
+- [CPU typed intermediate representation](../../../../explanation/packages/cpu.md#iogithubpho001synaptikbackendcpuinternalir)
+  — distinguishes code-shaping structure from concrete geometry and live values.
+
 ## Status
 
 Complete

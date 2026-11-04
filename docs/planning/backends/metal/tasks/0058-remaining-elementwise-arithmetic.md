@@ -1,5 +1,14 @@
 # Task 0058: Remaining [Elementwise](../../../../glossary.md#term-elementwise) Arithmetic
 
+## Reader context
+
+This task separates executable structure from production approval: a MPSGraph recipe could exist while the provider rejected application preparation. Exact raw-word FLOOR/CEIL/SIGN/RELU had different proof needs from opaque elementary functions; scalar arithmetic and reciprocal had their own constant/gradient constraints.
+
+The later no-gradient extension is part of this history. Its exact scalar bytes described one broadcast constant, not a full-shape host allocation. Do not extrapolate old blocked elementary rows or profile restrictions to current support; current Model sites and original typed descriptors govern live admission.
+
+- [Current numerical and exact families](../../../../backend-guide/metal-backend.md#ordinary-numerical-and-exact-domains) — Separates current implementations from structural staging.
+- [Current arithmetic-site meaning](../../../../backend-guide/metal-backend.md#numerical-semantics-and-capability) — Connects scalar/composite sites without a blanket tolerance.
+
 ## Status
 
 Complete

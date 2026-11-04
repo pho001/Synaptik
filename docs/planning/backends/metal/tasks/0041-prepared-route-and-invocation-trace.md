@@ -1,5 +1,20 @@
 # Task 0041: Prepared Route and Invocation [Trace](../../../../glossary.md#trace)
 
+## Reader context
+
+The application passed an observer to `MetalBackendIntegration.open(configuration, observer)`.
+Metal retained that observer but never owned its cleanup; the application remained responsible
+for its lifetime and concurrent-callback safety. Event identifiers correlated work within one
+stream, not globally ordered callback completion.
+
+Trace payloads described routes and outcomes, not tensor contents or native pointers.
+NOT_QUERIED meant Metal itself did no cache lookup even if another component supplied a decision.
+The historical failure rules were deliberately narrower than “all observer failures are swallowed”:
+RuntimeException and Error had different outcome-reporting behavior.
+The [current typed tracing reference](../../../../backend-guide/metal-backend.md#optional-typed-tracing)
+explains later structural events and precise failure precedence; observation remains separate
+from route selection and native resource ownership.
+
 ## Status
 
 Complete

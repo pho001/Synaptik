@@ -1,5 +1,27 @@
 # Task 0008: Portable Grouped [NCHW](../../../../glossary.md#term-nchw) [Conv2d](../../../../glossary.md#convolution--conv2d) Execution Foundation
 
+## Reader context
+
+This task records the grouped NCHW Conv2d foundation: `CpuConv2dLowering` selects static geometry,
+`CpuConv2dIr` identifies code-shaping facts, and `CpuConv2dEmitter` produces direct typed loops.
+`CpuConv2dReferenceKernel` is the independent semantic and performance oracle; Class-File inspection
+is the structural oracle proving that generated entries contain computation rather than hidden
+dispatch. Intrinsic bias and external ADD retain distinct numerical boundaries.
+
+Here, `CpuPreparedExecutableSequence` represents only the closed two-unit materialized suffix.
+Analysis declares its intermediate as an ordinary graph-value buffer before assignment; cold binding
+validates both children before writes. Runtime, not the composite, owns validity and publication.
+Direct convolution requires no scratch or persistent prepared resource, and workers own complete
+output cells.
+
+Read the opening flow as two alternatives: a retained epilogue stays in one generated unit, while a
+materialized suffix uses two ordered units. It is not yet general graph decomposition.
+
+Current-topic navigation (not a replacement for the historical record):
+
+- [current grouped NCHW convolution meaning](../../../../reference/tensor/convolution.md#grouped-nchw-conv2d-expressions) — Explains channel groups, intrinsic bias, and checked spatial geometry without implying backend support.
+- [current CPU preparation and invocation handoffs](../../../../explanation/packages/cpu.md#read-the-pipeline-before-the-packages) — Names the current analysis, shared assignment, finalization, cold binding, and Runtime participants.
+
 ## Status
 
 Complete

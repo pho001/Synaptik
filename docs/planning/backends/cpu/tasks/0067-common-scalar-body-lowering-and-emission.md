@@ -1,5 +1,19 @@
 # CPU0067: Common [scalar](../../../../glossary.md#term-scalar) body [lowering](../../../../glossary.md#lowering) and emission
 
+## Reader context
+
+Read the named types and signatures below as archived proposals, not APIs to instantiate.
+The intended callers were ordinary CPU entry generation and Scan's temporal emitter, with
+shared arithmetic generation between them. Body-local value IDs describe the captured
+computation; they are not outer physical memory slots. A saved history or carry crosses that
+boundary only through predeclared storage and a binding whose lifetime covers every use.
+
+Today's [common pointwise and SUM explanation](../../../../backend-guide/cpu-backend.md#common-pointwise-and-sum-composition)
+names the actual shared owners: `CpuClassFileKernelGenerator.emitBoundPointwise` and
+`CpuAggregateEmitter.emitRepresentedSum`. It also explains why common ownership preserves
+ordinary exact SUM and Scan's represented sequential SUM as different algorithms. No command
+or diagnostic proposal in this superseded Draft grants a new execution slot.
+
 > Superseded by CPU0070's [replacement plan](../existing-emitter-composition-plan.md) and
 > [CPU0071 foundation](0071-common-matmul-binding-foundation.md). The original Draft below is
 > archived, not executable. Its four named types and diagnostic budget are not carried forward.
