@@ -16,9 +16,11 @@ public interface CpuOneDnnKernel extends PreparedResource {
      */
     CpuOneDnnKernelSpec spec();
     /**
-     * Reports the exact user-scratch requirement queried from the native descriptor.
+     * Reports the exact complete invocation-data allocation. For atomic kernels this is native
+     * user scratch; fixed pipelines additionally charge their aligned literal intermediates and
+     * scalar constants once, while child invocation controls borrow slices of that allocation.
      *
-     * @return non-negative scratch byte count, excluding ingress copies and ABI control tables
+     * @return non-negative byte count, excluding ingress copies and ABI control tables
      */
     long scratchpadBytes();
     /**

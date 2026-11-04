@@ -8,6 +8,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnLibrary.NativeScope;
+import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
@@ -54,78 +55,26 @@ public final class CpuOneDnnGraph {
     public static CpuOneDnnKernel compile(CpuOneDnnLibrary library, CpuOneDnnKernelSpec spec) {
         Objects.requireNonNull(library, "library");
         Objects.requireNonNull(spec, "spec");
+        requireSupportedAtomic(spec);
         NativeScope scope = new NativeScope(library);
         try {
             library.requireOpen();
             Api api = new Api(library);
             Arena arena = scope.arena();
             MemorySegment pointer = arena.allocate(ADDRESS);
-            check((int) api.graphCreate.invokeExact(pointer, 1, 0), "create strict Graph");
-            MemorySegment graph = scope.own(pointer.get(ADDRESS, 0), api.graphDestroy);
+            MemorySegment graph = created((int) api.graphCreate.invokeExact(pointer, 1, 0),
+                    pointer, scope, api.graphDestroy, "create strict Graph");
             MemorySegment[] inputs = new MemorySegment[spec.inputs().size()];
             for (int index = 0; index < inputs.length; index++) {
                 inputs[index] = logical(arena, index + 1L, spec.inputs().get(index), false);
             }
             MemorySegment output = logical(arena, OUTPUT_ID, spec.output(), false);
-            boolean externalBias = spec.bias() == CpuOneDnnKernelSpec.Bias.EXTERNAL_LEFT
-                    || spec.bias() == CpuOneDnnKernelSpec.Bias.EXTERNAL_RIGHT;
-            boolean activation = spec.activation() != CpuOneDnnKernelSpec.Activation.NONE;
-            int opCount = 1 + (externalBias ? 1 : 0) + (activation ? 1 : 0);
-            long nextTensorId = inputs.length + 1L;
-            MemorySegment contractionOutput = externalBias || activation
-                    ? logical(arena, nextTensorId++, spec.output(), true) : output;
-            MemorySegment contraction = op(scope, api, 1,
-                    spec.operation() == CpuOneDnnKernelSpec.Operation.MATMUL ? 39 : 13,
-                    "contraction");
-            addInput(api, contraction, inputs[0]);
-            addInput(api, contraction, inputs[1]);
-            if (spec.bias() == CpuOneDnnKernelSpec.Bias.INTRINSIC) {
-                addInput(api, contraction, inputs[2]);
-            }
-            addOutput(api, contraction, contractionOutput);
-            if (spec.operation() == CpuOneDnnKernelSpec.Operation.MATMUL) {
-                boolAttr(arena, api, contraction, 101, false);
-                boolAttr(arena, api, contraction, 102, false);
+            int opCount;
+            if (spec instanceof CpuOneDnnKernelSpec.Contraction contraction) {
+                opCount = addContraction(scope, api, graph, inputs, output, contraction);
             } else {
-                stringAttr(arena, api, contraction, 131, "NCX");
-                stringAttr(arena, api, contraction, 135, "OIX");
-                longAttr(arena, api, contraction, 50, List.of((long) spec.groups()));
-                longAttr(arena, api, contraction, 75, spec.strides());
-                // Graph uses Model's convention: one denotes an undilated kernel.
-                longAttr(arena, api, contraction, 65, spec.dilations());
-                longAttr(arena, api, contraction, 70, spec.paddingLeft());
-                longAttr(arena, api, contraction, 71, spec.paddingRight());
-            }
-            check((int) api.addOp.invokeExact(graph, contraction), "add Graph contraction");
-            MemorySegment current = contractionOutput;
-            int nextOpId = 2;
-            if (externalBias) {
-                MemorySegment addOutput = activation
-                        ? logical(arena, nextTensorId, spec.output(), true) : output;
-                MemorySegment add = op(scope, api, nextOpId++, 2, "external_add");
-                if (spec.bias() == CpuOneDnnKernelSpec.Bias.EXTERNAL_LEFT) {
-                    addInput(api, add, inputs[2]);
-                    addInput(api, add, current);
-                } else {
-                    addInput(api, add, current);
-                    addInput(api, add, inputs[2]);
-                }
-                stringAttr(arena, api, add, 128, "numpy");
-                addOutput(api, add, addOutput);
-                check((int) api.addOp.invokeExact(graph, add), "add Graph external Add");
-                current = addOutput;
-            }
-            if (activation) {
-                int kind = switch (spec.activation()) {
-                    case RELU -> 58;
-                    case SIGMOID -> 62;
-                    case TANH -> 75;
-                    case NONE -> throw new AssertionError("activation already checked");
-                };
-                MemorySegment unary = op(scope, api, nextOpId, kind, "activation");
-                addInput(api, unary, current);
-                addOutput(api, unary, output);
-                check((int) api.addOp.invokeExact(graph, unary), "add Graph activation");
+                addAtomic(scope, api, graph, inputs, output, spec);
+                opCount = 1;
             }
             check((int) api.graphFinalize.invokeExact(graph), "finalize Graph block");
             check((int) api.graphFilter.invokeExact(graph, 1), "filter Graph fusion partitions");
@@ -194,8 +143,9 @@ public final class CpuOneDnnGraph {
             if (outputPort.get(JAVA_LONG, 0) != OUTPUT_ID) throw unsupported("final output is not partition output");
             MemorySegment outputPointers = arena.allocate(ADDRESS);
             outputPointers.set(ADDRESS, 0, output);
-            check((int) api.compiledCreate.invokeExact(pointer, partition), "create compiled Graph partition");
-            MemorySegment compiled = scope.own(pointer.get(ADDRESS, 0), api.compiledDestroy);
+            pointer.set(ADDRESS, 0, MemorySegment.NULL);
+            MemorySegment compiled = created((int) api.compiledCreate.invokeExact(pointer, partition),
+                    pointer, scope, api.compiledDestroy, "create compiled Graph partition");
             check((int) api.compile.invokeExact(partition, compiled, (long) inputs.length, inputPointers,
                     1L, outputPointers, library.engine()), "compile Graph numeric block");
             MemorySegment[] compiledInputs = new MemorySegment[inputs.length];
@@ -223,6 +173,157 @@ public final class CpuOneDnnGraph {
         }
     }
 
+    private static MemorySegment created(int status, MemorySegment pointer, NativeScope scope,
+            MethodHandle destroy, String operation) {
+        MemorySegment handle = pointer.get(ADDRESS, 0);
+        if (handle.address() != 0) scope.own(handle, destroy);
+        check(status, operation);
+        if (handle.address() == 0) throw new IllegalStateException("oneDNN returned null " + operation);
+        return handle;
+    }
+
+    private static int physicalType(CpuOneDnnKernelSpec.Tensor tensor) {
+        return switch (tensor.dataType()) {
+            case FLOAT32 -> F32;
+            case BOOL -> 8; // Graph boolean is distinct from primitive u8.
+            default -> throw unsupported("represented dtype is not F32 or BOOL");
+        };
+    }
+
+    private static void requireSupportedAtomic(CpuOneDnnKernelSpec spec) {
+        if (!(spec instanceof CpuOneDnnKernelSpec.Atomic)) throw unsupported("atomic recipe required");
+        if (spec instanceof CpuOneDnnKernelSpec.Binary binary) {
+            switch (binary.algorithm()) {
+                case LT, LE, EQ, NE -> throw unsupported("3.14 Graph has no exact predicate operation");
+                default -> { }
+            }
+        }
+        if (spec instanceof CpuOneDnnKernelSpec.Pooling pooling
+                && pooling.dilations().stream().anyMatch(value -> value != 1)) {
+            throw unsupported("average pooling has no Graph dilation attribute");
+        }
+    }
+
+    private static void addAtomic(NativeScope scope, Api api, MemorySegment graph, MemorySegment[] inputs,
+            MemorySegment output, CpuOneDnnKernelSpec spec) throws Throwable {
+        int kind = switch (spec) {
+            case CpuOneDnnKernelSpec.Unary unary -> switch (unary.algorithm()) {
+                case ABS -> 0;
+                case SQRT -> 68;
+                case TANH -> 75;
+                case EXP -> 26;
+            };
+            case CpuOneDnnKernelSpec.Binary binary -> switch (binary.algorithm()) {
+                case ADD -> 2;
+                case SUB -> 74;
+                case MUL -> 46;
+                case DIV -> 20;
+                case MIN -> 43;
+                case MAX -> 40;
+                case LT, LE, EQ, NE -> throw unsupported("predicate operation is unavailable");
+            };
+            case CpuOneDnnKernelSpec.Reduction reduction ->
+                    reduction.algorithm() == CpuOneDnnKernelSpec.ReductionAlgorithm.SUM ? 57 : 56;
+            case CpuOneDnnKernelSpec.Reorder ignored -> 60;
+            case CpuOneDnnKernelSpec.Pooling ignored -> 3;
+            default -> throw unsupported("not a standalone atomic operation");
+        };
+        MemorySegment operation = op(scope, api, 1, kind, "literal_site");
+        for (MemorySegment input : inputs) addInput(api, operation, input);
+        addOutput(api, operation, output);
+        Arena arena = scope.arena();
+        if (spec instanceof CpuOneDnnKernelSpec.Binary) {
+            stringAttr(arena, api, operation, 128, "numpy");
+        } else if (spec instanceof CpuOneDnnKernelSpec.Reduction reduction) {
+            var axes = new java.util.ArrayList<Long>();
+            for (int axis = 0; axis < reduction.input().dimensions().size(); axis++) {
+                if (!reduction.input().dimensions().get(axis).equals(reduction.output().dimensions().get(axis))) {
+                    axes.add((long) axis);
+                }
+            }
+            // An identity reduction still consumes the one existing extent-one axis.
+            if (axes.isEmpty()) {
+                for (int axis = 0; axis < reduction.input().dimensions().size(); axis++) {
+                    if (reduction.input().dimensions().get(axis) == 1) { axes.add((long) axis); break; }
+                }
+            }
+            if (axes.isEmpty()) throw unsupported("identity reduction has no singleton axis");
+            longAttr(arena, api, operation, 64, axes);
+            boolAttr(arena, api, operation, 97, true);
+        } else if (spec instanceof CpuOneDnnKernelSpec.Pooling pooling) {
+            stringAttr(arena, api, operation, 131, "NCX");
+            stringAttr(arena, api, operation, 134, "floor");
+            stringAttr(arena, api, operation, 129, "none");
+            boolAttr(arena, api, operation, 96, false);
+            longAttr(arena, api, operation, 67, pooling.kernel());
+            longAttr(arena, api, operation, 75, pooling.strides());
+            longAttr(arena, api, operation, 70, pooling.paddingLeft());
+            longAttr(arena, api, operation, 71, pooling.paddingRight());
+        }
+        check((int) api.addOp.invokeExact(graph, operation), "add Graph literal site");
+    }
+
+    private static int addContraction(NativeScope scope, Api api, MemorySegment graph, MemorySegment[] inputs,
+            MemorySegment output, CpuOneDnnKernelSpec.Contraction spec) throws Throwable {
+        Arena arena = scope.arena();
+        boolean externalBias = spec.bias() == CpuOneDnnKernelSpec.Bias.EXTERNAL_LEFT
+                || spec.bias() == CpuOneDnnKernelSpec.Bias.EXTERNAL_RIGHT;
+        boolean activation = spec.activation() != CpuOneDnnKernelSpec.Activation.NONE;
+        int opCount = 1 + (externalBias ? 1 : 0) + (activation ? 1 : 0);
+        long nextTensorId = inputs.length + 1L;
+        MemorySegment contractionOutput = externalBias || activation
+                ? logical(arena, nextTensorId++, spec.output(), true) : output;
+        MemorySegment contraction = op(scope, api, 1,
+                spec.operation() == CpuOneDnnKernelSpec.Operation.MATMUL ? 39 : 13, "contraction");
+        addInput(api, contraction, inputs[0]);
+        addInput(api, contraction, inputs[1]);
+        if (spec.bias() == CpuOneDnnKernelSpec.Bias.INTRINSIC) addInput(api, contraction, inputs[2]);
+        addOutput(api, contraction, contractionOutput);
+        if (spec.operation() == CpuOneDnnKernelSpec.Operation.MATMUL) {
+            boolAttr(arena, api, contraction, 101, false);
+            boolAttr(arena, api, contraction, 102, false);
+        } else {
+            stringAttr(arena, api, contraction, 131, "NCX");
+            stringAttr(arena, api, contraction, 135, "OIX");
+            longAttr(arena, api, contraction, 50, List.of((long) spec.groups()));
+            longAttr(arena, api, contraction, 75, spec.strides());
+            longAttr(arena, api, contraction, 65, spec.dilations());
+            longAttr(arena, api, contraction, 70, spec.paddingLeft());
+            longAttr(arena, api, contraction, 71, spec.paddingRight());
+        }
+        check((int) api.addOp.invokeExact(graph, contraction), "add Graph contraction");
+        MemorySegment current = contractionOutput;
+        int nextOpId = 2;
+        if (externalBias) {
+            MemorySegment addOutput = activation ? logical(arena, nextTensorId, spec.output(), true) : output;
+            MemorySegment add = op(scope, api, nextOpId++, 2, "external_add");
+            if (spec.bias() == CpuOneDnnKernelSpec.Bias.EXTERNAL_LEFT) {
+                addInput(api, add, inputs[2]);
+                addInput(api, add, current);
+            } else {
+                addInput(api, add, current);
+                addInput(api, add, inputs[2]);
+            }
+            stringAttr(arena, api, add, 128, "numpy");
+            addOutput(api, add, addOutput);
+            check((int) api.addOp.invokeExact(graph, add), "add Graph external Add");
+            current = addOutput;
+        }
+        if (activation) {
+            int kind = switch (spec.activation()) {
+                case RELU -> 58;
+                case SIGMOID -> 62;
+                case TANH -> 75;
+                case NONE -> throw new AssertionError("activation already checked");
+            };
+            MemorySegment unary = op(scope, api, nextOpId, kind, "activation");
+            addInput(api, unary, current);
+            addOutput(api, unary, output);
+            check((int) api.addOp.invokeExact(graph, unary), "add Graph activation");
+        }
+        return opCount;
+    }
+
     private static UnsupportedGraphException unsupported(String message) {
         return new UnsupportedGraphException(message);
     }
@@ -236,7 +337,7 @@ public final class CpuOneDnnGraph {
             descriptor.set(JAVA_LONG, 16L + axis * Long.BYTES, tensor.dimensions().get(axis));
             descriptor.set(JAVA_LONG, 128L + axis * Long.BYTES, tensor.strides().get(axis));
         }
-        descriptor.set(JAVA_INT, 112, F32);
+        descriptor.set(JAVA_INT, 112, physicalType(tensor));
         descriptor.set(JAVA_INT, 116, VARIABLE);
         descriptor.set(JAVA_INT, 120, anyLayout ? 1 : STRIDED);
         return descriptor;
@@ -246,7 +347,7 @@ public final class CpuOneDnnGraph {
             long id, CpuOneDnnKernelSpec.Tensor expected, MemorySegment size) throws Throwable {
         MemorySegment descriptor = arena.allocate(LOGICAL_TENSOR_BYTES, Long.BYTES);
         check((int) api.queryLogical.invokeExact(compiled, id, descriptor), "query compiled Graph external descriptor");
-        if (descriptor.get(JAVA_LONG, 0) != id || descriptor.get(JAVA_INT, 112) != F32
+        if (descriptor.get(JAVA_LONG, 0) != id || descriptor.get(JAVA_INT, 112) != physicalType(expected)
                 || descriptor.get(JAVA_INT, 120) != STRIDED
                 || descriptor.get(JAVA_INT, 8) != expected.dimensions().size()) {
             throw unsupported("compiled external descriptor changed type, rank or explicit layout for tensor " + id);
@@ -286,8 +387,8 @@ public final class CpuOneDnnGraph {
             throws Throwable {
         MemorySegment pointer = scope.arena().allocate(ADDRESS);
         MemorySegment nativeName = scope.arena().allocateFrom(name);
-        check((int) api.opCreate.invokeExact(pointer, id, kind, nativeName), "create Graph operation");
-        return scope.own(pointer.get(ADDRESS, 0), api.opDestroy);
+        return created((int) api.opCreate.invokeExact(pointer, id, kind, nativeName),
+                pointer, scope, api.opDestroy, "create Graph operation");
     }
 
     private static void addInput(Api api, MemorySegment op, MemorySegment tensor) throws Throwable {
@@ -318,7 +419,7 @@ public final class CpuOneDnnGraph {
         check((int) api.stringAttr.invokeExact(op, attribute, data, (long) value.length()), "set Graph string attribute");
     }
 
-    private static final class Kernel implements CpuOneDnnKernel {
+    private static final class Kernel implements CpuOneDnnAtomicKernel {
         private final CpuOneDnnLibrary library;
         private final CpuOneDnnKernelSpec spec;
         private final Api api;
@@ -356,12 +457,14 @@ public final class CpuOneDnnGraph {
         @Override public long scratchpadBytes() { return scratchBytes; }
         @Override public String implementation() { return "onednn-3.14.0-graph:strict:single-partition:user-scratchpad"; }
 
-        @Override public CpuOneDnnWorkspace createWorkspace() {
+        @Override public CpuOneDnnWorkspace createWorkspace() { return createWorkspace(null, null); }
+
+        @Override public CpuOneDnnWorkspace createWorkspace(MemorySegment scratch, MemorySegment stream) {
             synchronized (this) {
                 if (closed) throw new IllegalStateException("oneDNN Graph kernel is closed");
                 references = Math.incrementExact(references);
             }
-            try { return new Workspace(this); }
+            try { return new Workspace(this, scratch, stream); }
             catch (Throwable problem) {
                 try { release(); } catch (Throwable cleanup) {
                     if (cleanup != problem) problem.addSuppressed(cleanup);
@@ -400,16 +503,19 @@ public final class CpuOneDnnGraph {
         private boolean ownsLease;
         private boolean bound;
 
-        private Workspace(Kernel owner) {
-            super(owner);
+        private Workspace(Kernel owner, MemorySegment scratch, MemorySegment sharedStream) {
+            super(owner, scratch);
             this.owner = owner;
             try {
                 scope = new NativeScope(owner.library);
                 Arena arena = scope.arena();
                 MemorySegment pointer = arena.allocate(ADDRESS);
-                check((int) owner.api.streamCreate.invokeExact(pointer, owner.library.engine(), 1),
-                        "create Graph execution stream");
-                stream = scope.own(pointer.get(ADDRESS, 0), owner.api.streamDestroy);
+                if (sharedStream == null) {
+                    stream = created((int) owner.api.streamCreate.invokeExact(pointer, owner.library.engine(), 1),
+                            pointer, scope, owner.api.streamDestroy, "create Graph execution stream");
+                } else {
+                    stream = sharedStream;
+                }
                 inputTable = arena.allocate(ADDRESS, owner.inputDescriptors.length);
                 outputTable = arena.allocate(ADDRESS);
                 inputHandles = new MemorySegment[owner.inputDescriptors.length];
@@ -432,9 +538,9 @@ public final class CpuOneDnnGraph {
 
         private MemorySegment createTensor(MemorySegment descriptor, MemorySegment data, MemorySegment pointer)
                 throws Throwable {
-            check((int) owner.api.tensorCreate.invokeExact(pointer, descriptor, owner.library.engine(), data),
-                    "create Graph execution tensor");
-            return scope.own(pointer.get(ADDRESS, 0), owner.api.tensorDestroy);
+            pointer.set(ADDRESS, 0, MemorySegment.NULL);
+            return created((int) owner.api.tensorCreate.invokeExact(pointer, descriptor, owner.library.engine(), data),
+                    pointer, scope, owner.api.tensorDestroy, "create Graph execution tensor");
         }
 
         @Override public void bind(MemorySegment[] inputs, MemorySegment output) {
@@ -476,6 +582,12 @@ public final class CpuOneDnnGraph {
         @Override public void execute() {
             requireOpen();
             if (!bound) throw new IllegalStateException("Graph workspace has not been bound");
+            try { enqueue(); } finally { await(); }
+        }
+
+        @Override void enqueue() {
+            requireOpen();
+            if (!bound) throw new IllegalStateException("Graph workspace has not been bound");
             for (int port = 0; port < inputHandles.length; port++) {
                 requireLiveData(boundInputs[port]);
             }
@@ -483,11 +595,15 @@ public final class CpuOneDnnGraph {
             try {
                 int status = (int) owner.api.execute.invokeExact(owner.compiled, stream,
                         (long) inputHandles.length, inputTable, 1L, outputTable, scratchHandle);
-                int waitStatus = (int) owner.api.streamWait.invokeExact(stream);
-                check(status, "execute Graph numeric block with user scratchpad");
-                check(waitStatus, "wait Graph execution stream");
+                check(status, "enqueue Graph numeric block with user scratchpad");
             } catch (Throwable problem) { throw propagate(problem); }
             finally { Reference.reachabilityFence(this); }
+        }
+
+        @Override void await() {
+            requireOpen();
+            try { check((int) owner.api.streamWait.invokeExact(stream), "wait Graph execution stream"); }
+            catch (Throwable problem) { throw propagate(problem); }
         }
 
         @Override protected void closeNative() {

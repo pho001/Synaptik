@@ -5,10 +5,12 @@ import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;
 import java.util.List;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
@@ -236,6 +238,213 @@ final class CpuOneDnnNativeContractTest {
         }
     }
 
+    @Test
+    void typedPipelineRejectsIllegalDataflowButAcceptsSameSpanViews() {
+        var vector = dense(2);
+        var scalar = dense(1);
+        var expanded = new CpuOneDnnKernelSpec.Tensor(DataType.FLOAT32, List.of(1L, 2L), List.of(2L, 1L));
+        var reorder = new CpuOneDnnKernelSpec.Reorder(expanded, expanded);
+        var pipeline = new CpuOneDnnKernelSpec.Pipeline(List.of(vector), vector, List.of(), List.of(),
+                List.of(new CpuOneDnnKernelSpec.Step(reorder, List.of(0), 1)));
+        assertEquals(vector, pipeline.inputs().getFirst());
+        assertThrows(IllegalArgumentException.class, () -> new CpuOneDnnKernelSpec.Step(pipeline, List.of(0), 1));
+        assertThrows(IllegalArgumentException.class, () -> new CpuOneDnnKernelSpec.Pipeline(
+                List.of(vector), vector, List.of(vector), List.of(),
+                List.of(new CpuOneDnnKernelSpec.Step(new CpuOneDnnKernelSpec.Reorder(vector, vector), List.of(2), 1))));
+        assertThrows(IllegalArgumentException.class, () -> new CpuOneDnnKernelSpec.Pipeline(
+                List.of(vector), vector, List.of(), List.of(),
+                List.of(new CpuOneDnnKernelSpec.Step(new CpuOneDnnKernelSpec.Reorder(vector, vector), List.of(0), 0))));
+        assertThrows(IllegalArgumentException.class, () -> new CpuOneDnnKernelSpec.Pipeline(
+                List.of(vector), vector, List.of(), List.of(),
+                List.of(new CpuOneDnnKernelSpec.Step(new CpuOneDnnKernelSpec.Reorder(scalar, scalar), List.of(0), 1))));
+        var bool = new CpuOneDnnKernelSpec.Tensor(DataType.BOOL, List.of(2L), List.of(1L));
+        assertEquals(2, bool.byteSize());
+        assertEquals(8, vector.byteSize());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = CpuOneDnnRoutePlan.Api.class, names = {"PRIMITIVE", "GRAPH"})
+    void literalMsePipelineChargesOneArenaAndKeepsIndependentLeases(CpuOneDnnRoutePlan.Api api) {
+        var vector = dense(4);
+        var scalar = dense(1);
+        var sub = new CpuOneDnnKernelSpec.Binary(CpuOneDnnKernelSpec.BinaryAlgorithm.SUB, vector, vector, vector);
+        var mul = new CpuOneDnnKernelSpec.Binary(CpuOneDnnKernelSpec.BinaryAlgorithm.MUL, vector, vector, vector);
+        var sum = new CpuOneDnnKernelSpec.Reduction(CpuOneDnnKernelSpec.ReductionAlgorithm.SUM, vector, scalar);
+        var div = new CpuOneDnnKernelSpec.Binary(CpuOneDnnKernelSpec.BinaryAlgorithm.DIV, scalar, scalar, scalar);
+        var spec = new CpuOneDnnKernelSpec.Pipeline(List.of(vector, vector), scalar,
+                List.of(vector, vector, scalar),
+                List.of(new CpuOneDnnKernelSpec.Constant(scalar, List.of(Float.floatToRawIntBits(4.0f)))),
+                List.of(new CpuOneDnnKernelSpec.Step(sub, List.of(0, 1), 3),
+                        new CpuOneDnnKernelSpec.Step(mul, List.of(3, 3), 4),
+                        new CpuOneDnnKernelSpec.Step(sum, List.of(4), 5),
+                        new CpuOneDnnKernelSpec.Step(div, List.of(5, 6), 2)));
+        try (CpuOneDnnLibrary library = openLibrary();
+                CpuOneDnnKernel kernel = CpuOneDnnCompiler.compile(library, spec, api);
+                Arena arena = Arena.ofShared();
+                CpuOneDnnWorkspace first = kernel.createWorkspace();
+                CpuOneDnnWorkspace second = kernel.createWorkspace()) {
+            var metadata = CpuOneDnnCompiler.describe(library, spec, api);
+            assertEquals(kernel.scratchpadBytes(), metadata.scratchpadBytes());
+            assertEquals(kernel.implementation(), metadata.implementation());
+            assertEquals(kernel.scratchpadBytes(), first.byteSize());
+            assertTrue(first.byteSize() >= 3 * 64 + Float.BYTES);
+            assertFalse(first.writableSegment().asOverlappingSlice(second.writableSegment()).isPresent());
+            var x = buffer(arena, vector);
+            var target = buffer(arena, vector);
+            var out1 = buffer(arena, scalar);
+            var out2 = buffer(arena, scalar);
+            put(x, new int[] {1, 2, 3, 4});
+            put(target, new int[] {0, 1, 1, 2});
+            assertThrows(IllegalArgumentException.class,
+                    () -> first.bind(new MemorySegment[] {x.data, target.data}, first.writableSegment()));
+            assertThrows(IllegalStateException.class, first::execute);
+            first.bind(new MemorySegment[] {x.data, target.data}, out1.data);
+            second.bind(new MemorySegment[] {target.data, target.data}, out2.data);
+            kernel.close();
+            library.close();
+            first.execute();
+            assertEquals(2.5f, out1.data.get(JAVA_FLOAT, 0));
+            second.execute();
+            assertEquals(0.0f, out2.data.get(JAVA_FLOAT, 0));
+            put(target, new int[] {1, 2, 3, 4});
+            first.bind(new MemorySegment[] {x.data, target.data}, out1.data);
+            first.execute();
+            assertEquals(0.0f, out1.data.get(JAVA_FLOAT, 0));
+            first.close();
+            second.execute();
+            assertEquals(0.0f, out2.data.get(JAVA_FLOAT, 0));
+            assertThrows(IllegalStateException.class, kernel::createWorkspace);
+        }
+    }
+
+    @Test
+    void primitivePredicatesWriteCanonicalBytesAtUnalignedBoolOrigins() {
+        float[] a = {Float.NaN, -0.0f, 0.0f, Float.MIN_VALUE, Float.POSITIVE_INFINITY, -2};
+        float[] b = {0, 0, -0.0f, 0, Float.POSITIVE_INFINITY, -1};
+        var input = dense(a.length);
+        var output = new CpuOneDnnKernelSpec.Tensor(DataType.BOOL, List.of((long) a.length), List.of(1L));
+        try (CpuOneDnnLibrary library = openLibrary(); Arena arena = Arena.ofShared()) {
+            MemorySegment left = arena.allocateFrom(JAVA_FLOAT, a);
+            MemorySegment right = arena.allocateFrom(JAVA_FLOAT, b);
+            for (var algorithm : List.of(CpuOneDnnKernelSpec.BinaryAlgorithm.LT, CpuOneDnnKernelSpec.BinaryAlgorithm.LE,
+                    CpuOneDnnKernelSpec.BinaryAlgorithm.EQ, CpuOneDnnKernelSpec.BinaryAlgorithm.NE)) {
+                var spec = new CpuOneDnnKernelSpec.Binary(algorithm, input, input, output);
+                MemorySegment allocation = arena.allocate(a.length + 2, 64).fill(CANARY);
+                MemorySegment bytes = allocation.asSlice(1, a.length);
+                try (CpuOneDnnKernel kernel = CpuOneDnnCompiler.compile(library, spec, CpuOneDnnRoutePlan.Api.PRIMITIVE);
+                        CpuOneDnnWorkspace workspace = kernel.createWorkspace()) {
+                    workspace.bind(new MemorySegment[] {left, right}, bytes);
+                    workspace.execute();
+                    for (int index = 0; index < a.length; index++) {
+                        boolean expected = switch (algorithm) {
+                            case LT -> a[index] < b[index];
+                            case LE -> a[index] <= b[index];
+                            case EQ -> a[index] == b[index];
+                            case NE -> a[index] != b[index];
+                            default -> throw new AssertionError(algorithm);
+                        };
+                        assertEquals((byte) (expected ? 1 : 0), bytes.get(JAVA_BYTE, index));
+                    }
+                    assertEquals(CANARY, allocation.get(JAVA_BYTE, 0));
+                    assertEquals(CANARY, allocation.get(JAVA_BYTE, a.length + 1));
+                }
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = CpuOneDnnRoutePlan.Api.class, names = {"PRIMITIVE", "GRAPH"})
+    void standaloneElementaryReductionAndRawReorderKeepTheirLiteralSites(CpuOneDnnRoutePlan.Api api) {
+        var root = new CpuOneDnnKernelSpec.Unary(CpuOneDnnKernelSpec.UnaryAlgorithm.SQRT, dense(4), dense(4));
+        var product = new CpuOneDnnKernelSpec.Reduction(CpuOneDnnKernelSpec.ReductionAlgorithm.PROD,
+                dense(2, 3), dense(2, 1));
+        var reorder = new CpuOneDnnKernelSpec.Reorder(tensor(new long[] {2, 3}, 1, 2), dense(2, 3));
+        try (CpuOneDnnLibrary library = openLibrary(); Arena arena = Arena.ofShared()) {
+            List<CpuOneDnnKernelSpec> specs = List.of(root, product, reorder);
+            List<int[]> inputs = List.of(new int[] {0, 1, 4, 9}, new int[] {1, 2, 3, 2, 3, 4},
+                    new int[] {1, 2, 3, 4, 5, 6});
+            List<int[]> outputs = List.of(new int[] {0, 1, 2, 3}, new int[] {6, 24},
+                    new int[] {1, 2, 3, 4, 5, 6});
+            for (int index = 0; index < specs.size(); index++) {
+                var spec = specs.get(index);
+                var input = buffer(arena, spec.inputs().getFirst());
+                var output = buffer(arena, spec.output());
+                put(input, inputs.get(index));
+                try (CpuOneDnnKernel kernel = CpuOneDnnCompiler.compile(library, spec, api);
+                        CpuOneDnnWorkspace workspace = kernel.createWorkspace()) {
+                    workspace.bind(new MemorySegment[] {input.data.asReadOnly()}, output.data);
+                    workspace.execute();
+                    assertOutput(output, outputs.get(index));
+                    assertInput(input, inputs.get(index));
+                }
+            }
+        }
+    }
+
+    @Test
+    void paddedAverageRequiresPaddingInEveryWindowAndPowerOfTwoDivisor() {
+        var eligible = new CpuOneDnnKernelSpec.Pooling(dense(1, 1, 1, 1), dense(1, 1, 2, 2),
+                List.of(2L, 2L), List.of(1L, 1L), List.of(1L, 1L), List.of(1L, 1L), List.of(1L, 1L));
+        assertTrue(CpuOneDnnCompiler.qualified(eligible));
+        var interior = new CpuOneDnnKernelSpec.Pooling(dense(1, 1, 3, 3), dense(1, 1, 4, 4),
+                List.of(2L, 2L), List.of(1L, 1L), List.of(1L, 1L), List.of(1L, 1L), List.of(1L, 1L));
+        assertFalse(CpuOneDnnCompiler.qualified(interior));
+        var divisor = new CpuOneDnnKernelSpec.Pooling(dense(1, 1, 1, 1), dense(1, 1, 2, 2),
+                List.of(3L, 3L), List.of(1L, 1L), List.of(1L, 1L), List.of(2L, 2L), List.of(1L, 1L));
+        assertFalse(CpuOneDnnCompiler.qualified(divisor));
+        assertThrows(IllegalArgumentException.class,
+                () -> CpuOneDnnCompiler.describe(null, eligible, CpuOneDnnRoutePlan.Api.GRAPH));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = CpuOneDnnRoutePlan.Api.class, names = {"PRIMITIVE", "GRAPH"})
+    void batchNormLiteralSitesBroadcastChannelSlotsWithoutCopiedWeights(CpuOneDnnRoutePlan.Api api) {
+        var x = dense(1, 2, 1, 2);
+        var channel = dense(2);
+        var view = new CpuOneDnnKernelSpec.Tensor(DataType.FLOAT32,
+                List.of(1L, 2L, 1L, 1L), List.of(2L, 1L, 1L, 1L));
+        var scalar = dense(1);
+        var spec = new CpuOneDnnKernelSpec.Pipeline(List.of(x, channel, channel, channel, channel),
+                x, List.of(x, channel, channel, x, x),
+                List.of(new CpuOneDnnKernelSpec.Constant(scalar, List.of(Float.floatToRawIntBits(1.0f)))),
+                List.of(
+                        new CpuOneDnnKernelSpec.Step(new CpuOneDnnKernelSpec.Binary(
+                                CpuOneDnnKernelSpec.BinaryAlgorithm.SUB, x, view, x), List.of(0, 3), 6),
+                        new CpuOneDnnKernelSpec.Step(new CpuOneDnnKernelSpec.Binary(
+                                CpuOneDnnKernelSpec.BinaryAlgorithm.ADD, channel, scalar, channel), List.of(4, 11), 7),
+                        new CpuOneDnnKernelSpec.Step(new CpuOneDnnKernelSpec.Unary(
+                                CpuOneDnnKernelSpec.UnaryAlgorithm.SQRT, channel, channel), List.of(7), 8),
+                        new CpuOneDnnKernelSpec.Step(new CpuOneDnnKernelSpec.Binary(
+                                CpuOneDnnKernelSpec.BinaryAlgorithm.DIV, x, view, x), List.of(6, 8), 9),
+                        new CpuOneDnnKernelSpec.Step(new CpuOneDnnKernelSpec.Binary(
+                                CpuOneDnnKernelSpec.BinaryAlgorithm.MUL, x, view, x), List.of(9, 1), 10),
+                        new CpuOneDnnKernelSpec.Step(new CpuOneDnnKernelSpec.Binary(
+                                CpuOneDnnKernelSpec.BinaryAlgorithm.ADD, x, view, x), List.of(10, 2), 5)));
+        try (CpuOneDnnLibrary library = openLibrary();
+                CpuOneDnnKernel kernel = CpuOneDnnCompiler.compile(library, spec, api);
+                Arena arena = Arena.ofShared();
+                CpuOneDnnWorkspace workspace = kernel.createWorkspace()) {
+            var input = buffer(arena, x);
+            var scale = buffer(arena, channel);
+            var bias = buffer(arena, channel);
+            var mean = buffer(arena, channel);
+            var variance = buffer(arena, channel);
+            var output = buffer(arena, x);
+            put(input, new int[] {3, 5, 7, 10});
+            put(scale, new int[] {2, 3});
+            put(bias, new int[] {-1, 1});
+            put(mean, new int[] {1, 1});
+            put(variance, new int[] {3, 8});
+            workspace.bind(new MemorySegment[] {input.data, scale.data, bias.data, mean.data, variance.data}, output.data);
+            workspace.execute();
+            assertOutput(output, new int[] {1, 3, 7, 10});
+            put(scale, new int[] {4, 6});
+            output.reset();
+            workspace.execute();
+            assertOutput(output, new int[] {3, 7, 13, 19});
+        }
+    }
+
     private enum InvalidBinding {
         READ_ONLY_OUTPUT, HEAP_OUTPUT, SMALL_OUTPUT, HEAP_LEFT, HEAP_RIGHT, SMALL_LEFT, SMALL_RIGHT,
         OVERLAP_LEFT, OVERLAP_RIGHT, PARTIAL_OVERLAP_LEFT, PARTIAL_OVERLAP_RIGHT
@@ -251,7 +460,7 @@ final class CpuOneDnnNativeContractTest {
 
     private static CpuOneDnnKernelSpec matmul(CpuOneDnnKernelSpec.Tensor left,
             CpuOneDnnKernelSpec.Tensor right, CpuOneDnnKernelSpec.Tensor output) {
-        return new CpuOneDnnKernelSpec(CpuOneDnnKernelSpec.Operation.MATMUL, List.of(left, right),
+        return new CpuOneDnnKernelSpec.Contraction(CpuOneDnnKernelSpec.Operation.MATMUL, List.of(left, right),
                 output, 1, List.of(), List.of(), List.of(), List.of(),
                 CpuOneDnnKernelSpec.Bias.NONE, CpuOneDnnKernelSpec.Activation.NONE);
     }
@@ -267,7 +476,7 @@ final class CpuOneDnnNativeContractTest {
     }
 
     private static CpuOneDnnKernelSpec.Tensor tensor(long[] dimensions, long... strides) {
-        return new CpuOneDnnKernelSpec.Tensor(
+        return new CpuOneDnnKernelSpec.Tensor(DataType.FLOAT32,
                 java.util.Arrays.stream(dimensions).boxed().toList(),
                 java.util.Arrays.stream(strides).boxed().toList());
     }
@@ -325,7 +534,7 @@ final class CpuOneDnnNativeContractTest {
             offset += (logicalIndex % dimension) * tensor.strides().get(axis);
             logicalIndex /= Math.toIntExact(dimension);
         }
-        return offset * Float.BYTES;
+        return offset * tensor.dataType().byteWidth();
     }
 
     private static GuardedBuffer buffer(Arena arena, CpuOneDnnKernelSpec.Tensor tensor) {
@@ -334,7 +543,7 @@ final class CpuOneDnnNativeContractTest {
         long capacity = tensor.byteSize();
         for (int axis = 0; axis < tensor.dimensions().size(); axis++) {
             capacity = Math.max(capacity,
-                    tensor.dimensions().get(axis) * tensor.strides().get(axis) * Float.BYTES);
+                    tensor.dimensions().get(axis) * tensor.strides().get(axis) * tensor.dataType().byteWidth());
         }
         MemorySegment allocation = arena.allocate(GUARD_BYTES + capacity + GUARD_BYTES, 64);
         var result = new GuardedBuffer(tensor, allocation, allocation.asSlice(GUARD_BYTES, capacity));

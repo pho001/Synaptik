@@ -9,6 +9,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnLibrary.NativeScope;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnKernelSpec.Tensor;
+import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
@@ -18,11 +19,11 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Fixed strided F32 primitive C bindings with run-owned memory objects and user scratch.
- * Common CPU lowering owns semantics and external layouts. Convolution/bias/activation binding
- * support is diagnostic, not production qualification; production callers pass the separate
- * bare-MATMUL qualification gate. Persistent descriptors/code and invocation state have distinct
- * leases, so closing a kernel does not invalidate an already-issued workspace.
+ * Fixed typed primitive C bindings with run-owned memory objects and user scratch. Literal
+ * pipelines reuse these same descriptor and invocation owners, borrowing slices and one ordered
+ * stream. Diagnostic contraction forms remain separate from production qualification.
+ * Persistent descriptors/code and invocation state have distinct leases, so closing a kernel
+ * does not invalidate an already-issued workspace.
  */
 public final class CpuOneDnnPrimitives {
     private static final int SRC = 1, WEIGHTS = 33, BIAS = 41, DST = 17, SCRATCHPAD = 80;
@@ -124,11 +125,12 @@ public final class CpuOneDnnPrimitives {
                         attrResult, temporary, api.attrDestroy, "create primitive attributes");
                 check((int) api.attrFpmath.invokeExact(attributes, STRICT_FPMATH), "set strict fpmath");
                 check((int) api.attrScratch.invokeExact(attributes, USER_SCRATCHPAD), "set user scratchpad");
-                if (spec.activation() != CpuOneDnnKernelSpec.Activation.NONE) {
+                var contraction = spec instanceof CpuOneDnnKernelSpec.Contraction value ? value : null;
+                if (contraction != null && contraction.activation() != CpuOneDnnKernelSpec.Activation.NONE) {
                     attrResult.set(ADDRESS, 0, MemorySegment.NULL);
                     MemorySegment postOps = created((int) api.postCreate.invokeExact(attrResult),
                             attrResult, temporary, api.postDestroy, "create post-ops");
-                    int algorithm = switch (spec.activation()) {
+                    int algorithm = switch (contraction.activation()) {
                         case RELU -> 32;
                         case TANH -> 33;
                         case SIGMOID -> 41;
@@ -138,31 +140,22 @@ public final class CpuOneDnnPrimitives {
                     check((int) api.attrPostOps.invokeExact(attributes, postOps), "set activation post-ops");
                 }
                 int outputIndex = tensors.length - 1;
-                MemorySegment bias = spec.bias() == CpuOneDnnKernelSpec.Bias.NONE
-                        ? MemorySegment.NULL : descriptors[2];
                 result.set(ADDRESS, 0, MemorySegment.NULL);
-                int descriptorStatus;
-                if (spec.operation() == CpuOneDnnKernelSpec.Operation.MATMUL) {
-                    descriptorStatus = (int) api.matmulCreate.invokeExact(result, library.engine(), descriptors[0],
-                            descriptors[1], bias, descriptors[outputIndex], attributes);
-                } else {
-                    descriptorStatus = (int) api.convCreate.invokeExact(result, library.engine(), FORWARD_INFERENCE,
-                            CONVOLUTION_DIRECT, descriptors[0], descriptors[1], bias, descriptors[outputIndex],
-                            vector(arena, spec.strides(), 0), vector(arena, spec.dilations(), -1),
-                            vector(arena, spec.paddingLeft(), 0), vector(arena, spec.paddingRight(), 0),
-                            attributes);
-                }
+                int descriptorStatus = createDescriptor(api, library, spec, descriptors, result, attributes, arena);
                 MemorySegment pd = created(descriptorStatus, result, owned, api.pdDestroy,
                         "create contraction descriptor");
                 // Query references remain valid for the complete descriptor/run-lease lifetime.
                 MemorySegment[] executionDescriptors = new MemorySegment[descriptors.length];
                 long[] requiredBytes = new long[descriptors.length];
                 for (int index = 0; index < descriptors.length; index++) {
-                    int argument = index == outputIndex ? DST : inputArgument(index);
+                    int argument = index == outputIndex ? DST : inputArgument(spec, index);
                     executionDescriptors[index] = (MemorySegment) api.queryMd.invokeExact(pd, QUERY_EXEC_ARG_MD, argument);
                     requireHandle(executionDescriptors[index], "execution memory descriptor");
                     long bytes = (long) api.mdSize.invokeExact(executionDescriptors[index]);
                     if (bytes < 0) throw new IllegalArgumentException("oneDNN requires a static memory descriptor");
+                    if (!(spec instanceof CpuOneDnnKernelSpec.Contraction) && bytes > tensors[index].byteSize()) {
+                        throw new IllegalArgumentException("oneDNN descriptor exceeds exact common tensor span");
+                    }
                     requiredBytes[index] = Math.max(bytes, tensors[index].byteSize());
                 }
                 MemorySegment scratch = (MemorySegment) api.queryMd.invokeExact(pd, QUERY_EXEC_ARG_MD, SCRATCHPAD);
@@ -174,6 +167,7 @@ public final class CpuOneDnnPrimitives {
                 MemorySegment implementation = result.get(ADDRESS, 0);
                 requireHandle(implementation, "implementation name");
                 String name = implementation.reinterpret(Long.MAX_VALUE).getString(0);
+                qualifyImplementation(spec, name);
                 return new DescriptorPreparation(api, owned, pd, executionDescriptors,
                         requiredBytes, scratch, scratchBytes, name);
             } catch (Throwable problem) {
@@ -200,11 +194,101 @@ public final class CpuOneDnnPrimitives {
         }
     }
 
+    private static int physicalType(Tensor tensor) {
+        return switch (tensor.dataType()) {
+            case FLOAT32 -> F32;
+            case BOOL -> 6; // Primitive storage is u8, not Graph's boolean enum.
+            default -> throw new IllegalArgumentException("unsupported oneDNN represented dtype");
+        };
+    }
+
+    private static int createDescriptor(Api api, CpuOneDnnLibrary library, CpuOneDnnKernelSpec spec,
+            MemorySegment[] descriptors, MemorySegment result, MemorySegment attributes, Arena arena)
+            throws Throwable {
+        MemorySegment output = descriptors[descriptors.length - 1];
+        if (spec instanceof CpuOneDnnKernelSpec.Contraction contraction) {
+            MemorySegment bias = contraction.bias() == CpuOneDnnKernelSpec.Bias.NONE
+                    ? MemorySegment.NULL : descriptors[2];
+            if (contraction.operation() == CpuOneDnnKernelSpec.Operation.MATMUL) {
+                return (int) api.matmulCreate.invokeExact(result, library.engine(), descriptors[0],
+                        descriptors[1], bias, output, attributes);
+            }
+            return (int) api.convCreate.invokeExact(result, library.engine(), FORWARD_INFERENCE,
+                    CONVOLUTION_DIRECT, descriptors[0], descriptors[1], bias, output,
+                    vector(arena, contraction.strides(), 0), vector(arena, contraction.dilations(), -1),
+                    vector(arena, contraction.paddingLeft(), 0), vector(arena, contraction.paddingRight(), 0),
+                    attributes);
+        }
+        if (spec instanceof CpuOneDnnKernelSpec.Unary unary) {
+            int algorithm = switch (unary.algorithm()) {
+                case ABS -> 36;
+                case SQRT -> 37;
+                case TANH -> 33;
+                case EXP -> 42;
+            };
+            return (int) api.unaryCreate.invokeExact(result, library.engine(), FORWARD_INFERENCE,
+                    algorithm, descriptors[0], output, 0.0f, 0.0f, attributes);
+        }
+        if (spec instanceof CpuOneDnnKernelSpec.Binary binary) {
+            int algorithm = switch (binary.algorithm()) {
+                case ADD -> 0x1fff0;
+                case MUL -> 0x1fff1;
+                case MAX -> 0x1fff2;
+                case MIN -> 0x1fff3;
+                case DIV -> 0x1fff4;
+                case SUB -> 0x1fff5;
+                case LE -> 0x1fff8;
+                case LT -> 0x1fff9;
+                case EQ -> 0x1fffa;
+                case NE -> 0x1fffb;
+            };
+            return (int) api.binaryCreate.invokeExact(result, library.engine(), algorithm,
+                    descriptors[0], descriptors[1], output, attributes);
+        }
+        if (spec instanceof CpuOneDnnKernelSpec.Reduction reduction) {
+            int algorithm = reduction.algorithm() == CpuOneDnnKernelSpec.ReductionAlgorithm.SUM
+                    ? 0x2fff4 : 0x2fff5;
+            return (int) api.reductionCreate.invokeExact(result, library.engine(), algorithm,
+                    descriptors[0], output, 0.0f, 0.0f, attributes);
+        }
+        if (spec instanceof CpuOneDnnKernelSpec.Reorder) {
+            return (int) api.reorderCreate.invokeExact(result, descriptors[0], library.engine(),
+                    output, library.engine(), attributes);
+        }
+        if (spec instanceof CpuOneDnnKernelSpec.Pooling pooling) {
+            return (int) api.poolingCreate.invokeExact(result, library.engine(), FORWARD_INFERENCE,
+                    0x2ff, descriptors[0], output, vector(arena, pooling.strides(), 0),
+                    vector(arena, pooling.kernel(), 0), vector(arena, pooling.dilations(), -1),
+                    vector(arena, pooling.paddingLeft(), 0), vector(arena, pooling.paddingRight(), 0), attributes);
+        }
+        throw new IllegalArgumentException("pipeline requires fixed atomic descriptor preparation");
+    }
+
+    private static void qualifyImplementation(CpuOneDnnKernelSpec spec, String implementation) {
+        // Reference ABS changes +0 to -0; x64 EXP flushes at an unauthorized elementary site.
+        if (spec instanceof CpuOneDnnKernelSpec.Unary unary
+                && (unary.algorithm() == CpuOneDnnKernelSpec.UnaryAlgorithm.ABS
+                        || unary.algorithm() == CpuOneDnnKernelSpec.UnaryAlgorithm.EXP)
+                && !implementation.equals("jit:asimd")) {
+            throw new IllegalArgumentException("unqualified oneDNN elementary implementation: " + implementation);
+        }
+        if (spec instanceof CpuOneDnnKernelSpec.Binary binary
+                && (binary.algorithm() == CpuOneDnnKernelSpec.BinaryAlgorithm.MIN
+                        || binary.algorithm() == CpuOneDnnKernelSpec.BinaryAlgorithm.MAX)
+                && !(implementation.equals("jit:uni")
+                        && System.getProperty("os.arch").equals("aarch64"))) {
+            throw new IllegalArgumentException("unqualified oneDNN stored-extrema implementation: " + implementation);
+        }
+        if (spec instanceof CpuOneDnnKernelSpec.Pooling && !implementation.equals("simple_nchw:any")) {
+            throw new IllegalArgumentException("unqualified oneDNN padded-average implementation: " + implementation);
+        }
+    }
+
     private static MemorySegment descriptor(Api api, NativeScope scope, MemorySegment result,
             Tensor tensor) throws Throwable {
         result.set(ADDRESS, 0, MemorySegment.NULL);
         int status = (int) api.mdCreate.invokeExact(result, tensor.dimensions().size(),
-                vector(scope.arena(), tensor.dimensions(), 0), F32,
+                vector(scope.arena(), tensor.dimensions(), 0), physicalType(tensor),
                 vector(scope.arena(), tensor.strides(), 0));
         return created(status, result, scope, api.mdDestroy, "create strided memory descriptor");
     }
@@ -230,7 +314,8 @@ public final class CpuOneDnnPrimitives {
         if (handle.address() == 0) throw new IllegalStateException("oneDNN returned null " + role);
     }
 
-    private static int inputArgument(int index) {
+    private static int inputArgument(CpuOneDnnKernelSpec spec, int index) {
+        if (spec instanceof CpuOneDnnKernelSpec.Binary) return index + 1;
         return switch (index) {
             case 0 -> SRC;
             case 1 -> WEIGHTS;
@@ -239,7 +324,19 @@ public final class CpuOneDnnPrimitives {
         };
     }
 
-    private static Tensor[] nativeTensors(CpuOneDnnKernelSpec spec) {
+    private static Tensor[] nativeTensors(CpuOneDnnKernelSpec recipe) {
+        if (!(recipe instanceof CpuOneDnnKernelSpec.Contraction)) {
+            int count = recipe.inputs().size();
+            Tensor[] result = new Tensor[count + 1];
+            for (int index = 0; index < count; index++) {
+                Tensor input = recipe.inputs().get(index);
+                result[index] = recipe instanceof CpuOneDnnKernelSpec.Binary
+                        ? leadingSingletons(input, recipe.output().dimensions().size()) : input;
+            }
+            result[count] = recipe.output();
+            return result;
+        }
+        var spec = (CpuOneDnnKernelSpec.Contraction) recipe;
         int inputCount = spec.inputs().size();
         Tensor[] tensors = new Tensor[inputCount + 1];
         Tensor output = spec.output();
@@ -296,7 +393,7 @@ public final class CpuOneDnnPrimitives {
                 dimensions.addAll(weights.dimensions().subList(1, rank));
                 strides.add(Math.multiplyExact(channels / spec.groups(), weights.strides().get(0)));
                 strides.addAll(weights.strides());
-                tensors[1] = new Tensor(dimensions, strides);
+                tensors[1] = new Tensor(weights.dataType(), dimensions, strides);
             }
             if (spec.bias() == CpuOneDnnKernelSpec.Bias.EXTERNAL_LEFT
                     || spec.bias() == CpuOneDnnKernelSpec.Bias.EXTERNAL_RIGHT) {
@@ -320,7 +417,7 @@ public final class CpuOneDnnPrimitives {
         }
         dimensions.addAll(tensor.dimensions());
         strides.addAll(tensor.strides());
-        return new Tensor(dimensions, strides);
+        return new Tensor(tensor.dataType(), dimensions, strides);
     }
 
     private static Tensor convolutionBias(Tensor bias, int rank, long channels) {
@@ -332,10 +429,10 @@ public final class CpuOneDnnPrimitives {
                 throw new IllegalArgumentException("convolution bias must contain one value per output channel");
             }
         }
-        return new Tensor(List.of(channels), List.of(expanded.strides().get(1)));
+        return new Tensor(bias.dataType(), List.of(channels), List.of(expanded.strides().get(1)));
     }
 
-    private static final class Kernel implements CpuOneDnnKernel {
+    private static final class Kernel implements CpuOneDnnAtomicKernel {
         private final CpuOneDnnLibrary library;
         private final CpuOneDnnKernelSpec spec;
         private final Api api;
@@ -368,12 +465,14 @@ public final class CpuOneDnnPrimitives {
         @Override public long scratchpadBytes() { return scratchBytes; }
         @Override public String implementation() { return implementation; }
 
-        @Override public CpuOneDnnWorkspace createWorkspace() {
+        @Override public CpuOneDnnWorkspace createWorkspace() { return createWorkspace(null, null); }
+
+        @Override public CpuOneDnnWorkspace createWorkspace(MemorySegment scratch, MemorySegment stream) {
             synchronized (this) {
                 if (closed) throw new IllegalStateException("oneDNN primitive kernel is closed");
                 references = Math.incrementExact(references);
             }
-            try { return new Workspace(this); }
+            try { return new Workspace(this, scratch, stream); }
             catch (Throwable problem) {
                 try { release(); } catch (Throwable cleanup) {
                     if (cleanup != problem) problem.addSuppressed(cleanup);
@@ -408,15 +507,16 @@ public final class CpuOneDnnPrimitives {
         private boolean leaseOwned;
         private boolean bound;
 
-        private Workspace(Kernel kernel) {
-            super(kernel);
+        private Workspace(Kernel kernel, MemorySegment scratch, MemorySegment sharedStream) {
+            super(kernel, scratch);
             owner = kernel;
             try {
                 scope = new NativeScope(kernel.library);
                 Arena arena = scope.arena();
                 MemorySegment result = arena.allocate(ADDRESS);
-                stream = created((int) kernel.api.streamCreate.invokeExact(result, kernel.library.engine(),
-                        STREAM_IN_ORDER), result, scope, kernel.api.streamDestroy, "create primitive stream");
+                stream = sharedStream != null ? sharedStream
+                        : created((int) kernel.api.streamCreate.invokeExact(result, kernel.library.engine(),
+                                STREAM_IN_ORDER), result, scope, kernel.api.streamDestroy, "create primitive stream");
                 int tensorCount = kernel.descriptors.length;
                 memories = new MemorySegment[tensorCount + 1];
                 boundSegments = new MemorySegment[tensorCount];
@@ -429,7 +529,7 @@ public final class CpuOneDnnPrimitives {
                             kernel.library.engine(), MemorySegment.NULL), result, scope,
                             kernel.api.memoryDestroy, "create primitive memory");
                     int argument = index == tensorCount ? SCRATCHPAD
-                            : index == tensorCount - 1 ? DST : inputArgument(index);
+                            : index == tensorCount - 1 ? DST : inputArgument(kernel.spec, index);
                     long offset = index * EXEC_ARG_BYTES;
                     arguments.set(JAVA_INT, offset, argument);
                     arguments.set(ADDRESS, offset + 8, memories[index]);
@@ -450,11 +550,12 @@ public final class CpuOneDnnPrimitives {
             int inputCount = owner.spec.inputs().size();
             if (inputs.length != inputCount) throw new IllegalArgumentException("primitive input count disagrees");
             for (int index = 0; index < inputCount; index++) {
-                validateSegment(inputs[index], owner.requiredBytes[index], false);
+                validateSegment(inputs[index], owner.requiredBytes[index],
+                        owner.spec.inputs().get(index).dataType().byteWidth(), false);
             }
-            validateSegment(output, owner.requiredBytes[inputCount], true);
+            validateSegment(output, owner.requiredBytes[inputCount], owner.spec.output().dataType().byteWidth(), true);
             MemorySegment scratch = writableSegment();
-            validateSegment(scratch, owner.scratchBytes, true);
+            validateSegment(scratch, owner.scratchBytes, 64, true);
             bound = false;
             try {
                 for (int index = 0; index < inputCount; index++) {
@@ -476,6 +577,12 @@ public final class CpuOneDnnPrimitives {
         @Override public void execute() {
             requireOpen();
             if (!bound) throw new IllegalStateException("oneDNN primitive workspace is not bound");
+            try { enqueue(); } finally { await(); }
+        }
+
+        @Override void enqueue() {
+            requireOpen();
+            if (!bound) throw new IllegalStateException("oneDNN primitive workspace is not bound");
             for (int index = 0; index < boundSegments.length; index++) {
                 if (!boundSegments[index].scope().isAlive()
                         || !boundSegments[index].isAccessibleBy(Thread.currentThread())) {
@@ -485,12 +592,16 @@ public final class CpuOneDnnPrimitives {
             try {
                 int status = (int) owner.api.execute.invokeExact(owner.primitive, stream,
                         memories.length, arguments);
-                int waitStatus = (int) owner.api.streamWait.invokeExact(stream);
-                check(status, "execute primitive");
-                check(waitStatus, "wait for primitive stream");
+                check(status, "enqueue primitive");
             } catch (Throwable problem) {
                 throw propagate(problem);
             }
+        }
+
+        @Override void await() {
+            requireOpen();
+            try { check((int) owner.api.streamWait.invokeExact(stream), "wait for primitive stream"); }
+            catch (Throwable problem) { throw propagate(problem); }
         }
 
         @Override protected void closeNative() {
@@ -510,12 +621,12 @@ public final class CpuOneDnnPrimitives {
         }
     }
 
-    private static void validateSegment(MemorySegment segment, long requiredBytes, boolean writable) {
+    private static void validateSegment(MemorySegment segment, long requiredBytes, int alignment, boolean writable) {
         Objects.requireNonNull(segment, "tensor segment");
         if (!segment.isNative() || !segment.scope().isAlive()
                 || !segment.isAccessibleBy(Thread.currentThread()) || segment.byteSize() < requiredBytes
                 || (requiredBytes != 0 && segment.address() == 0)
-                || (segment.address() & (Float.BYTES - 1)) != 0
+                || (segment.address() & (alignment - 1)) != 0
                 || (writable && segment.isReadOnly())) {
             throw new IllegalArgumentException("oneDNN requires accessible, sufficiently sized native F32 storage"
                     + (writable ? " writable for output/scratchpad" : ""));
@@ -528,6 +639,7 @@ public final class CpuOneDnnPrimitives {
         private final MethodHandle attrCreate, attrDestroy, attrFpmath, attrScratch, attrPostOps;
         private final MethodHandle postCreate, postDestroy, postEltwise;
         private final MethodHandle matmulCreate, convCreate, pdDestroy, queryMd, query;
+        private final MethodHandle unaryCreate, binaryCreate, reductionCreate, reorderCreate, poolingCreate;
         private final MethodHandle primitiveCreate, primitiveDestroy, execute;
         private final MethodHandle memoryCreate, memoryDestroy, memorySetHandle;
         private final MethodHandle streamCreate, streamDestroy, streamWait;
@@ -554,6 +666,19 @@ public final class CpuOneDnnPrimitives {
             convCreate = library.bind("dnnl_convolution_forward_primitive_desc_create",
                     FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, ADDRESS,
                             ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
+            unaryCreate = library.bind("dnnl_eltwise_forward_primitive_desc_create",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, ADDRESS,
+                            JAVA_FLOAT, JAVA_FLOAT, ADDRESS));
+            binaryCreate = library.bind("dnnl_binary_primitive_desc_create",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
+            reductionCreate = library.bind("dnnl_reduction_primitive_desc_create",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, ADDRESS, ADDRESS,
+                            JAVA_FLOAT, JAVA_FLOAT, ADDRESS));
+            reorderCreate = library.bind("dnnl_reorder_primitive_desc_create",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
+            poolingCreate = library.bind("dnnl_pooling_forward_primitive_desc_create",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, ADDRESS,
+                            ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
             pdDestroy = library.bind("dnnl_primitive_desc_destroy", FunctionDescriptor.of(JAVA_INT, ADDRESS));
             queryMd = library.bind("dnnl_primitive_desc_query_md",
                     FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT));
