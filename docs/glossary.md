@@ -1725,16 +1725,18 @@ prediction minus target and multiply that difference by itself; scalar tails use
 formula. Array, native-order segment, and ordered mixed-carrier boundaries are admitted with
 cold offsets and arbitrary valid ranges. `VECTOR` and `PARALLEL_VECTOR` introduced one shared
 schema-62 artifact identity because range count and worker orchestration are not class-shaping
-facts; current schema 70 retains that distinction. MSE `SUM` and `MEAN` retain increasing-order,
-left-associated scalar accumulation, and every BFLOAT16, FLOAT16, mixed-type, non-contiguous,
-categorical, or shorter-than-one-species loss form retains scalar or parallel-scalar fallback.
-Scalar loss family projection remains on schema 58 under the current schema-70 envelope. This changes no public capability, architecture boundary, materialization policy, or tuning policy.
+facts. MSE `SUM` and `MEAN` retain increasing-order, left-associated scalar accumulation, and every
+BFLOAT16, FLOAT16, mixed-type, non-contiguous, categorical, or shorter-than-one-species loss form
+retains scalar or parallel-scalar fallback. Those schema numbers record the historical family
+projections, not the current compatibility envelope or every later numerical repair. See
+[CPU kernel specialization](#cpu-kernel-specialization) for that distinction. This changes no
+public capability, architecture boundary, materialization policy, or tuning policy.
 
 Completed CPU 0006 added one static resolved-layout affine-copy family through the same portable
 route. It composes bounded straight-line view chains during cold analysis, keeps eligible internal
 views virtual, and materializes only the final boundary through scalar or parallel-scalar
 represented-bit copying. Its `SHORT_ARRAY` carrier was introduced for raw BFLOAT16 movement;
-current schema 70 also uses that carrier for FLOAT16 without changing represented-bit copy semantics.
+FLOAT16 also uses that carrier without changing represented-bit copy semantics.
 
 Completed CPU 0006A adds exactly one fully static resolved-layout PAD, TILE, CONCAT, or STACK
 occurrence through compact movement IR and cold geometry. It preserves one through sixteen
@@ -1932,8 +1934,8 @@ Directional right-aligned broadcast must equal the data Shape. Generated code br
 mask before loading data, counts selected positions exactly, and reuses the ordinary exact floating
 state and one final rounding. Three ordered buffers plus one per-range exact-state workspace are declared;
 scalar or parallel-scalar ranges own complete output cells without mask materialization,
-partial/combine state, or selected-count workspace. Schema 45 introduced this family; current
-schema 70 retains it. Retained schema-42 ledger and performance results are historical evidence only.
+partial/combine state, or selected-count workspace. Schema 45 introduced this family. Retained
+schema-42 ledger and performance results are historical evidence only.
 
 The current FP16 cutover extends masked SUM and MEAN to FLOAT16, for all four floating carriers.
 
@@ -1943,8 +1945,8 @@ BFLOAT16 input and output. One shared CPU-private geometry owns ordered axes and
 cells, while three focused emitters own maximum-shift log-sum-exp, corrected two-pass statistics,
 and exact-L1/scaled-L2 norm bodies. L1 and statistics reuse the existing per-range exact-state
 workspace; log-sum-exp and L2 use primitive locals only. Heap arrays, native-order segments, and
-mixed carriers execute through typed generated entries. Schema 46 introduced this family; current
-schema 70 retains it. This coverage adds no public/shared contract, gradient, compiler,
+mixed carriers execute through typed generated entries. Schema 46 introduced this family.
+This coverage adds no public/shared contract, gradient, compiler,
 vector/native/fusion/materialization/dynamic-Shape,
 partial/combine, or cross-backend numerical promise.
 
@@ -2099,14 +2101,22 @@ decision occurs in the generated loop.
 
 Specialization records the facts that make generated code different, such as element type and access pattern. Two runs may share code when these facts match even when their actual input values differ.
 
-The implemented backend-private immutable description of every fact allowed to change one
-generated CPU class. The current form uses schema 70 and includes the canonical lowering
-fingerprint with typed opcode sequence, exact scalar-immediate bits, exact ordered clamp-bound
-bits, and selected scalar-power realizations, exact/default numerical mode, generated
+The implemented backend-private immutable description of facts that change one generated CPU
+class. It includes the canonical lowering fingerprint with typed opcode sequence, exact
+scalar-immediate and ordered clamp-bound bits, selected scalar-power realizations, generated
 scalar/vector compute form, exact preferred FLOAT32, FLOAT64, INT32, INT64, or BOOL species bit
-size for vector compute,
-and the complete ordered boundary data-type/carrier pattern. Schema 18 retains the schema-17
-distinctions for the
+size for vector compute, and the complete ordered boundary data-type/carrier pattern.
+There is no selectable numerical-mode field.
+
+The generator's current compatibility envelope and each family's class-identity projection are
+distinct. Selective projections and versioned payloads identify changed generated bodies without
+requiring every family to acquire the same projection number. `CpuKernelSpecialization` owns
+both compatibility bytes and generated-class identity bytes; `CpuGeneratorSchema` owns the
+current envelope. See [CPU numerical semantics and compatibility](backend-guide/cpu-backend.md#numerical-semantics-and-capability)
+and the [profile-free backend identity contract](architecture/contracts/backend-execution.md#profile-free-backend-capability-and-identity).
+
+The following schema notes record historical increments, not a current envelope or capability
+inventory. Schema 18 retained the schema-17 distinctions for the
 pointwise, affine, movement, indexing, or functional-scatter IR family; affine mapping topology and write domain;
 movement family, input/output rank, occurrence map, exact PAD or UNFOLD2D padding bits, and
 functional slice-update structure; mixed indexing boundary types; and the seventh opaque BFLOAT16
@@ -2158,17 +2168,18 @@ schemas 59–67 add BFLOAT16 pointwise, cross-type CAST, bounded vector families
 self-containment, terminal emission, scalar-segment layout, and numerical-profile identity.
 Schema 68 activates direct FLOAT16 execution throughout the portable generated families.
 
-Concrete compatible extents, element count, layout offsets, effective stride values, starting
-coordinates and addresses, carrier objects, slots, physical addresses, selected range count,
-minimum chunk size, source/workspace objects, graph `ValueId`, declaration/slot identities,
-materialization costs and expected runs, worker identity, run identity, cache state, and mutable
-observations are excluded. Parallel-scalar reuses the scalar artifact and parallel-vector reuses
-the vector artifact. The current hard budget permits four complete candidates, one realized
-artifact, zero additional fixed-shape variants, and zero additional unrolled variants. These
-budgets count distinct preparation candidates and artifact identities; a fully guarded method may
-contain generation-time fixed-trip straight-line code without adding such a variant. A CPU kernel
-specialization is not a capability claim, prepared executable, worker lifecycle, or persistent-
-cache record.
+Compatible extents, offsets, strides, starting coordinates, and resource magnitudes remain cold
+when they do not change emitted code. Selected shaped Scan, named-batch MATMUL, row-region,
+aggregate-fusion, and softmax-backward bodies additionally record their baked code-shaping facts
+in versioned specialization payloads. Concrete carrier objects, slots, physical addresses, graph
+`ValueId`, worker and run identity, cache state, and mutable observations are not specialization
+identity.
+
+Ordinary parallel-scalar work reuses the scalar artifact and ordinary parallel-vector work reuses
+the vector artifact. Selected row-region execution additionally records its prepared orchestration
+and helper/resource layout. Preparation budgets bound candidate and variant proliferation; they
+do not make a kernel specialization a capability claim, prepared executable, worker lifecycle,
+or persistent-cache record.
 
 ### CPU generated-kernel artifact
 
@@ -2184,13 +2195,14 @@ Keeping the artifact reachable keeps its hidden-class state reachable, without p
 unreferenced class unloads. Direct generator calls produce equal class bytes but distinct hidden
 classes and artifact identities. The current durable generated-kernel artifact store may instead
 reuse compatible class bytes and weakly intern one loaded artifact while it remains live. The
-artifact is not by itself a prepared route. Current schema-70 artifacts cover the complete admitted
-generated CPU family inventory documented by the CPU backend guide, including pointwise, affine,
-movement, indexing, scatter/fold, ordering, random/state, reductions, normalization, convolution,
-pooling, attention, loss, and bounded fused units across their implemented carrier patterns. The
-current-only schema-70 boundary treats every other schema as a safe incompatible miss with no
-migration reader. Retained earlier-schema ledgers and performance material are historical evidence,
-not current artifact claims.
+artifact is not by itself a prepared route. Current artifacts cover the admitted generated CPU
+families, including pointwise, affine, movement, indexing, scatter/fold, ordering, random/state,
+reductions, normalization, convolution, pooling, attention, loss, general Scan, and bounded fused
+units, only across their implemented type, layout, and carrier patterns. The store checks the
+current generator envelope and complete compatibility metadata, including selective family
+identities; incompatible artifacts are safe misses, not inputs to a migration reader. Retained
+earlier-schema ledgers and performance material are historical evidence, not current artifact
+claims. See [CPU numerical semantics and compatibility](backend-guide/cpu-backend.md#numerical-semantics-and-capability).
 
 ### CPU generated-kernel artifact store
 
@@ -2268,8 +2280,8 @@ memory requirements have `graphOutput() == true`; validation uses that projectio
 and CPU 0008E representation candidates do not participate in finalization selection, Runtime
 dispatch, measurement, tuning, or cache state. A pair that one represented instruction would
 consume together is retained as a typed `CO_CONSUMED_PAIR` rejection; its singles and eligible
-disjoint-consumer pairs remain candidates. Schema 53 introduced the current affine-copy body;
-current schema 70 retains it while ordinary direct generated identity remains stable.
+disjoint-consumer pairs remain candidates. Schema 53 introduced this affine-copy body; current
+compatibility also accounts for selective later changes through [CPU kernel specialization](#cpu-kernel-specialization).
 
 The supported `CpuCompletePlanTuning` collaboration can now enumerate those retained 0008D
 topologies crossed with retained 0008E representations and freshly select one exact variant.
@@ -2648,7 +2660,7 @@ output does not skip a non-empty validation domain; after successful validation 
 generated entry and submits no worker work.
 
 CPU analysis declares unique inputs in semantic first-use order followed by one output. It selects
-one execution unit, no materialization, no workspace, and one current schema-70 artifact whose
+one execution unit, no materialization, no workspace, and one generated artifact whose
 generated class embeds carrier-, type-, family-, and access-specialized scalar or parallel-scalar
 output writers. Proved dense heap arrays use integer loop/address state; general layouts and
 segment or mixed carriers retain typed long-address traversal. Guarded frozen GATHER and GATHER_ND
@@ -5355,8 +5367,9 @@ A `BufferSlot` is deeply immutable and may be retained by the current
 [`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan). It is not a logical
 [`ValueId`](#valueid), physical buffer, storage handle, address, allocation, device, resource,
 residency fact, or per-run binding. Constructing one performs no allocation or resource operation.
-Prepare assignment is current; physical binding and scheduled execution remain planned. Current
-`RunState` uses the entry-list position rather than this numeric value for direct representation access. See the
+Prepare assigns slots before execution. The current Runtime runner creates or borrows physical
+representations, binds prepared work to them, and executes the schedule. `RunState` uses the
+entry-list position rather than this numeric value for direct representation access. See the
 [Runtime API](reference/runtime/memory.md#current-slot-identities).
 
 ### Buffer validity
@@ -5416,7 +5429,8 @@ storage, address, allocation, ownership, aliasing or lifetime proof, device, res
 binding. It does not sort, derive, assign, allocate, bind, access, or release anything. Current
 Prepare assignment constructs it while retaining source associations. Current `RunState`
 consumes the plan's entry order for per-run representation access without changing the geometry;
-later Runtime/backend contracts own physical allocation, access mechanics, and execution.
+Runtime orchestrates current per-run creation and binding, while concrete backends own physical
+allocation and access mechanics. See [representation creation](reference/runtime/creation.md).
 
 For implemented [symbolic batch binding](#symbolic-batch-binding), explicit `requiresBatchSize`
 is independent of constant bytes (`X[B,0]` still needs B); authenticated RunMemoryGeometry resolves
@@ -5471,10 +5485,13 @@ storage without embedding a raw address. Current
 identities, and current [`PreparedMemoryPlan`](#prepared-memory-plan--preparedmemoryplan) records
 their final byte geometry. Current `RunState` accesses representations by dense plan-entry
 position rather than by interpreting either slot's numeric component. Current Prepare retains
-logical source association separately through `PreparedBufferAssignment`; physical allocation and
-access, aliasing, and lifetime analysis remain later work. A memory-slot
-identity is not itself a physical execution resource and must not be confused with a logical
-[`ValueId`](#valueid) or an analysis requirement ID.
+logical source association separately through `PreparedBufferAssignment`. Runtime creates or
+borrows the planned representations for each run and binds prepared work to them; concrete
+backends own physical allocation and access. Shared preparation does not infer cross-value
+aliasing from matching geometry or slot numbers. A memory-slot identity is not itself a physical
+execution resource and must not be confused with a logical [`ValueId`](#valueid) or an analysis
+requirement ID. See [representation creation](reference/runtime/creation.md) and
+[runner orchestration](reference/runtime/orchestration.md).
 
 ### Physical runtime representation
 
@@ -6514,8 +6531,10 @@ The implemented immutable Runtime recipe that names one already-created buffer r
 one ordered result position. It retains one exact `PreparedMemoryPlan` and three dense zero-based
 Runtime coordinates: buffer position, representation position within that buffer for a run, and
 result position. These positions are not `BufferSlot.value()`, `TensorId`, `ValueId`, graph
-membership, or compiler publication roles. Prepare will later translate compiler logical roles
-into these coordinates.
+membership, or compiler publication roles. During current complete-graph preparation, the schedule
+assembler maps ordered logical publication values through their prepared buffer assignments into
+these coordinates; shared Prepare validates that mapping. See
+[Prepare assignment and finalization](reference/runtime/prepare.md).
 
 Cold `bind` requires one open `RunState` associated with the same exact plan reference, validates
 the per-run representation position, and resolves that exact physical representation once. The
@@ -7145,9 +7164,9 @@ replace semantics, preserves represented bits for all seven types, accepts signe
 finite steps including legal length-one `Long.MIN_VALUE`, handles scalar and empty regions, and
 supports arbitrary disjoint scalar or parallel-scalar ranges across heap, segment, and mixed
 carriers. Output/input physical overlap is rejected; exact same-value base/update inputs may share
-one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure, and
-current schema 70 retains it; concrete placement remains cold. Functional scatter and overlap fold
-are separate current CPU portable families.
+one deduplicated boundary. Schema 15 introduced the slice-update family/rank/map structure;
+concrete placement remains cold. Functional scatter and overlap fold are separate current CPU
+portable families.
 
 ### Target-relative crop
 
@@ -7224,10 +7243,11 @@ input values after their producers execute and before consumer mutation or worke
 Complete-slice ranges use zero workspace. Both kinds use a stable three-pass
 maximum/compensated-shifted-exponential-sum/final-store algorithm. SOFTMAX computes exponentials
 and division but no logarithm; LOG_SOFTMAX computes one `Math.log(sum)` per slice and stores the
-shift minus that logarithm. Schema 47 introduced the direct typed generated family; its current
-version-two structural identity binds FLOAT32 working sites for FLOAT32/FLOAT16 under global
-schema 70. These facts are CPU-private algorithm and capability boundaries, not unsupported
-cross-backend semantic or bitwise promises.
+shift minus that logarithm. Schema 47 introduced the direct typed generated family. Its later
+version-two working-site identity and schema-70 envelope are historical checkpoints, not the
+current compatibility boundary. See the [current CPU stable-softmax family](backend-guide/cpu-backend.md#current-stable-softmax-family)
+for subsequent numerical and identity changes. These are CPU-private implementation boundaries,
+not unsupported cross-backend semantic or bitwise promises.
 
 ### Layer normalization
 
@@ -7562,9 +7582,10 @@ dense-contiguous layouts. Copied rectangular nested primitive-array import is al
 the factory infers its exact type, fully static shape, and dense-contiguous layout before returning
 a Tensor. Exact typed scalar, zero, one, zero-like, and one-like creation is implemented with new
 dense storage and explicit label and gradient intent. Type-safe full-value creation is implemented
-for every current primitive meaning, and rectangular identity creation is implemented for all
-seven data types with typed main-diagonal ones and off-diagonal zeros. Eager non-empty `INT32` and
-`INT64` range creation is also implemented as copied canonical dense leaf data. Public
+for every current Model data type, and rectangular identity creation uses typed main-diagonal ones
+and off-diagonal zeros. See [allocation, import and constants](reference/tensor/creation.md) for
+the exact type/carrier mappings. Eager non-empty `INT32` and `INT64` range creation is also
+implemented as copied canonical dense leaf data. Public
 [`TensorRandoms`](#tensor-random-initialization) owns caller-source normal,
 continuous-uniform, bounded-integral, and Bernoulli eager initialization. Strict and cyclic
 prefix preparation exists only in test source and is not a product capability. Random Operations,
@@ -7704,13 +7725,17 @@ The implemented public static `TensorFactory` creates a fresh [`Tensor`](#tensor
 existing borrowed [host storage](#host-storage). It is the public construction boundary while the
 Tensor constructor remains package-private. For a descriptor with a resolved layout, the factory
 can also allocate one matching JVM primitive array whose length is exactly the referenced element
-span, wrap its heap segment, and attach that writable storage. `FLOAT64`, `FLOAT32`, `BFLOAT16`,
-`INT32`, `INT64`, and `BOOL` use `double[]`, `float[]`, raw `short[]`, `int[]`, `long[]`, and raw
-`byte[]`, respectively. The raw array starts at the JVM default zero representation.
+span, wrap its heap segment, and attach that writable storage. `FLOAT64` uses `double[]`,
+`FLOAT32` uses `float[]`, `BFLOAT16` and `FLOAT16` use raw `short[]`, `INT32` uses `int[]`,
+`INT64` uses `long[]`, and `BOOL`, `FLOAT8_E4M3`, and `FLOAT8_E5M2` use `byte[]`. The raw array
+starts at the JVM default zero representation.
 
-The factory can import those same six flat carriers into a new resolved dense-contiguous tensor.
-Carrier data type and logical element count must match exactly. Numeric carriers and raw BFLOAT16
-bits are copied unchanged; BOOL treats zero as false and canonicalizes every non-zero byte to one.
+Flat import copies these represented types into a new resolved dense-contiguous tensor.
+`fromFlatArray` uses the descriptor to distinguish BOOL bytes from raw OFP8 bytes; raw FLOAT16
+shorts use the separately named `fromFlatFloat16Array` method rather than the BFLOAT16 overload.
+Carrier data type and logical element count must match exactly. Numeric values and raw floating
+bits are copied unchanged; only BOOL treats zero as false and canonicalizes every non-zero byte
+to one. See [allocation, import and constants](reference/tensor/creation.md) for exact signatures.
 The source is not retained or mutated, and later source mutation cannot change the tensor. Scalar
 and empty dense imports follow their logical counts. Offset, strided, broadcast, and unresolved
 layouts are rejected because they require a separate scatter or view-population policy.
@@ -7718,7 +7743,9 @@ layouts are rejected because they require a separate scatter or view-population 
 The factory also accepts one rank-two-or-greater rectangular Java primitive-array graph through an
 `Object` parameter, which is necessary because arbitrary array rank has no finite Java overload
 family. Runtime class metadata must prove an ultimate `double`, `float`, `short`, `int`, `long`, or
-`byte` carrier. The factory validates every reachable subarray for non-null rectangular structure,
+`byte` carrier, inferring `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, or `BOOL`, respectively;
+unlike descriptor-based flat import, it does not infer FLOAT16 or OFP8 from shared carriers.
+The factory validates every reachable subarray for non-null rectangular structure,
 rejects an empty non-final axis whose trailing extents are unobservable, accepts an empty final
 primitive axis, and infers an exact fully static dense-contiguous descriptor. It flattens leaves in
 row-major order into a fresh matching carrier and delegates to flat import. Numeric and raw
@@ -7731,12 +7758,12 @@ any thread. No arena, close operation, external owner, native fallback, or deter
 is introduced. Descriptor-based creation and flat import do not construct descriptors or resolve
 absent layouts; nested import constructs only the exact static dense descriptor inferred from the
 validated source. Constant creation constructs only canonical dense descriptors for exact
-primitive rank-0 scalars or fully static requested/template shapes. Scalars infer data type from
-their declared primitive inputs; `scalarBFloat16(float)` alone converts with BFLOAT16
-round-to-nearest, ties-to-even semantics. Zeros use default-zero allocation, while scalars and
-ones use exact typed flat import. Like methods read only template shape and data type and preserve
-neither layout nor mutable or diagnostic state. Full-value methods infer exact type from primitive
-values, with only `fullBFloat16` converting, and fill one exact source before one flat import.
+primitive rank-0 scalars or fully static requested/template shapes. Ordinary scalar and full-value
+overloads infer data type from their declared primitive inputs. Explicitly named BFLOAT16,
+FLOAT16, and OFP8 scalar/full methods instead convert semantic `float` inputs to the named format.
+Zeros use default-zero allocation, while scalars and ones use exact typed flat import. Like
+methods read only template shape and data type and preserve neither layout nor mutable or
+diagnostic state. Full-value methods fill one exact source before one flat import.
 `identityMatrix` creates square or rectangular dense matrices for every current data type with
 typed one on the main diagonal and typed zero elsewhere; `eye` delegates unchanged to that
 canonical method. Separate calls create fresh metadata, storage, Tensor identity, and backing
@@ -8406,7 +8433,7 @@ accumulation/rounding rules. Compiler inference and gradients therefore traverse
 rank-edit and Pool2d occurrences. Backend support means support for every visible component with
 its actual descriptors and attributes, never a synthetic Pool1d capability. The current CPU
 backend additionally recognizes only the exact private single-use three-node topology, keeps both
-rank edits virtual, and reuses the Pool2d family projection under the current schema-70 envelope. Recognition is an
+rank edits virtual, and reuses the Pool2d family projection. Recognition is an
 optimization over the visible components, not a new operation, capability, or artifact. See
 [NCW Pool1d composition](reference/tensor/pooling.md#ncw-pool1d-composition).
 
