@@ -22,7 +22,7 @@ Complete
 Implementation `415175947efc5151b71e764ad941f91445342cd7` delivered the profile-monotonicity
 correction. Documentation remediation `90cd5fd925a149d055d434fac2e5bb2ee38b130f` resolved the sole
 P1 current-behavior drift found by independent Class C review; final independent review returned
-`APPROVE` with zero findings. The retained worker [checkpoint](../../../../glossary.md#term-checkpoint) below is the complete executable
+`APPROVE` with zero findings. The retained worker checkpoint below is the complete executable
 evidence. This [planning](../../../../glossary.md#term-planning)-only finalization reran no production or test execution.
 
 ## Change class
@@ -130,7 +130,7 @@ and replan with a new evidence gate before production changes continue.
   accelerator-wide PERMUTE consumer/target prohibition, preserve state walking and MATMUL-edge
   authentication, and reject every unavailable/foreign affine state before resource creation.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target); [authentication glossary](../../../../glossary.md#term-authentication))</span>
 - Preserve the route model. An eligible accelerator singleton NEG may use the already implemented
-  exact <span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [singleton glossary](../../../../glossary.md#term-singleton))</span>`CUSTOM_SINGLE_NEG` candidate and pipeline; an accelerator singleton/partition also retains
+  exact <span data-glossary-navigation="true"> ([singleton glossary](../../../../glossary.md#term-singleton))</span>`CUSTOM_SINGLE_NEG` candidate and pipeline; an accelerator singleton/partition also retains
   MPSGraph. Any mixed or multi-node partition uses the existing typed whole-partition MPSGraph
   route. No fallback, late route choice, graph rewrite, or new resource exists.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [graph glossary](../../../../glossary.md#graph))</span>
 
@@ -202,7 +202,7 @@ resolve the architecture text explicitly rather than preserving the current nonm
 - Integration order: Serial after Metal 0021; capability/common-domain refactor, partition,
   Java/native preflight correction, contract-minimal focused/Engine proof,
   authoritative/explanatory documentation, then independent Class C review<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition))</span>
-- Integration [validation](../../../../glossary.md#term-validation): [Metal](../../../../glossary.md#term-metal) numerical-profile capability-monotonicity Class C [checkpoint](../../../../glossary.md#term-checkpoint)
+- Integration [validation](../../../../glossary.md#term-validation): [Metal](../../../../glossary.md#term-metal) numerical-profile capability-monotonicity Class C checkpoint
 - Shared-document integration [owner](../../../../glossary.md#term-owner): task implementer, finalized by independent Class C review
 
 ## Files and symbols
@@ -332,7 +332,7 @@ fallback. Starting from [Shape](../../../../glossary.md#shape) `[6]`, it publish
 NEG flips only the sign bit, ABS is exact, ADD produces repeated `[2,4,6,8,10,12]`, and SUM
 produces repeated `[12,30]`, all asserted through raw-bit [materialization](../../../../glossary.md#materialization).
 
-Worker [checkpoint](../../../../glossary.md#term-checkpoint) evidence:
+Worker checkpoint evidence:
 
 - Native build passed. `nm -gU` returned exactly the thirteen ABI-v4 exports:
   `foundation_abi_version`, context create/release, buffer create/release/upload/download,
@@ -344,7 +344,7 @@ Worker [checkpoint](../../../../glossary.md#term-checkpoint) evidence:
 - Metal Javadocs passed; architecture tests passed 9 tests, 0 skipped, 0 failures.
 - Markdown/link validation passed all 19 changed documents: 18 passed the duplicate-anchor validator;
   `tensor-api.md` passed its structural/link scan with only its pre-existing repeated template
-  headings excluded.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  headings excluded.
 - `git diff --check` passed; the authoritative-doc stale-profile search returned no matches; the
   change set contains exactly the 34 tracked paths below and no untracked path.
 - The final full `./gradlew build` passed. Its XML evidence contains 3,497 tests across 533 suites,

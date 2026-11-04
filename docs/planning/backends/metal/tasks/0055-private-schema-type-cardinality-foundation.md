@@ -134,7 +134,7 @@ kind that adopts one requires a new schema review rather than accidental accepta
 The fixed 160-byte record does **not** remain. It can inline only the current special cases: one
 required input, one optional second input, one special third input, one output, and sixteen
 attribute words. Keeping it would still require side tables for current [variadic](../../../../glossary.md#term-variadic) inputs, five-output
-[nodes](../../../../glossary.md#node), list-valued attributes, and nested [shapes](../../../../glossary.md#shape), while retaining 128 bytes of dead [padding](../../../../glossary.md#padding) per
+[nodes](../../../../glossary.md#node), list-valued attributes, and nested [shapes](../../../../glossary.md#shape), while retaining 128 bytes of dead padding per
 node. Pointer-bearing records or [operation](../../../../glossary.md#operation)-specific auxiliary arrays would make [validation](../../../../glossary.md#term-validation) and
 [lifetime](../../../../glossary.md#term-lifetime) [ownership](../../../../glossary.md#term-ownership-meanings) less uniform.
 
@@ -169,7 +169,7 @@ The 64-byte header is ten unsigned 32-bit fields followed by six required-zero u
 words: [magic bytes](../../../../glossary.md#term-magic-bytes) `SM13`, [schema](../../../../glossary.md#term-schema) `13`, exact total byte count, value count, node count, feed count,
 [target](../../../../glossary.md#term-target) count, dimension count, reference count, and attribute-word count. The create [argument](../../../../glossary.md#term-argument) and
 header byte count must match exactly. Derived section ends must equal the image end; gaps, trailing
-bytes, nonzero [padding](../../../../glossary.md#padding), nonzero reserved words, overlap, misalignment, or arithmetic [overflow](../../../../glossary.md#term-overflow) are
+bytes, nonzero padding, nonzero reserved words, overlap, misalignment, or arithmetic [overflow](../../../../glossary.md#term-overflow) are
 invalid.
 
 A value descriptor is `{type, rank, dimensionOffset, flags}`. `flags & 1` is the exact [Model](../../../../glossary.md#term-model)
@@ -247,7 +247,7 @@ Attribute payloads are unsigned 64-bit words. The following primitives are exact
 Existing attribute wires `0..9` retain their normalized meanings. Schema 13 appends only the
 families needed by current [signatures](../../../../glossary.md#term-signature):
 
-| Wire | Normalized attribute family | Exact [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) |
+| Wire | Normalized attribute family | Exact payload |
 |---:|---|---|
 | 0 | `NONE` | empty |
 | 1 | `TARGET_SHAPE` | `shape` |
@@ -296,7 +296,7 @@ families needed by current [signatures](../../../../glossary.md#term-signature):
 the operation wire supplies their semantic role. `WINDOW_2D` also normalizes the matching max- and
 average-pool records, and `WINDOW_3D` does the same for 3D pools. `REDUCTION` normalizes none/full,
 axis, multi-axis, and [sum-to-shape](../../../../glossary.md#sum-to-shape) variants; masked, arg-[extrema](../../../../glossary.md#saturation-pole-and-extremum), and statistical forms remain
-separate because they [carry](../../../../glossary.md#term-carry) different inputs or semantics.
+separate because they carry different inputs or semantics.
 
 Nested enum wires are append-only and explicit: scatter `NONE=1`, `ADD=2`, `MUL=3`, `MAX=4`,
 `MIN=5`; loss `NONE=1`, `SUM=2`, `MEAN=3`; arg-extrema tie `FIRST_INDEX=1`, `LAST_INDEX=2`; and
@@ -412,8 +412,8 @@ Implementation is serial and [atomic](../../../../glossary.md#resource-transacti
 
 1. **Freeze source-derived tables.** Add behavioral tests that enumerate the current 115 operation
    identities, exact Model signatures, six data types, normalized attribute mappings, and the
-   unchanged <span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature))</span>`34+2+79` capability [partition](../../../../glossary.md#partition).
-2. **Implement the Java [schema](../../../../glossary.md#term-schema)-13 [model](../../../../glossary.md#term-model) and encoder.** Replace `MetalMpsGraphProgram`'s fixed record
+   unchanged <span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature))</span>`34+2+79` capability partition.
+2. **Implement the Java [schema](../../../../glossary.md#term-schema)-13 model and encoder.** Replace `MetalMpsGraphProgram`'s fixed record
    with the bounded image model, checked size calculator, wire tables, canonical encoder, and Java
    validator. Migrate lowering for all current 34 routes; do not add false-kind lowering to the
    production preparation path.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [lowering glossary](../../../../glossary.md#lowering))</span>
@@ -443,7 +443,7 @@ No [operation](../../../../glossary.md#operation) task may reinterpret a schema 
 The implementation is expected to modify existing files rather than create a parallel framework:
 
 - Metal program model/lowering/preparation/native binding, typed buffer integration, workload/tuning
-  identity, tests, package Javadocs, and package documentation;<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [lowering glossary](../../../../glossary.md#lowering); [binding glossary](../../../../glossary.md#term-binding); [buffer glossary](../../../../glossary.md#term-buffer); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  identity, tests, package Javadocs, and package documentation;<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [binding glossary](../../../../glossary.md#term-binding); [buffer glossary](../../../../glossary.md#term-buffer); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - [Objective-C](../../../../glossary.md#native-packaging-and-platform-vocabulary) native [schema](../../../../glossary.md#term-schema)/parser/create path and native tests;
 - [CPU](../../../../glossary.md#term-cpu) typed transfer predicates/binders and focused tests;
 - [Engine](../../../../glossary.md#term-engine) CPU/[Metal](../../../../glossary.md#term-metal) prepared transfer and [registry](../../../../glossary.md#term-registry)/session tests;
@@ -470,7 +470,7 @@ must preserve the public contract rather than widen this task.
 - every normalized attribute family and nested enum has a [round-trip](../../../../glossary.md#schema-serialization-and-checkpoint)/golden behavior test; and
 - malformed topology, mismatched operation/attribute/cardinality, duplicate producer, forward
   reference, bad feed/target, unknown wire, bad reserved/padding word, truncated image, and range
-  overflow fail deterministically.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [producer glossary](../../../../glossary.md#term-producer); [target glossary](../../../../glossary.md#term-target); [padding glossary](../../../../glossary.md#padding))</span>
+  overflow fail deterministically.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [producer glossary](../../../../glossary.md#term-producer); [target glossary](../../../../glossary.md#term-target))</span>
 
 ### Native and [ABI](../../../../glossary.md#term-application-binary-interface-abi) behavior
 
@@ -517,7 +517,7 @@ Task 0055 does not:
   gradient semantics, Compiler generation, Planning ownership, Runtime validity/lifecycle policy,
   asynchronous execution, default-device selection, or fallback behavior;<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [descriptors glossary](../../../../glossary.md#term-descriptor); [gradient glossary](../../../../glossary.md#term-gradient); [Compiler glossary](../../../../glossary.md#term-compiler); [Planning glossary](../../../../glossary.md#term-planning); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [Runtime glossary](../../../../glossary.md#term-runtime); [lifecycle glossary](../../../../glossary.md#lifecycle); [asynchronous glossary](../../../../glossary.md#term-asynchronous))</span>
 - add an export, generic attribute map, reflection/string dispatch, pointer-bearing node records,
-  operation-specific side-channel arrays, compatibility shim, dual decoder, or cache migration;<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [node glossary](../../../../glossary.md#node); [channel glossary](../../../../glossary.md#term-channel); [cache glossary](../../../../glossary.md#term-cache))</span>
+  operation-specific side-channel arrays, compatibility shim, dual decoder, or cache migration;<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [node glossary](../../../../glossary.md#node); [cache glossary](../../../../glossary.md#term-cache))</span>
 - generalize authenticated affine publication beyond its existing positive-rank FLOAT32 contract;
   or<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [FLOAT32 glossary](../../../../glossary.md#term-float32))</span>
 - remove the three custom-NEG exports, rename public configuration, publish a native artifact, add

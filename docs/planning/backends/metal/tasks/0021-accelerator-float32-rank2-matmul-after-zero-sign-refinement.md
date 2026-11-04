@@ -27,7 +27,7 @@ workload/exact-policy/candidate/compatibility/route/[codec](../../../../glossary
 Metal 0018 remains Blocked without active write [scope](../../../../glossary.md#term-scope); Metal 0016 has no restart. [Model](../../../../glossary.md#term-model) 0029 is
 Complete at `308267837a17c2fdbeb8b90ad381d1f899980786`, and Metal 0020, Model 0027, Config
 0006, and [Engine](../../../../glossary.md#term-engine) 0018 remain Complete. Final independent Class C review returned `APPROVE` with
-zero findings after verifying the corrected 15-of-15 Markdown evidence and retained [checkpoint](../../../../glossary.md#term-checkpoint),
+zero findings after verifying the corrected 15-of-15 Markdown evidence and retained checkpoint,
 ABI/export, probe-removal, path-count, and status evidence without unnecessary broad reruns.
 
 ## Change class
@@ -53,7 +53,7 @@ refined [Model](../../../../glossary.md#term-model) set: existing [DAZ](../../..
   rank-two <span data-glossary-navigation="true"> ([view glossary](../../../../glossary.md#term-view-meanings))</span>`PERMUTE [1,0]` view of a canonical source. Reject foreign, feed, constant, arbitrary,
   malformed, or hidden-materialization view forms.<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [materialization glossary](../../../../glossary.md#materialization))</span>
 - Support direct, left-, right-, and both-transposed forms, including visible no-[bias](../../../../glossary.md#term-bias)
-  `PERMUTE -> MATMUL` [linear](../../../../glossary.md#term-linear-meanings) composition. Add no `LINEAR` [operation](../../../../glossary.md#operation) or cross-[node](../../../../glossary.md#node) [contraction](../../../../glossary.md#contraction-dimension).
+  `PERMUTE -> MATMUL` [linear](../../../../glossary.md#term-linear-meanings) composition. Add no `LINEAR` [operation](../../../../glossary.md#operation) or cross-[node](../../../../glossary.md#node) contraction.
 - Preserve [ABI](../../../../glossary.md#term-application-binary-interface-abi) v4 and exactly thirteen exports. Evolve the fixed 160-byte node [schema](../../../../glossary.md#term-schema) `7 -> 8`,
   retain wires `1..14`, append only `MATMUL=15`, and advance workload-signature, exact-policy,
   candidate, compatibility, route-policy, and codec identities <span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([signature glossary](../../../../glossary.md#term-signature); [codec glossary](../../../../glossary.md#term-codec))</span>`8 -> 9`.
@@ -81,7 +81,7 @@ complete direct/left-/right-/both-transposed [matrix](../../../../glossary.md#te
 non-square ordinary, `M=1`, `K=1`, `N=1`, exact integers, every-term sentinels, [cancellation](../../../../glossary.md#term-cancellation)/tree-
 sensitive values, and [subnormal](../../../../glossary.md#term-subnormal)/normal/special boundaries. Require at least 384 newly created
 executables and 3,072 runs after the smoke and report exact totals. Start from the beginning; do not
-[resume](../../../../glossary.md#schema-serialization-and-checkpoint) after Metal 0018's first failed full cell.
+resume after Metal 0018's first failed full cell.
 
 The independent oracle must enumerate each declared `k` product exactly once, every permitted
 binary [reassociation](../../../../glossary.md#term-reassociation) tree, [FLOAT32](../../../../glossary.md#term-float32) [rounding](../../../../glossary.md#term-rounding), every corresponding legal unfused/[FMA](../../../../glossary.md#term-fused-multiply-add-fma) placement,
@@ -105,8 +105,8 @@ precision, nonzero/classification, or oracle failure blocks without production e
 ## Non-goals
 
 No strict [MATMUL](../../../../glossary.md#matrix-multiplication--matmul); [vector](../../../../glossary.md#term-vector), batched/broadcast, zero/dynamic-[extent](../../../../glossary.md#term-extent), other-type, promoted, arbitrary-
-[view](../../../../glossary.md#term-view-meanings), [convolution](../../../../glossary.md#term-channels-first-convolution-layers), broader backward/training, packaging/discovery, performance, or mixed-[owner](../../../../glossary.md#term-owner)
-claim. No per-product/intermediate zero-sign choice, term [loss](../../../../glossary.md#loss), [identity](../../../../glossary.md#term-identity-meanings) insertion, [tolerance](../../../../glossary.md#term-tolerance),
+[view](../../../../glossary.md#term-view-meanings), convolution, broader backward/training, packaging/discovery, performance, or mixed-[owner](../../../../glossary.md#term-owner)
+claim. No per-product/intermediate zero-sign choice, term loss, [identity](../../../../glossary.md#term-identity-meanings) insertion, [tolerance](../../../../glossary.md#term-tolerance),
 reduced [precision](../../../../glossary.md#term-precision), algebraic substitution, special-value repair, cross-[node](../../../../glossary.md#node) [FMA](../../../../glossary.md#term-fused-multiply-add-fma), fallback, [Runtime](../../../../glossary.md#term-runtime)/
 [Trace](../../../../glossary.md#trace) profile state, public [API](../../../../glossary.md#term-application-programming-interface-api) [signature](../../../../glossary.md#term-signature), [dependency](../../../../glossary.md#term-dependency), or [ABI](../../../../glossary.md#term-application-binary-interface-abi)-export change.
 
@@ -119,7 +119,7 @@ reduced [precision](../../../../glossary.md#term-precision), algebraic substitut
 - [Prepare lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle)<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [lifecycle glossary](../../../../glossary.md#lifecycle))</span> and
   [Run lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#run-lifecycle)<span data-glossary-navigation="true"> ([Run glossary](../../../../glossary.md#term-run))</span>
 
-If implementation needs wider [Model](../../../../glossary.md#term-model) semantics, reduced [precision](../../../../glossary.md#term-precision), term [loss](../../../../glossary.md#loss), a shared
+If implementation needs wider [Model](../../../../glossary.md#term-model) semantics, reduced [precision](../../../../glossary.md#term-precision), term loss, a shared
 representation change, new export, wider transfer, [host](../../../../glossary.md#term-host) fallback, or [Runtime](../../../../glossary.md#term-runtime)/[Trace](../../../../glossary.md#trace) profile state,
 stop and report the conflict.
 
@@ -134,7 +134,7 @@ stop and report the conflict.
   authorization<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 - Integration order: Serial after Model 0029; full fresh oracle before production edits; then
   schema/identity, capability/topology, lifecycle, Engine proof, documentation, independent review<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [identity glossary](../../../../glossary.md#term-identity-meanings); [topology glossary](../../../../glossary.md#term-topology); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
-- Integration [validation](../../../../glossary.md#term-validation): refined [accelerator](../../../../glossary.md#term-accelerator) full-[contraction](../../../../glossary.md#contraction-dimension) [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Class C [checkpoint](../../../../glossary.md#term-checkpoint)
+- Integration [validation](../../../../glossary.md#term-validation): refined [accelerator](../../../../glossary.md#term-accelerator) full-[contraction](../../../../glossary.md#contraction-dimension) [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Class C checkpoint
 - Shared-document integration [owner](../../../../glossary.md#term-owner): task implementer, finalized by independent Class C review
 
 ## Files and symbols
@@ -191,7 +191,7 @@ git diff --check
 
 Record [oracle](../../../../glossary.md#term-test-oracle) totals/cardinalities/term [masks](../../../../glossary.md#term-boolean-mask), probe removal, exports, [schema](../../../../glossary.md#term-schema)/[identity](../../../../glossary.md#term-identity-meanings) versions,
 test counts/skips, strict/profile negatives, changed paths, and status/frontier checks. The worker
-owns one full [checkpoint](../../../../glossary.md#term-checkpoint); review reruns executable checks only after relevant executable changes or
+owns one full checkpoint; review reruns executable checks only after relevant executable changes or
 when evidence is concretely stale.
 
 ## Documentation and review impact
@@ -221,7 +221,7 @@ eight runs per executable; [Shape](../../../../glossary.md#shape)/data, stable/p
 `K=1` witness retained product `-0` and passed only through [Model](../../../../glossary.md#term-model) 0029's final-publication
 either-zero-sign freedom. The source and [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) were removed before production edits.
 
-The implementation [checkpoint](../../../../glossary.md#term-checkpoint) evidence later audited and accepted by independent review was:
+The implementation checkpoint evidence later audited and accepted by independent review was:
 
 ```text
 Metal focused tests: 98/98 passed, 0 skipped

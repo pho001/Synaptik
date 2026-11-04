@@ -426,7 +426,7 @@ output, and [publication](../../../../glossary.md#term-publication) resources. N
 - asynchronous APIs, futures, events, cancellation, timeout, cross-run overlap promises, or
   exposed command buffers<span data-glossary-navigation="true"> ([asynchronous glossary](../../../../glossary.md#term-asynchronous); [cancellation glossary](../../../../glossary.md#term-cancellation); [run glossary](../../../../glossary.md#term-run); [buffers glossary](../../../../glossary.md#term-buffer))</span>
 - buffer pooling, aliasing, persistent prepared splat buffers, public device storage, host-visible
-  leases, or hidden coherence<span data-glossary-navigation="true"> ([pooling glossary](../../../../glossary.md#term-pooling); [aliasing glossary](../../../../glossary.md#term-aliasing); [device glossary](../../../../glossary.md#term-device); [leases glossary](../../../../glossary.md#term-lease))</span>
+  leases, or hidden coherence<span data-glossary-navigation="true"> ([aliasing glossary](../../../../glossary.md#term-aliasing); [device glossary](../../../../glossary.md#term-device); [leases glossary](../../../../glossary.md#term-lease))</span>
 - metallib compilation, packaging, lookup, discovery, extraction, signing, notarization, or
   distribution; the fixed MSL source is compiled during finalization<span data-glossary-navigation="true"> ([compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names); [lookup glossary](../../../../glossary.md#term-lookup); [notarization glossary](../../../../glossary.md#term-notarization); [distribution glossary](../../../../glossary.md#term-distribution); [MSL glossary](../../../../glossary.md#term-metal-shading-language-msl))</span>
 - architecture authority, ADR, shared production module, production dependency, Gradle,
@@ -704,7 +704,7 @@ behavior did not change. Under the completion-time [CPU](../../../../glossary.md
 applied. No [architecture test](../../../../glossary.md#term-architecture-test) applied because no [dependency](../../../../glossary.md#term-dependency)/build/module boundary changed. If
 any such path had become necessary, the task required replanning before editing it.
 
-Inspect source and compiled Java [shape](../../../../glossary.md#shape):
+Inspect source and compiled Java shape:
 
 ```bash
 javap -classpath backends/metal/build/classes/java/main -c -p \
@@ -739,7 +739,7 @@ local links and heading anchors, unique effective anchors, balanced fences, fina
 status values, exact symbols, capability-source exclusion, task/master/roadmap status and order,
 no detailed Metal 0004 task, and no staged files.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
 
-Repository-wide validation is deferred to the final Metal [checkpoint](../../../../glossary.md#term-checkpoint) or [continuous integration](../../../../glossary.md#term-continuous-integration-ci).
+Repository-wide validation is deferred to the final Metal checkpoint or [continuous integration](../../../../glossary.md#term-continuous-integration-ci).
 The implementation is one backend-local behavior change with no capability, shared contract,
 production edge, [Gradle](../../../../glossary.md#term-gradle), or architecture change. The documentation pass reuses stabilized Java,
 native, and real-device evidence and does not repeat successful Java suites unless it changes
@@ -891,7 +891,7 @@ context `/root/metal_0003_docs` reused without repeating successful Java suites:
   device against the final rebuilt dylib;<span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device))</span>
 - generated [Javadoc](../../../../glossary.md#term-javadoc) and source/`javap` hot-shape inspection passed before the documentation pass;
   the inspection confirmed the route-specific bound invocation, one custom native call, typed
-  pipeline ownership, fixed branch-free MSL, direct buffer indices, one dispatch, and one wait;<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [bound invocation glossary](../../../../glossary.md#bound-invocation--boundinvocation); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [MSL glossary](../../../../glossary.md#term-metal-shading-language-msl); [buffer glossary](../../../../glossary.md#term-buffer); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
+  pipeline ownership, fixed branch-free MSL, direct buffer indices, one dispatch, and one wait;<span data-glossary-navigation="true"> ([bound invocation glossary](../../../../glossary.md#bound-invocation--boundinvocation); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [MSL glossary](../../../../glossary.md#term-metal-shading-language-msl); [buffer glossary](../../../../glossary.md#term-buffer); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - final source-contract assertions cover every specified native fail-closed create, release, and
   run branch and the <span data-glossary-navigation="true"> ([fail-closed glossary](../../../../glossary.md#term-fail-closed); [release glossary](../../../../glossary.md#term-release))</span>`UNSUPPORTED_SHAPE`, `KERNEL_COMPILATION_FAILED`, and `EXECUTION_FAILED`
   mappings; and
@@ -972,7 +972,7 @@ Exact files changed or created:
   errors. The earlier 28-total focused prepared-execution result was superseded as recorded above.
 - Native build, Mach-O arm64 inspection, exact thirteen-export inspection, expected framework
   linkage, both final-dylib real-device cases, source-contract assertions, generated hot-shape
-  inspection, and independent implementation re-review all passed.<span data-glossary-navigation="true"> ([Mach-O glossary](../../../../glossary.md#term-mach-o); [arm64 glossary](../../../../glossary.md#native-packaging-and-platform-vocabulary); [dylib glossary](../../../../glossary.md#term-dylib); [device glossary](../../../../glossary.md#term-device); [shape glossary](../../../../glossary.md#shape))</span>
+  inspection, and independent implementation re-review all passed.<span data-glossary-navigation="true"> ([Mach-O glossary](../../../../glossary.md#term-mach-o); [arm64 glossary](../../../../glossary.md#native-packaging-and-platform-vocabulary); [dylib glossary](../../../../glossary.md#term-dylib); [device glossary](../../../../glossary.md#term-device))</span>
 - Documentation validation passed `./gradlew :backends:metal:javadoc`, the targeted six-file
   Markdown validator, final newline/whitespace checks, `git diff --check`,
   `git diff --cached --check`, exact 18-path scope, zero staged paths, and the no-detailed-0004

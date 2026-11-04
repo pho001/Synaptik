@@ -80,7 +80,7 @@ claim scalar support without an accepted typed [schema](../../../../glossary.md#
 
 [Model](../../../../glossary.md#term-model) currently has typed `ScalarElementwiseKind.ADD/SUB/MUL/DIV` with `ScalarValueAttrs` and
 one input/one output [signatures](../../../../glossary.md#term-signature). The [ABI](../../../../glossary.md#term-application-binary-interface-abi)-v4 [node](../../../../glossary.md#node) is exactly four [`uint32_t`](../../../../glossary.md#index-mappings-and-cost-dominance) cells and has no scalar
-[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication). 0006 therefore does **not** advertise the scalar family and does not add a generic attrs
+payload. 0006 therefore does **not** advertise the scalar family and does not add a generic attrs
 map, [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity) hidden in [dimensions](../../../../glossary.md#dimension), string [dispatch](../../../../glossary.md#term-dispatch), or implicit scalar [Tensor](../../../../glossary.md#tensor) construction.
 Scalar support is a separate follow-up only after a typed, bounded scalar [carrier](../../../../glossary.md#term-storage-carrier) (including exact
 [FLOAT32](../../../../glossary.md#term-float32) conversion, [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero)/[NaN payload](../../../../glossary.md#nan-infinity-and-signed-zero) policy, and native [validation](../../../../glossary.md#term-validation)) is accepted. If an
@@ -90,7 +90,7 @@ implementation experiment cannot prove those facts, leave scalar work deferred.
 
 No new [dtype](../../../../glossary.md#data-type--datatype), [layout](../../../../glossary.md#layout), dynamic/zero [shape](../../../../glossary.md#shape), [rank](../../../../glossary.md#term-rank) outside `1..16`, attributes, [scalar](../../../../glossary.md#term-scalar) operations,
 comparison/logical/cast/reduction/other [unary](../../../../glossary.md#term-unary) kinds, custom unary [kernels](../../../../glossary.md#kernel), [CPU](../../../../glossary.md#term-cpu) fallback, public [API](../../../../glossary.md#term-application-programming-interface-api),
-partitioning policy, async execution, [pooling](../../../../glossary.md#term-pooling), [serialization](../../../../glossary.md#term-serialization), tuning, packaging, or [ABI](../../../../glossary.md#term-application-binary-interface-abi) version 5.
+partitioning policy, async execution, pooling, [serialization](../../../../glossary.md#term-serialization), tuning, packaging, or [ABI](../../../../glossary.md#term-application-binary-interface-abi) version 5.
 Do not alter ABI-v4 symbols/[signatures](../../../../glossary.md#term-signature), existing NEG/[binary](../../../../glossary.md#term-binary-descriptor-and-metadata) mappings, or custom NEG [MSL](../../../../glossary.md#term-metal-shading-language-msl).
 
 ## Contracts

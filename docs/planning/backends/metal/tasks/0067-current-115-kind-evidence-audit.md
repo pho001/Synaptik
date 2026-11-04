@@ -30,7 +30,7 @@ semantics requires a concrete plan amendment and a fresh independent review befo
 ## Goal
 
 Reconcile every current [Model](../../../../glossary.md#term-model) [operation](../../../../glossary.md#operation) kind through the complete [Metal](../../../../glossary.md#term-metal) path: Model semantic family,
-attributes/[cardinality](../../../../glossary.md#term-cardinality)/carriers/output and [gradient](../../../../glossary.md#term-gradient) relations; [Compiler](../../../../glossary.md#term-compiler) [inference](../../../../glossary.md#term-inference), first-order
+attributes/[cardinality](../../../../glossary.md#term-cardinality)/carriers/output and [gradient](../../../../glossary.md#term-gradient) relations; [Compiler](../../../../glossary.md#term-compiler) inference, first-order
 classification, saved roles, and generated [graph](../../../../glossary.md#graph) reachability; profile-qualified capability;
 private [schema](../../../../glossary.md#term-schema), route, and [identity](../../../../glossary.md#term-identity-meanings); [MPSGraph](../../../../glossary.md#term-mpsgraph)/custom catalogs; Java and native [preflight](../../../../glossary.md#term-preflight); native
 encoding/[dispatch](../../../../glossary.md#term-dispatch)/execution; direct and generated backward behavior; public [Engine](../../../../glossary.md#term-engine) reachability;
@@ -44,7 +44,7 @@ domain and implements it end to end.
 ## Non-goals and fixed boundaries
 
 No timing, benchmark, autotune experiment, fallback, retry, route [race](../../../../glossary.md#term-race), hot measurement, [opaque](../../../../glossary.md#term-opaque)
-selector [inference](../../../../glossary.md#term-inference), historical [oracle](../../../../glossary.md#term-test-oracle) rerun, public [API](../../../../glossary.md#term-application-programming-interface-api), new [Model](../../../../glossary.md#term-model) kind/type, [schema](../../../../glossary.md#term-schema) bump, [ABI](../../../../glossary.md#term-application-binary-interface-abi)/export
+selector inference, historical [oracle](../../../../glossary.md#term-test-oracle) rerun, public [API](../../../../glossary.md#term-application-programming-interface-api), new [Model](../../../../glossary.md#term-model) kind/type, [schema](../../../../glossary.md#term-schema) bump, [ABI](../../../../glossary.md#term-application-binary-interface-abi)/export
 change, or compatibility reader. Historical Tasks 0006–0066 and retained evidence remain [immutable](../../../../glossary.md#term-immutable);
 this task links them only as [provenance](../../../../glossary.md#provenance) and updates current statements separately.
 
@@ -53,7 +53,7 @@ this task links them only as [provenance](../../../../glossary.md#provenance) an
 Current source is authoritative in this order:
 
 1. [Model](../../../../glossary.md#term-model) enum semantics and `OperationSignature` declarations.
-2. [Compiler](../../../../glossary.md#term-compiler) captured [inference](../../../../glossary.md#term-inference), `FirstOrderGradientCoverage`, `AutogradPreflight`, formula owners, and
+2. [Compiler](../../../../glossary.md#term-compiler) captured inference, `FirstOrderGradientCoverage`, `AutogradPreflight`, formula owners, and
    saved-role rules.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span>
 3. `MetalCapabilityProvider.supportsOccurrence` for the exact profile/[descriptor](../../../../glossary.md#term-descriptor) [occurrence](../../../../glossary.md#term-occurrence).
 4. `MetalMpsGraphProgram.NodeKind`, `MetalOperationRouteCatalog`, preparation/lowering, route policy,
@@ -246,7 +246,7 @@ and remediations must cite a wire from this table.
 | `B-RNN` | 103–105 | Recurrent rows lack complete TANH/EXP/SIGMOID proof, [runtime](../../../../glossary.md#term-runtime) valid-length/state contracts, custom recurrence, and [Compiler](../../../../glossary.md#term-compiler) [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt). |
 | `B-AGG` | 111–115 | LOG_SUM_EXP/[VARIANCE](../../../../glossary.md#term-variance)/STANDARD_DEVIATION/[L1](../../../../glossary.md#term-l1)/[L2](../../../../glossary.md#term-l2) need complete contributor/order/correction/elementary/generated-gradient proof. Existing primitives are dependencies, not authorization. |
 
-## Production-false structural [partition](../../../../glossary.md#partition)
+## Production-false structural partition
 
 Production false does not mean structural machinery is absent. The 32 `P=F` rows split exactly and
 disjointly into:
@@ -280,7 +280,7 @@ The implementation phase must add one permanent source-backed audit test/[artifa
    condition/index/mask/state roles and forward-only Conv3d/recurrent boundaries; the supported
    formula registry remains exactly 38 families / 111 constants / 133 fingerprints and its explicit
    deferred set is exactly Conv3d plus the three recurrent signatures, so the combined partition is
-   40 / 115 / 137 without claiming formulas for deferred rows;<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [graph glossary](../../../../glossary.md#graph); [mask glossary](../../../../glossary.md#term-boolean-mask); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [registry glossary](../../../../glossary.md#term-registry); [partition glossary](../../../../glossary.md#partition))</span>
+   40 / 115 / 137 without claiming formulas for deferred rows;<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [graph glossary](../../../../glossary.md#graph); [mask glossary](../../../../glossary.md#term-boolean-mask); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [registry glossary](../../../../glossary.md#term-registry))</span>
 7. schema 15, ABI 5, thirteen exports, 42 attribute wires, three route wires, identity 22, and
    identity-21 rejection remain exact; and<span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
 8. active docs agree while historical tasks/evidence remain byte-unchanged.
@@ -349,7 +349,7 @@ is reviewed; the presence of some primitive dependencies is not enough.
 
 1. [Commit](../../../../glossary.md#term-commit) this plan/ledger from clean base and obtain independent plan/evidence review.
 2. Mechanically generate and verify the [canonical](../../../../glossary.md#term-canonical-form) mapping and representative 83/32 reachability.
-3. Audit [Compiler](../../../../glossary.md#term-compiler) [inference](../../../../glossary.md#term-inference)/[autograd](../../../../glossary.md#autograd)/saved roles and direct/generated backward for all 115 rows.
+3. Audit [Compiler](../../../../glossary.md#term-compiler) inference/[autograd](../../../../glossary.md#autograd)/saved roles and direct/generated backward for all 115 rows.
 4. Audit preparation/[schema](../../../../glossary.md#term-schema)/catalog/route/[identity](../../../../glossary.md#term-identity-meanings) and Java/native [validation](../../../../glossary.md#term-validation)/execution for all rows.
 5. Audit behavioral/public [Engine](../../../../glossary.md#term-engine) evidence and active docs without editing historical evidence.
 6. Record every mismatch with a wire, severity, [owner](../../../../glossary.md#term-owner), exact evidence, and disposition.
@@ -375,7 +375,7 @@ independent approvals.
   structural `101/14`, [MPSGraph](../../../../glossary.md#term-mpsgraph) `75/35/5`, custom `70/45/0`, and production route
   `68 custom / 13 MPSGraph / 1 NEG dual / 1 MATMUL by-domain / 32 blocked`.
 - [Compiler](../../../../glossary.md#term-compiler) coverage retains `38 families / 111 kinds / 133 fingerprints`; the disjoint deferred
-  Conv3d/RNN/GRU/LSTM partition closes the full <span data-glossary-navigation="true"> ([Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [GRU glossary](../../../../glossary.md#term-gated-recurrent-unit-gru); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [partition glossary](../../../../glossary.md#partition))</span>`40 / 115 / 137` inventory.
+  Conv3d/RNN/GRU/LSTM partition closes the full <span data-glossary-navigation="true"> ([Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [GRU glossary](../../../../glossary.md#term-gated-recurrent-unit-gru); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm))</span>`40 / 115 / 137` inventory.
 - The native build followed by complete Metal, Compiler, and architecture suites passed
   (<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal))</span>`32` executed Gradle tasks) with the actual dylib. Metal conformance plus every Metal public
   Engine integration test passed (<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [dylib glossary](../../../../glossary.md#term-dylib); [conformance glossary](../../../../glossary.md#term-conformance); [Engine glossary](../../../../glossary.md#term-engine); [integration test glossary](../../../../glossary.md#term-integration-test))</span>`38` executed tasks).

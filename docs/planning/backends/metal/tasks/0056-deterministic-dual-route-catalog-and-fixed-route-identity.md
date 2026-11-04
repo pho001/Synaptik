@@ -24,7 +24,7 @@ remediation remains Complete at `ce569b65`, and the [ABI](../../../../glossary.m
 Complete at `486ff493` plus `5b80d37c`.
 
 The normative [per-wire route-evidence audit](0056-route-evidence-audit.md) remains part of this
-task. It resolves every row to an exact installed-[SDK](../../../../glossary.md#term-sdk) selector or [finite](../../../../glossary.md#term-finite) selector composition and
+task. It resolves every row to an exact installed-[SDK](../../../../glossary.md#term-sdk) selector or finite selector composition and
 to the current [Model](../../../../glossary.md#term-model) enum source plus bounded [signature](../../../../glossary.md#term-signature); broad reason codes are summaries, not
 evidence substitutes.
 
@@ -116,7 +116,7 @@ Each kind has exactly one state:
   Descriptor construction and typed constants do not by themselves make a route composed.<span data-glossary-navigation="true"> ([SDK glossary](../../../../glossary.md#term-sdk); [operation glossary](../../../../glossary.md#operation); [Model glossary](../../../../glossary.md#term-model); [Descriptor glossary](../../../../glossary.md#term-descriptor); [constants glossary](../../../../glossary.md#term-constant))</span>
 - `COMPOSED`: no single selector produces such an occurrence, but an explicit finite composition of
   current MPSGraph primitives can structurally produce at least one. The exact composition is named
-  below.<span data-glossary-navigation="true"> ([finite glossary](../../../../glossary.md#term-finite))</span>
+  below.
 - `UNAVAILABLE`: current SDK structure cannot expose at least one mandatory observable contract for
   any exact occurrence. A hidden value, opaque state, wrong mandatory output type/cardinality, or
   missing atomic validation/skip behavior is a structural blocker.<span data-glossary-navigation="true"> ([opaque glossary](../../../../glossary.md#term-opaque); [cardinality glossary](../../../../glossary.md#term-cardinality); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [validation glossary](../../../../glossary.md#term-validation))</span>
@@ -159,7 +159,7 @@ strings. The task document owns their exact interpretation.
 | `MD-INDEX` | One [gather](../../../../glossary.md#gather)/scatter/one-hot selector matches the required indexed [operation](../../../../glossary.md#operation). |
 | `MD-MATMUL` | One [matrix](../../../../glossary.md#term-matrix-meanings)-multiplication selector matches a bounded occurrence. |
 | `MD-ATTENTION-BASE` | Direct unmasked, noncausal, output-only SDPA exists; [BOOL](../../../../glossary.md#data-type--datatype) [mask](../../../../glossary.md#term-boolean-mask), causal and [weights](../../../../glossary.md#term-weight)-output forms are excluded pending an explicit composition and proof. |
-| `MD-CONV-BASE` | Direct unbiased [convolution](../../../../glossary.md#term-channels-first-convolution-layers) exists; the optional [bias](../../../../glossary.md#term-bias) form requires a following typed broadcast add and remains unapproved. |
+| `MD-CONV-BASE` | Direct unbiased convolution exists; the optional [bias](../../../../glossary.md#term-bias) form requires a following typed broadcast add and remains unapproved. |
 | `MD-DENSE-CE` | Direct dense-label [softmax](../../../../glossary.md#softmax--log-softmax)-cross-entropy structurally matches a bounded reduction form. |
 | `MD-BN-INFER` | Direct [normalization](../../../../glossary.md#term-normalization) can consume input/scale/bias/running mean/running variance for bounded [inference](../../../../glossary.md#term-inference). |
 | `MD-SOFTMAX` | Direct [axis](../../../../glossary.md#term-axis) softmax structurally matches. |
@@ -194,7 +194,7 @@ strings. The task document owns their exact interpretation.
 | `CA-0052` | Reviewed Task-0052 custom [kernel](../../../../glossary.md#kernel) exists for the named FLOAT32 comparison/[extrema](../../../../glossary.md#saturation-pole-and-extremum)/[scan](../../../../glossary.md#term-cumulative-scan) kind. |
 | `CP-POINT` | [Pointwise](../../../../glossary.md#term-pointwise) custom source plus complete-domain result-set proof and route tests are absent. |
 | `CP-MOVE` | Index/[layout](../../../../glossary.md#layout)/window custom source plus exact mapping, [validation](../../../../glossary.md#term-validation), [alias](../../../../glossary.md#aliasing-and-arena), and [publication](../../../../glossary.md#term-publication) proof are absent. |
-| `CP-CONTRACT` | [Contraction](../../../../glossary.md#contraction-dimension)/[convolution](../../../../glossary.md#term-channels-first-convolution-layers)/attention custom source plus [shape](../../../../glossary.md#shape)-wide numerical proof are absent. |
+| `CP-CONTRACT` | [Contraction](../../../../glossary.md#contraction-dimension)/convolution/attention custom source plus [shape](../../../../glossary.md#shape)-wide numerical proof are absent. |
 | `CP-AGGREGATE` | Reduction/order/[loss](../../../../glossary.md#loss)/[normalization](../../../../glossary.md#term-normalization)/[pooling](../../../../glossary.md#term-pooling) custom source plus contributor/order/special-value proof are absent. |
 | `CP-STATE` | Explicit [RNG](../../../../glossary.md#graph-rng-state--graphrngstate)/recurrent custom source plus exact state-transition/validation/publication proof are absent. |
 
@@ -559,7 +559,7 @@ Task 0056 may become `Complete` only when:
   and create/run no-fallback tests pass.<span data-glossary-navigation="true"> ([singleton glossary](../../../../glossary.md#term-singleton); [run glossary](../../../../glossary.md#term-run))</span>
 - Focused Java catalog/route/candidate/codec/preparation/finalization/execution/trace/tuning tests
   passed. Focused capability, backend-conformance, Metal/Engine public-shape, Metal Javadoc, and
-  architecture checks passed.<span data-glossary-navigation="true"> ([codec glossary](../../../../glossary.md#term-codec); [trace glossary](../../../../glossary.md#trace); [backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance); [Metal glossary](../../../../glossary.md#term-metal); [Engine glossary](../../../../glossary.md#term-engine); [shape glossary](../../../../glossary.md#shape); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
+  architecture checks passed.<span data-glossary-navigation="true"> ([codec glossary](../../../../glossary.md#term-codec); [trace glossary](../../../../glossary.md#trace); [backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance); [Metal glossary](../../../../glossary.md#term-metal); [Engine glossary](../../../../glossary.md#term-engine); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - A fresh native build retained exactly thirteen defined exports. Two raw ABI/schema-13 malformed
   and unsupported-operation tests plus one prepared native route test passed with zero skips. Two
   public Engine singleton-NEG tuned/untuned integration tests passed with zero skips.<span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [schema glossary](../../../../glossary.md#term-schema); [operation glossary](../../../../glossary.md#operation))</span>

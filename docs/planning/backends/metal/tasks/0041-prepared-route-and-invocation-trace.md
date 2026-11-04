@@ -58,7 +58,7 @@ public static MetalBackendIntegration open(
 
 Both [arguments](../../../../glossary.md#term-argument) are non-null and retained after [validation](../../../../glossary.md#term-validation). The [observer](../../../../glossary.md#term-observer) remains caller-owned after
 integration transfer and is never closed; callbacks may be concurrent, so it must be [thread-safe](../../../../glossary.md#term-thread-safe).
-Existing `open(configuration)` selects the no-[trace](../../../../glossary.md#trace) path and creates no [producer](../../../../glossary.md#term-producer) work or [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication).
+Existing `open(configuration)` selects the no-[trace](../../../../glossary.md#trace) path and creates no [producer](../../../../glossary.md#term-producer) work or payload.
 `MetalBackendConfiguration` remains the exact one-component native-library-path record.
 
 ### [Producer](../../../../glossary.md#term-producer) stream
@@ -148,7 +148,7 @@ after any existing [rollback](../../../../glossary.md#term-rollback) suppression
   invocation prepared and synchronous; tracing remains passive observation.<span data-glossary-navigation="true"> ([synchronous glossary](../../../../glossary.md#term-synchronous))</span>
 
 Stop if implementation needs [Engine](../../../../glossary.md#term-engine) production changes, a new shared [Trace](../../../../glossary.md#trace) behavior [API](../../../../glossary.md#term-application-programming-interface-api), a native
-[ABI](../../../../glossary.md#term-application-binary-interface-abi)/[schema](../../../../glossary.md#term-schema)/capability change, a generic map/string [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), or [observer](../../../../glossary.md#term-observer) failure that changes work.
+[ABI](../../../../glossary.md#term-application-binary-interface-abi)/[schema](../../../../glossary.md#term-schema)/capability change, a generic map/string payload, or [observer](../../../../glossary.md#term-observer) failure that changes work.
 
 ## Dependencies and integration
 

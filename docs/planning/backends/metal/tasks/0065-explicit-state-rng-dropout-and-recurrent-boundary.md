@@ -206,12 +206,12 @@ FLOAT32 one divided by that typed complement, followed by FLOAT32 input multipli
 binary64 attribute remains the exact membership [leaf](../../../../glossary.md#term-leaf). Use the already qualified accelerator
 primitive rules, including [DAZ](../../../../glossary.md#term-daz)/[FTZ](../../../../glossary.md#term-ftz), and preserve the sites and association. Do not pre-narrow the
 probability, replace the formula with input division, use a reciprocal approximation, fuse the
-algebra, reduce [precision](../../../../glossary.md#term-precision), or accept a final-output [tolerance](../../../../glossary.md#term-tolerance). Java and native [metadata](../../../../glossary.md#term-metadata) must [carry](../../../../glossary.md#term-carry)
+algebra, reduce [precision](../../../../glossary.md#term-precision), or accept a final-output [tolerance](../../../../glossary.md#term-tolerance). Java and native [metadata](../../../../glossary.md#term-metadata) must carry
 the raw probability bits, exact integer threshold, and derived FLOAT32 complement bits for
 independent [validation](../../../../glossary.md#term-validation).
 
 A dropped value is exact positive FLOAT32 zero even for [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero), [NaN](../../../../glossary.md#term-nan), or [infinity](../../../../glossary.md#term-infinity). A kept
-[signed zero](../../../../glossary.md#term-signed-zero) and infinity retain the formula-required sign; kept NaN remains NaN without a [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication)
+[signed zero](../../../../glossary.md#term-signed-zero) and infinity retain the formula-required sign; kept NaN remains NaN without a payload
 promise. Ordinary finite, [subnormal](../../../../glossary.md#term-subnormal), [overflow](../../../../glossary.md#term-overflow), [underflow](../../../../glossary.md#term-underflow), [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero), NaN, and infinity outputs are
 tested against an independent three-site [oracle](../../../../glossary.md#term-test-oracle), not [CPU](../../../../glossary.md#term-cpu)'s older finite-order emitter. Probability
 values immediately around binary64 and [binary32](../../../../glossary.md#floating-point-precision-and-rounding) threshold/conversion boundaries, including the
@@ -236,7 +236,7 @@ Add one Task-0065 native source/header and append it unconditionally to the exis
 custom-program library. Add native custom [operation](../../../../glossary.md#operation) [constants](../../../../glossary.md#term-constant) only for wires 101 and 102. One
 initializer thread writes the two raw words. One [dropout](../../../../glossary.md#dropout--inverted-dropout) thread owns each value/[mask](../../../../glossary.md#term-boolean-mask) position; thread
 zero additionally writes the two next-state words exactly once. No random-word [buffer](../../../../glossary.md#term-buffer), replay
-buffer, mask staging buffer, scratch, [atomic](../../../../glossary.md#resource-transaction-and-rollback), reduction pass, persistent counter, per-thread
+buffer, mask staging buffer, scratch, atomic, reduction pass, persistent counter, per-thread
 generator, [host](../../../../glossary.md#term-host) [sampling](../../../../glossary.md#term-sampling-machine-learning-and-hyperparameters)/output/mask/state calculation or repair, or second route exists. Cold Java
 derivation of the authenticated threshold and complement [metadata](../../../../glossary.md#term-metadata) above is permitted; it is not
 execution or sampling.
@@ -388,7 +388,7 @@ Task 0035 by choosing a separately specified custom RNG route. Task 0037 remains
 - [Foundational modules — Numerical profiles](../../../../architecture/contracts/foundational-modules.md#numerical-profiles)<span data-glossary-navigation="true"> ([modules glossary](../../../../glossary.md#term-module))</span>
   — dropout/recurrent formulas recurse through exact guards and primitive/aggregate/elementary
   floors; masks, state, traversal, and publication remain exact.<span data-glossary-navigation="true"> ([dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [masks glossary](../../../../glossary.md#term-boolean-mask); [publication glossary](../../../../glossary.md#term-publication))</span>
-- [Fixed recurrent scan](../../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+- [Fixed recurrent scan](../../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-fixed-recurrent-scan))</span>
   — exact signatures, directions, valid lengths, traversal, padding, states, and BPTT boundary.<span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature); [padding glossary](../../../../glossary.md#padding); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt))</span>
 - [Backend execution — Metal backend](../../../../architecture/contracts/backend-execution.md#metal-backend)<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal))</span>
   and [Numerical-profile backend identity](../../../../architecture/contracts/backend-execution.md#numerical-profile-backend-identity)<span data-glossary-navigation="true"> ([backend identity glossary](../../../../glossary.md#backend-identity--backendid))</span>
@@ -468,7 +468,7 @@ approved Metal Java/native/test, public [Engine](../../../../glossary.md#term-en
    First-order backward consumes the exact same-occurrence mask, never resamples, and keeps state and
    mask non-differentiable.<span data-glossary-navigation="true"> ([samples glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters); [evaluation glossary](../../../../glossary.md#term-evaluation); [differentiable glossary](../../../../glossary.md#derivative-and-chain-rule))</span>
 6. Every admitted [partition](../../../../glossary.md#partition) has only `CUSTOM_PROGRAM`; MPSGraph family selectors, host sampling or
-   repair, retry, fallback, timing, autotuning, payload decisions, and cache winners are absent.<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host); [sampling glossary](../../../../glossary.md#term-sampling-machine-learning-and-hyperparameters); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [cache glossary](../../../../glossary.md#term-cache))</span>
+   repair, retry, fallback, timing, autotuning, payload decisions, and cache winners are absent.<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host); [sampling glossary](../../../../glossary.md#term-sampling-machine-learning-and-hyperparameters); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [cache glossary](../../../../glossary.md#term-cache))</span>
 7. Counts become `83/32` capability, `101/14` structural, `75/35/5` [MPSGraph](../../../../glossary.md#term-mpsgraph), and `60/55/0` custom;
    schema 15, ABI 5, and thirteen exports remain; all backend-local identities are 21 and identity
    20 rejects.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [backend glossary](../../../../glossary.md#backend); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>

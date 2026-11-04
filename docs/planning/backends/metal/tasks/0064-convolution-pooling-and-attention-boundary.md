@@ -1,4 +1,4 @@
-# Task 0064: [Convolution](../../../../glossary.md#term-channels-first-convolution-layers), [Pooling](../../../../glossary.md#term-pooling), and Attention Boundary
+# Task 0064: Convolution, [Pooling](../../../../glossary.md#term-pooling), and Attention Boundary
 
 ## Reader context
 
@@ -18,7 +18,7 @@ security reviews report no unresolved P0/P1/P2 findings.
 
 ## Change class
 
-Class C — the reviewed implementation will widen [Metal](../../../../glossary.md#term-metal) capability for six [convolution](../../../../glossary.md#term-channels-first-convolution-layers)/[pooling](../../../../glossary.md#term-pooling)
+Class C — the reviewed implementation will widen [Metal](../../../../glossary.md#term-metal) capability for six convolution/[pooling](../../../../glossary.md#term-pooling)
 kinds, add exact custom-[kernel](../../../../glossary.md#kernel) execution, expand the authenticated Conv1d/[Pool1d composition](../../../../glossary.md#pool1d-composition)
 boundary, advance private route [identities](../../../../glossary.md#term-identity-meanings), change public [Engine](../../../../glossary.md#term-engine) behavior, and update current
 [backend](../../../../glossary.md#backend) documentation. [Scaled dot-product attention](../../../../glossary.md#scaled-dot-product-attention) and convolution [transpose](../../../../glossary.md#term-transpose) remain [fail-closed](../../../../glossary.md#term-fail-closed)
@@ -71,10 +71,10 @@ The [schema](../../../../glossary.md#term-schema)-15 attribute grammar already c
 Type wires remain exactly `1..6`: FLOAT32 `1`, [INT32](../../../../glossary.md#data-type--datatype) `2`, BOOL `3`, [FLOAT64](../../../../glossary.md#term-float64) `4`, [BFLOAT16](../../../../glossary.md#term-bfloat16) `5`, and
 [INT64](../../../../glossary.md#data-type--datatype) `6`. Only floating carriers are Model-legal for the seven family rows.
 
-No Model [operation](../../../../glossary.md#operation) kind, registry row, attribute, [Tensor](../../../../glossary.md#tensor) overload, [Compiler](../../../../glossary.md#term-compiler) [inference](../../../../glossary.md#term-inference) row, or native
+No Model [operation](../../../../glossary.md#operation) kind, registry row, attribute, [Tensor](../../../../glossary.md#tensor) overload, [Compiler](../../../../glossary.md#term-compiler) inference row, or native
 wire named `CONV_TRANSPOSE` exists. `ConvolutionGradientRules` deliberately reconstructs Conv2d
 input cotangents with `UNFOLD2D`/[`MATMUL`](../../../../glossary.md#matrix-multiplication--matmul)/`FOLD2D` and states that it introduces no transposed-
-[convolution](../../../../glossary.md#term-channels-first-convolution-layers) or backward-only kind. Task 0064 must not reserve a wire, [alias](../../../../glossary.md#aliasing-and-arena) `CONV2D`, or invent a
+convolution or backward-only kind. Task 0064 must not reserve a wire, [alias](../../../../glossary.md#aliasing-and-arena) `CONV2D`, or invent a
 [backend](../../../../glossary.md#backend)-private public semantic. A future transposed-convolution operation requires a Model task,
 [shape](../../../../glossary.md#shape)/type semantics, Compiler adoption, a new registry/schema decision, and its own reviewed Metal
 plan.
@@ -91,7 +91,7 @@ Related existing rows are dependencies or callers, not new family kinds:
   attribute wire 33. Attention has no dropout field or implicit RNG state, so fused attention
   dropout is outside the current Model contract.<span data-glossary-navigation="true"> ([RNG state glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [fused glossary](../../../../glossary.md#specialization-and-fusion))</span>
 
-### Exact [convolution](../../../../glossary.md#term-channels-first-convolution-layers) production domain
+### Exact convolution production domain
 
 Admit [`CONV2D`](../../../../glossary.md#convolution--conv2d) and [`CONV3D`](../../../../glossary.md#conv3d--ncdhw) only under [`ACCELERATOR`](../../../../glossary.md#term-accelerator) when all of the following hold:
 
@@ -133,7 +133,7 @@ strict [subnormal](../../../../glossary.md#term-subnormal)/rounding contract and
 
 For all four pooling kinds, require [rank](../../../../glossary.md#term-rank)-four [NCHW](../../../../glossary.md#term-nchw) or rank-five [NCDHW](../../../../glossary.md#conv3d--ncdhw), same input/output type, exact
 [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/[channel](../../../../glossary.md#term-channel) [identity](../../../../glossary.md#term-identity-meanings), fully static positive [Shapes](../../../../glossary.md#shape), exact derived output Shape, fresh [canonical](../../../../glossary.md#term-canonical-form)
-output, and the same checked [layout](../../../../glossary.md#layout)/[alias](../../../../glossary.md#aliasing-and-arena) rules as [convolution](../../../../glossary.md#term-channels-first-convolution-layers). Pool2d additionally accepts only the
+output, and the same checked [layout](../../../../glossary.md#layout)/[alias](../../../../glossary.md#aliasing-and-arena) rules as convolution. Pool2d additionally accepts only the
 authenticated direct local [singleton](../../../../glossary.md#term-singleton)-height `EXPAND_DIMS(axis=2)` [view](../../../../glossary.md#term-view-meanings) used by public Pool1d; [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling)
 accepts canonical input only.
 
@@ -167,7 +167,7 @@ Before capability returns true, checked `long`/[`uint64_t`](../../../../glossary
 - every dimension, stride, dilation, padding, group count, channel-per-group count, effective kernel,
   padded extent, output extent, kernel volume, convolution contributor count, element count,
   canonical stride, direct-view stride, logical coordinate, linear element index, custom thread
-  count, and one-dimensional grid width is representable without narrowing or signed overflow;<span data-glossary-navigation="true"> ([dilation glossary](../../../../glossary.md#term-dilation); [padding glossary](../../../../glossary.md#padding); [channel glossary](../../../../glossary.md#term-channel); [kernel glossary](../../../../glossary.md#kernel); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [canonical glossary](../../../../glossary.md#term-canonical-form); [view glossary](../../../../glossary.md#term-view-meanings); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [linear glossary](../../../../glossary.md#term-linear-meanings); [narrowing glossary](../../../../glossary.md#term-narrowing); [overflow glossary](../../../../glossary.md#term-overflow))</span>
+  count, and one-dimensional grid width is representable without narrowing or signed overflow;<span data-glossary-navigation="true"> ([dilation glossary](../../../../glossary.md#term-dilation); [padding glossary](../../../../glossary.md#padding); [channel glossary](../../../../glossary.md#term-channel); [kernel glossary](../../../../glossary.md#kernel); [canonical glossary](../../../../glossary.md#term-canonical-form); [view glossary](../../../../glossary.md#term-view-meanings); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [linear glossary](../../../../glossary.md#term-linear-meanings); [narrowing glossary](../../../../glossary.md#term-narrowing); [overflow glossary](../../../../glossary.md#term-overflow))</span>
 - positive [dimensions](../../../../glossary.md#dimension)/counts/extents/attributes are in `1..UINT32_MAX`, padding and derived
   zero-based coordinates/indices are in `0..UINT32_MAX`, and every access index is strictly below
   its governing count/extent. Signed window origins may be negative but must fit checked signed
@@ -207,7 +207,7 @@ Every admitted [node](../../../../glossary.md#node) dispatches one one-dimension
   the input value or literal positive zero, and performs one fixed accumulation plus one division
   by the FLOAT32 kernel volume. It separately tracks whether every position is in-bounds raw
   negative zero and applies the exact final zero-sign rule. No scratch, atomic, reduction pass,
-  host calculation, or data-dependent route exists.<span data-glossary-navigation="true"> ([negative zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [host glossary](../../../../glossary.md#term-host))</span>
+  host calculation, or data-dependent route exists.<span data-glossary-navigation="true"> ([negative zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [host glossary](../../../../glossary.md#term-host))</span>
 
 Use the [schema](../../../../glossary.md#term-schema)'s authenticated [layout](../../../../glossary.md#layout) [strides](../../../../glossary.md#term-stride) only for [canonical](../../../../glossary.md#term-canonical-form) storage and the exact Conv1d/
 Pool1d [singleton](../../../../glossary.md#term-singleton) [view](../../../../glossary.md#term-view-meanings) above. [Kernel](../../../../glossary.md#kernel) [metadata](../../../../glossary.md#term-metadata) must not trust Java-derived output [dimensions](../../../../glossary.md#dimension),
@@ -229,7 +229,7 @@ Keep every existing MPSGraph catalog state and reason unchanged as structural [m
   shape-dependent contraction tree, per-step rounding, FMA placement, DAZ/FTZ behavior, padding-
   times-infinity participation, bias placement, or the complete admitted geometry. Historical<span data-glossary-navigation="true"> ([Conv2d glossary](../../../../glossary.md#convolution--conv2d); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [NCHW glossary](../../../../glossary.md#term-nchw); [descriptor glossary](../../../../glossary.md#term-descriptor); [contraction glossary](../../../../glossary.md#contraction-dimension); [rounding glossary](../../../../glossary.md#term-rounding); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [DAZ glossary](../../../../glossary.md#term-daz); [FTZ glossary](../../../../glossary.md#term-ftz); [padding glossary](../../../../glossary.md#padding); [infinity glossary](../../../../glossary.md#term-infinity); [bias glossary](../../../../glossary.md#term-bias))</span>
   [Task 0031](0031-accelerator-canonical-float32-unbiased-conv2d-forward.md) correctly rejected
-  inference from one geometry. Optional bias is also outside its audited direct mapping.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference))</span>
+  inference from one geometry. Optional bias is also outside its audited direct mapping.
 - The direct Pool2d maximum selector failed historical
   [Task 0030](0030-profile-common-exact-canonical-float32-max-pool2d-forward.md): it returned
   negative zero for <span data-glossary-navigation="true"> ([negative zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>`[+0,-0]` and [finite](../../../../glossary.md#term-finite) `3.0` for every NaN pair. That is a Model-visible exact
@@ -289,7 +289,7 @@ ignore or default.
 
 ### [Compiler](../../../../glossary.md#term-compiler) [gradients](../../../../glossary.md#term-gradient) and public callers
 
-[Model](../../../../glossary.md#term-model) and public [Tensor](../../../../glossary.md#tensor) sources remain unchanged. Compiler [convolution](../../../../glossary.md#term-channels-first-convolution-layers) and [pooling](../../../../glossary.md#term-pooling) formulas add
+[Model](../../../../glossary.md#term-model) and public [Tensor](../../../../glossary.md#tensor) sources remain unchanged. Compiler convolution and [pooling](../../../../glossary.md#term-pooling) formulas add
 only explicit [`CONTIGUOUS`](../../../../glossary.md#term-contiguous) expression [nodes](../../../../glossary.md#node) at [canonical](../../../../glossary.md#term-canonical-form) primitive boundaries, and [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling)
 constructibility [preflight](../../../../glossary.md#term-preflight) recognizes the resulting semantic [descriptor](../../../../glossary.md#term-descriptor); no [operation](../../../../glossary.md#operation), gradient
 meaning, public [API](../../../../glossary.md#term-application-programming-interface-api), or [backend](../../../../glossary.md#backend)-specific compiler branch is added. The implementation audited
@@ -305,7 +305,7 @@ Forward capability and complete [derivative](../../../../glossary.md#term-deriva
   roles are no-grad and any input-gradient fold has non-overlapping windows. These are the maximal
   current primitive-closed cases by source inspection. Joint gradient-bearing source roles,
   overlapping folds, and BFLOAT16 normalization remain explicit negative cases unless a separate
-  reviewed primitive-domain plan closes them.<span data-glossary-navigation="true"> ([accelerator glossary](../../../../glossary.md#term-accelerator); [checkpoints glossary](../../../../glossary.md#term-checkpoint); [cotangent glossary](../../../../glossary.md#cotangent); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [normalization glossary](../../../../glossary.md#term-normalization))</span>
+  reviewed primitive-domain plan closes them.<span data-glossary-navigation="true"> ([accelerator glossary](../../../../glossary.md#term-accelerator); [cotangent glossary](../../../../glossary.md#cotangent); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [normalization glossary](../../../../glossary.md#term-normalization))</span>
 - [Conv3d](../../../../glossary.md#conv3d--ncdhw) remains forward-only because `AutogradPreflight` rejects every Conv3d occurrence before
   derivative allocation until Compiler task 0006C. Task 0064 must preserve and publicly prove that
   rejection while admitting the forward occurrence.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
@@ -344,7 +344,7 @@ Public [Engine](../../../../glossary.md#term-engine) proof must use only the pac
   retain their direct structural reasons; Pool3d retains its composed reason; attention retains its
   direct-base reason. Catalog structure is not selector authorization.<span data-glossary-navigation="true"> ([Pool3d glossary](../../../../glossary.md#pool3d--ncdhw-pooling))</span>
 - Add `CA_0064`, change exactly the six convolution/pooling custom rows from pending to available,
-  and produce custom catalog <span data-glossary-navigation="true"> ([convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [pooling glossary](../../../../glossary.md#term-pooling))</span>`58 AVAILABLE / 57 PENDING / 0 UNAVAILABLE-WITH-PROOF`. Attention
+  and produce custom catalog <span data-glossary-navigation="true"> ([pooling glossary](../../../../glossary.md#term-pooling))</span>`58 AVAILABLE / 57 PENDING / 0 UNAVAILABLE-WITH-PROOF`. Attention
   remains `PENDING / CP_CONTRACT`.
 - Keep schema 15, [ABI](../../../../glossary.md#term-application-binary-interface-abi) 5, type wires `1..6`, [operation](../../../../glossary.md#operation) wires `1..115`, attribute wires `0..41`, route
   wires `1..3`, image grammar, generic multi-output records, and thirteen exports. Advance workload-
@@ -368,7 +368,7 @@ The provable cutover is exactly:
 
 Remain explicitly blocked:
 
-- all attention forms and gradients; every [convolution](../../../../glossary.md#term-channels-first-convolution-layers) [transpose](../../../../glossary.md#term-transpose) form; [fused](../../../../glossary.md#specialization-and-fusion) attention [dropout](../../../../glossary.md#dropout--inverted-dropout);
+- all attention forms and gradients; every convolution [transpose](../../../../glossary.md#term-transpose) form; [fused](../../../../glossary.md#specialization-and-fusion) attention [dropout](../../../../glossary.md#dropout--inverted-dropout);
 - strict convolution/average FLOAT32, convolution FLOAT64 or BFLOAT16 result, average FLOAT64 or
   BFLOAT16, mixed convolution gradients, Conv3d gradients, maximum-pool gradients, and any
   overlap-accumulating generated fold;
@@ -379,7 +379,7 @@ Remain explicitly blocked:
   retry, fallback, timing, autotuning, cache winner, performance claim, or a Task-0053 workaround.<span data-glossary-navigation="true"> ([MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [host glossary](../../../../glossary.md#term-host); [validation glossary](../../../../glossary.md#term-validation); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [cache glossary](../../../../glossary.md#term-cache))</span>
 
 If implementation needs another [carrier](../../../../glossary.md#term-storage-carrier), profile, [layout](../../../../glossary.md#layout), gradient primitive [widening](../../../../glossary.md#term-widening), numerical
-freedom, [schema](../../../../glossary.md#term-schema) field, [ABI](../../../../glossary.md#term-application-binary-interface-abi) export, 64-bit/multidimensional [dispatch](../../../../glossary.md#term-dispatch), scratch/[atomic](../../../../glossary.md#resource-transaction-and-rollback) route, or [runtime](../../../../glossary.md#term-runtime)
+freedom, [schema](../../../../glossary.md#term-schema) field, [ABI](../../../../glossary.md#term-application-binary-interface-abi) export, 64-bit/multidimensional [dispatch](../../../../glossary.md#term-dispatch), scratch/atomic route, or [runtime](../../../../glossary.md#term-runtime)
 choice, stop for a new independently reviewed plan rather than [narrowing](../../../../glossary.md#term-narrowing) or silently changing this
 one.
 
@@ -455,7 +455,7 @@ Expected implementation [owners](../../../../glossary.md#term-owner):
   allocation-free exact-`UINT32_MAX` and one-past/product/[stride](../../../../glossary.md#term-stride)/span rejection parity;
 - existing Compiler convolution/pooling/attention contract suites, Metal conformance, and a
   dedicated CPU-free Engine Metal integration for direct 1D/2D/3D forward, bounded generated
-  gradients, exclusions, reuse, and sessions; and<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [pooling glossary](../../../../glossary.md#term-pooling); [conformance glossary](../../../../glossary.md#term-conformance); [CPU glossary](../../../../glossary.md#term-cpu); [Engine glossary](../../../../glossary.md#term-engine); [gradients glossary](../../../../glossary.md#term-gradient))</span>
+  gradients, exclusions, reuse, and sessions; and<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [pooling glossary](../../../../glossary.md#term-pooling); [conformance glossary](../../../../glossary.md#term-conformance); [CPU glossary](../../../../glossary.md#term-cpu); [Engine glossary](../../../../glossary.md#term-engine); [gradients glossary](../../../../glossary.md#term-gradient))</span>
 - Metal/backend/native guides, public API scope/capability/preparer status, targeted glossary and
   architecture identity claims, this brief, master plan, and roadmap after behavior stabilizes.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [scope glossary](../../../../glossary.md#term-scope))</span>
 
@@ -484,7 +484,7 @@ The [planning](../../../../glossary.md#term-planning)-only revision changes exac
    average-pool gradients, and every named early-failure boundary without skip or CPU fallback.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [Metal glossary](../../../../glossary.md#term-metal); [Engine glossary](../../../../glossary.md#term-engine); [bias glossary](../../../../glossary.md#term-bias); [Conv2d glossary](../../../../glossary.md#convolution--conv2d))</span>
 8. Attention one/two-output, mask/causal/scale, gradients, dropout claim, Conv3d/max-pool blocked
    gradients, convolution transpose, strict/missing carriers, overlap, malformed, and one-past
-   domains stay visibly fail-closed.<span data-glossary-navigation="true"> ([mask glossary](../../../../glossary.md#term-boolean-mask); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [transpose glossary](../../../../glossary.md#term-transpose); [fail-closed glossary](../../../../glossary.md#term-fail-closed))</span>
+   domains stay visibly fail-closed.<span data-glossary-navigation="true"> ([mask glossary](../../../../glossary.md#term-boolean-mask); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [transpose glossary](../../../../glossary.md#term-transpose); [fail-closed glossary](../../../../glossary.md#term-fail-closed))</span>
 9. Native/package, complete Metal, conformance, dedicated Engine, Javadoc, architecture, Markdown/
    link/diff checks pass; independent cumulative Class C review has no unresolved P0/P1/P2.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 
@@ -514,7 +514,7 @@ full repository test/build commands close the implementation after the Compiler 
 
 ## Documentation and review impact
 
-Implementation must update every current capability/count/[identity](../../../../glossary.md#term-identity-meanings)/[convolution](../../../../glossary.md#term-channels-first-convolution-layers)/[pooling](../../../../glossary.md#term-pooling)/attention
+Implementation must update every current capability/count/[identity](../../../../glossary.md#term-identity-meanings)/convolution/[pooling](../../../../glossary.md#term-pooling)/attention
 statement and describe only the exact bounded domains above. Public/[backend](../../../../glossary.md#backend)/native/[Javadoc](../../../../glossary.md#term-javadoc) wording
 must name profile/type/[layout](../../../../glossary.md#layout)/[gradient](../../../../glossary.md#term-gradient) boundaries, literal ceil and fixed-divisor behavior, raw max
 winner rules, pre-resource failure, direct-selector exclusion, attention/ConvTranspose blockers,
@@ -529,7 +529,7 @@ evidence may be reused unless remediation changes executable behavior.
 
 ## [Planning](../../../../glossary.md#term-planning) result
 
-The implemented maximal cutover is six fixed custom [convolution](../../../../glossary.md#term-channels-first-convolution-layers)/[pooling](../../../../glossary.md#term-pooling) rows, not attention.
+The implemented maximal cutover is six fixed custom convolution/[pooling](../../../../glossary.md#term-pooling) rows, not attention.
 Attention remains blocked on the unproved exponential/[softmax](../../../../glossary.md#softmax--log-softmax) numerical core and incomplete [opaque](../../../../glossary.md#term-opaque)
 selector/output contract; convolution [transpose](../../../../glossary.md#term-transpose) remains blocked before [Metal](../../../../glossary.md#term-metal) because no [Model](../../../../glossary.md#term-model) or
 [registry](../../../../glossary.md#term-registry) contract exists. Production is now `81/34` capability and `99/16` structural execution;

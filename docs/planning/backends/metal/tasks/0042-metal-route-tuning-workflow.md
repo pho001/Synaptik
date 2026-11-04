@@ -34,7 +34,7 @@ repository-wide build after focused [validation](../../../../glossary.md#term-va
 
 Connect the existing version-twelve [Metal](../../../../glossary.md#term-metal) [singleton](../../../../glossary.md#term-singleton)-`NEG` route candidate and decision foundation to
 the current public [model](../../../../glossary.md#term-model)-[autotuning](../../../../glossary.md#autotuning--model-autotuning) workflow without exposing Metal-private route values, moving
-selection into shared layers, changing the public request/result [shape](../../../../glossary.md#shape), or claiming persistent Metal
+selection into shared layers, changing the public request/result shape, or claiming persistent Metal
 reuse.
 
 The complete supported flow is:
@@ -264,7 +264,7 @@ unchanged.
 
 [`ModelAutotuningConfig`](../../../../glossary.md#model-autotuning-request-facade--modelautotuningconfig), `ModelAutotuningRequest`, `ModelAutotuningPreparation`, `Engine`, and their
 public methods/records/enums remain source-contract compatible. A Metal `TUNED` result carries the
-existing public evidence [shape](../../../../glossary.md#shape): one Phase-1 workload with two measured candidates and one measured
+existing public evidence shape: one Phase-1 workload with two measured candidates and one measured
 [complete-plan candidate](../../../../glossary.md#complete-plan-candidate).
 
 ## Non-goals
@@ -344,7 +344,7 @@ Expected production surface:
 
 Expected focused tests:
 
-- add [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) fake-native `MetalLocalWorkloadTuningTest` and `MetalCompletePlanTuningTest` coverage;
+- add lean fake-native `MetalLocalWorkloadTuningTest` and `MetalCompletePlanTuningTest` coverage;
 - update `ModelAutotuningCompositionTest` and `CompletePlanAutotuningCompositionTest` only for the
   backend-neutral private seam and CPU identity/behavior regression;<span data-glossary-navigation="true"> ([regression glossary](../../../../glossary.md#term-regression))</span>
 - add one focused public scenario to `EngineExplicitCompositionMetalIntegrationTest`.
@@ -383,7 +383,7 @@ Do not rewrite unrelated historical evidence.
    public behavior.<span data-glossary-navigation="true"> ([persistence glossary](../../../../glossary.md#term-persistence); [scope glossary](../../../../glossary.md#term-scope))</span>
 8. Existing public [`ModelAutotuningConfig`](../../../../glossary.md#model-autotuning-request-facade--modelautotuningconfig) and `ModelAutotuningPreparation` signatures and invariants
    are unchanged. Metal evidence uses the existing two-phase shape and truthfully reports two local
-   measured rows plus one measured complete-plan row.<span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature); [shape glossary](../../../../glossary.md#shape))</span>
+   measured rows plus one measured complete-plan row.<span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature))</span>
 9. Every tuned trial and final preparation retains the integration's trace producer. Preparation
    and invocation events remain route-truthful and <span data-glossary-navigation="true"> ([trace glossary](../../../../glossary.md#trace))</span>`NOT_QUERIED`; tuning adds no [cache](../../../../glossary.md#term-cache)-status claim.
 10. No native source/export/ABI/node schema/wire, capability, numerical profile, route semantics,
@@ -476,7 +476,7 @@ second integration [matrix](../../../../glossary.md#term-matrix-meanings).
 Document the two retained [Metal](../../../../glossary.md#term-metal) collaborations, [opaque](../../../../glossary.md#term-opaque) values, exact eligibility, fixed Phase-2
 meaning, session-only reuse, generic workload-[cache](../../../../glossary.md#term-cache) read behavior, no Metal hit/[publication](../../../../glossary.md#term-publication),
 [model](../../../../glossary.md#term-model)-plan no-I/O behavior, [trace](../../../../glossary.md#trace) `NOT_QUERIED`, public [Engine](../../../../glossary.md#term-engine) [lifecycle](../../../../glossary.md#lifecycle), unchanged public request/
-result [shape](../../../../glossary.md#shape), and all exclusions. Replace current statements that Metal has no Engine/tools adapter
+result shape, and all exclusions. Replace current statements that Metal has no Engine/tools adapter
 or that `prepareTuned(...)` is universally [CPU](../../../../glossary.md#term-cpu)-only; retain CPU-only statements about
 `Engine.standard()` and `AdvancedEngine.takeOwnership(CpuBackendIntegration)`.
 

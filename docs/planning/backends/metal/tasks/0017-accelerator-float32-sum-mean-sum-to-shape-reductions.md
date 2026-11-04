@@ -75,7 +75,7 @@ the declared positive count under only the same row-scoped [DAZ](../../../../glo
 
 This is not an exact-real shortcut, fixed tree, [tolerance](../../../../glossary.md#term-tolerance), [ULP](../../../../glossary.md#term-unit-in-the-last-place-ulp) allowance, or generic fast math.
 Never use [host](../../../../glossary.md#term-host) rewrite, value-dependent fallback, route retry, reciprocal substitution, algebraic
-[identity](../../../../glossary.md#term-identity-meanings), reduced [precision](../../../../glossary.md#term-precision), cross-[node](../../../../glossary.md#node) [contraction](../../../../glossary.md#contraction-dimension), or special-value repair.
+[identity](../../../../glossary.md#term-identity-meanings), reduced [precision](../../../../glossary.md#term-precision), cross-[node](../../../../glossary.md#node) contraction, or special-value repair.
 
 ## Mandatory fresh disposable Apple M3 probe
 
@@ -129,7 +129,7 @@ term, Shape error, or control failure blocks 0017 without production/[schema](..
 
 ## Non-goals
 
-No strict or [masked reduction](../../../../glossary.md#masked-reduction); other reduction/[scan](../../../../glossary.md#term-cumulative-scan)/[MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/[convolution](../../../../glossary.md#term-channels-first-convolution-layers)/[scalar](../../../../glossary.md#term-scalar) family; custom
+No strict or [masked reduction](../../../../glossary.md#masked-reduction); other reduction/[scan](../../../../glossary.md#term-cumulative-scan)/[MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/convolution/[scalar](../../../../glossary.md#term-scalar) family; custom
 reduction [kernel](../../../../glossary.md#kernel); exact-real/[tolerance](../../../../glossary.md#term-tolerance) claim; [host](../../../../glossary.md#term-host) fallback/rewrite; [rank-zero](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) transfer; dynamic,
 zero-[extent](../../../../glossary.md#term-extent), or [view](../../../../glossary.md#term-view-meanings) [Shape](../../../../glossary.md#shape); other type; backward/training; packaging/discovery; or performance
 claim. [Metal](../../../../glossary.md#term-metal) 0016 and historical 0006–0007/0009–0013 remain Blocked; 0018 and [Model](../../../../glossary.md#term-model) 0026 remain
@@ -153,7 +153,7 @@ If this needs a shared semantic change, new export, [host](../../../../glossary.
 - Parallel group: None
 - Common base revision: `bcb717a6` plus this [planning](../../../../glossary.md#term-planning)-only authorization
 - Integration order: Serial; after 0019 and before 0018
-- Integration [validation](../../../../glossary.md#term-validation): [accelerator](../../../../glossary.md#term-accelerator) all-term Metal reduction [checkpoint](../../../../glossary.md#term-checkpoint)
+- Integration [validation](../../../../glossary.md#term-validation): [accelerator](../../../../glossary.md#term-accelerator) all-term Metal reduction checkpoint
 - Shared-document integration [owner](../../../../glossary.md#term-owner): task implementer, finalized by independent Class C review
 
 ## Files and symbols
@@ -169,7 +169,7 @@ If this needs a shared semantic change, new export, [host](../../../../glossary.
 
 1. The fresh M3 probe passes every [operation](../../../../glossary.md#operation)/form/[axis](../../../../glossary.md#term-axis)/keep-[dimensions](../../../../glossary.md#dimension)/[Shape](../../../../glossary.md#shape)/[reassociation](../../../../glossary.md#term-reassociation)-sensitive enumerated-set and control gate before edits; no [artifact](../../../../glossary.md#term-artifact) remains.
 2. Strict reductions stay false. [Accelerator](../../../../glossary.md#term-accelerator) adds exactly the declared [canonical](../../../../glossary.md#term-canonical-form) forms; malformed or wrong profile/type/[layout](../../../../glossary.md#layout)/[rank](../../../../glossary.md#term-rank)/Shape forms reject before native creation. Prior capability is unchanged.
-3. Every result belongs to the all-term [oracle](../../../../glossary.md#term-test-oracle); [identities](../../../../glossary.md#term-identity-meanings) keep bits and [MEAN](../../../../glossary.md#term-mean) uses the positive count. No exact-real shortcut, [tolerance](../../../../glossary.md#term-tolerance), [host](../../../../glossary.md#term-host) rewrite, value fallback, reduced [precision](../../../../glossary.md#term-precision), or term [loss](../../../../glossary.md#loss) exists.
+3. Every result belongs to the all-term [oracle](../../../../glossary.md#term-test-oracle); [identities](../../../../glossary.md#term-identity-meanings) keep bits and [MEAN](../../../../glossary.md#term-mean) uses the positive count. No exact-real shortcut, [tolerance](../../../../glossary.md#term-tolerance), [host](../../../../glossary.md#term-host) rewrite, value fallback, reduced [precision](../../../../glossary.md#term-precision), or term loss exists.
 4. [Schema](../../../../glossary.md#term-schema) 7/Java/native agree; [ABI](../../../../glossary.md#term-application-binary-interface-abi) v4 has thirteen exports. Deterministic version-eight [identity](../../../../glossary.md#term-identity-meanings) rejects version 7, cross-profile, malformed/corrupt/stale/unknown, and changed-Shape data.
 5. [Lifecycle](../../../../glossary.md#lifecycle) proof covers all forms/chains, direct [targets](../../../../glossary.md#term-target), [scalar](../../../../glossary.md#term-scalar)/positive-rank [publication](../../../../glossary.md#term-publication), reuse, [concurrency](../../../../glossary.md#term-concurrency), contexts/sessions, [rollback](../../../../glossary.md#term-rollback)/close, and four-byte [materialization](../../../../glossary.md#materialization). [Rank-zero](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) transfer still rejects before analysis; positive-rank transfer is unchanged.
 6. [CPU](../../../../glossary.md#term-cpu)-free [Engine](../../../../glossary.md#term-engine) selects accelerator, executes/materializes oracle-checked every-form results including scalar, reuses and independently opens sessions, and proves close rejection. Strict [Metal](../../../../glossary.md#term-metal)-only reduction fails [ownership](../../../../glossary.md#term-ownership-meanings) selection; no not-throw-only claim.
@@ -194,7 +194,7 @@ git diff --check
 
 Record probe totals/removal, exports, [schema](../../../../glossary.md#term-schema)/[identity](../../../../glossary.md#term-identity-meanings), test counts/skips, [scalar](../../../../glossary.md#term-scalar) bits, profile
 negatives, Markdown/link/anchor/fence/newline/whitespace, and [planning](../../../../glossary.md#term-planning) status/frontier evidence.
-The serial [checkpoint](../../../../glossary.md#term-checkpoint) owns one full build; review reruns it only for changed code or stale evidence.
+The serial checkpoint owns one full build; review reruns it only for changed code or stale evidence.
 
 ## Documentation and review impact
 

@@ -50,14 +50,14 @@ physical [materialization](../../../../glossary.md#materialization) in [canonica
 This work is independent of blocked 0006 and 0007. The five operations only reindex, repeat,
 insert, or remove logical [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) and must preserve represented [FLOAT32](../../../../glossary.md#term-float32) bits; none invokes
 [unary](../../../../glossary.md#term-unary) algebra, reduction, accumulation, division, or a reduction-derived count. The [Model](../../../../glossary.md#term-model) [operation](../../../../glossary.md#operation)
-and typed-attribute records already exist, [Compiler](../../../../glossary.md#term-compiler) [inference](../../../../glossary.md#term-inference) already validates their exact [Shapes](../../../../glossary.md#shape)
+and typed-attribute records already exist, [Compiler](../../../../glossary.md#term-compiler) inference already validates their exact [Shapes](../../../../glossary.md#shape)
 and [layouts](../../../../glossary.md#layout). Current architecture assigns [lowering](../../../../glossary.md#lowering), physical [materialization](../../../../glossary.md#materialization), and [MPSGraph](../../../../glossary.md#term-mpsgraph)
 resource [ownership](../../../../glossary.md#term-ownership) to [Metal](../../../../glossary.md#term-metal).
 
 `EXPAND` first-order backward uses `SUM_TO_SHAPE`, so blocked 0007 prevents a complete Metal-only
 backward claim for this family. Task 0008 is therefore a forward capability. It must build and
 inspect Compiler-generated [gradient](../../../../glossary.md#term-gradient) [graphs](../../../../glossary.md#graph) as a contract gate, but it must not claim executable
-Metal-only backward. The later [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) [checkpoint](../../../../glossary.md#term-checkpoint) is a separate successor and is not authorized by
+Metal-only backward. The later [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) checkpoint is a separate successor and is not authorized by
 this brief.
 
 ## Contracts
@@ -123,7 +123,7 @@ unchecked geometry.
 - `EXPAND_DIMS` inserts one [extent](../../../../glossary.md#term-extent)-one output [axis](../../../../glossary.md#term-axis) at the normalized position. `SQUEEZE` removes one
   selected input axis only when its static extent is exactly one.
 - Compiler inference retains the exact affine view geometry and deliberately excludes these results
-  from canonical logical-layout closure. Metal therefore must validate, not replace, that metadata.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [layout glossary](../../../../glossary.md#layout); [Metal glossary](../../../../glossary.md#term-metal); [metadata glossary](../../../../glossary.md#term-metadata))</span>
+  from canonical logical-layout closure. Metal therefore must validate, not replace, that metadata.<span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout); [Metal glossary](../../../../glossary.md#term-metal); [metadata glossary](../../../../glossary.md#term-metadata))</span>
 - Compiler [gradient](../../../../glossary.md#term-gradient) rules use inverse reshape/[permutation](../../../../glossary.md#permutation)/[rank](../../../../glossary.md#term-rank) edits and use `SUM_TO_SHAPE` for
   `EXPAND`. Gradient [graph](../../../../glossary.md#graph) construction and [descriptor](../../../../glossary.md#term-descriptor) inspection are required; execution is not.
 
@@ -140,7 +140,7 @@ Keep native [ABI](../../../../glossary.md#term-application-binary-interface-abi)
 Every unused field must have a required zero/sentinel value. Java and native [validation](../../../../glossary.md#term-validation) must agree
 on [operation](../../../../glossary.md#operation)/attribute pairing, rank, target dimensions, [axes](../../../../glossary.md#term-axis), permutation completeness, ordered
 inputs, one output, [topological](../../../../glossary.md#term-topological-order) value [identity](../../../../glossary.md#term-identity-meanings), and schema size. No variable object [graph](../../../../glossary.md#graph), generic
-integer [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), raw string, serialized map, hidden pointer, or dimensions repurposed as attrs may
+integer payload, raw string, serialized map, hidden pointer, or dimensions repurposed as attrs may
 cross the ABI.
 
 Use the current [SDK](../../../../glossary.md#term-sdk) typed selectors:
@@ -185,7 +185,7 @@ shared [aliasing](../../../../glossary.md#term-aliasing), or hidden fallback.
 ## Exact numerical and [shape](../../../../glossary.md#shape) gates
 
 Affine transforms perform no floating arithmetic. Every output [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) must preserve the exact
-32-bit [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) selected from its input. The real probe and production evidence compare [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity),
+32-bit payload selected from its input. The real probe and production evidence compare [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity),
 not [ULP](../../../../glossary.md#term-unit-in-the-last-place-ulp) distance, for:
 
 - positive and [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero);
@@ -213,7 +213,7 @@ creates one reusable [shape](../../../../glossary.md#shape)-specialized executab
 [run](../../../../glossary.md#term-run)-owned buffers/workspaces and share only [immutable](../../../../glossary.md#term-immutable) prepared resources.
 
 No [CPU](../../../../glossary.md#term-cpu) fallback, route retry, [graph](../../../../glossary.md#graph) inspection, per-node native invocation, hidden output copy,
-[Engine](../../../../glossary.md#term-engine) [lookup](../../../../glossary.md#term-lookup), async execution, [pooling](../../../../glossary.md#term-pooling), packaging, tuning integration, or custom Metal [kernel](../../../../glossary.md#kernel) is
+[Engine](../../../../glossary.md#term-engine) [lookup](../../../../glossary.md#term-lookup), async execution, pooling, packaging, tuning integration, or custom Metal [kernel](../../../../glossary.md#kernel) is
 allowed. Existing custom NEG behavior, resource cleanup, context child [leases](../../../../glossary.md#term-lease), [rollback](../../../../glossary.md#term-rollback),
 close/rejection, and exact [ABI](../../../../glossary.md#term-application-binary-interface-abi) exports remain unchanged.
 
@@ -243,7 +243,7 @@ close/rejection, and exact [ABI](../../../../glossary.md#term-application-binary
 
 - **Depends on:** Metal 0005; current Model affine operation/attribute and layout contracts;
   Compiler layout inference/autograd; Engine 0017; Compiler 0006B7 and 0006B11; Prepare 0008;
-  Runtime 0016. Metal 0006 and 0007 are explicitly not dependencies.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation); [layout glossary](../../../../glossary.md#layout); [Compiler glossary](../../../../glossary.md#term-compiler); [inference glossary](../../../../glossary.md#term-inference); [autograd glossary](../../../../glossary.md#autograd); [Engine glossary](../../../../glossary.md#term-engine); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
+  Runtime 0016. Metal 0006 and 0007 are explicitly not dependencies.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation); [layout glossary](../../../../glossary.md#layout); [Compiler glossary](../../../../glossary.md#term-compiler); [autograd glossary](../../../../glossary.md#autograd); [Engine glossary](../../../../glossary.md#term-engine); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - **Conflicts with:** Metal capability, preparation, native ABI/schema, candidate compatibility,
   Engine Metal materialization, and Metal documentation scopes; any shared aliasing or transfer
   work.<span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [schema glossary](../../../../glossary.md#term-schema); [materialization glossary](../../../../glossary.md#materialization); [aliasing glossary](../../../../glossary.md#term-aliasing))</span>

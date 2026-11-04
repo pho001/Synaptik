@@ -60,7 +60,7 @@ true only for the following explicitly proved [carrier](../../../../glossary.md#
 Every other source/[target](../../../../glossary.md#term-target) pair remains capability-false. In particular, floating narrowing,
 `FLOAT64` or `FLOAT32` [widening](../../../../glossary.md#term-widening)/conversion beyond the named pair, `BFLOAT16 -> FLOAT64`, and
 integer-to-floating conversions are blocked until independent per-pair proofs cover [rounding](../../../../glossary.md#term-rounding),
-[saturation](../../../../glossary.md#term-saturation), [signed zero](../../../../glossary.md#term-signed-zero), [subnormals](../../../../glossary.md#term-subnormal), [infinities](../../../../glossary.md#nan-infinity-and-signed-zero), and [NaN](../../../../glossary.md#term-nan) sign/quiet/[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) rules. No [MPSGraph](../../../../glossary.md#term-mpsgraph) cast
+[saturation](../../../../glossary.md#term-saturation), [signed zero](../../../../glossary.md#term-signed-zero), [subnormals](../../../../glossary.md#term-subnormal), [infinities](../../../../glossary.md#nan-infinity-and-signed-zero), and [NaN](../../../../glossary.md#term-nan) sign/quiet/payload rules. No [MPSGraph](../../../../glossary.md#term-mpsgraph) cast
 observation, sampled ordinary corpus, [tolerance](../../../../glossary.md#term-tolerance), or [host](../../../../glossary.md#term-host)-language cast authorizes them.
 
 The admitted CAST domain permits [canonical](../../../../glossary.md#term-canonical-form) dense static [rank](../../../../glossary.md#term-rank) `0..16`, all positive extents for
@@ -69,7 +69,7 @@ potentially [gradient](../../../../glossary.md#term-gradient)-bearing cast occur
 
 ### Gate B: exact read-only indexing
 
-Admit `GATHER_ELEMENTS` and `GATHER_ND` for exact raw [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) movement:
+Admit `GATHER_ELEMENTS` and `GATHER_ND` for exact raw payload movement:
 
 - data/output may use any of the six [schema](../../../../glossary.md#term-schema) carriers;
 - index [tensors](../../../../glossary.md#tensor) may use [`INT32`](../../../../glossary.md#data-type--datatype) or [`INT64`](../../../../glossary.md#data-type--datatype) exactly as [Model](../../../../glossary.md#term-model) permits;
@@ -143,7 +143,7 @@ The following remain capability-false under both profiles:
   replacement uniqueness, per-type reduction semantics, and gradient-bearing domains are not all
   proved by a single systematic route;<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient))</span>
 - `SLICE_UPDATE`, because functional replacement plus base/update gradient partition and overlap
-  obligations are not proved by the read-only copy kernel;<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [kernel glossary](../../../../glossary.md#kernel))</span>
+  obligations are not proved by the read-only copy kernel;<span data-glossary-navigation="true"> ([kernel glossary](../../../../glossary.md#kernel))</span>
 - `FOLD_AXIS`, `FOLD2D`, and `FOLD3D`, because overlap accumulation is arithmetic and inherits the
   duplicate/reduction result-set and gradient blockers; and
 - every otherwise exact new operation occurrence with gradient-bearing metadata, a dynamic or empty
@@ -210,7 +210,7 @@ compatibility reader.
 Native parsing independently validates every later attribute kind used here, [canonical](../../../../glossary.md#term-canonical-form) unused
 fields, counts, rank bounds, positive dimensions, signed attribute words, [carrier](../../../../glossary.md#term-storage-carrier) compatibility,
 complete Shape equations, [topology](../../../../glossary.md#term-topology), and route legality. Malformed schema and raw-ABI tests cover
-[truncation](../../../../glossary.md#term-truncation-toward-zero), wrong kinds/counts/types, invalid [axes](../../../../glossary.md#term-axis)/[batches](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/tuple depths/steps/windows/[scalars](../../../../glossary.md#term-scalar), excess
+truncation, wrong kinds/counts/types, invalid [axes](../../../../glossary.md#term-axis)/[batches](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/tuple depths/steps/windows/[scalars](../../../../glossary.md#term-scalar), excess
 [variadic](../../../../glossary.md#term-variadic) inputs, and illegal custom/[MPSGraph](../../../../glossary.md#term-mpsgraph) route mixing.
 
 Index bounds failures must map to the existing stable range failure without command submission or
@@ -225,7 +225,7 @@ immutability, and direct assigned-output publication.
 2. Add an independent CAST-pair proof/checker that does not share the production transform. It must
    exhaust both BOOL values and all 65,536 BFLOAT16 values for the admitted BFLOAT16 widening and
    BOOL target behavior, partition INT32/INT64 sign-extension/narrowing/zero behavior with exact
-   boundary and randomized full-word corroboration, and prove identity pairs by carrier-width copy.<span data-glossary-navigation="true"> ([BOOL glossary](../../../../glossary.md#data-type--datatype); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [widening glossary](../../../../glossary.md#term-widening); [target glossary](../../../../glossary.md#term-target); [partition glossary](../../../../glossary.md#partition); [INT32 glossary](../../../../glossary.md#data-type--datatype); [INT64 glossary](../../../../glossary.md#data-type--datatype); [narrowing glossary](../../../../glossary.md#term-narrowing); [identity glossary](../../../../glossary.md#term-identity-meanings); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+   boundary and randomized full-word corroboration, and prove identity pairs by carrier-width copy.<span data-glossary-navigation="true"> ([BOOL glossary](../../../../glossary.md#data-type--datatype); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [widening glossary](../../../../glossary.md#term-widening); [target glossary](../../../../glossary.md#term-target); [INT32 glossary](../../../../glossary.md#data-type--datatype); [INT64 glossary](../../../../glossary.md#data-type--datatype); [narrowing glossary](../../../../glossary.md#term-narrowing); [identity glossary](../../../../glossary.md#term-identity-meanings); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 3. Prove raw coordinate maps against an independent CPU/Model oracle across every admitted kind,
    every carrier width, scalar/rank boundaries, padding, batch/suffix gather, window
    padding/dilation/stride, variadic placement, and positive slice steps; separately prove that

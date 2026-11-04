@@ -118,7 +118,7 @@ PERMUTE [occurrence](../../../../glossary.md#term-occurrence) passes capability 
 no-gradient: vector-gradient promotion and [normalization](../../../../glossary.md#term-normalization)-to-BFLOAT16 lack complete [Metal](../../../../glossary.md#term-metal) closure.
 
 Public `Tensor.matmul`, batched biased/unbiased `Tensor.linear`, and seeded MATMUL gradients are in
-[scope](../../../../glossary.md#term-scope). [Compiler](../../../../glossary.md#term-compiler) MATMUL/attention/[convolution](../../../../glossary.md#term-channels-first-convolution-layers) gradient rules are audited callers, not new [owners](../../../../glossary.md#term-owner);
+[scope](../../../../glossary.md#term-scope). [Compiler](../../../../glossary.md#term-compiler) MATMUL/attention/convolution gradient rules are audited callers, not new [owners](../../../../glossary.md#term-owner);
 their higher-rank [nodes](../../../../glossary.md#node) qualify occurrence by occurrence. Attention wire `35`, complete composite
 backward, implicit seeding, [scalar](../../../../glossary.md#term-scalar)-[loss](../../../../glossary.md#loss) training, generic training, and [CPU](../../../../glossary.md#term-cpu)/[OpenBLAS](../../../../glossary.md#term-openblas) changes are out.
 
@@ -168,7 +168,7 @@ rule, stop for an architecture decision.
 ## Files and symbols
 
 - Audit: Model MATMUL/promotion and Compiler linear/attention/convolution gradient owners/tests; no
-  production edit absent a separately approved defect.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [linear glossary](../../../../glossary.md#term-linear-meanings); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [gradient glossary](../../../../glossary.md#term-gradient))</span>
+  production edit absent a separately approved defect.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [linear glossary](../../../../glossary.md#term-linear-meanings); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - [Metal](../../../../glossary.md#term-metal): capability, preparer/plan, [graph](../../../../glossary.md#graph)/catalog, Java [ABI](../../../../glossary.md#term-application-binary-interface-abi), route candidate/[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/[codec](../../../../glossary.md#term-codec), Javadocs.
 - Native: `synaptik_metal_foundation.m` and one focused [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) [kernel](../../../../glossary.md#kernel) header.
 - Proof: focused Metal tests, [backend](../../../../glossary.md#backend) [conformance](../../../../glossary.md#term-conformance), public [Engine](../../../../glossary.md#term-engine) integration.

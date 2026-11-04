@@ -1,4 +1,4 @@
-# Task 0003: Thread Control and Native Provider [Checkpoint](../../../../glossary.md#term-checkpoint)
+# Task 0003: Thread Control and Native Provider Checkpoint
 
 ## Reader context
 
@@ -21,7 +21,7 @@ thread-control, [FLOAT32](../../../../glossary.md#term-float32) [GEMM](../../../
 [native library](../../../../glossary.md#term-native-library).
 
 The Java [API](../../../../glossary.md#term-application-programming-interface-api) exposes native state without choosing a thread count or a [CPU](../../../../glossary.md#term-cpu) route. Ordinary tests
-remain deterministic and native-free. The real-native [checkpoint](../../../../glossary.md#term-checkpoint) is an explicit, isolated command
+remain deterministic and native-free. The real-native checkpoint is an explicit, isolated command
 that accepts one absolute library path from its caller and restores the observed prior thread count
 before exit.
 
@@ -55,7 +55,7 @@ inferred from OpenBLAS's context-free global utility symbols and documentation t
 not a per-[BLAS](../../../../glossary.md#term-blas)-call tuning control. It is not an OpenBLAS guarantee that independently loaded
 [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) copies, loader namespaces, or arbitrary native consumers share one coordinated state.
 
-The [checkpoint](../../../../glossary.md#term-checkpoint) belongs in this task because fake handles can prove Java [validation](../../../../glossary.md#term-validation) and exact [ABI](../../../../glossary.md#term-application-binary-interface-abi)
+The checkpoint belongs in this task because fake handles can prove Java [validation](../../../../glossary.md#term-validation) and exact [ABI](../../../../glossary.md#term-application-binary-interface-abi)
 forwarding but cannot prove that a supplied binary implements the bound ABI or produces the two
 selected numerical results. Keeping the checkpoint opt-in avoids making an installed OpenBLAS
 binary, native-access privilege, or platform-specific library location an ordinary test
@@ -74,7 +74,7 @@ prerequisite.
   restoration boundaries.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [concurrency glossary](../../../../glossary.md#term-concurrency); [race glossary](../../../../glossary.md#term-race))</span>
 - Add deterministic fake-handle unit tests that require no native access or installed library.
 - Add one test-source checkpoint launcher that consumes one caller-supplied absolute path, opens
-  the same compatible library twice, verifies shared observation, restores the prior count in a<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  the same compatible library twice, verifies shared observation, restores the prior count in a
   `finally` path, and checks the exact [SGEMM](../../../../glossary.md#general-matrix-multiplication--gemm)/[DGEMM](../../../../glossary.md#general-matrix-multiplication--gemm) cases and tolerances below.
 - Run the provider capability checkpoint, including repository and architecture tests, only when
   a caller or continuous-integration job supplies a compatible library and explicitly enables
@@ -131,7 +131,7 @@ Primary external contracts:
   and exact method-handle carriers.<span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [descriptors glossary](../../../../glossary.md#term-descriptor))</span>
 - [JDK 26 restricted methods](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/doc-files/RestrictedMethods.html)
   defines `--enable-native-access=ALL-UNNAMED` for this non-modular [Gradle](../../../../glossary.md#term-gradle) project and the
-  `--illegal-native-access` launch policy used by the [checkpoint](../../../../glossary.md#term-checkpoint).
+  `--illegal-native-access` launch policy used by the checkpoint.
 - [JDK 26 `Arena`](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/foreign/Arena.html)<span data-glossary-navigation="true"> ([Arena glossary](../../../../glossary.md#term-arena))</span>
   defines shared-arena cross-thread access, closure, and the failure possible when closure races a
   downcall.<span data-glossary-navigation="true"> ([downcall glossary](../../../../glossary.md#term-downcall))</span>
@@ -158,11 +158,11 @@ Primary external contracts:
 - [`OpenBlasLibrary`](../../../../glossary.md#openblas-library-handle--openblaslibrary) remains the only public lifetime owner. Thread operations consume its existing
   package-private bindings without exposing native handles.<span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime); [owner glossary](../../../../glossary.md#term-owner))</span>
 - Shared native state is not modeled as immutable prepared state or per-run state. CPU must later
-  coordinate any policy before invoking provider calls.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [run state glossary](../../../../glossary.md#run-state--runstate); [CPU glossary](../../../../glossary.md#term-cpu); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
+  coordinate any policy before invoking provider calls.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [run state glossary](../../../../glossary.md#run-state--runstate); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - Class initialization and ordinary tests perform no native [lookup](../../../../glossary.md#term-lookup) or invocation.
 - The checkpoint consumes an explicit caller argument. Production and ordinary tests must not
   discover or obtain a native library from an environment variable, system property, default
-  filename, platform branch, registry, cache, or service locator.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [argument glossary](../../../../glossary.md#term-argument); [native library glossary](../../../../glossary.md#term-native-library); [registry glossary](../../../../glossary.md#term-registry); [cache glossary](../../../../glossary.md#term-cache); [service locator glossary](../../../../glossary.md#term-service-locator))</span>
+  filename, platform branch, registry, cache, or service locator.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument); [native library glossary](../../../../glossary.md#term-native-library); [registry glossary](../../../../glossary.md#term-registry); [cache glossary](../../../../glossary.md#term-cache); [service locator glossary](../../../../glossary.md#term-service-locator))</span>
 - `legacy/pre-rewrite` remains read-only capability evidence and supplies no architecture,
   lifecycle, singleton, discovery, fallback, or API design.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [singleton glossary](../../../../glossary.md#term-singleton); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - If implementation requires another public type, another native symbol, a project dependency,
@@ -188,10 +188,10 @@ Type placement:
   translation without becoming policy or another native seam.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - `io.github.pho001.synaptik.backend.provider.openblas.OpenBlasNativeCheckpoint` — test-source-only
   command-line checkpoint in the same package so it can exercise the public surface while
-  remaining outside production and ordinary JUnit discovery.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [JUnit glossary](../../../../glossary.md#term-junit))</span>
+  remaining outside production and ordinary JUnit discovery.<span data-glossary-navigation="true"> ([JUnit glossary](../../../../glossary.md#term-junit))</span>
 
 Tests remain in the production package because they inject exact fake handles through the
-existing package-private [binding](../../../../glossary.md#term-binding) seam and lock the helper's visibility and [shape](../../../../glossary.md#shape).
+existing package-private [binding](../../../../glossary.md#term-binding) seam and lock the helper's visibility and shape.
 
 ## Exact public and package-private contracts
 
@@ -288,7 +288,7 @@ failure type is added.
   restore that choice. This task does not make thread control part of Runtime hot-path discovery
   or per-invocation route selection.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 
-## Explicit real-native [checkpoint](../../../../glossary.md#term-checkpoint) contract
+## Explicit real-native checkpoint contract
 
 ### Preconditions
 
@@ -303,7 +303,7 @@ failure type is added.
 - Native access is explicitly enabled for `ALL-UNNAMED`; `--illegal-native-access=deny` ensures
   that an accidental unenabled restricted operation fails instead of producing only a warning.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation))</span>
 
-### [Checkpoint](../../../../glossary.md#term-checkpoint) launcher
+### Checkpoint launcher
 
 `OpenBlasNativeCheckpoint.main(String[] args)` is test source, not a [JUnit](../../../../glossary.md#term-junit) test and not production
 [API](../../../../glossary.md#term-application-programming-interface-api). It accepts exactly one [argument](../../../../glossary.md#term-argument), requires it to form an absolute `Path`, and passes it
@@ -355,7 +355,7 @@ C expected = [31.0, 36.0,
               75.5, 85.0]
 ```
 
-The [checkpoint](../../../../glossary.md#term-checkpoint) allocates distinct native A, B, and C segments with the [precision](../../../../glossary.md#term-precision)'s natural
+The checkpoint allocates distinct native A, B, and C segments with the [precision](../../../../glossary.md#term-precision)'s natural
 [alignment](../../../../glossary.md#term-alignment), initializes them explicitly, invokes the existing public `sgemm` or `dgemm`, and
 checks every output [element](../../../../glossary.md#term-element). It accepts a value when:
 
@@ -387,7 +387,7 @@ Ordinary native-free [validation](../../../../glossary.md#term-validation) first
   :backends:openblas-provider:testClasses
 ```
 
-Then launch the explicitly supplied [checkpoint](../../../../glossary.md#term-checkpoint) from the repository root. `<JDK26>` and
+Then launch the explicitly supplied checkpoint from the repository root. `<JDK26>` and
 `<ABSOLUTE_OPENBLAS_LIBRARY>` are caller substitutions, not production [lookup](../../../../glossary.md#term-lookup) mechanisms:
 
 ```bash
@@ -411,7 +411,7 @@ Production:
 - add `backends/openblas-provider/src/main/java/io/github/pho001/synaptik/backend/provider/openblas/OpenBlasThreadControl.java`
 - modify `backends/openblas-provider/src/main/java/io/github/pho001/synaptik/backend/provider/openblas/package-info.java`
 
-Tests and [checkpoint](../../../../glossary.md#term-checkpoint):
+Tests and checkpoint:
 
 - modify `backends/openblas-provider/src/test/java/io/github/pho001/synaptik/backend/provider/openblas/OpenBlasLibraryPublicShapeTest.java`
 - add `backends/openblas-provider/src/test/java/io/github/pho001/synaptik/backend/provider/openblas/OpenBlasThreadControlTest.java`
@@ -440,7 +440,7 @@ source/tests, and generated output are review-only and must remain byte-for-byte
 At most 12 paths:
 
 - 3 provider production paths;
-- 4 provider test/[checkpoint](../../../../glossary.md#term-checkpoint) paths;
+- 4 provider test/checkpoint paths;
 - at most 2 explanatory documentation paths; and
 - 3 [planning](../../../../glossary.md#term-planning) paths.
 
@@ -475,7 +475,7 @@ planning correction or follow-up.
       library, and require no native-access launch option.
 - [x] The test-source checkpoint accepts exactly one explicit absolute path and contains no name
       selection, platform probing, property/environment lookup, download, packaging, fallback, or
-      alternate candidate.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+      alternate candidate.
 - [x] With a supplied compatible library and the exact native-access launch flags, the checkpoint
       verifies positive query, cross-owner shared observation at count `1`, the exact SGEMM/DGEMM
       values within the specified tolerances, and restoration/verification of the original count
@@ -485,7 +485,7 @@ planning correction or follow-up.
 - [x] Production remains JDK-only with zero project dependencies and contains no CPU, config,
       route, fallback, tuning, Tensor, Prepare, Runtime, discovery, or global-coordination logic.<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [CPU glossary](../../../../glossary.md#term-cpu); [Tensor glossary](../../../../glossary.md#tensor); [Prepare glossary](../../../../glossary.md#prepare))</span>
 - [x] Existing task-0001 loading/binding and task-0002 GEMM contracts/tests remain unchanged except
-      for the narrowly authorized public-shape and ABI-test extensions.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [shape glossary](../../../../glossary.md#shape); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
+      for the narrowly authorized public-shape and ABI-test extensions.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
 - [x] CPU code, Gradle/root/settings, architecture files/tests, backend conformance, integration,
       native packaging, completed task files, and generated outputs remain unchanged.<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - [x] A separate clean documentation-focused agent finalizes Javadocs, CPU guide, glossary impact,
@@ -502,7 +502,7 @@ planning correction or follow-up.
 
 Focused development tests must cover:
 
-- exact public methods and package-private helper visibility/stateless [shape](../../../../glossary.md#shape);
+- exact public methods and package-private helper visibility/stateless shape;
 - exact existing getter/setter handle types and exact invocation carriers;
 - closed-[owner](../../../../glossary.md#term-owner) precedence over setter validation;
 - `Integer.MIN_VALUE`, `-1`, and `0` rejection plus positive boundary/value forwarding;
@@ -523,7 +523,7 @@ affected-[module](../../../../glossary.md#term-module) command:
 ./gradlew :backends:openblas-provider:test
 ```
 
-It then compiles the [checkpoint](../../../../glossary.md#term-checkpoint) if necessary and runs the exact explicit real-native command from
+It then compiles the checkpoint if necessary and runs the exact explicit real-native command from
 the checkpoint contract with the caller/[CI](../../../../glossary.md#term-continuous-integration-ci)-supplied compatible library. Missing native input is a
 blocked checkpoint, not a skipped passing test and not permission to discover a library.
 
@@ -568,7 +568,7 @@ whitespace.
 - One caller/CI-supplied compatible OpenBLAS shared library — required only to complete the
   explicit native checkpoint, not ordinary unit tests or production discovery.<span data-glossary-navigation="true"> ([CI glossary](../../../../glossary.md#term-continuous-integration-ci))</span>
 
-No [CPU](../../../../glossary.md#term-cpu) implementation task may begin before this provider task and [checkpoint](../../../../glossary.md#term-checkpoint) are Complete.
+No [CPU](../../../../glossary.md#term-cpu) implementation task may begin before this provider task and checkpoint are Complete.
 
 ## Follow-up tasks
 
@@ -597,10 +597,10 @@ The separate documentation-focused pass must:
 
 - finalize [`OpenBlasLibrary`](../../../../glossary.md#openblas-library-handle--openblaslibrary), `OpenBlasThreadControl`, and package Javadocs for exact thread-count
   values, validation, failures, the conservative shared-state inference, multiple owners,
-  lifecycle, concurrency, restoration, and CPU-policy boundaries;<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [inference glossary](../../../../glossary.md#term-inference); [lifecycle glossary](../../../../glossary.md#lifecycle); [concurrency glossary](../../../../glossary.md#term-concurrency); [CPU glossary](../../../../glossary.md#term-cpu))</span>
+  lifecycle, concurrency, restoration, and CPU-policy boundaries;<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [lifecycle glossary](../../../../glossary.md#lifecycle); [concurrency glossary](../../../../glossary.md#term-concurrency); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - update the CPU backend guide to mark loading/binding, low-level GEMM, thread control, and the
   explicit native provider checkpoint current while keeping CPU capability, route, fallback,
-  storage, prepare, and execution work planned;<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [binding glossary](../../../../glossary.md#term-binding); [GEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [prepare glossary](../../../../glossary.md#prepare))</span>
+  storage, prepare, and execution work planned;<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [binding glossary](../../../../glossary.md#term-binding); [GEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm); [prepare glossary](../../../../glossary.md#prepare))</span>
 - update the glossary only if the final change introduces or changes a reusable project term;
   otherwise record why the existing OpenBLAS library-handle/GEMM entries and ordinary shared-
   state language are sufficient;<span data-glossary-navigation="true"> ([OpenBLAS glossary](../../../../glossary.md#term-openblas))</span>
@@ -666,7 +666,7 @@ mark the provider milestone Complete. Do not create a CPU task file.
   shared native setting and cannot exclude independent writers.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span>
 - Use one explicit non-JUnit test-source launcher rather than a Gradle property or environment-
   gated test. A missing library is then a visible checkpoint precondition, never a skipped
-  ordinary test.<span data-glossary-navigation="true"> ([JUnit glossary](../../../../glossary.md#term-junit); [Gradle glossary](../../../../glossary.md#term-gradle); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  ordinary test.<span data-glossary-navigation="true"> ([JUnit glossary](../../../../glossary.md#term-junit); [Gradle glossary](../../../../glossary.md#term-gradle))</span>
 - Verify two owners and restore in an isolated process because that is the smallest honest check
   of the shared-state contract without claiming coordination with arbitrary native consumers.
 - Use one nontrivial alpha/beta row-major case per precision. It exercises both inputs, existing
@@ -676,7 +676,7 @@ mark the provider milestone Complete. Do not create a CPU task file.
 ## Known limitations
 
 - The provider cannot make a query/set pair atomic or coordinate another Java class loader,
-  native caller, OpenMP runtime, or application component using the same OpenBLAS binary.<span data-glossary-navigation="true"> ([atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [runtime glossary](../../../../glossary.md#term-runtime); [OpenBLAS glossary](../../../../glossary.md#term-openblas); [binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata))</span>
+  native caller, OpenMP runtime, or application component using the same OpenBLAS binary.<span data-glossary-navigation="true"> ([atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [OpenBLAS glossary](../../../../glossary.md#term-openblas); [binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata))</span>
 - `close()` cannot safely race a thread-control or GEMM invocation and does not undo shared native
   state.<span data-glossary-navigation="true"> ([race glossary](../../../../glossary.md#term-race); [GEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm))</span>
 - The setter is not a per-call tuning control. A coordinating caller must install a choice only
@@ -685,7 +685,7 @@ mark the provider milestone Complete. Do not create a CPU task file.
   does not bind local-thread, version, build-config, processor-count, or parallel-mode functions.
 - The native checkpoint proves only one supplied binary, process, ABI, shared-state observation,
   and two small finite GEMM cases. It does not establish general numerical conformance,
-  determinism, performance, packaging compatibility, or support for another OpenBLAS build.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [finite glossary](../../../../glossary.md#term-finite); [conformance glossary](../../../../glossary.md#term-conformance))</span>
+  determinism, performance, packaging compatibility, or support for another OpenBLAS build.<span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [finite glossary](../../../../glossary.md#term-finite); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - Completing the task requires a caller/CI-supplied compatible shared library and native-access
   permission. Ordinary development remains native-free, but the provider milestone cannot be
   marked Complete without the explicit checkpoint evidence.<span data-glossary-navigation="true"> ([CI glossary](../../../../glossary.md#term-continuous-integration-ci))</span>
@@ -697,7 +697,7 @@ mark the provider milestone Complete. Do not create a CPU task file.
   `OpenBlasThreadControlTest.rejectsNonPositiveGetterResults`. Production compiled; the test fake
   incorrectly used `MethodHandle.bindTo` with a primitive `int`. After correcting only that fake
   handle construction, the same command passed 48 tests with zero failures. Two checkpoint tests
-  were then added before the final recorded module run below.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [module glossary](../../../../glossary.md#term-module); [run glossary](../../../../glossary.md#term-run))</span>
+  were then added before the final recorded module run below.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [run glossary](../../../../glossary.md#term-run))</span>
 - Implementation context `/root/task_0003_impl` ran the final ordinary command
   `./gradlew :backends:openblas-provider:test`: passed 5 suites and 50 tests with zero skips,
   failures, or errors (`OpenBlasAbiContractTest` 9, `OpenBlasGemmInvocationTest` 17,
@@ -783,7 +783,7 @@ mark the provider milestone Complete. Do not create a CPU task file.
   helper using the already-bound exact handles.<span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime); [owner glossary](../../../../glossary.md#term-owner); [bindings glossary](../../../../glossary.md#term-binding))</span>
 - Added deterministic fake-handle coverage for value forwarding, validation order, native-result
   checking, throwable translation, multiple-owner observation, concurrency boundaries, no close
-  restoration, and checkpoint argument/suppression behavior.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [concurrency glossary](../../../../glossary.md#term-concurrency); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [argument glossary](../../../../glossary.md#term-argument))</span>
+  restoration, and checkpoint argument/suppression behavior.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [concurrency glossary](../../../../glossary.md#term-concurrency); [argument glossary](../../../../glossary.md#term-argument))</span>
 - Added the test-source argument-driven native checkpoint with explicit restoration and the fixed
   SGEMM/DGEMM cases. It performs no discovery and is not an ordinary JUnit test.<span data-glossary-navigation="true"> ([SGEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm); [DGEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm); [JUnit glossary](../../../../glossary.md#term-junit))</span>
 - Finalized the affected public/helper/package Javadocs, CPU guide, glossary entry, and planning
@@ -793,7 +793,7 @@ mark the provider milestone Complete. Do not create a CPU task file.
 
 - Completed changes: implemented the exact direct positive thread-count query/control surface,
   package-private invocation helper, deterministic tests, and explicit native checkpoint launcher;
-  finalized all affected documentation and planning evidence.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [planning glossary](../../../../glossary.md#term-planning))</span>
+  finalized all affected documentation and planning evidence.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 - Files changed or created: exactly twelve authorized paths—three provider production paths, four
   provider test/checkpoint paths, the CPU guide, glossary, this task, provider master plan, and
   roadmap.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>

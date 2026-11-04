@@ -60,14 +60,14 @@ low-[partition](../../../../glossary.md#partition) route, ledger-row, or test-[f
 ## Dependencies and integration
 
 - Depends on: Model 0032 Complete; Metal 0069 Complete at its approved source checkpoint;
-  explicit user decision approving the baseline/current distinction.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Metal glossary](../../../../glossary.md#term-metal); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  explicit user decision approving the baseline/current distinction.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Metal glossary](../../../../glossary.md#term-metal))</span>
 - Conflicts with: Task 0074 implementation; any concurrent root/backend contract, capability
   ledger, Metal provider/native, or shared explanatory-document edit.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [capability ledger glossary](../../../../glossary.md#capability-ledger))</span>
 - Parallel group: None.
 - Common base revision: N/A; serial worktree over `1cab0731b75c035f589a60f8b9922a767211e6c6`
   with preserved uncommitted 0069 evidence and partial 0074 source changes.
 - Integration order: contract/ADR implementation → independent Class C documentation review →
-  coordinator marks 0074A Complete and 0074 Ready → resume 0074 code.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [Ready glossary](../../../../glossary.md#term-ready); [resume glossary](../../../../glossary.md#schema-serialization-and-checkpoint))</span>
+  coordinator marks 0074A Complete and 0074 Ready → resume 0074 code.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [Ready glossary](../../../../glossary.md#term-ready))</span>
 - Integration validation: targeted architecture/documentation links and terminology, no executable
   code test rerun for documentation-only edits, <span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>`git diff --check`; Task 0074 owns provider/conformance
   and full integrated build validation of the later capability change.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance))</span>

@@ -201,7 +201,7 @@ The current package remains ad-hoc signed, unauthenticated local transport with 
 - benchmark baseline/evidence profiles, timing gates, winner/default/cache decisions, retained
   reports, or hosted-machine performance claims<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache))</span>
 - Developer ID, Team ID, keychain, secret, notarization, provenance, artifact attestation, upload,
-  publication, coordinates, install, runtime discovery, or public release<span data-glossary-navigation="true"> ([notarization glossary](../../../../glossary.md#term-notarization); [provenance glossary](../../../../glossary.md#provenance); [artifact glossary](../../../../glossary.md#term-artifact); [publication glossary](../../../../glossary.md#term-publication); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [runtime glossary](../../../../glossary.md#term-runtime); [release glossary](../../../../glossary.md#term-release))</span>
+  publication, coordinates, install, runtime discovery, or public release<span data-glossary-navigation="true"> ([notarization glossary](../../../../glossary.md#term-notarization); [provenance glossary](../../../../glossary.md#provenance); [artifact glossary](../../../../glossary.md#term-artifact); [publication glossary](../../../../glossary.md#term-publication); [runtime glossary](../../../../glossary.md#term-runtime); [release glossary](../../../../glossary.md#term-release))</span>
 - a shared cache, dependency update, Gradle upgrade, wrapper regeneration, dependency locking, or
   dependency-verification project<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [Gradle glossary](../../../../glossary.md#term-gradle))</span>
 - a self-hosted runner, external CI provider, branch-protection setting, or organization/billing
@@ -224,7 +224,7 @@ The current package remains ad-hoc signed, unauthenticated local transport with 
   [Task 0044](0044-custom-singleton-neg-benchmark-evaluation.md) — hosted smoke remains
   report-only, ineligible for a performance or production decision.<span data-glossary-navigation="true"> ([smoke glossary](../../../../glossary.md#term-smoke-test))</span>
 
-If implementation needs a different provider trust [model](../../../../glossary.md#term-model), secret, uploaded [artifact](../../../../glossary.md#term-artifact), [release](../../../../glossary.md#term-release)
+If implementation needs a different provider trust model, secret, uploaded [artifact](../../../../glossary.md#term-artifact), [release](../../../../glossary.md#term-release)
 [identity](../../../../glossary.md#term-identity-meanings), [cache](../../../../glossary.md#term-cache), performance threshold, test skip, or broader [matrix](../../../../glossary.md#term-matrix-meanings), stop and return this task to
 [planning](../../../../glossary.md#term-planning).
 
@@ -239,7 +239,7 @@ If implementation needs a different provider trust [model](../../../../glossary.
 - Integration order: no implementation is authorized while Blocked; after the external gate, sole
   CI/native-distribution frontier after 0046<span data-glossary-navigation="true"> ([distribution glossary](../../../../glossary.md#term-distribution))</span>
 - Integration validation: actual hosted two-lane functional checkpoint followed by independent
-  Class C review<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [lane glossary](../../../../glossary.md#term-lane); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  Class C review<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [lane glossary](../../../../glossary.md#term-lane))</span>
 - Shared-document integration [owner](../../../../glossary.md#term-owner): None while Blocked
 
 ## Files and responsibilities after unblocking

@@ -69,7 +69,7 @@ ordinary [`FLOAT32`](../../../../glossary.md#term-float32) arithmetic then round
 either sign. Exact-zero `ADD`/`SUB` may use either sign. `MUL`/`DIV` otherwise retain the sign
 required by the selected operands. Current [NaN](../../../../glossary.md#term-nan) freedoms remain operation-owned.
 No [tolerance](../../../../glossary.md#term-tolerance), [ULP](../../../../glossary.md#term-unit-in-the-last-place-ulp) budget, [host](../../../../glossary.md#term-host) rewrite, value-dependent fallback, reciprocal substitution, term
-[loss](../../../../glossary.md#loss), reduced [precision](../../../../glossary.md#term-precision), cross-[node](../../../../glossary.md#node) [contraction](../../../../glossary.md#contraction-dimension), or special-case [dispatch](../../../../glossary.md#term-dispatch) is permitted.
+loss, reduced [precision](../../../../glossary.md#term-precision), cross-[node](../../../../glossary.md#node) contraction, or special-case [dispatch](../../../../glossary.md#term-dispatch) is permitted.
 `maxFinite / maxFinite -> 0` and `+infinity / maxFinite -> NaN` remain invalid, as do ordinary
 finite mismatches outside the enumerated [DAZ](../../../../glossary.md#term-daz)/[FTZ](../../../../glossary.md#term-ftz) set. [Scalar](../../../../glossary.md#term-scalar) arithmetic remains blocked, including
 the gross failures recorded by [Metal](../../../../glossary.md#term-metal) 0011.
@@ -92,7 +92,7 @@ payloads. Include directed [FTZ](../../../../glossary.md#term-ftz) [producers](.
 gross-error controls above.
 The [oracle](../../../../glossary.md#term-test-oracle) must enumerate the finite allowed bit set from all independent DAZ choices, one
 operation, and optional FTZ; apply the exact zero-sign rules; and use current family rules for [NaN](../../../../glossary.md#term-nan)
-classification/[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) freedom. Record totals and mismatches separately by operation, optimization
+classification/payload freedom. Record totals and mismatches separately by operation, optimization
 level, Shape case, and semantic bucket. Require every output to be in the enumerated set and every
 control, Shape, target order, input-preservation, [canary](../../../../glossary.md#term-canary), repetition, and context-independence gate
 to pass. Any out-of-set result blocks 0015 with no production/capability/[schema](../../../../glossary.md#term-schema) change; do not
@@ -104,7 +104,7 @@ shrink the corpus or reinterpret the contract.
   fixed 160-byte MPSGraph node schema <span data-glossary-navigation="true"> ([signature glossary](../../../../glossary.md#term-signature); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [node glossary](../../../../glossary.md#node))</span>`4 -> 5`; retain wires `NEG=1`, affine/[contiguous](../../../../glossary.md#term-contiguous) `6..11`, and
   restore `ADD=2`, `SUB=3`, `MUL=4`, `DIV=5` with attribute kind `NONE`, two ordered input indices,
   zero attribute payload/reserved cells, canonical input states, exact broadcast output, and
-  canonical output state.<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>
+  canonical output state.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form))</span>
 - Java capability and preparation are the profile authority. Java native-create preflight takes the
   plan profile and enforces the closed matrix: strict permits only retained baseline wires and
   accelerator permits only wires <span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight); [matrix glossary](../../../../glossary.md#term-matrix-meanings); [accelerator glossary](../../../../glossary.md#term-accelerator))</span>`2..5`; every mismatch fails before downcall. The private native
@@ -122,7 +122,7 @@ shrink the corpus or reinterpret the contract.
 ## Non-goals
 
 No [scalar](../../../../glossary.md#term-scalar) arithmetic; [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) `POW`, `MIN`, or `MAX`; comparison; [unary](../../../../glossary.md#term-unary)/transcendental; SUM/[MEAN](../../../../glossary.md#term-mean) or
-other reduction; [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/[convolution](../../../../glossary.md#term-channels-first-convolution-layers); [cumulative scan](../../../../glossary.md#cumulative-scan); [BOOL](../../../../glossary.md#data-type--datatype)/WHERE; [FLOAT16](../../../../glossary.md#term-float16)/[BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT64](../../../../glossary.md#term-float64); custom
+other reduction; [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/convolution; [cumulative scan](../../../../glossary.md#cumulative-scan); [BOOL](../../../../glossary.md#data-type--datatype)/WHERE; [FLOAT16](../../../../glossary.md#term-float16)/[BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT64](../../../../glossary.md#term-float64); custom
 binary [kernel](../../../../glossary.md#kernel); transfer/ingress [widening](../../../../glossary.md#term-widening); [alias](../../../../glossary.md#aliasing-and-arena) promise; backward/training; packaging/discovery; or
 performance claim. [Metal](../../../../glossary.md#term-metal) 0006–0007 and 0009–0013 stay Blocked within 0015; this task does not
 authorize a successor for any of them and preserves [Model](../../../../glossary.md#term-model) 0026 as Draft.
@@ -151,7 +151,7 @@ semantic rewrite, fallback, or ABI signature change, stop and report the blocker
 - Common base revision: `07a01b9c13c2ceea0922b9af82da3e6e08375306`
 - Integration order: Any relative to CPU 0017; both executable commits precede shared-document
   reconciliation<span data-glossary-navigation="true"> ([commits glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings))</span>
-- Integration [validation](../../../../glossary.md#term-validation): numerical-profile [backend](../../../../glossary.md#backend) integration [checkpoint](../../../../glossary.md#term-checkpoint)
+- Integration [validation](../../../../glossary.md#term-validation): numerical-profile [backend](../../../../glossary.md#backend) integration checkpoint
 - Shared-document integration [owner](../../../../glossary.md#term-owner): Main planner
 The Metal worker owns Metal/native production/tests, `EngineExplicitCompositionMetalIntegrationTest`,
 this brief, Metal package Javadocs, `docs/backend-guide/metal-backend.md`, and the native README. It
@@ -185,7 +185,7 @@ operand order, repeated operands, [fan-out](../../../../glossary.md#term-fan-out
 [canonical](../../../../glossary.md#term-canonical-form)-state transitions, and malformed attrs/types/ranks/[layouts](../../../../glossary.md#layout)/broadcasts/second-input
 indices. The profile [matrix](../../../../glossary.md#term-matrix-meanings) must reject all baseline [nodes](../../../../glossary.md#node) under [accelerator](../../../../glossary.md#term-accelerator) and all binary nodes
 under strict. Raw [ABI](../../../../glossary.md#term-application-binary-interface-abi) tests must reject [schema](../../../../glossary.md#term-schema) 4, unknown wires, profile-incompatible [preflight](../../../../glossary.md#term-preflight),
-bad states/[shapes](../../../../glossary.md#shape)/sentinels/[padding](../../../../glossary.md#padding), and malformed ordering before resource creation. [Codec](../../../../glossary.md#term-codec) tests
+bad states/[shapes](../../../../glossary.md#shape)/sentinels/padding, and malformed ordering before resource creation. [Codec](../../../../glossary.md#term-codec) tests
 must prove deterministic v6 encoding and v5/cross-profile/corrupt/stale rejection.
 
 The real [CPU](../../../../glossary.md#term-cpu)-free public [Engine](../../../../glossary.md#term-engine) smoke selects `ACCELERATOR`, executes all four operations with
@@ -283,7 +283,7 @@ remain covered.
   the real Metal Engine integration passed seven tests.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance))</span>
 - The serial combined checkpoint passed the native arm64 build and exact thirteen-export audit,
   nine architecture tests, the full 87-task build, Runtime/Trace profile-free inspection, and
-  baseline-aware documentation, Javadoc, status, and diff checks.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [arm64 glossary](../../../../glossary.md#native-packaging-and-platform-vocabulary); [Runtime glossary](../../../../glossary.md#term-runtime); [Trace glossary](../../../../glossary.md#trace); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
+  baseline-aware documentation, Javadoc, status, and diff checks.<span data-glossary-navigation="true"> ([arm64 glossary](../../../../glossary.md#native-packaging-and-platform-vocabulary); [Runtime glossary](../../../../glossary.md#term-runtime); [Trace glossary](../../../../glossary.md#trace); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - Implementation [commit](../../../../glossary.md#term-commit) `42c4cfbf` plus evidence-wording remediation `fb102a46` received final
   independent Class C `APPROVE` with zero findings. No limitation or unresolved issue remains.
 

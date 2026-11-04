@@ -27,7 +27,7 @@ no probe.
 
 ## Goal
 
-Assess the smallest coherent fixed recurrent-[scan](../../../../glossary.md#term-cumulative-scan) [slice](../../../../glossary.md#slice): [bias](../../../../glossary.md#term-bias)-free `RNN_TANH`, `FORWARD`, [canonical](../../../../glossary.md#term-canonical-form)
+Assess the smallest coherent fixed recurrent-[scan](../../../../glossary.md#term-fixed-recurrent-scan) [slice](../../../../glossary.md#slice): [bias](../../../../glossary.md#term-bias)-free `RNN_TANH`, `FORWARD`, [canonical](../../../../glossary.md#term-canonical-form)
 positive fully static [`FLOAT32`](../../../../glossary.md#term-float32), and no [gradients](../../../../glossary.md#term-gradient) under both profiles. Installed [MPSGraph](../../../../glossary.md#term-mpsgraph) recurrent
 selectors cannot consume [Model](../../../../glossary.md#term-model)'s [runtime](../../../../glossary.md#term-runtime) [`INT64`](../../../../glossary.md#data-type--datatype) valid lengths, atomically validate them, skip
 padded recurrence, publish exact positive-zero [padding](../../../../glossary.md#padding), or return `finalHidden`. Their documented
@@ -66,7 +66,7 @@ numerics also leave several independent unrelaxed gaps. Task 0037 is therefore B
 
 - [`ARCHITECTURE.md` — Core invariants](../../../../../ARCHITECTURE.md#core-invariants) keeps Model
   as sole owner of operation meaning and requires fail-closed backend support.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [operation glossary](../../../../glossary.md#operation); [fail-closed glossary](../../../../glossary.md#term-fail-closed); [backend glossary](../../../../glossary.md#backend))</span>
-- [Fixed recurrent scan](../../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+- [Fixed recurrent scan](../../../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-fixed-recurrent-scan))</span>
   owns the flat multi-output operation, Shapes, runtime-length validation, traversal, output roles,
   lifecycle ownership, and no-invalid-work invariant.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [runtime glossary](../../../../glossary.md#term-runtime); [validation glossary](../../../../glossary.md#term-validation); [lifecycle glossary](../../../../glossary.md#lifecycle); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [invariant glossary](../../../../glossary.md#term-invariant))</span>
 - [Numerical profiles](../../../../architecture/contracts/foundational-modules.md#numerical-profiles)
@@ -78,7 +78,7 @@ numerics also leave several independent unrelaxed gaps. Task 0037 is therefore B
 - [Model](../../../../glossary.md#term-model) [fixed recurrent scans](../../../modules/model/tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md)
   and [expression correction](../../../modules/model/tasks/0025f-recurrent-scan-expression-namespace-correction.md)
   own public signatures and semantics. Compiler <span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature); [Compiler glossary](../../../../glossary.md#term-compiler))</span>[forward adoption and BPTT boundary](../../../modules/compiler/tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md)<span data-glossary-navigation="true"> ([BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt))</span>
-  owns capture, inference, layout closure, and backward rejection.<span data-glossary-navigation="true"> ([capture glossary](../../../../glossary.md#term-capture-meanings); [inference glossary](../../../../glossary.md#term-inference); [layout glossary](../../../../glossary.md#layout))</span>
+  owns capture, inference, layout closure, and backward rejection.<span data-glossary-navigation="true"> ([capture glossary](../../../../glossary.md#term-capture-meanings); [layout glossary](../../../../glossary.md#layout))</span>
 
 ## Dependencies and integration
 
@@ -191,7 +191,7 @@ Unblocking requires a separately authorized [Metal](../../../../glossary.md#term
 4. prepares one bounded reusable occurrence-level executable, declares all resources before slot
    assignment, and creates no graph, node, executable body, or object graph per time step; and<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [graph glossary](../../../../glossary.md#graph); [node glossary](../../../../glossary.md#node))</span>
 5. duplicates Java/native validation for kind, direction, arity, type, Shape, layout, gradient,
-   payload, sentinel, identity, resource, binding, publication, and CPU-free ownership.<span data-glossary-navigation="true"> ([arity glossary](../../../../glossary.md#term-arity); [layout glossary](../../../../glossary.md#layout); [gradient glossary](../../../../glossary.md#term-gradient); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [identity glossary](../../../../glossary.md#term-identity-meanings); [binding glossary](../../../../glossary.md#term-binding); [publication glossary](../../../../glossary.md#term-publication); [CPU glossary](../../../../glossary.md#term-cpu); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
+   payload, sentinel, identity, resource, binding, publication, and CPU-free ownership.<span data-glossary-navigation="true"> ([arity glossary](../../../../glossary.md#term-arity); [layout glossary](../../../../glossary.md#layout); [gradient glossary](../../../../glossary.md#term-gradient); [identity glossary](../../../../glossary.md#term-identity-meanings); [binding glossary](../../../../glossary.md#term-binding); [publication glossary](../../../../glossary.md#term-publication); [CPU glossary](../../../../glossary.md#term-cpu); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 
 A future direct [API](../../../../glossary.md#term-application-programming-interface-api) is relevant only if it supplies the same complete [runtime](../../../../glossary.md#term-runtime)-length, output-role,
 skipped-work, [validation](../../../../glossary.md#term-validation), and numerical contract. Do not substitute full lengths, a post-[mask](../../../../glossary.md#term-boolean-mask),

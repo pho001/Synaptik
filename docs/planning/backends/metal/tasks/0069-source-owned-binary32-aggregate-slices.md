@@ -19,7 +19,7 @@ rereview without changing production capability or numerical behavior.
 
 This amendment supersedes the profile-era evidence instructions below only where they refer to a
 current [`ACCELERATOR`](../../../../glossary.md#term-accelerator) selector, [schema](../../../../glossary.md#term-schema) 16, [identity](../../../../glossary.md#term-identity-meanings) 25, or a source [hash](../../../../glossary.md#term-hash) predating [Model](../../../../glossary.md#term-model) 0032.
-Historical [checkpoint](../../../../glossary.md#term-checkpoint) records remain historical; current authority is `ARCHITECTURE.md` Core
+Historical checkpoint records remain historical; current authority is `ARCHITECTURE.md` Core
 invariants, `foundational-modules.md` [Profile-free numerical semantics](../../../../glossary.md#profile-free-numerical-semantics), and
 `backend-execution.md` [Metal](../../../../glossary.md#term-metal) [backend](../../../../glossary.md#backend) / Profile-free [backend capability](../../../../glossary.md#backend-capability) and identity.
 
@@ -27,7 +27,7 @@ invariants, `foundational-modules.md` [Profile-free numerical semantics](../../.
   the exact current native foundation and fixed kernel assembly. Audit the changes since the
   Slice-3 checkpoint in 0069 preflight, route selection, index validation, dispatch, buffer
   ownership, and source assembly before changing any hash. Preserve the unchanged proof and
-  literal DIV–SUB–MUL–DIV kernel; do not turn the retained evidence into a runtime certificate.<span data-glossary-navigation="true"> ([rebind glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [compiler glossary](../../../../glossary.md#term-compiler); [MSL glossary](../../../../glossary.md#term-metal-shading-language-msl); [kernel glossary](../../../../glossary.md#kernel); [Slice glossary](../../../../glossary.md#slice); [preflight glossary](../../../../glossary.md#term-preflight); [dispatch glossary](../../../../glossary.md#term-dispatch); [buffer glossary](../../../../glossary.md#term-buffer); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [runtime glossary](../../../../glossary.md#term-runtime); [certificate glossary](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions))</span>
+  literal DIV–SUB–MUL–DIV kernel; do not turn the retained evidence into a runtime certificate.<span data-glossary-navigation="true"> ([compiler glossary](../../../../glossary.md#term-compiler); [MSL glossary](../../../../glossary.md#term-metal-shading-language-msl); [kernel glossary](../../../../glossary.md#kernel); [Slice glossary](../../../../glossary.md#slice); [preflight glossary](../../../../glossary.md#term-preflight); [dispatch glossary](../../../../glossary.md#term-dispatch); [buffer glossary](../../../../glossary.md#term-buffer); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [runtime glossary](../../../../glossary.md#term-runtime); [certificate glossary](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions))</span>
 - Files: `backends/metal/evidence/0069/` manifests, extraction/verification scripts as necessary;
   read-only review of `native/metal-macos-arm64/src/synaptik_metal_foundation.m` and
   `synaptik_task0069_aggregate_kernels.h`. No production-source edit is authorized here.
@@ -111,7 +111,7 @@ gradients, but its emitted Scatter-Add [node](../../../../glossary.md#node) itse
   length `U>0`; [axis](../../../../glossary.md#term-axis) is exactly zero. Indices are [`INT32`](../../../../glossary.md#data-type--datatype) or [`INT64`](../../../../glossary.md#data-type--datatype), are a materialized partition
   feed, and update Shape is exactly the rank-one Gather result. All data/update/result gradient
   flags are false.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [Shape glossary](../../../../glossary.md#shape))</span>
-- A complete [CPU](../../../../glossary.md#term-cpu)-side [scan](../../../../glossary.md#term-cumulative-scan) validates every `0 <= index < D` before any command encoding, graph-node
+- A complete [CPU](../../../../glossary.md#term-cpu)-side scan validates every `0 <= index < D` before any command encoding, graph-node
   dispatch, or output mutation. Duplicate targets are legal and are never uniqueness-filtered.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [dispatch glossary](../../../../glossary.md#term-dispatch); [targets glossary](../../../../glossary.md#term-target))</span>
 - One output thread owns each target: it raw-loads base exactly once, scans update ordinals in
   increasing order, applies one safe binary32 add for every matching occurrence, and stores once.
@@ -150,7 +150,7 @@ other Compiler formula, representation, or CPU-[kernel](../../../../glossary.md#
 - Input [rank](../../../../glossary.md#term-rank) is exactly one with [extent](../../../../glossary.md#term-extent) `N=1`, [axes](../../../../glossary.md#term-axis) exactly `[0]`, correction exactly zero, and no
   gradient flags. Both keep forms target one canonical scalar cell; every other domain stays false.<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient); [target glossary](../../../../glossary.md#term-target); [canonical glossary](../../../../glossary.md#term-canonical-form); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Exactly one dispatched output thread owns that cell and stores once. With no payload classifier
-  or special publication, it evaluates only <span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [publication glossary](../../../../glossary.md#term-publication))</span>`mean=DIV(x,+1)`, `d=SUB(x,mean)`, `q=MUL(d,d)`, the
+  or special publication, it evaluates only <span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication))</span>`mean=DIV(x,+1)`, `d=SUB(x,mean)`, `q=MUL(d,d)`, the
   singleton square-sum leaf <span data-glossary-navigation="true"> ([singleton glossary](../../../../glossary.md#term-singleton); [leaf glossary](../../../../glossary.md#term-leaf))</span>`q`, then `DIV(q,+1)`. Each name is one safe binary32 site; there is no
   aggregate add, clamp, reciprocal substitution, FMA, stable replacement, or final tolerance.<span data-glossary-navigation="true"> ([binary32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [tolerance glossary](../../../../glossary.md#term-tolerance))</span>
 - The proof must derive [NaN](../../../../glossary.md#term-nan) for NaN/[infinity](../../../../glossary.md#term-infinity) and exact `+0` for every finite input, including both
@@ -172,18 +172,18 @@ other Compiler formula, representation, or CPU-[kernel](../../../../glossary.md#
    inventory, generated library, and proof inputs in a hash manifest plus source/compiler-site
    certificate. Compile with <span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight); [compiler glossary](../../../../glossary.md#term-compiler); [hash glossary](../../../../glossary.md#term-hash); [manifest glossary](../../../../glossary.md#term-manifest); [certificate glossary](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions); [Compile glossary](../../../../glossary.md#compile))</span>`MTLMathModeSafe`; reject fast math, reassociation outside the written
    tree, contraction, hidden reduction, and unbound artifacts. Device regressions corroborate but
-   never authorize an uncovered domain.<span data-glossary-navigation="true"> ([reassociation glossary](../../../../glossary.md#term-reassociation); [contraction glossary](../../../../glossary.md#contraction-dimension); [artifacts glossary](../../../../glossary.md#term-artifact); [Device glossary](../../../../glossary.md#term-device))</span>
+   never authorize an uncovered domain.<span data-glossary-navigation="true"> ([reassociation glossary](../../../../glossary.md#term-reassociation); [artifacts glossary](../../../../glossary.md#term-artifact); [Device glossary](../../../../glossary.md#term-device))</span>
 4. Java and native independently authenticate profile, kind, attributes, carrier, rank, Shape,
    canonical layout, gradient flags, exact counts/bytes, buffer distinctness, dispatch/writer
    geometry, and correction/index constraints before allocation or encoding. Whole-program scatter
-   payload validation precedes every dispatch and mutation; invalid execution preserves sentinels.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [rank glossary](../../../../glossary.md#term-rank); [Shape glossary](../../../../glossary.md#shape); [canonical glossary](../../../../glossary.md#term-canonical-form); [layout glossary](../../../../glossary.md#layout); [gradient glossary](../../../../glossary.md#term-gradient); [buffer glossary](../../../../glossary.md#term-buffer); [dispatch glossary](../../../../glossary.md#term-dispatch); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [validation glossary](../../../../glossary.md#term-validation))</span>
+   payload validation precedes every dispatch and mutation; invalid execution preserves sentinels.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [rank glossary](../../../../glossary.md#term-rank); [Shape glossary](../../../../glossary.md#shape); [canonical glossary](../../../../glossary.md#term-canonical-form); [layout glossary](../../../../glossary.md#layout); [gradient glossary](../../../../glossary.md#term-gradient); [buffer glossary](../../../../glossary.md#term-buffer); [dispatch glossary](../../../../glossary.md#term-dispatch); [validation glossary](../../../../glossary.md#term-validation))</span>
 5. Each slice lands as a separate identity/capability/source/proof/test/docs checkpoint and receives
    independent code, evidence, and security review. Failure leaves its row and every later serial
-   slice false until a reviewed amendment; already shipped earlier slices remain valid.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+   slice false until a reviewed amendment; already shipped earlier slices remain valid.
 
 ## [Identity](../../../../glossary.md#term-identity-meanings) and count ledger
 
-| Accepted [checkpoint](../../../../glossary.md#term-checkpoint) | Structural | Capability | [MPSGraph](../../../../glossary.md#term-mpsgraph) | Custom | [Schema](../../../../glossary.md#term-schema) / [ABI](../../../../glossary.md#term-application-binary-interface-abi) / exports | Identity |
+| Accepted checkpoint | Structural | Capability | [MPSGraph](../../../../glossary.md#term-mpsgraph) | Custom | [Schema](../../../../glossary.md#term-schema) / [ABI](../../../../glossary.md#term-application-binary-interface-abi) / exports | Identity |
 |---|---:|---:|---:|---:|---|---:|
 | Baseline | `101/14` | `83/32` | `75/35/5` | `70/45/0` | `15 / 5 / 13` | 22 |
 | [Slice](../../../../glossary.md#slice) 1 only | unchanged | `84/31` | unchanged | `71/44/0` | `16 / 5 / 13` | 23 |
@@ -204,7 +204,7 @@ false row remains false.
 No [Model](../../../../glossary.md#term-model)/[API](../../../../glossary.md#term-application-programming-interface-api)/[Compiler](../../../../glossary.md#term-compiler)-formula change, new [operation](../../../../glossary.md#operation)/attribute/type/route wire, [ABI](../../../../glossary.md#term-application-binary-interface-abi)/export change,
 broad aggregate helper, strict-profile capability, noncanonical or empty geometry, positive
 [variance](../../../../glossary.md#term-variance) correction, [L2 norm](../../../../glossary.md#norms-elementary-functions-and-probability-distributions), [mean](../../../../glossary.md#term-mean) expansion, additive [Scatter-ND](../../../../glossary.md#scatter-nd)/[Elements](../../../../glossary.md#term-element), timing, [autotuning](../../../../glossary.md#autotuning--model-autotuning),
-fallback, retry, atomics, [host](../../../../glossary.md#term-host) repair, [opaque](../../../../glossary.md#term-opaque)-selector [inference](../../../../glossary.md#term-inference), source-unbound corpus proof,
+fallback, retry, atomics, [host](../../../../glossary.md#term-host) repair, [opaque](../../../../glossary.md#term-opaque)-selector inference, source-unbound corpus proof,
 approximate acceptance, or final output [epsilon](../../../../glossary.md#epsilon). The [schema](../../../../glossary.md#term-schema)-16 profile cell is the sole image
 grammar revision.
 
@@ -265,10 +265,10 @@ and `git diff --check`. No benchmark or timing entry point runs.
 
 The implementation must update [Metal](../../../../glossary.md#term-metal) package/[Javadoc](../../../../glossary.md#term-javadoc), [backend](../../../../glossary.md#backend) execution [identity](../../../../glossary.md#term-identity-meanings)/count/domain text,
 this task, master plan, roadmap, and any affected native package evidence. Class C requires separate
-code, numerical-evidence, and security/determinism review at every [slice](../../../../glossary.md#slice) [checkpoint](../../../../glossary.md#term-checkpoint).
+code, numerical-evidence, and security/determinism review at every [slice](../../../../glossary.md#slice) checkpoint.
 
 ## Result
-### [Slice](../../../../glossary.md#slice) 1 [checkpoint](../../../../glossary.md#term-checkpoint)
+### [Slice](../../../../glossary.md#slice) 1 checkpoint
 
 The authorized shared substrate and Slice 1 are implemented. [Metal](../../../../glossary.md#term-metal) now admits only [accelerator](../../../../glossary.md#term-accelerator)
 [FLOAT32](../../../../glossary.md#term-float32) no-[gradient](../../../../glossary.md#term-gradient) `L1_NORM` for one [canonical](../../../../glossary.md#term-canonical-form) positive-static [rank-one](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) input, ordered multi-[axis](../../../../glossary.md#term-axis)
@@ -327,7 +327,7 @@ waiver is used. At the Slice-1 checkpoint the ledgers were capability `84/31`, s
 profile wire, while [ABI](../../../../glossary.md#term-application-binary-interface-abi) 5, thirteen exports, and all other false rows remained unchanged. Slice 2
 was outside that checkpoint.
 
-### [Slice](../../../../glossary.md#slice) 2 [checkpoint](../../../../glossary.md#term-checkpoint)
+### [Slice](../../../../glossary.md#slice) 2 checkpoint
 
 The authorized ScatterAdd slice is implemented at wire 70. [Metal](../../../../glossary.md#term-metal) admits only [accelerator](../../../../glossary.md#term-accelerator),
 no-[gradient](../../../../glossary.md#term-gradient), [canonical](../../../../glossary.md#term-canonical-form) [rank-one](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [FLOAT32](../../../../glossary.md#term-float32) base/update/output with [axis](../../../../glossary.md#term-axis) zero, positive `D`/`U`
@@ -342,11 +342,11 @@ wrong type, [rank](../../../../glossary.md#term-rank), and layout for every role
 `D`; zero `U`; FLOAT32 `D` byte [overflow](../../../../glossary.md#term-overflow); INT32 `U` count and byte overflow; and INT64 `U` byte
 overflow.
 
-Native execution completes the entire [CPU](../../../../glossary.md#term-cpu) index [scan](../../../../glossary.md#term-cumulative-scan) into `[0,D)` before creating a [command buffer](../../../../glossary.md#term-command-buffer),
+Native execution completes the entire [CPU](../../../../glossary.md#term-cpu) index scan into `[0,D)` before creating a [command buffer](../../../../glossary.md#term-command-buffer),
 encoding any step, or mutating output. One [target](../../../../glossary.md#term-target)-[linear](../../../../glossary.md#term-linear-meanings) thread raw-loads its base exactly once,
 scans every update ordinal in increasing source order, applies the sole safe [binary32](../../../../glossary.md#floating-point-precision-and-rounding) addition for
 each matching [occurrence](../../../../glossary.md#term-occurrence), and reaches one final store. Duplicate targets are retained without a
-uniqueness pass; unaddressed targets select the original raw base word; no [atomic](../../../../glossary.md#resource-transaction-and-rollback), retry, [race](../../../../glossary.md#term-race), or
+uniqueness pass; unaddressed targets select the original raw base word; no atomic, retry, [race](../../../../glossary.md#term-race), or
 [host](../../../../glossary.md#term-host) repair exists. The same admitted occurrence closes the existing compiler-generated rank-one
 [Gather](../../../../glossary.md#gather) data [cotangent](../../../../glossary.md#cotangent) end to end without admitting gradient-bearing ScatterAdd, its own
 cotangents, higher order, Gather-[Elements](../../../../glossary.md#term-element), or [Gather-ND](../../../../glossary.md#gather-nd). The reviewed representation-only amendment
@@ -386,7 +386,7 @@ The unfiltered serialized `./gradlew test --rerun-tasks --no-daemon --max-worker
 76 actionable tasks in 3m. The final unfiltered serialized
 `./gradlew build --rerun-tasks --no-daemon --max-workers=1` passes all 87 actionable tasks in
 2m59s, including the completed remediation, with no exclusion, suppression, waiver, fallback, or
-timing evidence. Initial independent review found the two [residual](../../../../glossary.md#scan-residual-port-and-history-demand) raw-matrix/documentation P2
+timing evidence. Initial independent review found the two residual raw-matrix/documentation P2
 gaps and approved their remediation. A subsequent independent rereview found one remaining
 documentation-only P2 in the active candidate-generator, partition-preparer, and accepted
 [device](../../../../glossary.md#term-device)-contract [ADR](../../../../glossary.md#term-architecture-decision-record-adr) passages. Those passages and the remaining active Metal master/roadmap status
@@ -397,18 +397,18 @@ Current ledgers are capability `85/30`, structural `101/14`, MPSGraph `75/35/5`,
 `72/43/0`, schema 16, [ABI](../../../../glossary.md#term-application-binary-interface-abi) 5, thirteen exports, and identity 24; identity 23 and every older value
 [fail closed](../../../../glossary.md#admission-preflight-and-fail-closed-validation). [`VARIANCE`](../../../../glossary.md#term-variance) remains false and Slice 3 is not authorized.
 
-### [Slice](../../../../glossary.md#slice) 3 [checkpoint](../../../../glossary.md#term-checkpoint)
+### [Slice](../../../../glossary.md#slice) 3 checkpoint
 
 Fresh checkpoint authorization admitted only [accelerator](../../../../glossary.md#term-accelerator), no-[gradient](../../../../glossary.md#term-gradient) [FLOAT32](../../../../glossary.md#term-float32) [singleton](../../../../glossary.md#term-singleton)
 [`VARIANCE`](../../../../glossary.md#term-variance): input `[1]`, [axis](../../../../glossary.md#term-axis) `[0]`, correction zero, and [canonical](../../../../glossary.md#term-canonical-form) [scalar](../../../../glossary.md#term-scalar) or retained `[1]`
 output. Wire 112 selects the fixed `CUSTOM_PROGRAM` only for that exact [occurrence](../../../../glossary.md#term-occurrence). Java and native
 creation reject its direct route, while the pre-existing non-domain [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix)/correction-one
-[MPSGraph](../../../../glossary.md#term-mpsgraph) structural [fixture](../../../../glossary.md#term-fixture) remains direct. No fallback, retry, timing, selector [inference](../../../../glossary.md#term-inference), [host](../../../../glossary.md#term-host)
+[MPSGraph](../../../../glossary.md#term-mpsgraph) structural [fixture](../../../../glossary.md#term-fixture) remains direct. No fallback, retry, timing, selector inference, [host](../../../../glossary.md#term-host)
 repair, or additional gradient closure was added.
 
 `Task0069Binary32.lean` now defines typed [binary32](../../../../glossary.md#floating-point-precision-and-rounding) DIV, SUB, and MUL primitive-result relations over
 explicit signed exact values, one RNE [publication](../../../../glossary.md#term-publication), and per-site [DAZ](../../../../glossary.md#term-daz)/[FTZ](../../../../glossary.md#term-ftz) alternatives. Both
-divisions [carry](../../../../glossary.md#term-carry) the exact typed `+1` divisor; signed [infinity](../../../../glossary.md#term-infinity) survives the first division before
+divisions carry the exact typed `+1` divisor; signed [infinity](../../../../glossary.md#term-infinity) survives the first division before
 self-subtraction produces [NaN](../../../../glossary.md#term-nan); NaN propagates; every [finite](../../../../glossary.md#term-finite) singleton, including [signed zero](../../../../glossary.md#term-signed-zero) and
 all [subnormal](../../../../glossary.md#term-subnormal) presentation choices, reaches [positive zero](../../../../glossary.md#nan-infinity-and-signed-zero). The [trace](../../../../glossary.md#trace) instantiates the exact
 literal DIV-SUB-MUL-DIV source rather than an asserted aggregate result. The reduction proof fixes
@@ -458,9 +458,9 @@ without compiled-code inspection. Task-0032's full build and real-[device](../..
 not rerun; `git diff --check` passed. Installing the Xcode component changed external machine
 state and was separately approved. The component reports `installed` and [compiler](../../../../glossary.md#term-compiler) version
 `32023.921`; explicit `TOOLCHAINS=com.apple.dt.toolchain.Metal.32023.921.5` selection executes
-it. The source/AIR audit resumed afterward and reached the accepted [checkpoint](../../../../glossary.md#term-checkpoint) below.
+it. The source/AIR audit resumed afterward and reached the accepted checkpoint below.
 
-### Post-cutover evidence remediation [checkpoint](../../../../glossary.md#term-checkpoint)
+### Post-cutover evidence remediation checkpoint
 
 The clean evidence worker audited current route, [preflight](../../../../glossary.md#term-preflight), index [validation](../../../../glossary.md#term-validation), [dispatch](../../../../glossary.md#term-dispatch), [buffer](../../../../glossary.md#term-buffer)
 [ownership](../../../../glossary.md#term-ownership-meanings), source assembly, and safe math mode against the original [Slice](../../../../glossary.md#slice)-3 checkpoint before

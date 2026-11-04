@@ -55,7 +55,7 @@ probe or production edit.
   options, partial selection, or a hidden output.<span data-glossary-navigation="true"> ([INT64 glossary](../../../../glossary.md#data-type--datatype))</span>
 - `requiresGrad=true`, matching ARGSORT construction, scatter pullback, training, or [fusion](../../../../glossary.md#term-fusion).
 - Host sorting/repair, fallback, retry, value scan, composed comparison/indexing graph, tolerance,
-  or imported binary/comparison/reduction/MATMUL result freedom.<span data-glossary-navigation="true"> ([Host glossary](../../../../glossary.md#term-host); [scan glossary](../../../../glossary.md#term-cumulative-scan); [graph glossary](../../../../glossary.md#graph); [tolerance glossary](../../../../glossary.md#term-tolerance); [binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul))</span>
+  or imported binary/comparison/reduction/MATMUL result freedom.<span data-glossary-navigation="true"> ([Host glossary](../../../../glossary.md#term-host); [graph glossary](../../../../glossary.md#graph); [tolerance glossary](../../../../glossary.md#term-tolerance); [binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul))</span>
 - A Shape, axis, direction, type, optimization, context, repetition, or value corpus matrix;
   narrowing capability to one passing geometry or selected value set.<span data-glossary-navigation="true"> ([matrix glossary](../../../../glossary.md#term-matrix-meanings); [narrowing glossary](../../../../glossary.md#term-narrowing))</span>
 
@@ -94,7 +94,7 @@ probe or production edit.
 
 Model applies ordering independently to each logical-[axis](../../../../glossary.md#term-axis) [slice](../../../../glossary.md#slice). Ascending non-NaNs use numerical
 order, including [infinities](../../../../glossary.md#nan-infinity-and-signed-zero) and ordinary [finite](../../../../glossary.md#term-finite) [subnormals](../../../../glossary.md#term-subnormal). [Negative zero](../../../../glossary.md#nan-infinity-and-signed-zero) strictly precedes [positive
-zero](../../../../glossary.md#nan-infinity-and-signed-zero). Every [NaN](../../../../glossary.md#term-nan) forms one final class without sign, [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), or signaling distinctions. Equal
+zero](../../../../glossary.md#nan-infinity-and-signed-zero). Every [NaN](../../../../glossary.md#term-nan) forms one final class without sign, payload, or signaling distinctions. Equal
 finite values and multiple NaNs retain increasing original [logical index](../../../../glossary.md#axis-rank-scalar-vector-and-matrix). `SORT` copies the exact
 selected input representation, including [NaN payload](../../../../glossary.md#nan-infinity-and-signed-zero)/signaling bits, [signed zero](../../../../glossary.md#term-signed-zero), and subnormal
 bits; it does not canonicalize or recreate a value.
@@ -104,7 +104,7 @@ separate one-output [occurrence](../../../../glossary.md#term-occurrence) whose 
 has two ordered outputs from one [producer](../../../../glossary.md#term-producer): values at slot zero and mandatory INT64 indices at slot
 one. Its values retain input [gradient](../../../../glossary.md#term-gradient) eligibility.
 
-Compiler [inference](../../../../glossary.md#term-inference) reconstructs those exact roles. A differentiable floating `SORT` pullback
+Compiler inference reconstructs those exact roles. A differentiable floating `SORT` pullback
 constructs matching `ARGSORT` and replacement scatter; a TOP_K values pullback requires its
 original slot-one indices. Requiring `requiresGrad=false` avoids neither a forward semantic rule nor
 an output, but keeps this candidate independent of unsupported INT64 and gradient [topology](../../../../glossary.md#term-topology).
@@ -167,7 +167,7 @@ record, and thirteen exports.
 Its conditional record uses `firstInput=input`, absent second input, one output,
 `attributeCount=2`, `axis=0`, `auxiliary=0` for `descending=false`, and zero attribute cells
 `0..15`. Java and native [preflight](../../../../glossary.md#term-preflight) reject every other [operation](../../../../glossary.md#operation), attribute, type, [Shape](../../../../glossary.md#shape), [layout](../../../../glossary.md#layout),
-[gradient](../../../../glossary.md#term-gradient), [arity](../../../../glossary.md#term-arity), sentinel, or [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) form and validate selector availability plus returned
+[gradient](../../../../glossary.md#term-gradient), [arity](../../../../glossary.md#term-arity), sentinel, or payload form and validate selector availability plus returned
 [FLOAT32](../../../../glossary.md#term-float32) Shape/type before [compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names).
 
 Task 0033 conditionally names the same next schema/wire/attribute/version numbers but explicitly
@@ -189,7 +189,7 @@ Task 0034 can unblock only through one separately authorized complete-domain pat
    left-logical-index tie selection, and represented-bit copy.
 
 Afterward, structural proof must cover duplicate Java/native kind, [arity](../../../../glossary.md#term-arity), type, [Shape](../../../../glossary.md#shape), [layout](../../../../glossary.md#layout),
-[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), availability, [alias](../../../../glossary.md#aliasing-and-arena), result-Shape/type, stale [identity](../../../../glossary.md#term-identity-meanings), [lifecycle](../../../../glossary.md#lifecycle), [publication](../../../../glossary.md#term-publication), and
+payload, availability, [alias](../../../../glossary.md#aliasing-and-arena), result-Shape/type, stale [identity](../../../../glossary.md#term-identity-meanings), [lifecycle](../../../../glossary.md#lifecycle), [publication](../../../../glossary.md#term-publication), and
 [CPU](../../../../glossary.md#term-cpu)-free [Engine](../../../../glossary.md#term-engine) checks. Those checks cannot substitute for the prior ordering proof.
 
 ## Acceptance criteria and [validation](../../../../glossary.md#term-validation)

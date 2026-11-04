@@ -12,7 +12,7 @@ A forward gradient flag did not prove its Compiler-generated backward graph was 
 ## Status
 
 Complete — implementation/proof `1cf8a6ef`, documentation `3e0e4ea4`, native/custom remediation
-`b12dbe73`, evidence [checkpoint](../../../../glossary.md#term-checkpoint) `e80a03f6`, and final documentation remediation `06c57844` passed
+`b12dbe73`, evidence checkpoint `e80a03f6`, and final documentation remediation `06c57844` passed
 independent cumulative code, evidence, and security review with zero remaining P0/P1/P2 findings.
 
 ## Change class
@@ -87,7 +87,7 @@ This is a direct application of the Model recursive ledger: exact mapping/reduct
 one SUB and one MUL per position, and the qualified [all-contributors-once](../../../../glossary.md#rounding-sites-fma-and-aggregate-floor) aggregate plus mandatory
 divisor. Reuse the approved positive-[rank](../../../../glossary.md#term-rank) [ACCELERATOR](../../../../glossary.md#term-accelerator) SUB/MUL and full SUM/MEAN [DAZ](../../../../glossary.md#term-daz)/[FTZ](../../../../glossary.md#term-ftz)/root-zero
 proofs; add no [loss](../../../../glossary.md#loss)-wide [error envelope](../../../../glossary.md#term-error-envelope), reciprocal substitution, algebraic expansion, dropped
-term, hidden value, [rank-zero](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) primitive, or cross-[node](../../../../glossary.md#node) [contraction](../../../../glossary.md#contraction-dimension). Special classes and
+term, hidden value, [rank-zero](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) primitive, or cross-[node](../../../../glossary.md#node) contraction. Special classes and
 [signed zero](../../../../glossary.md#term-signed-zero) are accepted only by site-by-site result-set membership. MPSGraph is the sole
 production candidate; a containing `CUSTOM_PROGRAM` may retain it only as the same nested
 MPSGraph step. The custom catalog remains `PENDING`.

@@ -101,7 +101,7 @@ handling. Do not broaden general `canonicalStorage` or canonical-only anchor rec
 
 - Depends on: Metal0079, reviewed source-matched native baseline and completed practical RNN;
   independent bounded operand/identity design, coordinated authority and exact Ready verification.
-  CPU0078/general-Scan source is not a technical prerequisite; final release integration joins both.<span data-glossary-navigation="true"> ([RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [identity glossary](../../../../glossary.md#term-identity-meanings); [Ready glossary](../../../../glossary.md#term-ready); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [release glossary](../../../../glossary.md#term-release))</span>
+  CPU0078/general-Scan source is not a technical prerequisite; final release integration joins both.<span data-glossary-navigation="true"> ([RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn); [identity glossary](../../../../glossary.md#term-identity-meanings); [Ready glossary](../../../../glossary.md#term-ready); [Scan glossary](../../../../glossary.md#general-differentiable-scan); [release glossary](../../../../glossary.md#term-release))</span>
 - Conflicts with: other Metal capability/preparer/native/route/identity writers and native package
   publication. CPU0078 backend source is disjoint; shared authorities and ledger integration are MAIN-only.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [publication glossary](../../../../glossary.md#term-publication); [backend glossary](../../../../glossary.md#backend))</span>
 - Shared-file exception: LowPrecisionCapabilityLedgerTest, its canonical occurrence/basis registry
@@ -120,7 +120,7 @@ handling. Do not broaden general `canonicalStorage` or canonical-only anchor rec
   code/native review -> MAIN SHA integration -> source-matched rebuild/package and unchanged
   real-device consumers -> affected closure. No child builds/checks while source is in flight.<span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device))</span>
 - Integration validation: focused capability/Java-native parity/conformance/Engine workflow and
-  rebuilt extracted native package; one final production repository checkpoint joins all changes.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [Engine glossary](../../../../glossary.md#term-engine); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  rebuilt extracted native package; one final production repository checkpoint joins all changes.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Shared-document integration [owner](../../../../glossary.md#term-owner): MAIN.
 
 ## Files and symbols
@@ -152,7 +152,7 @@ handling. Do not broaden general `canonicalStorage` or canonical-only anchor rec
   holes, zero-stride operand broadcasting and overlap precedes target writes.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [stride glossary](../../../../glossary.md#term-stride); [metadata glossary](../../../../glossary.md#term-metadata); [broadcasting glossary](../../../../glossary.md#broadcasting))</span>
 - Preserve existing transpose fan-out/publication/custom/MPSGraph regression domains and the
   separate unsupported overlapping convolution input-gradient case. Parameter-only CNN updates
-  do not require an unselected input-cotangent fold.<span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out); [publication glossary](../../../../glossary.md#term-publication); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [regression glossary](../../../../glossary.md#term-regression); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [Parameter glossary](../../../../glossary.md#term-parameter); [CNN glossary](../../../../glossary.md#term-convolutional-neural-network-cnn); [cotangent glossary](../../../../glossary.md#cotangent))</span>
+  do not require an unselected input-cotangent fold.<span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out); [publication glossary](../../../../glossary.md#term-publication); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [regression glossary](../../../../glossary.md#term-regression); [Parameter glossary](../../../../glossary.md#term-parameter); [CNN glossary](../../../../glossary.md#term-convolutional-neural-network-cnn); [cotangent glossary](../../../../glossary.md#cotangent))</span>
 - No extra consumer copy or retained resource; logical view descriptors stay truthful. Reuse
   existing kernels and keep each authentication responsibility readable and narrowly named.<span data-glossary-navigation="true"> ([kernels glossary](../../../../glossary.md#kernel); [authentication glossary](../../../../glossary.md#term-authentication))</span>
 - Current [identity](../../../../glossary.md#term-identity-meanings) 37 accepts the extended domain; stale-36 tuning [handoff](../../../../glossary.md#term-handoff)/decision inputs reject.

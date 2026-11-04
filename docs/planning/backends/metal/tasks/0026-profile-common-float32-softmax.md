@@ -61,7 +61,7 @@ is permitted.
 - Parallel group: None.
 - Integration order: one fail-closed direct-selector numerical gate; schema/identity; capability and
   Java/native preflight; native lowering; focused forward and generated-gradient composition;
-  current documentation; independent lean Class C review.<span data-glossary-navigation="true"> ([fail-closed glossary](../../../../glossary.md#term-fail-closed); [identity glossary](../../../../glossary.md#term-identity-meanings); [lowering glossary](../../../../glossary.md#lowering); [gradient glossary](../../../../glossary.md#term-gradient); [lean glossary](../../../../glossary.md#proof-assistant-and-model-checking-tools))</span>
+  current documentation; independent lean Class C review.<span data-glossary-navigation="true"> ([fail-closed glossary](../../../../glossary.md#term-fail-closed); [identity glossary](../../../../glossary.md#term-identity-meanings); [lowering glossary](../../../../glossary.md#lowering); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Integration validation: focused Metal/conformance/real-Engine proof, native export/link audit,
   architecture checks, Javadoc, one final build, Markdown/diff validation.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [conformance glossary](../../../../glossary.md#term-conformance); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - Shared-document integration [owner](../../../../glossary.md#term-owner): Metal 0026 implementer.
@@ -137,7 +137,7 @@ sum-to-one [epsilon](../../../../glossary.md#epsilon).
 may narrow to a subnormal or zero. No [DAZ](../../../../glossary.md#term-daz)/[FTZ](../../../../glossary.md#term-ftz) permission is added. [NaN](../../../../glossary.md#term-nan) and either [infinity](../../../../glossary.md#term-infinity) are
 outside the advertised finite accuracy envelope because Model has not defined their SOFTMAX edge
 policy. Task 0026 neither value-scans nor rejects them, freezes their observed [MPSGraph](../../../../glossary.md#term-mpsgraph) result, or
-claims [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication)/sign behavior; [descriptor](../../../../glossary.md#term-descriptor) capability has no value predicate. All permanent numerical
+claims payload/sign behavior; [descriptor](../../../../glossary.md#term-descriptor) capability has no value predicate. All permanent numerical
 acceptance data is finite. Zero selected [extent](../../../../glossary.md#term-extent) and every other zero extent are structurally
 rejected.
 
@@ -189,7 +189,7 @@ Their ordered FLOAT32 distance is 584,744 ULPs, exceeding the four-[ULP](../../.
 had passed before this failure. A [host](../../../../glossary.md#term-host)-only Java check using exact `StrictMath.exp`, the specified
 compensated order, and one FLOAT32 [narrowing](../../../../glossary.md#term-narrowing) independently confirmed expected bits `0x0008ec28`;
 it performed no Metal compilation or execution. Because the numerical cell failed, the full
-classification/input-preservation [scan](../../../../glossary.md#term-cumulative-scan) did not complete and makes no success claim.
+classification/input-preservation scan did not complete and makes no success claim.
 
 The disposable Objective-C source/executable and host-only Java oracle source/class were removed
 immediately. No second device run, [Shape](../../../../glossary.md#shape)/width/axis/profile/optimization/context/repetition [matrix](../../../../glossary.md#term-matrix-meanings),
@@ -228,7 +228,7 @@ accuracy promise is introduced.
   thirteen exports.<span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [signature glossary](../../../../glossary.md#term-signature))</span>
 - Evolve [node](../../../../glossary.md#node) schema `11 -> 12`; retain [operation](../../../../glossary.md#operation) wires `1..19` and append only `SOFTMAX=20`.
 - Reuse typed `AXIS=3`. Encode one semantic [axis](../../../../glossary.md#term-axis) field with `attributeCount=1`, absent second-input
-  sentinel, zero auxiliary, and every attribute-value/padding cell zero. Add no attribute kind.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding))</span>
+  sentinel, zero auxiliary, and every attribute-value/padding cell zero. Add no attribute kind.
 - Define Java `NodeKind.SOFTMAX(20, 1, AXIS, CANONICAL, false)` and lower through the existing
   axis-node constructor. Java and native schema/preflight independently authenticate kind,
   profile, FLOAT32 types, canonical states, one-input topology, equal positive Shapes, rank, axis,
@@ -262,7 +262,7 @@ Expected [Metal](../../../../glossary.md#term-metal)-private production [scope](
 [Compiler](../../../../glossary.md#term-compiler), [Model](../../../../glossary.md#term-model), Config, [Planning](../../../../glossary.md#term-planning), [Prepare](../../../../glossary.md#prepare), [Runtime](../../../../glossary.md#term-runtime), [Backend](../../../../glossary.md#backend) Contract, [Trace](../../../../glossary.md#trace), [Engine](../../../../glossary.md#term-engine), Training, [CPU](../../../../glossary.md#term-cpu),
 and transfer production are read-only.
 
-[Lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) permanent proof:
+Lean permanent proof:
 
 - extend `MetalCapabilityProviderTest` with one common-profile valid occurrence, one positive
   selected-width-17 occurrence proving there is no selector-expansion cap, and independent exact
@@ -324,7 +324,7 @@ Metal master plan, and roadmap. Do not edit [Model](../../../../glossary.md#term
   thirteen exports, ingress/publication, FLOAT32 transfer, and lifecycle remain exact.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([Schema glossary](../../../../glossary.md#term-schema); [fail closed glossary](../../../../glossary.md#admission-preflight-and-fail-closed-validation); [publication glossary](../../../../glossary.md#term-publication); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - LOG_SOFTMAX and every general [normalization](../../../../glossary.md#term-normalization) remain closed.
 - Focused proof, native export/link audit, architecture checks, Javadoc, one final build,
-  synchronized current documentation, clean diff, and independent lean Class C <span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [lean glossary](../../../../glossary.md#proof-assistant-and-model-checking-tools))</span>`APPROVE` with zero
+  synchronized current documentation, clean diff, and independent lean Class C <span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>`APPROVE` with zero
   findings close the task.
 
 ## Contracts
@@ -336,7 +336,7 @@ Metal master plan, and roadmap. Do not edit [Model](../../../../glossary.md#term
 - [Prepare lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle)<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - [Model softmax semantics](../../../modules/model/tasks/0016i-softmax-semantic-kinds-and-attributes.md)<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [softmax glossary](../../../../glossary.md#softmax--log-softmax))</span>
 - [Model softmax Tensor expressions](../../../modules/model/tasks/0016j-softmax-tensor-expressions.md)<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor))</span>
-- [Compiler softmax inference and gradients](../../../modules/compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [gradients glossary](../../../../glossary.md#term-gradient))</span>
+- [Compiler softmax inference and gradients](../../../modules/compiler/tasks/0005b-reduction-scan-softmax-statistics-and-normalization-gradient-completion.md)<span data-glossary-navigation="true"> ([gradients glossary](../../../../glossary.md#term-gradient))</span>
 - [CPU stable softmax precedent](../../../backends/cpu/tasks/0007e-portable-stable-softmax-and-log-softmax-coverage.md)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
 
 ## Architecture impact

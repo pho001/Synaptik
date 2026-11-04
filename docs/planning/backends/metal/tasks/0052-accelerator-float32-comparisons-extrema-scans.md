@@ -60,11 +60,11 @@ without timing only through strict [structural dominance](../../../../glossary.m
 authorized controlled environment. [Runtime](../../../../glossary.md#term-runtime) selection, retry, fallback, and input-dependent routing
 are forbidden.
 
-## Exact [operation](../../../../glossary.md#operation) inventory and [partition](../../../../glossary.md#partition)
+## Exact [operation](../../../../glossary.md#operation) inventory and partition
 
 ### In [scope](../../../../glossary.md#term-scope)
 
-| [Partition](../../../../glossary.md#partition) | Exact kinds | [Model](../../../../glossary.md#term-model) attributes and result |
+| Partition | Exact kinds | [Model](../../../../glossary.md#term-model) attributes and result |
 |---|---|---|
 | comparisons | `GREATER_THAN`, `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, `NOT_EQUAL` | [`NoOperationAttrs`](../../../../glossary.md#nooperationattrs); exact right-aligned broadcast; [canonical](../../../../glossary.md#term-canonical-form) [`BOOL`](../../../../glossary.md#data-type--datatype); ordered relations are false on [NaN](../../../../glossary.md#term-nan), `NOT_EQUAL` complements equality, and signed zeros compare equal |
 | [tensor](../../../../glossary.md#tensor) [extrema](../../../../glossary.md#saturation-pole-and-extremum) | `BinaryArithmeticKind.MIN`, `MAX` | `NoOperationAttrs`; exact right-aligned broadcast; NaN propagation, numeric order, and [operation](../../../../glossary.md#operation)-fixed [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero) winner |
@@ -79,7 +79,7 @@ but its NaN and signed-zero rules remain exact and a selected result remains an 
 There is no [ULP](../../../../glossary.md#term-unit-in-the-last-place-ulp), relative, absolute, or [epsilon](../../../../glossary.md#epsilon) acceptance for these operations.
 
 For a [scan](../../../../glossary.md#term-cumulative-scan), first form the exact ordered traversal sequence for the selected [axis](../../../../glossary.md#term-axis): preserve logical
-axis order for [forward mode](../../../../glossary.md#term-forward-mode) and reverse that sequence before taking any prefix for [reverse mode](../../../../glossary.md#term-reverse-mode).
+axis order for forward mode and reverse that sequence before taking any prefix for reverse mode.
 Inclusive output uses the ordered prefix through the current visited [element](../../../../glossary.md#term-element); exclusive output uses
 the ordered prefix before it. The result set contains only order-preserving [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) parenthesizations
 formed by recursively splitting a prefix into two [contiguous](../../../../glossary.md#term-contiguous) nonempty intervals. Each contributor
@@ -97,7 +97,7 @@ An [occurrence](../../../../glossary.md#term-occurrence) is eligible only when a
 - every input and output is fully static, uses checked element/byte geometry, and has only positive
   extents;<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element))</span>
 - each non-[scalar](../../../../glossary.md#term-scalar) [descriptor](../../../../glossary.md#term-descriptor) is [canonical](../../../../glossary.md#term-canonical-form) dense-[contiguous](../../../../glossary.md#term-contiguous), zero-offset, and not a [view](../../../../glossary.md#term-view-meanings);
-- every [tensor](../../../../glossary.md#tensor) [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) is [`FLOAT32`](../../../../glossary.md#term-float32); comparison outputs alone are canonical [`BOOL`](../../../../glossary.md#data-type--datatype);
+- every [tensor](../../../../glossary.md#tensor) payload is [`FLOAT32`](../../../../glossary.md#term-float32); comparison outputs alone are canonical [`BOOL`](../../../../glossary.md#data-type--datatype);
 - every input and output has `requiresGrad == false`;
 - comparison and tensor-[extrema](../../../../glossary.md#saturation-pole-and-extremum) output [Shape](../../../../glossary.md#shape) is the exact right-aligned broadcast;
 - scalar extrema and scans preserve input Shape;
@@ -147,7 +147,7 @@ through reduction work, but accepts no general BOOL feed. Workload [signature](.
 candidate, compatibility, route-policy, and [codec](../../../../glossary.md#term-codec) [identities](../../../../glossary.md#term-identity-meanings) are version `12`; the complete-plan
 wrapper remains schema `1`. The native boundary retains thirteen exports.
 
-[Compiler](../../../../glossary.md#term-compiler) [inference](../../../../glossary.md#term-inference) already [captures](../../../../glossary.md#term-capture-meanings) every in-[scope](../../../../glossary.md#term-scope) kind and validates its typed attributes. [CPU](../../../../glossary.md#term-cpu) is
+[Compiler](../../../../glossary.md#term-compiler) inference already [captures](../../../../glossary.md#term-capture-meanings) every in-[scope](../../../../glossary.md#term-scope) kind and validates its typed attributes. [CPU](../../../../glossary.md#term-cpu) is
 the complete behavioral fallback. No new Tensor [API](../../../../glossary.md#term-application-programming-interface-api) or Compiler rewrite is needed. Generated
 backward [graphs](../../../../glossary.md#graph) are deliberately outside this forward/no-grad [slice](../../../../glossary.md#slice) as described above.
 
@@ -210,7 +210,7 @@ Before any [device](../../../../glossary.md#term-device) execution, prove in dis
    preserves its declared arithmetic sites/source candidates, and exposes a complete resource
    ledger;
 5. every malformed type, rank, axis, flag, attr, sentinel, padding, topology, or geometry case is
-   rejected independently in Java and native preflight; and<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [padding glossary](../../../../glossary.md#padding); [topology glossary](../../../../glossary.md#term-topology))</span>
+   rejected independently in Java and native preflight; and<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [topology glossary](../../../../glossary.md#term-topology))</span>
 6. capability remains false and no staged candidate is reachable through public preparation.
 
 ## Gate 1B: distinct complete-domain proof prerequisite
@@ -218,7 +218,7 @@ Before any [device](../../../../glossary.md#term-device) execution, prove in dis
 Before the bounded [device](../../../../glossary.md#term-device) corpus, each candidate must have an independently reviewable proof that
 its complete output set is a subset of the [Model](../../../../glossary.md#term-model) set for every authorized [descriptor](../../../../glossary.md#term-descriptor) and attribute:
 all ranks `1..16`, every checked positive [extent](../../../../glossary.md#term-extent), every valid broadcast, every normalized reduction
-[axis](../../../../glossary.md#term-axis) set/order/keep-[dimensions](../../../../glossary.md#dimension) form, and every [scan](../../../../glossary.md#term-cumulative-scan) axis plus exclusive/[reverse mode](../../../../glossary.md#term-reverse-mode).
+[axis](../../../../glossary.md#term-axis) set/order/keep-[dimensions](../../../../glossary.md#dimension) form, and every [scan](../../../../glossary.md#term-cumulative-scan) axis plus exclusive/reverse mode.
 
 - A direct opaque selector needs an authoritative, version-applicable selector contract that states
   all required mapping, special-value, ordering/winner, arithmetic-site, and shape-dependent
@@ -355,7 +355,7 @@ prefix as a multiset and never permutes leaves.
 
 [NaN](../../../../glossary.md#term-nan) is an abstract class at every scan arithmetic site. If an operand is NaN or the addition/
 multiplication itself produces NaN (including opposite infinities for SUM or zero times [infinity](../../../../glossary.md#term-infinity)
-for PRODUCT), that site may produce any [binary32](../../../../glossary.md#floating-point-precision-and-rounding) NaN: [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), sign, and quiet/signaling state are
+for PRODUCT), that site may produce any [binary32](../../../../glossary.md#floating-point-precision-and-rounding) NaN: payload, sign, and quiet/signaling state are
 unconstrained. Any later site consuming that abstract NaN remains abstract NaN. A NaN final output
 therefore requires class only, while its exact prefix position is still mandatory. Every non-NaN
 site and result retains the exact ordered-tree raw-bit [DAZ](../../../../glossary.md#term-daz)/round/[FTZ](../../../../glossary.md#term-ftz) rules.
@@ -433,7 +433,7 @@ real public [Engine](../../../../glossary.md#term-engine) forward scenario for e
 
 - Depends on: completed and independently approved Model 0030/0031; Metal 0050 packaged baseline;
   retained Metal 0010/0012/0013 evidence; current Compiler inference/autograd capture; Config 0006;
-  Engine 0018.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Metal glossary](../../../../glossary.md#term-metal); [Compiler glossary](../../../../glossary.md#term-compiler); [inference glossary](../../../../glossary.md#term-inference); [autograd glossary](../../../../glossary.md#autograd); [capture glossary](../../../../glossary.md#term-capture-meanings); [Engine glossary](../../../../glossary.md#term-engine))</span>
+  Engine 0018.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Metal glossary](../../../../glossary.md#term-metal); [Compiler glossary](../../../../glossary.md#term-compiler); [autograd glossary](../../../../glossary.md#autograd); [capture glossary](../../../../glossary.md#term-capture-meanings); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Gate-3 prerequisite: resolved by ADR 0022 for only the closed custom survivors. Opaque routes
   would require supported actual observation for structural facts; none reached adjudication.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [Opaque glossary](../../../../glossary.md#term-opaque))</span>
 - Complete-domain gate: closed for every auditable custom candidate and still `DOMAIN-BLOCKED` for

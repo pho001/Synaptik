@@ -85,7 +85,7 @@ unchecked geometry, malformed [topology](../../../../glossary.md#term-topology),
 Comparisons use Model's exact represented [FLOAT32](../../../../glossary.md#term-float32) numeric relations: every ordered relation is false
 when either operand is [NaN](../../../../glossary.md#term-nan), `NOT_EQUAL` is the complement of numeric equality, and signed zeros
 compare equal. Classification treats normal, [subnormal](../../../../glossary.md#term-subnormal), and [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero) values as [finite](../../../../glossary.md#term-finite); only
-[infinities](../../../../glossary.md#nan-infinity-and-signed-zero) satisfy `IS_INF`; every NaN sign, quiet/signaling state, and [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) satisfies `IS_NAN`.
+[infinities](../../../../glossary.md#nan-infinity-and-signed-zero) satisfy `IS_INF`; every NaN sign, quiet/signaling state, and payload satisfies `IS_NAN`.
 [BOOL](../../../../glossary.md#data-type--datatype) has only [canonical](../../../../glossary.md#term-canonical-form) bytes `0` and `1`. `WHERE` chooses the corresponding branch value without
 conversion; selected FLOAT32 bits must survive exactly.
 
@@ -145,7 +145,7 @@ Analysis declares typed buffers/workspace before assignment; finalization transa
 one reusable Shape/type-specialized executable. Cold binding validates representations once; hot
 execution makes one [synchronous](../../../../glossary.md#term-synchronous) submission. Existing [rollback](../../../../glossary.md#term-rollback), closure, repeated/concurrent run,
 and independent-session [ownership](../../../../glossary.md#term-ownership-meanings) remains. No retry, fallback, hidden copy, per-node invocation,
-async execution, [pooling](../../../../glossary.md#term-pooling), or tuning workflow is added.
+async execution, pooling, or tuning workflow is added.
 
 ## Contracts
 

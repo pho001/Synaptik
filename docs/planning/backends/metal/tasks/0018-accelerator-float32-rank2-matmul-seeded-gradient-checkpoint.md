@@ -1,4 +1,4 @@
-# Task 0018: [ACCELERATOR](../../../../glossary.md#term-accelerator) [FLOAT32](../../../../glossary.md#term-float32) [Rank-Two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Seeded-[Gradient](../../../../glossary.md#term-gradient) [Checkpoint](../../../../glossary.md#term-checkpoint)
+# Task 0018: [ACCELERATOR](../../../../glossary.md#term-accelerator) [FLOAT32](../../../../glossary.md#term-float32) [Rank-Two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Seeded-[Gradient](../../../../glossary.md#term-gradient) Checkpoint
 
 ## Reader context
 
@@ -62,7 +62,7 @@ never use reduced [precision](../../../../glossary.md#term-precision), and keep 
   pattern rewrite is introduced.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation))</span>
 - A canonical MATMUL output may be published or consumed by already-admitted accelerator nodes.
   No cross-node contraction is allowed. Complete-partition analysis must reject malformed local
-  transpose provenance before native creation.<span data-glossary-navigation="true"> ([MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [accelerator glossary](../../../../glossary.md#term-accelerator); [nodes glossary](../../../../glossary.md#node); [contraction glossary](../../../../glossary.md#contraction-dimension); [provenance glossary](../../../../glossary.md#provenance))</span>
+  transpose provenance before native creation.<span data-glossary-navigation="true"> ([MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [accelerator glossary](../../../../glossary.md#term-accelerator); [nodes glossary](../../../../glossary.md#node); [provenance glossary](../../../../glossary.md#provenance))</span>
 - Strict Metal rejects every MATMUL occurrence. Accelerator rejects rank other than two, vectors,
   batches/broadcasts, zero/dynamic extents, other types/promotions, wrong attrs/Shape/layout,
   nonlocal views, unchecked geometry, and malformed topology.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [occurrence glossary](../../../../glossary.md#term-occurrence); [rank glossary](../../../../glossary.md#term-rank); [vectors glossary](../../../../glossary.md#term-vector); [batches glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [layout glossary](../../../../glossary.md#layout))</span>
@@ -87,7 +87,7 @@ addition to the smoke cell and run; report exact totals.
 
 For every bounded output [dot product](../../../../glossary.md#term-dot-product), an independent raw-bit oracle must enumerate the complete
 [Model](../../../../glossary.md#term-model)-permitted set: every declared `k` contribution exactly once; every [reassociation](../../../../glossary.md#term-reassociation)/binary tree;
-[`FLOAT32`](../../../../glossary.md#term-float32) [rounding](../../../../glossary.md#term-rounding); only corresponding multiply-add [contraction](../../../../glossary.md#contraction-dimension) by [FMA](../../../../glossary.md#term-fused-multiply-add-fma); row-scoped [DAZ](../../../../glossary.md#term-daz) of declared
+[`FLOAT32`](../../../../glossary.md#term-float32) [rounding](../../../../glossary.md#term-rounding); only corresponding multiply-add contraction by [FMA](../../../../glossary.md#term-fused-multiply-add-fma); row-scoped [DAZ](../../../../glossary.md#term-daz) of declared
 subnormal arithmetic inputs; and optional [FTZ](../../../../glossary.md#term-ftz) of [finite](../../../../glossary.md#term-finite) subnormal arithmetic results. Include both
 unfused and every legal [fused](../../../../glossary.md#specialization-and-fusion) placement. An FMA cannot cross [nodes](../../../../glossary.md#node) or erase an observable value.
 No contribution may be dropped, duplicated, replaced, or treated as an implicit reduced-[precision](../../../../glossary.md#term-precision)
@@ -98,7 +98,7 @@ Cover signed zeros; minimum/ordinary/maximum subnormals; minimum normals and nei
 and maximum finite values; [overflow](../../../../glossary.md#term-overflow); [infinities](../../../../glossary.md#nan-infinity-and-signed-zero); signed quiet/signaling NaNs; `K=1` multiplication
 by one; cancellation and tree-sensitive permutations. Require raw-bit membership when the allowed
 set is finite and exact result-class membership only where current Model [NaN](../../../../glossary.md#term-nan) representation is
-unconstrained. [Epsilon](../../../../glossary.md#epsilon), [CPU](../../../../glossary.md#term-cpu)-output comparison, [tolerance](../../../../glossary.md#term-tolerance), term-[loss](../../../../glossary.md#loss) acceptance, reciprocal or
+unconstrained. [Epsilon](../../../../glossary.md#epsilon), [CPU](../../../../glossary.md#term-cpu)-output comparison, [tolerance](../../../../glossary.md#term-tolerance), term-loss acceptance, reciprocal or
 algebraic substitution, undocumented fast math, and special-value repair are forbidden. Any
 selector, Shape, binding, [canary](../../../../glossary.md#term-canary), input-preservation, [transpose](../../../../glossary.md#term-transpose), full-term, precision, or oracle
 failure blocks 0018 without production/[schema](../../../../glossary.md#term-schema)/capability edits.
@@ -107,7 +107,7 @@ failure blocks 0018 without production/[schema](../../../../glossary.md#term-sch
 
 - Keep ABI v4, statuses, create/run signatures, and exactly thirteen exports. Evolve the fixed
   160-byte node schema <span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [run glossary](../../../../glossary.md#term-run); [signatures glossary](../../../../glossary.md#term-signature); [node glossary](../../../../glossary.md#node))</span>`7 -> 8`; retain wires `1..14`; append only `MATMUL=15` with two ordered
-  inputs, `NONE` attributes, required sentinels, zero count/reserved/[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), and [canonical](../../../../glossary.md#term-canonical-form) output.
+  inputs, `NONE` attributes, required sentinels, zero count/reserved/payload, and [canonical](../../../../glossary.md#term-canonical-form) output.
 - Java and native schema-eight validation must agree on rank-two Shapes, exact contraction,
   positive checked geometry, profile, value states, and authenticated local transpose provenance.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [rank-two glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [Shapes glossary](../../../../glossary.md#shape); [contraction glossary](../../../../glossary.md#contraction-dimension); [transpose glossary](../../../../glossary.md#term-transpose); [provenance glossary](../../../../glossary.md#provenance))</span>
   [`MATMUL`](../../../../glossary.md#matrix-multiplication--matmul) produces canonical state. Unknown wire `16+`, malformed records, or profile-incompatible
@@ -139,7 +139,7 @@ formulas `seed @ transpose(right)` and `transpose(left) @ seed`, with only rank-
 [contraction](../../../../glossary.md#contraction-dimension) to the same permitted-set [oracle](../../../../glossary.md#term-test-oracle). Cover repeated and independent sessions, direct
 [publication](../../../../glossary.md#term-publication), input preservation, close rejection, and strict-profile [ownership](../../../../glossary.md#term-ownership-meanings) failure.
 
-This is a seeded first-order execution [checkpoint](../../../../glossary.md#term-checkpoint), not [scalar](../../../../glossary.md#term-scalar)-[objective](../../../../glossary.md#term-objective) training. Do not claim
+This is a seeded first-order execution checkpoint, not [scalar](../../../../glossary.md#term-scalar)-[objective](../../../../glossary.md#term-objective) training. Do not claim
 [`TrainingSession`](../../../../glossary.md#training-session--trainingsession), [optimizer](../../../../glossary.md#term-optimizer) execution, convergence, implicit scalar [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings), [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) unbroadcasting,
 or general Metal backward support.
 
@@ -153,7 +153,7 @@ or general Metal backward support.
   [Run lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#run-lifecycle)<span data-glossary-navigation="true"> ([Run glossary](../../../../glossary.md#term-run))</span>
 
 If the local-[transpose](../../../../glossary.md#term-transpose) rule requires a shared representation/capability change, or implementation
-requires reduced [precision](../../../../glossary.md#term-precision), term [loss](../../../../glossary.md#loss), a new export, wider transfer, [host](../../../../glossary.md#term-host) fallback, [Runtime](../../../../glossary.md#term-runtime)/[Trace](../../../../glossary.md#trace)
+requires reduced [precision](../../../../glossary.md#term-precision), term loss, a new export, wider transfer, [host](../../../../glossary.md#term-host) fallback, [Runtime](../../../../glossary.md#term-runtime)/[Trace](../../../../glossary.md#trace)
 profile state, or a [Model](../../../../glossary.md#term-model)/[Compiler](../../../../glossary.md#term-compiler) semantic change, stop and report the conflict.
 
 ## Dependencies and integration
@@ -165,7 +165,7 @@ profile state, or a [Model](../../../../glossary.md#term-model)/[Compiler](../..
 - Common base revision: `5b77c74239f379e424f8ac0c0c22d65e9a21bab0` plus this [planning](../../../../glossary.md#term-planning)-only authorization
 - Integration order: Serial after Metal 0020; fresh oracle before production edits; schema/identity,
   capability/topology, lifecycle, real forward/backward Engine proof, docs, independent review<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [identity glossary](../../../../glossary.md#term-identity-meanings); [topology glossary](../../../../glossary.md#term-topology); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
-- Integration [validation](../../../../glossary.md#term-validation): [accelerator](../../../../glossary.md#term-accelerator) full-[contraction](../../../../glossary.md#contraction-dimension) [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Class C [checkpoint](../../../../glossary.md#term-checkpoint)
+- Integration [validation](../../../../glossary.md#term-validation): [accelerator](../../../../glossary.md#term-accelerator) full-[contraction](../../../../glossary.md#contraction-dimension) [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Class C checkpoint
 - Shared-document integration [owner](../../../../glossary.md#term-owner): task implementer, finalized by independent Class C review
 
 ## Files and symbols
@@ -193,7 +193,7 @@ profile state, or a [Model](../../../../glossary.md#term-model)/[Compiler](../..
    MATMUL and authenticated local <span data-glossary-navigation="true"> ([MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [Accelerator glossary](../../../../glossary.md#term-accelerator); [FLOAT32 glossary](../../../../glossary.md#term-float32); [rank-two glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>`[1,0]` [transpose](../../../../glossary.md#term-transpose) inputs; every excluded form fails closed.
 3. Every output contains every declared contraction term exactly once and belongs to the Model
    DAZ/FTZ/reassociation/FMA set; no reduced precision, tolerance, term loss, cross-node
-   contraction, fallback, or repair exists.<span data-glossary-navigation="true"> ([contraction glossary](../../../../glossary.md#contraction-dimension); [Model glossary](../../../../glossary.md#term-model); [DAZ glossary](../../../../glossary.md#term-daz); [FTZ glossary](../../../../glossary.md#term-ftz); [reassociation glossary](../../../../glossary.md#term-reassociation); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [precision glossary](../../../../glossary.md#term-precision); [tolerance glossary](../../../../glossary.md#term-tolerance); [loss glossary](../../../../glossary.md#loss); [node glossary](../../../../glossary.md#node))</span>
+   contraction, fallback, or repair exists.<span data-glossary-navigation="true"> ([contraction glossary](../../../../glossary.md#contraction-dimension); [Model glossary](../../../../glossary.md#term-model); [DAZ glossary](../../../../glossary.md#term-daz); [FTZ glossary](../../../../glossary.md#term-ftz); [reassociation glossary](../../../../glossary.md#term-reassociation); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [precision glossary](../../../../glossary.md#term-precision); [tolerance glossary](../../../../glossary.md#term-tolerance); [node glossary](../../../../glossary.md#node))</span>
 4. ABI v4 retains thirteen exports. Schema eight appends only wire 15; version-nine identity rejects
    old, cross-profile, malformed, corrupt, stale, changed-Shape, and foreign data.<span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [Schema glossary](../../../../glossary.md#term-schema); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 5. Native/Java lifecycle proof covers direct and local-transpose forms, targets, input preservation,
@@ -226,7 +226,7 @@ git diff --check
 
 Record probe totals/removal, [oracle](../../../../glossary.md#term-test-oracle) cardinalities and term [masks](../../../../glossary.md#term-boolean-mask), exports, [schema](../../../../glossary.md#term-schema)/[identity](../../../../glossary.md#term-identity-meanings) versions,
 test counts/skips, strict/profile negatives, changed paths, and status/frontier checks. The worker
-owns one full validation [checkpoint](../../../../glossary.md#term-checkpoint); review reruns executable checks only for changed code or
+owns one full validation checkpoint; review reruns executable checks only for changed code or
 concretely stale evidence.
 
 ## Documentation and review impact

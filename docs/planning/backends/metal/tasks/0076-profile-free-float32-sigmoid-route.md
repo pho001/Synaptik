@@ -12,7 +12,7 @@ An explicit low-to-FLOAT32 cast changes carrier, not low SIGMOID eligibility. Fi
 ## Status
 
 Complete — the bounded [FLOAT32](../../../../glossary.md#term-float32) route, source-matched [device](../../../../glossary.md#term-device)/[conformance](../../../../glossary.md#term-conformance)/[Engine](../../../../glossary.md#term-engine) [validation](../../../../glossary.md#term-validation),
-0069 source [rebind](../../../../glossary.md#capture-graph-ports-and-reconstruction), full build, documentation and independent Class C review passed.
+0069 source rebind, full build, documentation and independent Class C review passed.
 
 ## Change class
 
@@ -79,7 +79,7 @@ performance claim, new [ABI](../../../../glossary.md#term-application-binary-int
 - Parallel group: None.
 - Common base revision: N/A (serial); clean `c19f16ee` on `main`.
 - Integration order: implementation → source-matched device and 0069 evidence rebind → independent
-  Class C code/documentation review → main-context integration and status closure.<span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device); [rebind glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction))</span>
+  Class C code/documentation review → main-context integration and status closure.<span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device))</span>
 - Integration validation: native build/sign/package/verify; affected Metal, conformance, Engine,
   architecture and Javadoc checks; 0069 source/AIR rebind if native foundation changes; one full
   repository build after executable integration.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [conformance glossary](../../../../glossary.md#term-conformance); [Engine glossary](../../../../glossary.md#term-engine); [Javadoc glossary](../../../../glossary.md#term-javadoc); [AIR glossary](../../../../glossary.md#term-air))</span>

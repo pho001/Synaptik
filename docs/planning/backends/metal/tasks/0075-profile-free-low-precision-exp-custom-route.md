@@ -99,11 +99,11 @@ performance claim. The [FLOAT32](../../../../glossary.md#term-float32) direct MP
   header SHA-256 is `5753d2a80c46fca4aff27cab1ad7b631a30c3eeab4b185b13d9f75a2a3eece65`.
 - Integration order: completed 0074 → 0075A contract update and review → re-verify this brief as
   Ready → clean Class C implementation context → independent review/documentation and 0069
-  evidence rebind → integrated validation.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [rebind glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [validation glossary](../../../../glossary.md#term-validation))</span>
+  evidence rebind → integrated validation.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Integration validation: source-matched native package, affected Metal backend/conformance/public
   Engine tests with real device and no relevant skips, architecture/Javadoc/docs checks, 0069
   evidence rebind if its authenticated source changes, and one full repository build at this
-  cross-module capability checkpoint.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance); [Engine glossary](../../../../glossary.md#term-engine); [device glossary](../../../../glossary.md#term-device); [Javadoc glossary](../../../../glossary.md#term-javadoc); [module glossary](../../../../glossary.md#term-module); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  cross-module capability checkpoint.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance); [Engine glossary](../../../../glossary.md#term-engine); [device glossary](../../../../glossary.md#term-device); [Javadoc glossary](../../../../glossary.md#term-javadoc); [module glossary](../../../../glossary.md#term-module))</span>
 - Shared-document integration owner: main coordination context; disjoint worker/review scopes
   are assigned before launch.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>
 - Frontier verification (2026-10-09): 0074A, 0074, and 0075A are Complete with independent
@@ -111,7 +111,7 @@ performance claim. The [FLOAT32](../../../../glossary.md#term-float32) direct MP
   Task 0075A removed the absolute root/backend prohibition without claiming current low support.
   Revised numerical gates have independent read-only approval; no competing Metal capability or
   native writer is active. This is the sole authorized serial Metal frontier. The stopped first
-  worker changed no files; a clean implementation context may now resume against this brief.<span data-glossary-navigation="true"> ([resume glossary](../../../../glossary.md#schema-serialization-and-checkpoint))</span>
+  worker changed no files; a clean implementation context may now resume against this brief.
 
 ## Files and symbols
 
@@ -148,7 +148,7 @@ Extend `MetalExpCapabilityTest`, `MetalExpNativeTest`, `MetalExpCapabilityConfor
 `EngineExpMetalIntegrationTest` with both low [dtypes](../../../../glossary.md#data-type--datatype) and the declared negative/boundary [matrix](../../../../glossary.md#term-matrix-meanings).
 Worker builds, ad-hoc-signs, packages and verifies the edited native source, runs the affected
 [Metal](../../../../glossary.md#term-metal)/[conformance](../../../../glossary.md#term-conformance)/[Engine](../../../../glossary.md#term-engine) [device](../../../../glossary.md#term-device) suites and [Javadoc](../../../../glossary.md#term-javadoc), and records exact per-dtype worst observed
-ordinary-[finite](../../../../glossary.md#term-finite) errors and special/boundary verdicts. Independently revalidate/[rebind](../../../../glossary.md#capture-graph-ports-and-reconstruction) 0069
+ordinary-[finite](../../../../glossary.md#term-finite) errors and special/boundary verdicts. Independently revalidate/rebind 0069
 source/[AIR](../../../../glossary.md#term-air) evidence against any changed native foundation or low-[kernel](../../../../glossary.md#kernel) source. Integration [owner](../../../../glossary.md#term-owner)
 then runs one repository `./gradlew build --max-workers=1` against the source-matched package.
 Always [run](../../../../glossary.md#term-run) `git diff --check` and validate documentation links.

@@ -42,7 +42,7 @@ blocked SUM, [MEAN](../../../../glossary.md#term-mean), or SUM_TO_SHAPE and do n
 The current [Model](../../../../glossary.md#term-model) aggregate inventory is `SUM`, [`MEAN`](../../../../glossary.md#term-mean), `PROD`, `MIN`, `MAX`, `ALL`, `ANY`,
 `ARG_MIN`, `ARG_MAX`, `LOG_SUM_EXP`, [`VARIANCE`](../../../../glossary.md#term-variance), `STANDARD_DEVIATION`, `L1_NORM`, and `L2_NORM`.
 Ordinary [extrema](../../../../glossary.md#saturation-pole-and-extremum) use [`NoOperationAttrs`](../../../../glossary.md#nooperationattrs), `AxisReductionAttrs`, or `MultiAxisReductionAttrs` and
-have a complete non-accumulating represented-value contract: [NaN](../../../../glossary.md#term-nan) propagates without a [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) or
+have a complete non-accumulating represented-value contract: [NaN](../../../../glossary.md#term-nan) propagates without a payload or
 signaling promise, [infinities](../../../../glossary.md#nan-infinity-and-signed-zero) use numeric order, `MIN` selects [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero), and `MAX` selects
 [positive zero](../../../../glossary.md#nan-infinity-and-signed-zero). This is independent of 0007's exact-real SUM/MEAN requirement.
 

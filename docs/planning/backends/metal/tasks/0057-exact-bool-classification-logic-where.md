@@ -58,7 +58,7 @@ Every [descriptor](../../../../glossary.md#term-descriptor) is resolved dense-[c
 - Wire `73 SELECT` is a [scalar](../../../../glossary.md#term-scalar)-index [operation](../../../../glossary.md#operation) and is explicitly excluded.
 
 Both numerical profiles admit this exact discrete/selection domain. No scalar/[rank-zero](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), dynamic or
-zero [extent](../../../../glossary.md#term-extent), view, noncanonical BOOL, non-`FLOAT32` classification/branch [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), [dtype](../../../../glossary.md#data-type--datatype) promotion,
+zero [extent](../../../../glossary.md#term-extent), view, noncanonical BOOL, non-`FLOAT32` classification/branch payload, [dtype](../../../../glossary.md#data-type--datatype) promotion,
 or new [gradient](../../../../glossary.md#term-gradient) [topology](../../../../glossary.md#term-topology) is added.
 
 ## Exact custom semantics
@@ -66,7 +66,7 @@ or new [gradient](../../../../glossary.md#term-gradient) [topology](../../../../
 - Classification reads each [FLOAT32](../../../../glossary.md#term-float32) [element](../../../../glossary.md#term-element) as an unmodified [`uint32`](../../../../glossary.md#index-mappings-and-cost-dominance) word. `IS_FINITE` is exponent
   not all ones; `IS_NAN` is [exponent](../../../../glossary.md#term-exponent) all ones and fraction nonzero; `IS_INF` is exponent all ones
   and fraction zero. Sign, quiet/signaling bit, payload, zero sign, and subnormal magnitude never
-  enter floating arithmetic.<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [subnormal glossary](../../../../glossary.md#term-subnormal))</span>
+  enter floating arithmetic.<span data-glossary-navigation="true"> ([subnormal glossary](../../../../glossary.md#term-subnormal))</span>
 - Logic reads [canonical](../../../../glossary.md#term-canonical-form) [BOOL](../../../../glossary.md#data-type--datatype) bytes and writes exactly byte `0` or `1`; `AND`, `OR`, and `NOT` are
   integer truth-table operations.
 - `WHERE` computes right-aligned broadcast source ordinals and copies the selected branch's raw

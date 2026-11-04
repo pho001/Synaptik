@@ -32,7 +32,7 @@ splat inputs. Allocate each source-owned splat once per [`PreparedExecution`](..
 fresh run [bindings](../../../../glossary.md#term-binding), and release the native [buffer](../../../../glossary.md#term-buffer) exactly once after the prepared [owner](../../../../glossary.md#term-owner) and every
 already-issued binding have closed.
 
-Close the buffer-[pooling](../../../../glossary.md#term-pooling) todo honestly by making a deliberate no-general-pool decision. [Mutable](../../../../glossary.md#term-mutable)
+Close the buffer-pooling todo honestly by making a deliberate no-general-pool decision. [Mutable](../../../../glossary.md#term-mutable)
 outputs can outlive the [synchronous](../../../../glossary.md#term-synchronous) call through [`RunResult`](../../../../glossary.md#run-result--runresult); concurrent runs require distinct
 output [identity](../../../../glossary.md#term-identity-meanings). [MPSGraph](../../../../glossary.md#term-mpsgraph) address workspaces are mutable pointer arrays populated during cold bind.
 Pooling either resource without a later async/result-[lifetime](../../../../glossary.md#term-lifetime) contract would require authenticated
@@ -44,7 +44,7 @@ rather than silently [narrowing](../../../../glossary.md#term-narrowing) or pret
 
 `MetalNegPreparedScheduleAssembler.createSplatBuffer` currently allocates one native [buffer](../../../../glossary.md#term-buffer) and one
 full-size confined [host](../../../../glossary.md#term-host) segment, performs an O([elements](../../../../glossary.md#term-element)) Java raw-bit fill, uploads the complete
-[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), and later [releases](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings) the native buffer for every splat on every [run](../../../../glossary.md#term-run).
+payload, and later [releases](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings) the native buffer for every splat on every [run](../../../../glossary.md#term-run).
 
 - The existing custom splat test observes four buffer creations and two uploads across two runs:
   one splat and one output per run.
@@ -160,19 +160,19 @@ attempt-all/suppression rules apply.
 
 ## Preserved boundaries
 
-- Public Java [API](../../../../glossary.md#term-application-programming-interface-api) [shape](../../../../glossary.md#shape) is unchanged.
+- Public Java [API](../../../../glossary.md#term-application-programming-interface-api) shape is unchanged.
 - Native [ABI](../../../../glossary.md#term-application-binary-interface-abi) v4, thirteen exports, [node](../../../../glossary.md#node) [schema](../../../../glossary.md#term-schema) 11, local value types, and wires are unchanged.
 - Capability, route policy, exact numerics, and numerical-profile behavior are unchanged.
 - Metal candidate/workload/codec identities remain version 12. Scalar type/raw bits are already in
   the workload signature; source storage lifetime is not a route semantic.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [codec glossary](../../../../glossary.md#term-codec); [Scalar glossary](../../../../glossary.md#term-scalar); [raw bits glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [signature glossary](../../../../glossary.md#term-signature); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
 - Trace adds no event or payload. Splat failure emits one failed PREPARE and no RUN; success is
-  emitted only after all resources exist.<span data-glossary-navigation="true"> ([Trace glossary](../../../../glossary.md#trace); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [PREPARE glossary](../../../../glossary.md#prepare); [RUN glossary](../../../../glossary.md#term-run))</span>
+  emitted only after all resources exist.<span data-glossary-navigation="true"> ([Trace glossary](../../../../glossary.md#trace); [PREPARE glossary](../../../../glossary.md#prepare); [RUN glossary](../../../../glossary.md#term-run))</span>
 - Tuning trial and selected preparations each own and close their own splats. No cache, registry,
   intern table, context-global reuse, retry, fallback, or telemetry is added.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [registry glossary](../../../../glossary.md#term-registry))</span>
 
 ## Explicit no-general-pool decision
 
-This task closes the requested [pooling](../../../../glossary.md#term-pooling)/persistent-[constant](../../../../glossary.md#term-constant) optimization with the following result:
+This task closes the requested pooling/persistent-[constant](../../../../glossary.md#term-constant) optimization with the following result:
 
 - immutable source splats are persisted because exact bits, read-only access, preparation identity,
   and lifetime can be proven;<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [identity glossary](../../../../glossary.md#term-identity-meanings); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
@@ -208,7 +208,7 @@ No follow-up pool placeholder, [matrix](../../../../glossary.md#term-matrix-mean
 Production and contract:
 
 - `modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/resource/PreparedResource.java` —
-  clarify owner close versus an already-issued backend child lease; no API-shape change<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [backend glossary](../../../../glossary.md#backend); [lease glossary](../../../../glossary.md#term-lease); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [shape glossary](../../../../glossary.md#shape))</span>
+  clarify owner close versus an already-issued backend child lease; no API-shape change<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [backend glossary](../../../../glossary.md#backend); [lease glossary](../../../../glossary.md#term-lease); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalPreparedSplatResource.java`
   — prepared immutable buffer owner, fresh read-only bindings, exact close/failure behavior<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [buffer glossary](../../../../glossary.md#term-buffer); [bindings glossary](../../../../glossary.md#term-binding))</span>
 - `MetalDeviceContext.java` and `MetalBufferRepresentation.java` — correct [run](../../../../glossary.md#term-run)-only [ownership](../../../../glossary.md#term-ownership-meanings) wording
@@ -310,9 +310,9 @@ No benchmark was run. The existing [singleton](../../../../glossary.md#term-sing
    native cleanup preserve exact ownership, reverse order, attempt-all, and primary/suppressed
    behavior with no leak or double release.<span data-glossary-navigation="true"> ([rollback glossary](../../../../glossary.md#term-rollback); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [release glossary](../../../../glossary.md#term-release))</span>
 6. PREPARE/RUN trace truth and version-12 tuning/candidate identity are unchanged; public API shape,
-   capability, native ABI, and route policy are unchanged.<span data-glossary-navigation="true"> ([PREPARE glossary](../../../../glossary.md#prepare); [trace glossary](../../../../glossary.md#trace); [identity glossary](../../../../glossary.md#term-identity-meanings); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [shape glossary](../../../../glossary.md#shape); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
+   capability, native ABI, and route policy are unchanged.<span data-glossary-navigation="true"> ([PREPARE glossary](../../../../glossary.md#prepare); [trace glossary](../../../../glossary.md#trace); [identity glossary](../../../../glossary.md#term-identity-meanings); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
 7. Output and address-workspace pooling are explicitly rejected under the current lifecycle rather
-   than implemented partially or called complete by omission.<span data-glossary-navigation="true"> ([pooling glossary](../../../../glossary.md#term-pooling); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+   than implemented partially or called complete by omission.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 8. Focused fake-native tests, exactly two real-device no-skip tests, Javadocs, architecture/docs/diff
    validation, and an independent Class C review pass. No full repository build is run now.<span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device); [validation glossary](../../../../glossary.md#term-validation))</span>
 
@@ -329,7 +329,7 @@ primary/suppressed evidence.
 The deterministic custom two-run path is reduced from four creates/two uploads to three creates/one
 upload. The six-splat/eight-[target](../../../../glossary.md#term-target) two-run path is reduced from twenty-eight route-internal creates
 and twelve uploads to twenty-two creates and six uploads. Exact [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity), numerics, [trace](../../../../glossary.md#trace) semantics,
-version-12 [identities](../../../../glossary.md#term-identity-meanings), public [API](../../../../glossary.md#term-application-programming-interface-api) [shape](../../../../glossary.md#shape), capability, route policy, native [ABI](../../../../glossary.md#term-application-binary-interface-abi), and native exports
+version-12 [identities](../../../../glossary.md#term-identity-meanings), public [API](../../../../glossary.md#term-application-programming-interface-api) shape, capability, route policy, native [ABI](../../../../glossary.md#term-application-binary-interface-abi), and native exports
 remain unchanged.
 
 The optimization todo is closed without a misleading general pool: [mutable](../../../../glossary.md#term-mutable) outputs remain fresh

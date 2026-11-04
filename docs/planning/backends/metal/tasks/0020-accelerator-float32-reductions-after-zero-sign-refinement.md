@@ -68,7 +68,7 @@ declared positive count; only an exact-zero quotient may publish either sign.
 Empty-axis point domains, equal-Shape `SUM_TO_SHAPE`, and one-term SUM/SUM-to-Shape cells perform no
 addition and preserve the selected input bits. Do not insert a zero [identity](../../../../glossary.md#term-identity-meanings). Empty-domain rules are
 unchanged. Never drop, duplicate, or invent a term, and do not grant per-step exact-zero sign choice,
-[tolerance](../../../../glossary.md#term-tolerance), reduced [precision](../../../../glossary.md#term-precision), reciprocal substitution, algebraic rewrite, cross-[node](../../../../glossary.md#node) [contraction](../../../../glossary.md#contraction-dimension),
+[tolerance](../../../../glossary.md#term-tolerance), reduced [precision](../../../../glossary.md#term-precision), reciprocal substitution, algebraic rewrite, cross-[node](../../../../glossary.md#node) contraction,
 or special-value repair.
 
 ## Mandatory full fresh corrected Apple M3 probe
@@ -100,7 +100,7 @@ that [identities](../../../../glossary.md#term-identity-meanings) and one-term S
 added [identity](../../../../glossary.md#term-identity-meanings) or per-step zero-sign choice enters the oracle.
 
 Use guarded direct targets; permute feeds/targets; verify Shape/count, inputs, canaries, selector
-isolation, repetition, contexts, and exact probe totals. Any out-of-set value, term [loss](../../../../glossary.md#loss), identity
+isolation, repetition, contexts, and exact probe totals. Any out-of-set value, term loss, identity
 change, Shape error, [ownership](../../../../glossary.md#term-ownership-meanings)/[lifetime](../../../../glossary.md#term-lifetime) fault, or control failure blocks 0020 without production,
 [schema](../../../../glossary.md#term-schema), or capability edits.
 
@@ -126,7 +126,7 @@ change, Shape error, [ownership](../../../../glossary.md#term-ownership-meanings
 
 ## Non-goals
 
-No strict or [masked reduction](../../../../glossary.md#masked-reduction); other reduction/[scan](../../../../glossary.md#term-cumulative-scan)/[MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/[convolution](../../../../glossary.md#term-channels-first-convolution-layers)/[scalar](../../../../glossary.md#term-scalar) family; custom [kernel](../../../../glossary.md#kernel);
+No strict or [masked reduction](../../../../glossary.md#masked-reduction); other reduction/[scan](../../../../glossary.md#term-cumulative-scan)/[MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/convolution/[scalar](../../../../glossary.md#term-scalar) family; custom [kernel](../../../../glossary.md#kernel);
 [host](../../../../glossary.md#term-host) fallback/rewrite; [rank-zero](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) transfer; dynamic, zero-[extent](../../../../glossary.md#term-extent), or [view](../../../../glossary.md#term-view-meanings) [Shape](../../../../glossary.md#shape); other type;
 backward/training; packaging/discovery; or performance claim. [Metal](../../../../glossary.md#term-metal) 0017 stays Blocked under the old
 contract. This task did not itself authorize 0018; post-completion [planning](../../../../glossary.md#term-planning) may promote that serial
@@ -157,7 +157,7 @@ fallback, reduced [precision](../../../../glossary.md#term-precision), wider tra
 - Parallel group: None
 - Common base revision: `fc003ab83d4d8c03c557aea867f5f4f3f388fa5d` plus this [planning](../../../../glossary.md#term-planning)-only authorization
 - Integration order: Serial; after Model 0028 and Metal 0019, before Metal 0018
-- Integration [validation](../../../../glossary.md#term-validation): [accelerator](../../../../glossary.md#term-accelerator) all-term Metal reduction [checkpoint](../../../../glossary.md#term-checkpoint) under Model 0028
+- Integration [validation](../../../../glossary.md#term-validation): [accelerator](../../../../glossary.md#term-accelerator) all-term Metal reduction checkpoint under Model 0028
 - Shared-document integration [owner](../../../../glossary.md#term-owner): task implementer, finalized by independent Class C review
 
 ## Files and symbols
@@ -182,7 +182,7 @@ fallback, reduced [precision](../../../../glossary.md#term-precision), wider tra
    profile/type/layout/rank/Shape forms reject before native creation; prior capability is unchanged.<span data-glossary-navigation="true"> ([Accelerator glossary](../../../../glossary.md#term-accelerator); [layout glossary](../../../../glossary.md#layout); [rank glossary](../../../../glossary.md#term-rank))</span>
 3. Every arithmetic result belongs to the Model 0028 oracle; identity/one-term forms preserve bits,
    MEAN divides by positive count, and no tolerance, term loss, added identity, per-step sign choice,
-   host rewrite, value fallback, or reduced precision exists.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [oracle glossary](../../../../glossary.md#term-test-oracle); [MEAN glossary](../../../../glossary.md#term-mean); [tolerance glossary](../../../../glossary.md#term-tolerance); [loss glossary](../../../../glossary.md#loss); [host glossary](../../../../glossary.md#term-host); [precision glossary](../../../../glossary.md#term-precision))</span>
+   host rewrite, value fallback, or reduced precision exists.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [oracle glossary](../../../../glossary.md#term-test-oracle); [MEAN glossary](../../../../glossary.md#term-mean); [tolerance glossary](../../../../glossary.md#term-tolerance); [host glossary](../../../../glossary.md#term-host); [precision glossary](../../../../glossary.md#term-precision))</span>
 4. Schema 7/Java/native agree; ABI v4 keeps thirteen exports; version-eight identity rejects old,
    cross-profile, malformed, corrupt, stale, unknown, and changed-Shape data.<span data-glossary-navigation="true"> ([Schema glossary](../../../../glossary.md#term-schema); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
 5. Lifecycle proof covers every form/chain, direct targets, scalar/positive-rank publication, reuse,
@@ -213,7 +213,7 @@ git diff --check
 ```
 
 Record probe totals/removal, exports, [schema](../../../../glossary.md#term-schema)/[identity](../../../../glossary.md#term-identity-meanings), test counts/skips, [scalar](../../../../glossary.md#term-scalar) bits, strict/profile
-negatives, Markdown/status/frontier evidence, and exact changed [scope](../../../../glossary.md#term-scope). The serial [checkpoint](../../../../glossary.md#term-checkpoint) owns one
+negatives, Markdown/status/frontier evidence, and exact changed [scope](../../../../glossary.md#term-scope). The serial checkpoint owns one
 full build; review reruns executable checks only for changed code or concretely stale evidence.
 
 ## Documentation and review impact

@@ -64,7 +64,7 @@ whole-output elementary envelope to composite [sigmoid](../../../../glossary.md#
 the exact represented [binary32](../../../../glossary.md#floating-point-precision-and-rounding) value with high [precision](../../../../glossary.md#term-precision), rounds once to the [correctly rounded](../../../../glossary.md#nan-infinity-and-signed-zero)
 binary32 reference `r`, and requires:
 
-- [NaN](../../../../glossary.md#term-nan) input produces NaN; [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), sign, and quieting remain free;
+- [NaN](../../../../glossary.md#term-nan) input produces NaN; payload, sign, and quieting remain free;
 - `EXP(-infinity)=+0`, `EXP(+infinity)=+infinity`, and either zero maps to `+1`;
 - a [subnormal](../../../../glossary.md#term-subnormal) input may remain represented or be read as same-[signed zero](../../../../glossary.md#term-signed-zero) ([DAZ](../../../../glossary.md#term-daz));
 - an ordinary [finite](../../../../glossary.md#term-finite) non-subnormal `r` admits only finite results whose inclusive
@@ -122,7 +122,7 @@ transcendental framework. It calls no [MPSGraph](../../../../glossary.md#term-mp
 3. Convert that exact binary rational into a frozen signed multi-limb fixed-point representation.
    Use only explicitly implemented <span data-glossary-navigation="true"> ([binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata); [limb glossary](../../../../glossary.md#exact-superaccumulator-and-limbs); [fixed-point glossary](../../../../glossary.md#fixed-point-arithmetic))</span>`uint32` add/subtract/multiply/shift/compare operations with
    checked shift counts, proved carry bounds, and no signed overflow or implementation-defined
-   behavior.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [overflow glossary](../../../../glossary.md#term-overflow))</span>
+   behavior.<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow))</span>
 4. Select `k` with certified outward rational bounds for `ln(2)/256`, then enclose
    `r = x - k * ln(2)/256` without treating the irrational constant as exactly represented. Frozen
    outward-rounded bounds, a 256-entry `2^(j/256)` interval table, and a fixed polynomial for
@@ -281,10 +281,10 @@ fallback, or input-dependent choice, and removes every unselected disposable can
   wrapper schema <span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature))</span>`1`, and exactly thirteen exports unchanged.
 - Advance [node](../../../../glossary.md#node) schema `11 -> 12`; retain wires `1..19`; append no-attribute [canonical](../../../../glossary.md#term-canonical-form) [unary](../../../../glossary.md#term-unary)
   `EXP=20` and `SIGMOID=21`; require `UINT32_MAX` second-input/axis sentinels, zero auxiliary,
-  zero attribute count/payload, equal input/output Shape, and FLOAT32 canonical state.<span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [Shape glossary](../../../../glossary.md#shape); [FLOAT32 glossary](../../../../glossary.md#term-float32))</span>
+  zero attribute count/payload, equal input/output Shape, and FLOAT32 canonical state.<span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis); [Shape glossary](../../../../glossary.md#shape); [FLOAT32 glossary](../../../../glossary.md#term-float32))</span>
 - Java and native [preflight](../../../../glossary.md#term-preflight) independently reject strict profile use, stale schema 11, unknown wire
   `22+`, wrong attrs/sentinel/padding/type/state/topology/Shape/rank, and malformed or overflowed
-  geometry before resource creation.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [topology glossary](../../../../glossary.md#term-topology); [rank glossary](../../../../glossary.md#term-rank))</span>
+  geometry before resource creation.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [rank glossary](../../../../glossary.md#term-rank))</span>
 - Advance workload signature, exact default policy, candidate schema, compatibility schema,
   route-policy, and tuning codec together <span data-glossary-navigation="true"> ([codec glossary](../../../../glossary.md#term-codec))</span>`12 -> 13`. Hash profile, schema, ordered unary topology,
   descriptors/states, feeds/targets, splats, ABI, and route facts. Version-12 bytes safely miss or
@@ -318,7 +318,7 @@ canonical/splat domain already closes it, prove the all-Metal topology instead.
 
 No strict [EXP](../../../../glossary.md#term-expx)/[SIGMOID](../../../../glossary.md#term-sigmoid); other [unary](../../../../glossary.md#term-unary) kind; [scalar](../../../../glossary.md#term-scalar) [operation](../../../../glossary.md#operation); new [dtype](../../../../glossary.md#data-type--datatype); [rank](../../../../glossary.md#term-rank) zero; zero/dynamic [Shape](../../../../glossary.md#shape);
 [view](../../../../glossary.md#term-view-meanings) ingress; [binary](../../../../glossary.md#term-binary-descriptor-and-metadata)/affine capability [widening](../../../../glossary.md#term-widening); [Model](../../../../glossary.md#term-model)/[Compiler](../../../../glossary.md#term-compiler) [gradient](../../../../glossary.md#term-gradient) change; [Runtime](../../../../glossary.md#term-runtime)/[Trace](../../../../glossary.md#trace)
-profile state; async work; [device](../../../../glossary.md#term-device) selection; [pooling](../../../../glossary.md#term-pooling); package/discovery change; [ABI](../../../../glossary.md#term-application-binary-interface-abi)/export/status;
+profile state; async work; [device](../../../../glossary.md#term-device) selection; pooling; package/discovery change; [ABI](../../../../glossary.md#term-application-binary-interface-abi)/export/status;
 persistent tuning format; runtime numerical check; retry; fallback; benchmark [matrix](../../../../glossary.md#term-review-matrix); generalized
 custom-unary framework; retained unselected [kernel](../../../../glossary.md#kernel); or final repository-wide build.
 

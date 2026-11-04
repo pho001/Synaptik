@@ -26,7 +26,7 @@ specify its corpus. Both were remediated from exact clean base
 `c3e12e7de949b8d3f2c5dad5f45b8086cfc8fedb` at
 `77e6091b2a452faa04fa2b674bc295ddc7be88b7`; updated focused and actual-[device](../../../../glossary.md#term-device) evidence superseded
 the stale original reports. The same reviewer then returned `APPROVE` with zero remaining findings.
-The repository-wide build remains deliberately reserved for the final program [checkpoint](../../../../glossary.md#term-checkpoint).
+The repository-wide build remains deliberately reserved for the final program checkpoint.
 
 ## Change class
 
@@ -35,7 +35,7 @@ Class C — this adds direct report-only tooling composition over public [Compil
 no production [lifecycle](../../../../glossary.md#lifecycle), public production [API](../../../../glossary.md#term-application-programming-interface-api), capability, numerical contract, native [ABI](../../../../glossary.md#term-application-binary-interface-abi), [cache](../../../../glossary.md#term-cache),
 or route-selection policy. Use one clean implementation context and a fresh independent targeted
 review after the focused [validation](../../../../glossary.md#term-validation) below. Reserve the repository-wide build for the final program
-[checkpoint](../../../../glossary.md#term-checkpoint); this task must not [run](../../../../glossary.md#term-run) it.
+checkpoint; this task must not [run](../../../../glossary.md#term-run) it.
 
 ## Goal
 
@@ -191,7 +191,7 @@ Every successful report records:
   samples, normalized samples, and distribution.<span data-glossary-navigation="true"> ([hashes glossary](../../../../glossary.md#term-hash))</span><span data-glossary-navigation="true"> ([samples glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters); [distribution glossary](../../../../glossary.md#term-distribution))</span>
 
 `baseline` additionally requires nonblank caller-supplied properties for exact base revision, source
-identity, Git tree object SHA-1, harness-source SHA-256, [host](../../../../glossary.md#term-host)/[model](../../../../glossary.md#term-model) identity, [Metal](../../../../glossary.md#term-metal) [device](../../../../glossary.md#term-device) identity,
+identity, Git tree object SHA-1, harness-source SHA-256, [host](../../../../glossary.md#term-host)/model identity, [Metal](../../../../glossary.md#term-metal) [device](../../../../glossary.md#term-device) identity,
 macOS product/build identity, native build identity including Xcode/clang/[SDK](../../../../glossary.md#term-sdk), power state, thermal
 state, and a positive [fork](../../../../glossary.md#term-fork-meanings) number. Caller-supplied values are labeled as such; an honest explicit
 `unknown` is preferable to fabrication where a host fact is unavailable. [Trace](../../../../glossary.md#trace) IDs are never used

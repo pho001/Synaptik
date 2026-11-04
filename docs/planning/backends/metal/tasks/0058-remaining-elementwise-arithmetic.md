@@ -58,7 +58,7 @@ either zero becomes [positive zero](../../../../glossary.md#nan-infinity-and-sig
 [NaN payload](../../../../glossary.md#nan-infinity-and-signed-zero)/sign/signaling preservation may be used but is not promised beyond the [Model](../../../../glossary.md#term-model) NaN class.
 
 The proof [artifact](../../../../glossary.md#term-artifact) must cover all `2^32` binary32 input words, not a sampled corpus. It must use an
-independent reference/class [partition](../../../../glossary.md#partition), prove that the partitions cover the entire word space without
+independent reference/class partition, prove that the partitions cover the entire word space without
 overlap or omission, check every transition boundary, and record reproducible source, command, and
 [digest](../../../../glossary.md#term-digest). Production code and checker must not share one unchecked transform implementation.
 
@@ -167,7 +167,7 @@ selection, [cache](../../../../glossary.md#term-cache)-policy change, or [autotu
 ## Required verification
 
 - Independent all-`2^32` checker for each exact raw unary, partition-coverage proof, boundary corpus,
-  source/result digests, and agreement with the production Metal/C raw transform.<span data-glossary-navigation="true"> ([unary glossary](../../../../glossary.md#term-unary); [partition glossary](../../../../glossary.md#partition); [Metal glossary](../../../../glossary.md#term-metal))</span>
+  source/result digests, and agreement with the production Metal/C raw transform.<span data-glossary-navigation="true"> ([unary glossary](../../../../glossary.md#term-unary); [Metal glossary](../../../../glossary.md#term-metal))</span>
 - Native build and exact export audit; [ABI](../../../../glossary.md#term-application-binary-interface-abi) remains 5 with thirteen exports and [manifest](../../../../glossary.md#term-manifest) [schema](../../../../glossary.md#term-schema) 14.
 - Focused Metal capability, catalog-count, schema/malformed-image, native exact-output, forced-route,
   preparation/finalization, resource/liveness, publication, and no-fallback tests.<span data-glossary-navigation="true"> ([liveness glossary](../../../../glossary.md#term-liveness); [publication glossary](../../../../glossary.md#term-publication))</span>
@@ -234,7 +234,7 @@ irreducible elementary blockers; and [`GELU`](../../../../glossary.md#gaussian-e
 site blockers. [`EXP`](../../../../glossary.md#term-expx) and [`SIGMOID`](../../../../glossary.md#term-sigmoid) remain nonexecutable and Task-0053-owned.
 
 [`evidence/0058/proof.txt`](../evidence/0058/proof.txt) records the reproducible all-word checker
-source and production-source [SHA-256](../../../../glossary.md#term-sha-256) digests, [compiler](../../../../glossary.md#term-compiler) identity, exact command, [partition](../../../../glossary.md#partition) counts,
+source and production-source [SHA-256](../../../../glossary.md#term-sha-256) digests, [compiler](../../../../glossary.md#term-compiler) identity, exact command, partition counts,
 boundary count, output digests, and the result:
 
 ```text
@@ -257,7 +257,7 @@ native verifier, and [Gradle](../../../../glossary.md#term-gradle) package verif
 [manifest](../../../../glossary.md#term-manifest) [metadata](../../../../glossary.md#term-metadata), the fixed identifier, and exactly thirteen audited exports. No timing,
 benchmark, [autotuning](../../../../glossary.md#autotuning--model-autotuning), fallback, retry, or final full repository build was [run](../../../../glossary.md#term-run).
 
-The independent cumulative Class C rereview approved the clean [checkpoint](../../../../glossary.md#term-checkpoint) with zero P0/P1/P2
+The independent cumulative Class C rereview approved the clean checkpoint with zero P0/P1/P2
 findings. It verified the exhaustive Gate-A proof, public/[lifecycle](../../../../glossary.md#lifecycle)/custom route, [fail-closed](../../../../glossary.md#term-fail-closed)
 Gates B/C/D and Task-0053 isolation, `45/70` capability, `62/53` structural registry,
 schema 14, identity 15, ABI 5, route wire 3, and thirteen exports.
@@ -277,7 +277,7 @@ Each [lowering](../../../../glossary.md#lowering) has exactly one approved [tens
 `input op scalar` for scalar ADD/SUB/MUL/DIV, preserving source operand order, and `1/input` through
 tensor DIV for RECIPROCAL. The [schema](../../../../glossary.md#term-schema)/program and workload [identity](../../../../glossary.md#term-identity-meanings) must bind source wire, exact
 `ScalarValueAttrs` type/[raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity) where present, [rank-one](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) `[1]` constant Shape, operand order,
-four-byte [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), input Shape, and lowered primitive [opcode](../../../../glossary.md#term-opcode). Retain schema 14 and identity 15
+four-byte payload, input Shape, and lowered primitive [opcode](../../../../glossary.md#term-opcode). Retain schema 14 and identity 15
 because existing encoded schema/candidate bytes do not change; extend the existing version-15
 workload [digest](../../../../glossary.md#term-digest) with these derived lowering facts.
 
@@ -304,7 +304,7 @@ the one approved [binary](../../../../glossary.md#term-binary-descriptor-and-met
 Java and native [preflight](../../../../glossary.md#term-preflight) independently reject gradient-bearing values, [rank-zero](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) values, and a
 non-FLOAT32 scalar attribute. [Schema](../../../../glossary.md#term-schema) 14, [identity](../../../../glossary.md#term-identity-meanings) 15, [ABI](../../../../glossary.md#term-application-binary-interface-abi) 5, route wire 3, and thirteen exports are
 unchanged. The existing version-15 workload [digest](../../../../glossary.md#term-digest) now also binds the source wire, primitive wire,
-operand order, FLOAT32 type, [rank-one](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [extent](../../../../glossary.md#term-extent), four-byte [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), exact scalar bits, and logical
+operand order, FLOAT32 type, [rank-one](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [extent](../../../../glossary.md#term-extent), four-byte payload, exact scalar bits, and logical
 input Shape; encoded schema and candidate-decision bytes did not change.
 
 Focused capability/catalog/schema/route/[fingerprint](../../../../glossary.md#term-fingerprint)/native-malformed tests, [backend](../../../../glossary.md#backend) [conformance](../../../../glossary.md#term-conformance),

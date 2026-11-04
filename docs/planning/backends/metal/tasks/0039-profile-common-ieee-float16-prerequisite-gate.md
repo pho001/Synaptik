@@ -86,7 +86,7 @@ themselves authorize a type or operation.
 ## Conditional post-[dependency](../../../../glossary.md#term-dependency) candidate
 
 After [Model](../../../../glossary.md#term-model) 0026 is Complete and independently reviewed, re-audit [Compiler](../../../../glossary.md#term-compiler) [capture](../../../../glossary.md#term-capture-meanings) and public [Engine](../../../../glossary.md#term-engine)
-[materialization](../../../../glossary.md#materialization). If those [owners](../../../../glossary.md#term-owner) can [carry](../../../../glossary.md#term-carry) the new [descriptor](../../../../glossary.md#term-descriptor) while failing closed elsewhere, the
+[materialization](../../../../glossary.md#materialization). If those [owners](../../../../glossary.md#term-owner) can carry the new [descriptor](../../../../glossary.md#term-descriptor) while failing closed elsewhere, the
 smallest candidate is one profile-common, forward-only, no-[gradient](../../../../glossary.md#term-gradient) `FLOAT16 CONTIGUOUS`
 [occurrence](../../../../glossary.md#term-occurrence):
 

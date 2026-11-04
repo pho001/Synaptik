@@ -23,7 +23,7 @@ Fuse exact [`ACCELERATOR`](../../../../glossary.md#term-accelerator) [MATMUL](..
 
 ## Exact [fusion](../../../../glossary.md#term-fusion) domain
 
-Every admitted anchor and suffix has [FLOAT32](../../../../glossary.md#term-float32) output. Existing all-FLOAT32 [gradient](../../../../glossary.md#term-gradient) [metadata](../../../../glossary.md#term-metadata) and no-gradient mixed [BFLOAT16](../../../../glossary.md#term-bfloat16)/FLOAT32 [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) or [convolution](../../../../glossary.md#term-channels-first-convolution-layers) [carrier](../../../../glossary.md#term-storage-carrier) rules remain unchanged. `STRICT_IEEE` never admits an anchor [epilogue](../../../../glossary.md#term-epilogue).
+Every admitted anchor and suffix has [FLOAT32](../../../../glossary.md#term-float32) output. Existing all-FLOAT32 [gradient](../../../../glossary.md#term-gradient) [metadata](../../../../glossary.md#term-metadata) and no-gradient mixed [BFLOAT16](../../../../glossary.md#term-bfloat16)/FLOAT32 [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) or convolution [carrier](../../../../glossary.md#term-storage-carrier) rules remain unchanged. `STRICT_IEEE` never admits an anchor [epilogue](../../../../glossary.md#term-epilogue).
 
 ### [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)
 
@@ -37,7 +37,7 @@ The ADD may name the anchor-derived value on either side, but the other value is
 
 ### [Conv2d](../../../../glossary.md#convolution--conv2d)
 
-The [convolution](../../../../glossary.md#term-channels-first-convolution-layers) may retain its optional intrinsic [rank-one](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) `[C]` [bias](../../../../glossary.md#term-bias) as its third input. Its external suffix contains at most one [tensor](../../../../glossary.md#tensor) ADD followed by optional `RELU` or no-[gradient](../../../../glossary.md#term-gradient) `CLAMP`; [scalar](../../../../glossary.md#term-scalar) multiplication is never admitted.
+The convolution may retain its optional intrinsic [rank-one](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) `[C]` [bias](../../../../glossary.md#term-bias) as its third input. Its external suffix contains at most one [tensor](../../../../glossary.md#tensor) ADD followed by optional `RELU` or no-[gradient](../../../../glossary.md#term-gradient) `CLAMP`; [scalar](../../../../glossary.md#term-scalar) multiplication is never admitted.
 
 External ADD uses ordinary right-aligned [broadcasting](../../../../glossary.md#broadcasting). For [NCHW](../../../../glossary.md#term-nchw) output, rank-one `[W]` therefore broadcasts over width, never channels. `[1,C,1,1]` is the ordinary [channel](../../../../glossary.md#term-channel)-broadcast form. Intrinsic rank-one `[C]` remains only the third convolution input and is never reclassified as an external ADD role.
 
@@ -60,7 +60,7 @@ The local native package manifest records [node](../../../../glossary.md#node) s
 
 ## Structural [trace](../../../../glossary.md#trace) payloads
 
-The trace surface adds [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) records and enums without changing existing public record constructors.
+The trace surface adds payload records and enums without changing existing public record constructors.
 
 After final route and anchor recognition and before native creation, [PREPARE](../../../../glossary.md#prepare) emits a structural payload containing only:
 

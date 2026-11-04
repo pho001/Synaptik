@@ -56,7 +56,7 @@ fails the whole open [operation](../../../../glossary.md#operation) and [release
 - Add one narrow package-private native-access seam used only to test loading, symbol-failure,
   cleanup, and lifetime behavior without requiring an installed OpenBLAS library.<span data-glossary-navigation="true"> ([OpenBLAS glossary](../../../../glossary.md#term-openblas))</span>
 - Add focused tests for exact public shape, input/failure/lifetime behavior, exact symbols and
-  descriptors, partial-failure cleanup, and concurrency boundaries.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [concurrency glossary](../../../../glossary.md#term-concurrency))</span>
+  descriptors, partial-failure cleanup, and concurrency boundaries.<span data-glossary-navigation="true"> ([concurrency glossary](../../../../glossary.md#term-concurrency))</span>
 - Finalize affected Javadocs, the CPU backend guide, glossary impact, and planning records through
   the required separate clean documentation pass.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 
@@ -340,7 +340,7 @@ follow-up or planning correction.
 - [x] The package-private seam is used only for deterministic native-boundary tests and does not
       become a generic abstraction or public API.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - [x] Ordinary unit tests pass without an installed OpenBLAS and without silently skipping their
-      loading, failure, ABI-shape, cleanup, lifecycle, or concurrency assertions.<span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [shape glossary](../../../../glossary.md#shape); [concurrency glossary](../../../../glossary.md#term-concurrency))</span>
+      loading, failure, ABI-shape, cleanup, lifecycle, or concurrency assertions.<span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [concurrency glossary](../../../../glossary.md#term-concurrency))</span>
 - [x] Tests lock the standard 32-bit-`blasint` symbol descriptors and the absence of optional BF16,
       version, platform-discovery, config, fallback, route, tuning, and invocation behavior.<span data-glossary-navigation="true"> ([symbol glossary](../../../../glossary.md#term-symbol); [BF16 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>
 - [x] Production imports remain limited to `java.base` APIs and the module retains zero project
@@ -398,7 +398,7 @@ master/roadmap status [synchronization](../../../../glossary.md#term-synchroniza
 0002 task, relative links, anchors, fences, final newlines, and trailing whitespace.
 
 Repository-wide tests and native numerical validation are deferred to the OpenBLAS provider
-capability [checkpoint](../../../../glossary.md#term-checkpoint) after the [GEMM](../../../../glossary.md#general-matrix-multiplication--gemm) and thread-control tasks, or to [continuous integration](../../../../glossary.md#term-continuous-integration-ci). No
+capability checkpoint after the [GEMM](../../../../glossary.md#general-matrix-multiplication--gemm) and thread-control tasks, or to [continuous integration](../../../../glossary.md#term-continuous-integration-ci). No
 installed-library [integration test](../../../../glossary.md#term-integration-test) is part of ordinary task validation; a later native checkpoint
 must use an explicitly supplied compatible library and explicitly enabled [JDK](../../../../glossary.md#term-java-development-kit-jdk) native access.
 
@@ -420,7 +420,7 @@ unit [validation](../../../../glossary.md#term-validation).
 - OpenBLAS provider 0002 (Draft row only): add validated row-major FLOAT32/FLOAT64 GEMM invocation
   over caller-owned <span data-glossary-navigation="true"> ([OpenBLAS glossary](../../../../glossary.md#term-openblas); [row-major glossary](../../../../glossary.md#term-row-major); [FLOAT32 glossary](../../../../glossary.md#term-float32); [FLOAT64 glossary](../../../../glossary.md#term-float64); [GEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm))</span>[`MemorySegment`](../../../../glossary.md#term-memorysegment) storage using this exact library [lifetime](../../../../glossary.md#term-lifetime) and [bindings](../../../../glossary.md#term-binding).
 - OpenBLAS provider 0003 (Draft row only): add low-level thread-count query/control and the native
-  provider capability checkpoint, including explicit installed-library validation.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [validation glossary](../../../../glossary.md#term-validation))</span>
+  provider capability checkpoint, including explicit installed-library validation.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - CPU 0001 and later CPU route work remain Draft and consume the completed provider without moving
   route or fallback policy into it.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
 

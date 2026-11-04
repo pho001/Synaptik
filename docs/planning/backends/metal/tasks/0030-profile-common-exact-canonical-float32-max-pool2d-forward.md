@@ -23,7 +23,7 @@ Blocked
 
 Class C — this task adds a numerical [operation](../../../../glossary.md#operation) to both [Metal](../../../../glossary.md#term-metal) profile [matrices](../../../../glossary.md#term-matrix-meanings), evolves the
 [backend](../../../../glossary.md#backend)-private native [schema](../../../../glossary.md#term-schema) and route [identities](../../../../glossary.md#term-identity-meanings), and changes the generated native [graph](../../../../glossary.md#graph). Use one
-clean implementation context and an independent [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) Class C review.
+clean implementation context and an independent lean Class C review.
 
 ## Goal
 
@@ -72,11 +72,11 @@ kind, multi-output [lifecycle](../../../../glossary.md#lifecycle), or fallback, 
 ## Dependencies and integration
 
 - Depends on: [Metal](../../../../glossary.md#term-metal) 0025 Complete; [Model](../../../../glossary.md#term-model) 0020A; [Compiler](../../../../glossary.md#term-compiler) 0005D/0006B11; [CPU](../../../../glossary.md#term-cpu) 0008G exact-policy precedent; Config 0006; [Engine](../../../../glossary.md#term-engine) 0018; current Metal [lifecycle](../../../../glossary.md#lifecycle).
-- Conflicts with: every concurrent Metal capability/[schema](../../../../glossary.md#term-schema)/native-[preflight](../../../../glossary.md#term-preflight)/candidate/[codec](../../../../glossary.md#term-codec)/[materialization](../../../../glossary.md#materialization)/public Engine [scope](../../../../glossary.md#term-scope); any 0016–0018 restart; [convolution](../../../../glossary.md#term-channels-first-convolution-layers), average/1D/3D [pooling](../../../../glossary.md#term-pooling), backward, multi-output, or shared semantic work.
+- Conflicts with: every concurrent Metal capability/[schema](../../../../glossary.md#term-schema)/native-[preflight](../../../../glossary.md#term-preflight)/candidate/[codec](../../../../glossary.md#term-codec)/[materialization](../../../../glossary.md#materialization)/public Engine [scope](../../../../glossary.md#term-scope); any 0016–0018 restart; convolution, average/1D/3D [pooling](../../../../glossary.md#term-pooling), backward, multi-output, or shared semantic work.
 - Parallel group: None.
 - Common base revision: `030d4c561cc1a836d94a8c01c41ffef86a8c807b`; execution starts only from the committed [planning](../../../../glossary.md#term-planning) revision containing this brief.
 - Integration order: sole one-execution raw-winner gate; schema/[identity](../../../../glossary.md#term-identity-meanings); capability and Java/native preflight; native [lowering](../../../../glossary.md#lowering); focused proof; current docs; independent review.
-- Integration [validation](../../../../glossary.md#term-validation): focused Metal/[conformance](../../../../glossary.md#term-conformance)/one real-Engine [checkpoint](../../../../glossary.md#term-checkpoint), native export audit, architecture checks, [Javadoc](../../../../glossary.md#term-javadoc), one final build, Markdown and diff validation.
+- Integration [validation](../../../../glossary.md#term-validation): focused Metal/[conformance](../../../../glossary.md#term-conformance)/one real-Engine checkpoint, native export audit, architecture checks, [Javadoc](../../../../glossary.md#term-javadoc), one final build, Markdown and diff validation.
 - Shared-document integration [owner](../../../../glossary.md#term-owner): Metal 0030 implementer.
 
 All declared predecessors were Complete, blocked 0026/0027 had no active write scope, and 0030 was
@@ -105,7 +105,7 @@ then ordinary maximum applies with [positive zero](../../../../glossary.md#nan-i
 first height-then-width [sample](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters). Preserve the selected non-NaN [`FLOAT32`](../../../../glossary.md#term-float32) word exactly.
 
 [Model](../../../../glossary.md#term-model) does not promise [NaN payload](../../../../glossary.md#nan-infinity-and-signed-zero), sign, or signaling preservation. Require NaN class for a
-selected quiet or [signaling NaN](../../../../glossary.md#term-signaling-nan) without inventing [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) [identity](../../../../glossary.md#term-identity-meanings). Multiple-NaN first-winner order
+selected quiet or [signaling NaN](../../../../glossary.md#term-signaling-nan) without inventing payload [identity](../../../../glossary.md#term-identity-meanings). Multiple-NaN first-winner order
 remains Model/[Compiler](../../../../glossary.md#term-compiler) [gradient](../../../../glossary.md#term-gradient) policy, is not distinguishable in allowed forward bits, and justifies no extra probe.
 
 [Pooling](../../../../glossary.md#term-pooling) is unlisted in the [accelerator](../../../../glossary.md#term-accelerator)-relaxation table. Both profiles use this exact policy: no
@@ -137,7 +137,7 @@ Freeze `qNaN-A=0x7fc12345`, `qNaN-B=0xffc23456`, `sNaN-A=0x7fa12345`, and
 `sNaN-B=0xffa23456`. Read every output raw word.
 Require exact `2`, positive-zero, positive-zero, positive minimum [subnormal](../../../../glossary.md#term-subnormal), and negative minimum
 subnormal words for the first five windows; require [NaN](../../../../glossary.md#term-nan) class for each last-four word because [Model](../../../../glossary.md#term-model)
-leaves [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication)/sign/signaling unspecified. Require exact output [Shape](../../../../glossary.md#shape), unchanged input words, and no
+leaves payload/sign/signaling unspecified. Require exact output [Shape](../../../../glossary.md#shape), unchanged input words, and no
 [guard](../../../../glossary.md#term-guard) corruption. This defends ordinary selection; [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero) ordering in both operand orders;
 positive/negative subnormal comparison and selected-word preservation; quiet/[signaling NaN](../../../../glossary.md#term-signaling-nan)
 propagation from first and later positions; source immutability; and exact [publication](../../../../glossary.md#term-publication).
@@ -168,7 +168,7 @@ Ordinary `2`, `[-0,+0] -> +0`, positive/negative minimum-[subnormal](../../../..
 [Shape](../../../../glossary.md#shape), unchanged input words, both [guard](../../../../glossary.md#term-guard) words, and synchronous execution passed.
 `[+0,-0]` returned [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero) `0x80000000` instead of required [positive zero](../../../../glossary.md#nan-infinity-and-signed-zero) `0x00000000`.
 Each first/later qNaN/sNaN window returned [finite](../../../../glossary.md#term-finite) `3.0f` (`0x40400000`) instead of [NaN](../../../../glossary.md#term-nan). Thus the
-required [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero) order and all four NaN-class cells failed; this is not a [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication)-policy issue.
+required [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero) order and all four NaN-class cells failed; this is not a payload-policy issue.
 
 The source and [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) were removed immediately. No second execution, retry, geometry/profile/
 option/context/repetition [matrix](../../../../glossary.md#term-matrix-meanings), production or test edit, [schema](../../../../glossary.md#term-schema)/[identity](../../../../glossary.md#term-identity-meanings)/capability change,
@@ -186,7 +186,7 @@ do not retry or weaken this direct-selector contract.
   remaining cell zero.<span data-glossary-navigation="true"> ([kernel glossary](../../../../glossary.md#kernel); [stride glossary](../../../../glossary.md#term-stride); [padding glossary](../../../../glossary.md#padding); [dilation glossary](../../../../glossary.md#term-dilation))</span>
 - Java and native validation independently authenticate kind/attrs/profile, one-input/one-output
   topology, canonical state, FLOAT32, rank four, positive static Shapes, no-grad flags, geometry,
-  exact output Shape, sentinels, payload cells, and checked native conversions before graph creation.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [topology glossary](../../../../glossary.md#term-topology); [canonical glossary](../../../../glossary.md#term-canonical-form); [FLOAT32 glossary](../../../../glossary.md#term-float32); [rank glossary](../../../../glossary.md#term-rank); [Shapes glossary](../../../../glossary.md#shape); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [graph glossary](../../../../glossary.md#graph))</span>
+  exact output Shape, sentinels, payload cells, and checked native conversions before graph creation.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [topology glossary](../../../../glossary.md#term-topology); [canonical glossary](../../../../glossary.md#term-canonical-form); [FLOAT32 glossary](../../../../glossary.md#term-float32); [rank glossary](../../../../glossary.md#term-rank); [Shapes glossary](../../../../glossary.md#shape); [graph glossary](../../../../glossary.md#graph))</span>
 - Advance workload signature, exact default policy, candidate schema, compatibility schema,
   route-policy, and codec together <span data-glossary-navigation="true"> ([signature glossary](../../../../glossary.md#term-signature); [codec glossary](../../../../glossary.md#term-codec))</span>`12 -> 13`. Identity includes profile, schema, operation/attribute
   wires, all geometry plus ceil mode, topology, descriptors/states, feeds/targets, ABI, and splats.
@@ -218,7 +218,7 @@ single frozen corpus without duplicating [lifecycle](../../../../glossary.md#lif
    transfer, publication, and lifecycle remain unchanged.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([Schema glossary](../../../../glossary.md#term-schema); [fail closed glossary](../../../../glossary.md#admission-preflight-and-fail-closed-validation); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [publication glossary](../../../../glossary.md#term-publication); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 5. Focused structural, ABI, capability, conformance, prepared-lifecycle, and one CPU-free public
    Engine proof pass without another winner corpus or device matrix.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [CPU glossary](../../../../glossary.md#term-cpu); [Engine glossary](../../../../glossary.md#term-engine); [device glossary](../../../../glossary.md#term-device); [matrix glossary](../../../../glossary.md#term-matrix-meanings))</span>
-6. Current documentation, clean diff, one final build, and independent [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) Class C review pass.
+6. Current documentation, clean diff, one final build, and independent lean Class C review pass.
 
 ## [Validation](../../../../glossary.md#term-validation)
 

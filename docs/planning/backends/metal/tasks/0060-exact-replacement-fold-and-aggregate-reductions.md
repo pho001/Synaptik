@@ -61,7 +61,7 @@ catalog advances from `38 AVAILABLE / 77 PENDING / 0 UNAVAILABLE_WITH_PROOF` to
 Existing wire 18 `SCATTER_ELEMENTS` replacement remains a [regression](../../../../glossary.md#term-regression) control: only
 `ScatterReduction.NONE` with [runtime](../../../../glossary.md#term-runtime) global destination uniqueness is admitted. Its reduction
 variants stay false. Pool wires `97..100` are explicitly deferred to the later [pooling](../../../../glossary.md#term-pooling) task.
-[Losses](../../../../glossary.md#loss), [normalization](../../../../glossary.md#term-normalization), [convolution](../../../../glossary.md#term-channels-first-convolution-layers), attention, [RNG](../../../../glossary.md#graph-rng-state--graphrngstate), recurrent, and unrelated elementary arithmetic
+[Losses](../../../../glossary.md#loss), [normalization](../../../../glossary.md#term-normalization), convolution, attention, [RNG](../../../../glossary.md#graph-rng-state--graphrngstate), recurrent, and unrelated elementary arithmetic
 remain out of [scope](../../../../glossary.md#term-scope).
 
 ## Gate A: capability and static geometry

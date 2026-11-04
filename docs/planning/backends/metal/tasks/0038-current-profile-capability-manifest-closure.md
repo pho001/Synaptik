@@ -75,7 +75,7 @@ it does not require [Metal](../../../../glossary.md#term-metal) support for a li
   partition analysis authenticates local affine provenance. MATMUL transpose candidates likewise
   require exact local-producer authentication.<span data-glossary-navigation="true"> ([views glossary](../../../../glossary.md#term-view-meanings); [partition glossary](../../../../glossary.md#partition); [provenance glossary](../../../../glossary.md#provenance); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [transpose glossary](../../../../glossary.md#term-transpose); [producer glossary](../../../../glossary.md#term-producer); [authentication glossary](../../../../glossary.md#term-authentication))</span>
 - All other Model families, types, layouts, ranks, attributes, arities, and profile/operation pairs
-  remain false before route selection. No fallback, host repair, or capability inference occurs.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [host glossary](../../../../glossary.md#term-host); [inference glossary](../../../../glossary.md#term-inference))</span>
+  remain false before route selection. No fallback, host repair, or capability inference occurs.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [host glossary](../../../../glossary.md#term-host))</span>
 
 ## Frozen package and native state
 
@@ -104,7 +104,7 @@ capability-profile audit and must not mark, imply, wire, or document BatchNorm a
 - Adding, removing, [widening](../../../../glossary.md#term-widening), or [narrowing](../../../../glossary.md#term-narrowing) any capability answer.
 - Production, native, test, build-configuration, generated, [ABI](../../../../glossary.md#term-application-binary-interface-abi), [schema](../../../../glossary.md#term-schema), [identity](../../../../glossary.md#term-identity-meanings), or route changes.
 - A second public manifest, enumerable operation registry, reflection scan, source-text test, or
-  duplicate capability implementation.<span data-glossary-navigation="true"> ([manifest glossary](../../../../glossary.md#term-manifest); [operation glossary](../../../../glossary.md#operation); [registry glossary](../../../../glossary.md#term-registry); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  duplicate capability implementation.<span data-glossary-navigation="true"> ([manifest glossary](../../../../glossary.md#term-manifest); [operation glossary](../../../../glossary.md#operation); [registry glossary](../../../../glossary.md#term-registry))</span>
 - Reopening a Blocked task, transferring Model profile freedom to another operation, or inferring
   implementation from MPSGraph/API availability.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - [Device](../../../../glossary.md#term-device) probes, numerical or [Shape](../../../../glossary.md#shape) [matrices](../../../../glossary.md#term-matrix-meanings), benchmarks, native builds, or a full project build.

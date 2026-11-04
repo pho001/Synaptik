@@ -1,4 +1,4 @@
-# Task 0009: [MPSGraph](../../../../glossary.md#term-mpsgraph) [FLOAT32](../../../../glossary.md#term-float32) [Rank-Two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Training [Checkpoint](../../../../glossary.md#term-checkpoint)
+# Task 0009: [MPSGraph](../../../../glossary.md#term-mpsgraph) [FLOAT32](../../../../glossary.md#term-float32) [Rank-Two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Training Checkpoint
 
 ## Reader context
 
@@ -70,7 +70,7 @@ An [occurrence](../../../../glossary.md#term-occurrence) is eligible only when a
    exactly <span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank))</span>`[M,K]`, `[K,N]`, and `[M,N]`; all extents, element counts, byte sizes, and native
    conversions pass checked arithmetic.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element))</span>
 3. The output is [canonical](../../../../glossary.md#term-canonical-form) dense-[contiguous](../../../../glossary.md#term-contiguous), zero-offset, and non-[view](../../../../glossary.md#term-view-meanings). Its `requiresGrad` is the
-   logical OR of input flags, matching Model/Compiler inference; input flags need not be equal.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [inference glossary](../../../../glossary.md#term-inference))</span>
+   logical OR of input flags, matching Model/Compiler inference; input flags need not be equal.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler))</span>
 4. Each input is canonical dense-contiguous, zero-offset, and non-view, or is the exact rank-two
    descriptor produced by an in-partition `PERMUTE [1,0]` from a canonical source. A noncanonical
    input must have that unique earlier producer in the same maximal Metal partition and cannot be
@@ -134,7 +134,7 @@ If selector availability, direct [binding](../../../../glossary.md#term-binding)
 Keep native [ABI](../../../../glossary.md#term-application-binary-interface-abi) version 4, statuses, and exactly thirteen exported symbols unchanged. Bump the
 pointed-to fixed 160-byte [node](../../../../glossary.md#node) schema from version 2 to version 3 and add only `MATMUL=11` with the
 existing no-attribute discriminant, two ordered inputs, required absent-[axis](../../../../glossary.md#term-axis) sentinel, zero count,
-reserved word, and [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication). Java and native [validation](../../../../glossary.md#term-validation) must agree on [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [Shapes](../../../../glossary.md#shape), [contraction](../../../../glossary.md#contraction-dimension),
+reserved word, and payload. Java and native [validation](../../../../glossary.md#term-validation) must agree on [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [Shapes](../../../../glossary.md#shape), [contraction](../../../../glossary.md#contraction-dimension),
 [canonical](../../../../glossary.md#term-canonical-form) output, local [transpose](../../../../glossary.md#term-transpose) [topology](../../../../glossary.md#term-topology), value [identity](../../../../glossary.md#term-identity-meanings), and bounds.
 
 Bump candidate schema, compatibility/workload schema, route-policy version, and [backend](../../../../glossary.md#backend)-local [codec](../../../../glossary.md#term-codec)
@@ -147,7 +147,7 @@ Analysis declares boundary [buffers](../../../../glossary.md#term-buffer)/addres
 reusable Shape-specialized executable transactionally. Cold [binding](../../../../glossary.md#term-binding) validates typed
 representations once; hot execution makes one [synchronous](../../../../glossary.md#term-synchronous) submission into [run](../../../../glossary.md#term-run)-owned targets.
 [Rollback](../../../../glossary.md#term-rollback), closure, repeated/concurrent runs, and two sessions retain current [ownership](../../../../glossary.md#term-ownership-meanings). No retry,
-fallback, per-node call, hidden copy, late selection, async, [pooling](../../../../glossary.md#term-pooling), packaging, or tuning is added.
+fallback, per-node call, hidden copy, late selection, async, pooling, packaging, or tuning is added.
 
 ## Contracts
 

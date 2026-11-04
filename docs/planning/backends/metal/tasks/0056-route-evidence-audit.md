@@ -25,7 +25,7 @@ Every [schema](../../../../glossary.md#term-schema)-13 [operation](../../../../g
    to the repository source that owns both the member's semantic Javadoc and its signatures.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [signatures glossary](../../../../glossary.md#term-signature))</span>
 
 Selector spelling omits [Objective-C](../../../../glossary.md#native-packaging-and-platform-vocabulary) [parameter](../../../../glossary.md#term-parameter) types but retains every selector component. A `+`
-means all named primitives participate in the [finite](../../../../glossary.md#term-finite) composition; `then` states result flow. Literal
+means all named primitives participate in the finite composition; `then` states result flow. Literal
 parameter [tensors](../../../../glossary.md#tensor) use `MEM::constantWithScalar:dataType:`,
 `MEM::constantWithScalar:shape:dataType:`, or exact encoded bytes with
 `MEM::constantWithData:shape:dataType:`. [Descriptors](../../../../glossary.md#term-descriptor), normalized [axes](../../../../glossary.md#term-axis), [shapes](../../../../glossary.md#shape), and literal values
@@ -117,7 +117,7 @@ exact. Slash-separated attribute types are the source-owned alternative signatur
 
 ## Exhaustive per-wire selector/composition and [Model](../../../../glossary.md#term-model) evidence
 
-| Wire | Exact Model kind and state | Installed [SDK](../../../../glossary.md#term-sdk) selector or exact [finite](../../../../glossary.md#term-finite) composition | Bounded Model source/[signature](../../../../glossary.md#term-signature) evidence |
+| Wire | Exact Model kind and state | Installed [SDK](../../../../glossary.md#term-sdk) selector or exact finite composition | Bounded Model source/[signature](../../../../glossary.md#term-signature) evidence |
 |---:|---|---|---|
 | 1 | `UnaryElementwiseKind.NEG`; `DIRECT` | `AR::negativeWithTensor:name:` | `M-UNARY::NEG`; `NoOperationAttrs; 1 -> 1` |
 | 2 | `BinaryArithmeticKind.ADD`; `DIRECT` | `AR::additionWithPrimaryTensor:secondaryTensor:name:` | `M-BINARY::ADD`; `NoOperationAttrs; 2 -> 1` |
@@ -242,7 +242,7 @@ exact. Slash-separated attribute types are the source-owned alternative signatur
   or mismatched row.
 - The [MPSGraph](../../../../glossary.md#term-mpsgraph) state totals are exactly `75 DIRECT + 35 COMPOSED + 5 UNAVAILABLE = 115`.
 - Every `DIRECT` row names the operation selector that structurally serves one bounded occurrence;
-  every <span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>`COMPOSED` row names every primitive family needed by a [finite](../../../../glossary.md#term-finite) construction; every
+  every <span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>`COMPOSED` row names every primitive family needed by a finite construction; every
   `UNAVAILABLE` row names the closest current SDK selector and the mandatory Model observable it
   cannot expose.<span data-glossary-navigation="true"> ([SDK glossary](../../../../glossary.md#term-sdk))</span>
 - Header evidence is structural only. It does not assert numerical parity, deterministic winner

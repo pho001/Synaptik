@@ -71,8 +71,8 @@ incomplete. Do not substitute a conversion pipeline.
   BFLOAT16 one (`0x3f80`) and [positive zero](../../../../glossary.md#nan-infinity-and-signed-zero) (`0x0000`) for bare [MATMUL](../../../../glossary.md#matrix-multiplication--matmul).
 - Add deterministic native-free tests for optional lookup/binding, exact FFM shape, lifetime,
   validation order, raw-bit forwarding, failure translation, and the unchanged mandatory
-  capability when the optional symbol is missing or rejected.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [validation glossary](../../../../glossary.md#term-validation))</span>
-- Extend the explicit provider [checkpoint](../../../../glossary.md#term-checkpoint) so a caller-supplied [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) records `ABSENT`,
+  capability when the optional symbol is missing or rejected.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
+- Extend the explicit provider checkpoint so a caller-supplied [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) records `ABSENT`,
   `PRESENT_UNQUALIFIED`, or `NUMERICALLY_PROVED` for the versioned capability identity. Absence is
   a valid checkpoint outcome for direct BFLOAT16 while SGEMM/DGEMM/thread checks must still pass.
 - Finalize affected Javadocs, package documentation, CPU backend guide, glossary impact, and
@@ -115,7 +115,7 @@ incomplete. Do not substitute a conversion pipeline.
 - [OpenBLAS provider master plan](../master-plan.md)
 - [Provider 0001 loading and required symbols](0001-library-loading-and-required-symbol-binding.md)
 - [Provider 0002 FLOAT32/FLOAT64 GEMM](0002-float32-float64-row-major-gemm-invocation.md)<span data-glossary-navigation="true"> ([FLOAT32 glossary](../../../../glossary.md#term-float32); [FLOAT64 glossary](../../../../glossary.md#term-float64); [GEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm))</span>
-- [Provider 0003 thread control and checkpoint](0003-thread-control-and-native-provider-checkpoint.md)<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+- [Provider 0003 thread control and checkpoint](0003-thread-control-and-native-provider-checkpoint.md)
 - [CPU master plan](../../cpu/master-plan.md)
 - [CPU 0010D qualification and fingerprinting](../../cpu/tasks/0010d-installed-openblas-qualification-and-target-fingerprinting.md)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>
 - [Model MATMUL API contract](../../../../api/tensor-api.md#matrix-multiplication-expressions)<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
@@ -126,11 +126,11 @@ Primary upstream evidence to pin during implementation:
 - The matching tagged OpenBLAS `cblas.h`, installed `openblas_config.h`, BFLOAT16 extension
   documentation, build configuration, exported-symbol rules, CBLAS wrapper, and implementation
   sources. Development-branch files may guide discovery but cannot replace one pinned tag.<span data-glossary-navigation="true"> ([CBLAS glossary](../../../../glossary.md#term-cblas))</span>
-- [JDK](../../../../glossary.md#term-java-development-kit-jdk) 26 `Linker`, `FunctionDescriptor`, [`MemorySegment`](../../../../glossary.md#term-memorysegment), and native-[layout](../../../../glossary.md#layout) contracts.
+- [JDK](../../../../glossary.md#term-java-development-kit-jdk) 26 `Linker`, `FunctionDescriptor`, [`MemorySegment`](../../../../glossary.md#term-memorysegment), and native-layout contracts.
 
 Current local evidence is diagnostic only: the installed OpenBLAS 0.3.34 header declares
 `cblas_bgemm` with BFLOAT16 inputs, [scalars](../../../../glossary.md#term-scalar), and output, but the corresponding [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) exports
-`cblas_sbgemm` and not `cblas_bgemm`. This proves that header/version/related-[symbol](../../../../glossary.md#term-symbol) [inference](../../../../glossary.md#term-inference) is
+`cblas_sbgemm` and not `cblas_bgemm`. This proves that header/version/related-[symbol](../../../../glossary.md#term-symbol) inference is
 unsafe; it is not a platform rule or a reason to require the symbol.
 
 ## Architecture constraints
@@ -149,7 +149,7 @@ unsafe; it is not a platform rule or a reason to require the symbol.
 - Caller segments remain borrowed. The provider allocates, copies, converts, retains, closes, or
   replaces no matrix storage and mutates only the logical <span data-glossary-navigation="true"> ([borrowed glossary](../../../../glossary.md#ownership-borrowing-and-lease); [matrix glossary](../../../../glossary.md#term-matrix-meanings))</span>`C` region through the direct call.
 - Ordinary tests remain native-free. The real checkpoint accepts only an explicit caller-supplied
-  compatible absolute path and does not discover or install a binary.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata))</span>
+  compatible absolute path and does not discover or install a binary.<span data-glossary-navigation="true"> ([binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata))</span>
 - If exact scalar/enum/integer ABI, direct-output semantics, FLOAT32 accumulation with one final
   BFLOAT16 narrowing, or supported-target portability cannot be proved, implementation stops
   before the public capability is exposed.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [FLOAT32 glossary](../../../../glossary.md#term-float32); [narrowing glossary](../../../../glossary.md#term-narrowing); [target glossary](../../../../glossary.md#term-target))</span>
@@ -164,7 +164,7 @@ All gates are mandatory before production exposure:
    no generic “CBLAS BF16” claim is allowed.<span data-glossary-navigation="true"> ([CBLAS glossary](../../../../glossary.md#term-cblas); [schema glossary](../../../../glossary.md#term-schema); [BF16 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>
 2. **C representation.** The installed/tagged configuration must define OpenBLAS `bfloat16` as an
    exact unsigned 16-bit object representation. The FFM call passes raw bits with a 16-bit native
-   scalar layout and 16-bit-addressed matrix storage; Java signedness must not reinterpret bits.<span data-glossary-navigation="true"> ([FFM glossary](../../../../glossary.md#term-ffm); [raw bits glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [scalar glossary](../../../../glossary.md#term-scalar); [layout glossary](../../../../glossary.md#layout); [matrix glossary](../../../../glossary.md#term-matrix-meanings))</span>
+   scalar layout and 16-bit-addressed matrix storage; Java signedness must not reinterpret bits.<span data-glossary-navigation="true"> ([FFM glossary](../../../../glossary.md#term-ffm); [raw bits glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [scalar glossary](../../../../glossary.md#term-scalar); [matrix glossary](../../../../glossary.md#term-matrix-meanings))</span>
 3. **Integer and enum carriers.** Supported [target](../../../../glossary.md#term-target) evidence must prove 32-bit C `enum` values for
    `CBLAS_ORDER` and `CBLAS_TRANSPOSE` and 32-bit ordinary `blasint`. ILP64 and any ABI with an
    unproved enum representation are rejected.<span data-glossary-navigation="true"> ([ILP64 glossary](../../../../glossary.md#term-ilp64))</span>
@@ -291,7 +291,7 @@ Expected production paths:
 - add `backends/openblas-provider/src/main/java/io/github/pho001/synaptik/backend/provider/openblas/OpenBlasBFloat16GemmInvocation.java`
 - `backends/openblas-provider/src/main/java/io/github/pho001/synaptik/backend/provider/openblas/package-info.java`
 
-Expected test and [checkpoint](../../../../glossary.md#term-checkpoint) paths:
+Expected test and checkpoint paths:
 
 - `backends/openblas-provider/src/test/java/io/github/pho001/synaptik/backend/provider/openblas/OpenBlasAbiContractTest.java`
 - `backends/openblas-provider/src/test/java/io/github/pho001/synaptik/backend/provider/openblas/OpenBlasLibraryPublicShapeTest.java`
@@ -311,7 +311,7 @@ Expected documentation and [planning](../../../../glossary.md#term-planning) pat
 ## Maximum [scope](../../../../glossary.md#term-scope)
 
 This task may create or modify at most the 17 exact paths above: six provider production paths,
-five provider test/[checkpoint](../../../../glossary.md#term-checkpoint) paths, two explanatory-documentation paths, and four [planning](../../../../glossary.md#term-planning) paths.
+five provider test/checkpoint paths, two explanatory-documentation paths, and four [planning](../../../../glossary.md#term-planning) paths.
 It adds exactly two production source files and one test source file, with no new package.
 
 If the [ABI](../../../../glossary.md#term-application-binary-interface-abi) proof requires another production type, another [symbol](../../../../glossary.md#term-symbol), native build integration, a
@@ -339,13 +339,13 @@ repository [artifact](../../../../glossary.md#term-artifact).
 8. Native-free tests distinguish mandatory-load success, optional-symbol absence, optional-symbol
    binding failure, optional-symbol presence, invocation success/failure, and owner closure.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>
 9. The real-native checkpoint always re-proves existing SGEMM, DGEMM, and thread behavior. It may
-   report direct BFLOAT16 <span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [SGEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm); [DGEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm))</span>`ABSENT` and pass that optional sub-check; if present, it must invoke and
+   report direct BFLOAT16 <span data-glossary-navigation="true"> ([SGEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm); [DGEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm))</span>`ABSENT` and pass that optional sub-check; if present, it must invoke and
    pass all direct numerical cases before reporting `NUMERICALLY_PROVED`.
 10. Capability evidence records the exact ABI identity and pinned source version independently of
     symbol presence and numerical result. No platform or architecture allowlist determines
     presence.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 11. A binary with the local 0.3.34 evidence shape—SBGEMM export but no BGEMM export—loads and
-    retains existing functionality with the direct BFLOAT16 capability absent.<span data-glossary-navigation="true"> ([binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata); [shape glossary](../../../../glossary.md#shape))</span>
+    retains existing functionality with the direct BFLOAT16 capability absent.<span data-glossary-navigation="true"> ([binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata))</span>
 12. Ordinary tests need no installed [OpenBLAS](../../../../glossary.md#term-openblas) and perform no native lookup or silent skip.
 13. The provider remains JDK-only with zero project dependencies; no architecture, Gradle,
     conformance, integration, CPU code, or other module source changes occur.<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [Gradle glossary](../../../../glossary.md#term-gradle); [conformance glossary](../../../../glossary.md#term-conformance); [module glossary](../../../../glossary.md#term-module))</span>
@@ -364,7 +364,7 @@ After executable Java stabilizes, [run](../../../../glossary.md#term-run) exactl
   :backends:openblas-provider:testClasses
 ```
 
-Run the explicit [checkpoint](../../../../glossary.md#term-checkpoint) against any caller-supplied compatible [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) available for the
+Run the explicit checkpoint against any caller-supplied compatible [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) available for the
 implementation environment. Direct [BFLOAT16](../../../../glossary.md#term-bfloat16) absence is an expected optional outcome; failure of
 existing [SGEMM](../../../../glossary.md#general-matrix-multiplication--gemm)/[DGEMM](../../../../glossary.md#general-matrix-multiplication--gemm)/thread checks is not:
 
@@ -403,7 +403,7 @@ This task changes one [JDK](../../../../glossary.md#term-java-development-kit-jd
 ## Dependencies
 
 - Complete provider tasks 0001–0003 for caller-directed lifetime, mandatory bindings,
-  FLOAT32/FLOAT64 GEMM, thread control, and checkpoint infrastructure.<span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime); [bindings glossary](../../../../glossary.md#term-binding); [FLOAT32 glossary](../../../../glossary.md#term-float32); [FLOAT64 glossary](../../../../glossary.md#term-float64); [GEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  FLOAT32/FLOAT64 GEMM, thread control, and checkpoint infrastructure.<span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime); [bindings glossary](../../../../glossary.md#term-binding); [FLOAT32 glossary](../../../../glossary.md#term-float32); [FLOAT64 glossary](../../../../glossary.md#term-float64); [GEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm))</span>
 - [JDK](../../../../glossary.md#term-java-development-kit-jdk) 26 [FFM](../../../../glossary.md#term-ffm) [API](../../../../glossary.md#term-application-programming-interface-api) and the repository Java 26 [toolchain](../../../../glossary.md#term-toolchain).
 - Pinned OpenBLAS 0.3.31-or-later primary source for the exact optional extension. A header alone
   or unpinned development branch is insufficient.<span data-glossary-navigation="true"> ([OpenBLAS glossary](../../../../glossary.md#term-openblas))</span>
@@ -485,7 +485,7 @@ or a concrete stale-evidence risk is recorded. Do not mark 0004 Complete until e
 - `cblas_bgemm` is an OpenBLAS extension, not a portable Netlib BLAS/CBLAS contract. Each binary
   requires exact optional binding and later CPU numerical qualification.<span data-glossary-navigation="true"> ([BLAS glossary](../../../../glossary.md#term-blas); [CBLAS glossary](../../../../glossary.md#term-cblas); [binding glossary](../../../../glossary.md#term-binding); [CPU glossary](../../../../glossary.md#term-cpu); [qualification glossary](../../../../glossary.md#term-qualification))</span>
 - The provider checkpoint is bounded and does not certify every shape, value, thread count,
-  numerical order, OpenBLAS build, or target.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [shape glossary](../../../../glossary.md#shape); [target glossary](../../../../glossary.md#term-target))</span>
+  numerical order, OpenBLAS build, or target.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [target glossary](../../../../glossary.md#term-target))</span>
 - ILP64 and any supported-host ABI whose enum or 16-bit scalar calling convention cannot be
   proved remain unsupported for this capability.<span data-glossary-navigation="true"> ([ILP64 glossary](../../../../glossary.md#term-ilp64); [host glossary](../../../../glossary.md#term-host); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [scalar glossary](../../../../glossary.md#term-scalar); [calling convention glossary](../../../../glossary.md#term-calling-convention))</span>
 - The provider operation alone does not make CPU BFLOAT16 MATMUL eligible. CPU 0010D1 remains
@@ -503,12 +503,12 @@ or a concrete stale-evidence risk is recorded. Do not mark 0004 Complete until e
   | Gate | Result | Pinned evidence |
   |---|---|---|
   | Extension [identity](../../../../glossary.md#term-identity-meanings) | **Not proved** | `Changelog.txt:1-10` calls BGEMM/BGEMV new bfloat16 extensions, `CMakeLists.txt:152-161` and `docs/build_system.md:101` make `BUILD_BFLOAT16` optional, and `interface/Makefile:327-333,2049-2052` plus `interface/CMakeLists.txt:151-165` build `cblas_bgemm` only for that option. However, `docs/extensions.md:18-29` documents only `cblas_sbgemm`, not `cblas_bgemm`, and both official shared-library [symbol](../../../../glossary.md#term-symbol) generators omit `cblas_bgemm` from `bfcblasobjs` at `exports/gensymbol:131` and `exports/gensymbol.pl:128` even though they include the Fortran-style `bgemm`. The tag therefore does not establish the required exported C [ABI](../../../../glossary.md#term-application-binary-interface-abi) family. |
-  | C representation | **Proved for the source [shape](../../../../glossary.md#shape)** | `openblas_config_template.h:35-40` and `common.h:264-268` define `bfloat16` as `uint16_t`; `cblas.h:481-482` passes both [scalars](../../../../glossary.md#term-scalar) by value and addresses A, B, and C as `bfloat16 *`. [JDK](../../../../glossary.md#term-java-development-kit-jdk) 26 `ValueLayout.JAVA_SHORT` is a two-byte, two-byte-aligned native-order [layout](../../../../glossary.md#layout), and unsigned C integers use the corresponding signed [carrier](../../../../glossary.md#term-storage-carrier) without changing [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity). |
+  | C representation | **Proved for the source shape** | `openblas_config_template.h:35-40` and `common.h:264-268` define `bfloat16` as `uint16_t`; `cblas.h:481-482` passes both [scalars](../../../../glossary.md#term-scalar) by value and addresses A, B, and C as `bfloat16 *`. [JDK](../../../../glossary.md#term-java-development-kit-jdk) 26 `ValueLayout.JAVA_SHORT` is a two-byte, two-byte-aligned native-order layout, and unsigned C integers use the corresponding signed [carrier](../../../../glossary.md#term-storage-carrier) without changing [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity). |
   | Integer and enum carriers | **Proved for the selected ordinary build shape** | `openblas_config_template.h:49-53` makes ordinary `blasint` C `int` and selects a wider carrier only under `OPENBLAS_USE64BITINT`; `cblas.h:73-79` defines the [CBLAS](../../../../glossary.md#term-cblas) enums and their fixed values. No `-fshort-enums` use exists in the tag. Apple Clang 21 cross-[target](../../../../glossary.md#term-target) LLVM [lowering](../../../../glossary.md#lowering) of the exact declaration produced `i32` for all three enums and six [dimension](../../../../glossary.md#dimension)/leading-dimension values, `i16` for alpha/beta, pointers for A/B/C, and `void` return for `arm64-apple-macos15`, `x86_64-apple-macos15`, `aarch64-linux-gnu`, `x86_64-linux-gnu`, `aarch64-pc-windows-msvc`, and `x86_64-pc-windows-msvc`. [ILP64](../../../../glossary.md#term-ilp64) remains rejected. |
   | Exact [descriptor](../../../../glossary.md#term-descriptor) | **Proved for the selected ordinary build shape** | `cblas.h:481-482` and `interface/gemm.c:371-378` give exactly fourteen ordered [arguments](../../../../glossary.md#term-argument): three enums, M/N/K, [BFLOAT16](../../../../glossary.md#term-bfloat16) alpha, A, lda, B, ldb, BFLOAT16 beta, C, ldc, with `void` return. The official JDK 26 `Linker` contract maps C `short`, C `int`, and pointers to [canonical](../../../../glossary.md#term-canonical-form) value/address layouts and `FunctionDescriptor.ofVoid` models argument layouts with no return layout. The resulting descriptor would be `JAVA_INT` six times, `JAVA_SHORT`, `ADDRESS`, `JAVA_INT`, `ADDRESS`, `JAVA_INT`, `JAVA_SHORT`, `ADDRESS`, `JAVA_INT`. |
   | Direct result | **Proved for the source shape** | `cblas.h:481-482`, the `BGEMM` [specialization](../../../../glossary.md#term-specialization) in `common.h:317-323`, and `interface/gemm.c:371-378` use BFLOAT16 A, B, scalar, and C carriers directly; there is no [FLOAT32](../../../../glossary.md#term-float32) C [parameter](../../../../glossary.md#term-parameter) in this entry point. |
   | [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) compatibility | **Failed** | `param.h:85-87` sets `BGEMM_DEFAULT_Q` to 256. `driver/level3/level3.c:305-322` partitions the [contraction dimension](../../../../glossary.md#contraction-dimension) into repeated `GEMM_Q`-bounded `ls` blocks, and `driver/level3/level3.c:381-387` invokes the output [kernel](../../../../glossary.md#kernel) for every block. The fallback BGEMM kernel accumulates each block in FLOAT32 at `kernel/generic/gemmkernel_2x2.c:42-46,56-109`, then reads BFLOAT16 C and writes `TO_OUTPUT(...)` at lines 110-117. `kernel/generic/conversion_macros.h:34-51` defines that BGEMM output conversion as FLOAT32-to-BFLOAT16. The optimized NEOVERSEV1 BGEMM kernel likewise converts and stores C in each `UPDATE_C` at `kernel/arm64/bgemm_kernel_2vlx4_neoversev1_impl.c:34-69,203-206`. Consequently a sufficiently large [contraction](../../../../glossary.md#contraction-dimension) is narrowed to BFLOAT16 between K blocks, then widened and accumulated again. This is not FLOAT32 accumulation over the complete contraction followed by one final BFLOAT16 conversion, so it cannot satisfy the task's [Model](../../../../glossary.md#term-model) gate merely by allowing [reassociation](../../../../glossary.md#term-reassociation) or [fused multiply-add](../../../../glossary.md#term-fused-multiply-add-fma). |
-  | Executable proof | **Absent, as required after the failed semantic gate** | `/opt/homebrew/Cellar/openblas/0.3.34/lib/libopenblasp-r0.3.34.dylib` is a real [arm64](../../../../glossary.md#native-packaging-and-platform-vocabulary) [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) whose `nm -gU` output contains the four mandatory symbols and `cblas_sbgemm` but no `cblas_bgemm`. No direct BFLOAT16 invocation was attempted. The unchanged [checkpoint](../../../../glossary.md#term-checkpoint) passed its mandatory [SGEMM](../../../../glossary.md#general-matrix-multiplication--gemm), [DGEMM](../../../../glossary.md#general-matrix-multiplication--gemm), shared-thread observation, and restoration checks and restored thread count 16. |
+  | Executable proof | **Absent, as required after the failed semantic gate** | `/opt/homebrew/Cellar/openblas/0.3.34/lib/libopenblasp-r0.3.34.dylib` is a real [arm64](../../../../glossary.md#native-packaging-and-platform-vocabulary) [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) whose `nm -gU` output contains the four mandatory symbols and `cblas_sbgemm` but no `cblas_bgemm`. No direct BFLOAT16 invocation was attempted. The unchanged checkpoint passed its mandatory [SGEMM](../../../../glossary.md#general-matrix-multiplication--gemm), [DGEMM](../../../../glossary.md#general-matrix-multiplication--gemm), shared-thread observation, and restoration checks and restored thread count 16. |
 
 - Official JDK 26 contracts used for the [FFM](../../../../glossary.md#term-ffm) review were
   [`Linker`](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/foreign/Linker.html),
@@ -556,9 +556,9 @@ or a concrete stale-evidence risk is recorded. Do not mark 0004 Complete until e
   release does not prove a supported exported <span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [release glossary](../../../../glossary.md#term-release))</span>`cblas_bgemm` C ABI family and its implementation
   positively contradicts the required one-final-narrowing Model compatibility gate.<span data-glossary-navigation="true"> ([ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [narrowing glossary](../../../../glossary.md#term-narrowing); [Model glossary](../../../../glossary.md#term-model))</span>
 - No optional lookup, descriptor, method handle, public capability, invocation helper, checkpoint
-  extension, conversion, staging, <span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup))</span><span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [method handle glossary](../../../../glossary.md#term-method-handle); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>`cblas_sbgemm` route, platform/version inference, or CPU change
+  extension, conversion, staging, <span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup))</span><span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [method handle glossary](../../../../glossary.md#term-method-handle))</span>`cblas_sbgemm` route, platform/version inference, or CPU change
   was added. The existing mandatory four-symbol load and all current provider behavior remain
-  byte-for-byte unchanged.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [CPU glossary](../../../../glossary.md#term-cpu); [symbol glossary](../../../../glossary.md#term-symbol))</span>
+  byte-for-byte unchanged.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [symbol glossary](../../../../glossary.md#term-symbol))</span>
 - A later retry requires pinned upstream OpenBLAS source and exported-binary evidence for a
   versioned direct-BGEMM ABI whose complete contraction remains FLOAT32 until one final BFLOAT16
   result conversion. A small numerical fixture cannot replace that source proof.<span data-glossary-navigation="true"> ([OpenBLAS glossary](../../../../glossary.md#term-openblas); [binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata); [contraction glossary](../../../../glossary.md#contraction-dimension); [FLOAT32 glossary](../../../../glossary.md#term-float32); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [fixture glossary](../../../../glossary.md#term-fixture))</span>
@@ -572,7 +572,7 @@ or a concrete stale-evidence risk is recorded. Do not mark 0004 Complete until e
   CPU master plan, and the roadmap.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 - Tests and [validation](../../../../glossary.md#term-validation): reused implementation context
   `01a090a7-0a5a-7b82-aced-9dc7368cdbdd`'s passing five-suite/50-test provider result and local
-  0.3.34 mandatory native checkpoint that restored thread count 16. Documentation context<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  0.3.34 mandatory native checkpoint that restored thread count 16. Documentation context
   `/root/openblas_0004_doc_review` independently reproduced the six-target Clang ABI lowering,
   inspected the pinned sources and local exports, and passed four-file Markdown, exact-path,
   stale-status/frontier, dependency/order, task-file-absence, unchanged-architecture, and

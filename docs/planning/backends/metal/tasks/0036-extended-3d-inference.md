@@ -33,7 +33,7 @@ generic stencil as an undocumented three-dimensional [pooling](../../../../gloss
 
 Direct [MPSGraph](../../../../glossary.md#term-mpsgraph) Conv3d maps the complete structural candidate but inherits Task 0031's [opaque](../../../../glossary.md#term-opaque)
 [shape](../../../../glossary.md#shape)-dependent [contraction](../../../../glossary.md#contraction-dimension) blocker. Pooling has no named 3D selector, and Pooling4D/stencil do not
-establish exact profile-common [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling) semantics. [Lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) policy blocks both before a probe. Task 0036
+establish exact profile-common [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling) semantics. Lean policy blocks both before a probe. Task 0036
 is Blocked and exposes no [Ready](../../../../glossary.md#term-ready) Metal task.
 
 ## Smallest candidate if unblocked
@@ -52,7 +52,7 @@ is Blocked and exposes no [Ready](../../../../glossary.md#term-ready) Metal task
 
 - Biased [`CONV3D`](../../../../glossary.md#conv3d--ncdhw), [fused](../../../../glossary.md#specialization-and-fusion) [epilogue](../../../../glossary.md#term-epilogue), hidden add, [gradients](../../../../glossary.md#term-gradient)/training, saved values, or hidden outputs.
 - Claiming [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling) from a plausible but undocumented Pooling4D/stencil composition.
-- `UNFOLD3D`/`FOLD3D`, overlap-add, generic windows, or [convolution](../../../../glossary.md#term-channels-first-convolution-layers) [decomposition](../../../../glossary.md#term-decomposition).
+- `UNFOLD3D`/`FOLD3D`, overlap-add, generic windows, or convolution [decomposition](../../../../glossary.md#term-decomposition).
 - Dynamic/zero extents, views, another layout/type/profile, transfer widening, fallback, custom
   kernels, performance claims, a device matrix, single-shape narrowing, or relaxed oracles.<span data-glossary-navigation="true"> ([views glossary](../../../../glossary.md#term-view-meanings); [layout glossary](../../../../glossary.md#layout); [widening glossary](../../../../glossary.md#term-widening); [kernels glossary](../../../../glossary.md#kernel); [device glossary](../../../../glossary.md#term-device); [matrix glossary](../../../../glossary.md#term-matrix-meanings); [shape glossary](../../../../glossary.md#shape); [narrowing glossary](../../../../glossary.md#term-narrowing))</span>
 
@@ -73,14 +73,14 @@ is Blocked and exposes no [Ready](../../../../glossary.md#term-ready) Metal task
 - [Compiler](../../../../glossary.md#term-compiler) [Conv3d](../../../modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md),
   [Pool3d/windows](../../../modules/compiler/tasks/0006b1-pool3d-and-3d-window-forward-adoption-and-explicit-gradient-boundary.md),
   and [gradient closure](../../../modules/compiler/tasks/0006b2-pool3d-and-3d-window-gradient-closure.md)<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient))</span>
-  own inference, canonical publication, and generated gradients.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [canonical glossary](../../../../glossary.md#term-canonical-form); [publication glossary](../../../../glossary.md#term-publication))</span>
+  own inference, canonical publication, and generated gradients.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [publication glossary](../../../../glossary.md#term-publication))</span>
 - [CPU](../../../../glossary.md#term-cpu) [Conv3d](../../cpu/tasks/0008a-portable-channels-first-dimensional-convolution-closure.md)
   and [Pool3d](../../cpu/tasks/0008g1-portable-pool1d-composition-validation-and-pool3d-generated-execution.md)
   are exact rank-specific private precedents, not MPSGraph authorization.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph))</span>
 - Depends on: Metal 0025; Model 0025H/J/K; Compiler 0006B/B1/B2; CPU 0008A/G1; Config 0006;
   Engine 0018. Tasks 0030/0031 provide evidence, not executable dependencies.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine))</span>
 - Conflicts with: every concurrent Metal capability/schema/native/candidate/materialization/public
-  Engine scope; convolution/pooling/window/custom-kernel work; any 0016–0018 restart.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [materialization glossary](../../../../glossary.md#materialization); [scope glossary](../../../../glossary.md#term-scope); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [kernel glossary](../../../../glossary.md#kernel))</span>
+  Engine scope; convolution/pooling/window/custom-kernel work; any 0016–0018 restart.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [materialization glossary](../../../../glossary.md#materialization); [scope glossary](../../../../glossary.md#term-scope); [kernel glossary](../../../../glossary.md#kernel))</span>
 - Parallel group: None.
 - Common base: `e3de755abfc0a15fc54c7bebe88a84de5df4511c`.
 - Integration order: documentation-only review while Blocked; no implementation or [device](../../../../glossary.md#term-device) gate.
@@ -131,7 +131,7 @@ groups              = groups
 ```
 
 This maps the full candidate structurally without a probe. The selector has no [bias](../../../../glossary.md#term-bias) input; a
-reshape/broadcast add needs separate [convolution](../../../../glossary.md#term-channels-first-convolution-layers)-level proof and is excluded. The macOS 26.6.2 [host](../../../../glossary.md#term-host)
+reshape/broadcast add needs separate convolution-level proof and is excluded. The macOS 26.6.2 [host](../../../../glossary.md#term-host)
 contains the [API](../../../../glossary.md#term-application-programming-interface-api), but the native build sets no minimum [target](../../../../glossary.md#term-target); implementation must establish a
 macOS 13.2 floor or explicit [fail-closed](../../../../glossary.md#term-fail-closed) availability.
 
@@ -141,7 +141,7 @@ reduced-[precision](../../../../glossary.md#term-precision) option; it does not 
 
 This is Task 0031's blocker at larger rank. One execution exercises one geometry and [opaque](../../../../glossary.md#term-opaque)
 realization; it cannot authorize other [kernels](../../../../glossary.md#kernel), groups, channels, [strides](../../../../glossary.md#term-stride), dilations, paddings, or
-extents. Transformed convolution may use arithmetic outside [reassociation](../../../../glossary.md#term-reassociation)/corresponding [FMA](../../../../glossary.md#term-fused-multiply-add-fma). [Lean](../../../../glossary.md#proof-assistant-and-model-checking-tools)
+extents. Transformed convolution may use arithmetic outside [reassociation](../../../../glossary.md#term-reassociation)/corresponding [FMA](../../../../glossary.md#term-fused-multiply-add-fma). Lean
 policy prohibits the required geometry/algorithm [matrix](../../../../glossary.md#term-matrix-meanings), and one passing geometry cannot justify a
 capability cut. No Conv3d probe ran.
 
@@ -160,7 +160,7 @@ paddingValues  = [0,0, pD,pD, pH,pH, pW,pW]
 
 Its header does not state the source [rank](../../../../glossary.md#term-rank)-to-[axis](../../../../glossary.md#term-axis) mapping, named NCDHW [layout](../../../../glossary.md#layout), [singleton](../../../../glossary.md#term-singleton)-[channel](../../../../glossary.md#term-channel)
 preservation, or complete output formula. `ceilMode` says division rounds up, not that [Model](../../../../glossary.md#term-model)'s
-terminal all-padding window remains. The proposal is [inference](../../../../glossary.md#term-inference), not authorization.
+terminal all-padding window remains. The proposal is inference, not authorization.
 
 Stencil explicitly reduces the last four source dimensions with rank-four [weights](../../../../glossary.md#term-weight). NCDHW could use
 positive-one `[1,Kd,Kh,Kw]` weights, unit/unpadded channel geometry, and Model D/H/W geometry; max

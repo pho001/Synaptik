@@ -47,7 +47,7 @@ caller-owned extraction [lifecycle](../../../../glossary.md#lifecycle) and the e
 - native build, signing, repair, normalization, install, extraction, discovery, download, cache, or
   runtime cleanup<span data-glossary-navigation="true"> ([normalization glossary](../../../../glossary.md#term-normalization); [cache glossary](../../../../glossary.md#term-cache); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Gradle distribution plugin, consumable configuration, outgoing artifact, publication,
-  repository, coordinates, version, classifier contract, or lifecycle relationship<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [distribution glossary](../../../../glossary.md#term-distribution); [plugin glossary](../../../../glossary.md#term-plugin); [artifact glossary](../../../../glossary.md#term-artifact); [publication glossary](../../../../glossary.md#term-publication); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  repository, coordinates, version, classifier contract, or lifecycle relationship<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [distribution glossary](../../../../glossary.md#term-distribution); [plugin glossary](../../../../glossary.md#term-plugin); [artifact glossary](../../../../glossary.md#term-artifact); [publication glossary](../../../../glossary.md#term-publication); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Developer ID, Team ID, credentials, keychain/CI secrets, notarization, provenance, CI, or public
   release<span data-glossary-navigation="true"> ([CI glossary](../../../../glossary.md#term-continuous-integration-ci); [notarization glossary](../../../../glossary.md#term-notarization); [provenance glossary](../../../../glossary.md#provenance); [release glossary](../../../../glossary.md#term-release))</span>
 - Java, Config, loader, native source, ABI, schema, capability, dependency, test-source, settings,
@@ -64,7 +64,7 @@ caller-owned extraction [lifecycle](../../../../glossary.md#lifecycle) and the e
   continue to select one explicit absolute library path; Engine performs no discovery.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - [`docs/developer-guide/release-process.md`](../../../../developer-guide/release-process.md) — the
   local archive must not invent release versioning, coordinates, publisher identity, provenance,
-  redistribution rights, or publication.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [identity glossary](../../../../glossary.md#term-identity-meanings); [provenance glossary](../../../../glossary.md#provenance); [publication glossary](../../../../glossary.md#term-publication))</span>
+  redistribution rights, or publication.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [provenance glossary](../../../../glossary.md#provenance); [publication glossary](../../../../glossary.md#term-publication))</span>
 - [Task 0045](0045-verified-local-native-package.md) headings `Package contract`, `Verification
   contract`, and `Follow-up` — this task consumes only the final reviewed exact package boundary
   and reuses its verifier.
@@ -81,7 +81,7 @@ If implementation needs another platform, package member, public workflow, insta
 - Parallel group: None
 - Common base revision: `26c6c911`
 - Integration order: sole Metal frontier after 0045
-- Integration [validation](../../../../glossary.md#term-validation): Metal verified local archive [checkpoint](../../../../glossary.md#term-checkpoint)
+- Integration [validation](../../../../glossary.md#term-validation): Metal verified local archive checkpoint
 - Shared-document integration [owner](../../../../glossary.md#term-owner): Main planner
 
 ## Files and responsibilities
@@ -132,7 +132,7 @@ macos-arm64/
 Directory mode is `0755`. File order is reproducible and filesystem timestamps are not preserved.
 No source path, [host](../../../../glossary.md#term-host), time, revision, product version, [SDK](../../../../glossary.md#term-sdk) version, Team ID, [provenance](../../../../glossary.md#provenance), legal
 placeholder, or extra file is added. Platform selection is fixed to `macos-arm64`; the reused
-verifier, not a new [Gradle](../../../../glossary.md#term-gradle) selector, authenticates that package [shape](../../../../glossary.md#shape).
+verifier, not a new [Gradle](../../../../glossary.md#term-gradle) selector, authenticates that package shape.
 
 ## Extraction, loader, and legal boundary
 
@@ -190,7 +190,7 @@ behavior plus the existing permanent package verifier directly exercise laziness
 ## Follow-up
 
 Developer ID signing, secure keychain/[CI](../../../../glossary.md#term-continuous-integration-ci) secret handling, notary credentials, an accepted
-notarizable container/process, project license and notice policy, product versioning, [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix),
+notarizable container/process, project license and notice policy, product versioning, coordinates,
 repository, [provenance](../../../../glossary.md#provenance), CI promotion, [rollback](../../../../glossary.md#term-rollback), support, and public [release](../../../../glossary.md#term-release) remain separately
 blocked.
 
@@ -209,7 +209,7 @@ and clean reviewed Task 0045 base `26c6c911`.
 `metalNativeLocalZip`. The exact raw absolute property reaches the existing verifier; the verifier
 has no outputs and executes on every selection. The ZIP task depends only on it, copies the exact
 three members under `macos-arm64`, and has no ordinary [lifecycle](../../../../glossary.md#lifecycle), build, signing, install,
-discovery, configuration, [publication](../../../../glossary.md#term-publication), [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), version, Java, or native-source effect.
+discovery, configuration, [publication](../../../../glossary.md#term-publication), coordinate, version, Java, or native-source effect.
 
 Task listing and ordinary `:backends:metal:build` passed without the property. Missing-property
 selection of both tasks and blank, relative, symlink-root, trailing-`/`, terminal-`/.`, and

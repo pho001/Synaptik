@@ -58,7 +58,7 @@ support.
 ## Non-goals
 
 No [SIGMOID](../../../../glossary.md#term-sigmoid), [BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT16](../../../../glossary.md#term-float16)/[FLOAT64](../../../../glossary.md#term-float64) [EXP](../../../../glossary.md#term-expx), [gradient](../../../../glossary.md#term-gradient)-bearing EXP, new public configuration,
-[runtime](../../../../glossary.md#term-runtime) [tolerance](../../../../glossary.md#term-tolerance) [engine](../../../../glossary.md#term-engine), numerical [certificate](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions), proof [kernel](../../../../glossary.md#kernel), route [autotuning](../../../../glossary.md#autotuning--model-autotuning), fallback,
+[runtime](../../../../glossary.md#term-runtime) [tolerance](../../../../glossary.md#term-tolerance) engine, numerical [certificate](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions), proof kernel, route [autotuning](../../../../glossary.md#autotuning--model-autotuning), fallback,
 [fusion](../../../../glossary.md#term-fusion), or performance claim. A failed direct-route gate leaves EXP unsupported; a custom
 alternative needs a separate decision rather than a silent substitution.
 
@@ -85,7 +85,7 @@ the old false baseline rather than infer low support or silently rewrite histori
 ## Dependencies and integration
 
 - Depends on: [Model](../../../../glossary.md#term-model) 0032 (`Complete`); [Metal](../../../../glossary.md#term-metal) 0069 [Slice](../../../../glossary.md#slice)-3 review/remediation (`Complete` at
-  prior source checkpoint); Metal 0074A contract and independent review (<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>`Complete`).
+  prior source checkpoint); Metal 0074A contract and independent review (`Complete`).
 - Conflicts with: Metal 0069 remediation; a resumed 0053 production route; concurrent Metal
   capability, native source/schema, route, identity, or shared-contract edits.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Parallel group: None.
@@ -105,7 +105,7 @@ the old false baseline rather than infer low support or silently rewrite histori
   Partial 0074 code and tests remain unaccepted, with the low-type proxy and failed Java negative
   preflight known. This brief is Ready at the sole serial Metal frontier; historical 0051/0053
   proof gates do not apply to the current profile-free contract. Integration must revalidate and
-  rebind 0069 evidence after the native source stabilizes.<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight); [Ready glossary](../../../../glossary.md#term-ready); [rebind glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction))</span>
+  rebind 0069 evidence after the native source stabilizes.<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight); [Ready glossary](../../../../glossary.md#term-ready))</span>
 
 ## Files and symbols
 
@@ -156,7 +156,7 @@ git diff --check
 
 Check the thirteen exports and [schema](../../../../glossary.md#term-schema)/stale-input rejection in the focused tests; validate
 documentation links after the final edits. If native foundation changes, the integration [owner](../../../../glossary.md#term-owner)
-must independently revalidate and [rebind](../../../../glossary.md#capture-graph-ports-and-reconstruction) Task-0069's pinned source/[AIR](../../../../glossary.md#term-air) evidence to the resulting
+must independently revalidate and rebind Task-0069's pinned source/[AIR](../../../../glossary.md#term-air) evidence to the resulting
 source before closure; do not treat its earlier [digest](../../../../glossary.md#term-digest) as current. Reuse unchanged worker evidence;
 run `./gradlew build --max-workers=1` once against the verified package after final executable
 integration. Do not rerun it merely for a documentation-only review.

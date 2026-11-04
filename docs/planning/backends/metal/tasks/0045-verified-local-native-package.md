@@ -43,8 +43,8 @@ authenticated, published, or a public [release](../../../../glossary.md#term-rel
 
 ## Non-goals
 
-- Developer ID mode, [certificate](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions)/Team-ID placeholders, credentials, [notarization](../../../../glossary.md#term-notarization) or a no-op for it
-- archive, [publication](../../../../glossary.md#term-publication), [provenance](../../../../glossary.md#provenance), versioning, [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), [Gradle](../../../../glossary.md#term-gradle) [distribution](../../../../glossary.md#term-distribution), or [CI](../../../../glossary.md#term-continuous-integration-ci) workflow
+- Developer ID mode, certificate/Team-ID placeholders, credentials, [notarization](../../../../glossary.md#term-notarization) or a no-op for it
+- archive, [publication](../../../../glossary.md#term-publication), [provenance](../../../../glossary.md#provenance), versioning, coordinates, [Gradle](../../../../glossary.md#term-gradle) [distribution](../../../../glossary.md#term-distribution), or [CI](../../../../glossary.md#term-continuous-integration-ci) workflow
 - Java loading, discovery, extraction, caching, configuration, [API](../../../../glossary.md#term-application-programming-interface-api), test, or [dependency](../../../../glossary.md#term-dependency) changes
 - native [Objective-C](../../../../glossary.md#native-packaging-and-platform-vocabulary) source, [ABI](../../../../glossary.md#term-application-binary-interface-abi), [schema](../../../../glossary.md#term-schema), capability, numerical, framework, or route changes
 - Intel macOS, a lower deployment [target](../../../../glossary.md#term-target), or a reproducible cross-[toolchain](../../../../glossary.md#term-toolchain) [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) claim
@@ -73,7 +73,7 @@ contract](../../../../glossary.md#architecture-contract), stop and return this t
 - Parallel group: None
 - Common base revision: `7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`
 - Integration order: before any native [distribution](../../../../glossary.md#term-distribution)-configuration task
-- Integration [validation](../../../../glossary.md#term-validation): [Metal](../../../../glossary.md#term-metal) native package [checkpoint](../../../../glossary.md#term-checkpoint)
+- Integration [validation](../../../../glossary.md#term-validation): [Metal](../../../../glossary.md#term-metal) native package checkpoint
 - Shared-document integration [owner](../../../../glossary.md#term-owner): Main planner
 
 ## Files and responsibilities

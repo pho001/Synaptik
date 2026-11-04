@@ -28,7 +28,7 @@ This [planning](../../../../glossary.md#term-planning)-only blocker record chang
 Assess the smallest current first-class [Metal](../../../../glossary.md#term-metal) [loss](../../../../glossary.md#loss) [slice](../../../../glossary.md#slice): [canonical](../../../../glossary.md#term-canonical-form), positive, fully static,
 same-typed [`FLOAT32`](../../../../glossary.md#term-float32), no-grad `MEAN_SQUARED_ERROR` with `LossReduction.NONE` under both numerical
 profiles. `NONE` removes complete-domain loss accumulation, [scalar](../../../../glossary.md#term-scalar) [publication](../../../../glossary.md#term-publication), denominator, and
-empty-[mean](../../../../glossary.md#term-mean) behavior while preserving one [atomic](../../../../glossary.md#resource-transaction-and-rollback) [Model](../../../../glossary.md#term-model) loss [occurrence](../../../../glossary.md#term-occurrence).
+empty-[mean](../../../../glossary.md#term-mean) behavior while preserving one atomic [Model](../../../../glossary.md#term-model) loss [occurrence](../../../../glossary.md#term-occurrence).
 
 [MPSGraph](../../../../glossary.md#term-mpsgraph) exposes no direct [MSE](../../../../glossary.md#mean-squared-error--mse) selector. Its documented arithmetic surface can express subtraction
 followed by square, but that [decomposition](../../../../glossary.md#term-decomposition) does not transfer the [operation](../../../../glossary.md#operation)-scoped [`ACCELERATOR`](../../../../glossary.md#term-accelerator)
@@ -105,7 +105,7 @@ opposite-sign [infinities](../../../../glossary.md#nan-infinity-and-signed-zero)
 only while these special classes and the [operation](../../../../glossary.md#operation)'s result contract remain intact; no [binary](../../../../glossary.md#term-binary-descriptor-and-metadata)
 profile row is inherited.
 
-Compiler [inference](../../../../glossary.md#term-inference) independently proves the exact Shape, promoted type, and OR gradient flag.
+Compiler inference independently proves the exact Shape, promoted type, and OR gradient flag.
 Compiler pullbacks restore a reduction [cotangent](../../../../glossary.md#cotangent) and use `2 * (prediction - target)` and its
 negative for selected roles. They are deliberately outside this no-grad forward candidate; Task
 0032 does not use [MPSGraph](../../../../glossary.md#term-mpsgraph) [loss](../../../../glossary.md#loss)-gradient selectors or claim that generated backward [topology](../../../../glossary.md#term-topology) is
@@ -196,7 +196,7 @@ Task 0032 can unblock only through one separately authorized path that closes th
    under the retained FTZ evidence;<span data-glossary-navigation="true"> ([subnormals glossary](../../../../glossary.md#term-subnormal); [MSL glossary](../../../../glossary.md#term-metal-shading-language-msl); [FTZ glossary](../../../../glossary.md#term-ftz))</span>
 2. authoritative MPSGraph documentation or a direct MSE selector contract that closes the
    operation's complete numerical envelope, leaving at most one genuinely isolated property for a
-   later lean gate; or<span data-glossary-navigation="true"> ([MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [lean glossary](../../../../glossary.md#proof-assistant-and-model-checking-tools))</span>
+   later lean gate; or<span data-glossary-navigation="true"> ([MPSGraph glossary](../../../../glossary.md#term-mpsgraph))</span>
 3. a preceding Model/architecture decision that gives MSE a named, operation-specific accelerator
    envelope covering the intended implementation without importing generic binary fast math.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [accelerator glossary](../../../../glossary.md#term-accelerator))</span>
 

@@ -20,8 +20,8 @@ Complete
 
 Completed at implementation `a947e574732273bee4469d42afe8935082d53109` from exact clean base
 `ad07e7e5d029f0472f1d05e82f2e869899d7dbf7`, followed by documentation remediation
-`aa191ca469010d081150e97dcddd504ec626dd9e`. Final independent [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) Class C review returned
-`APPROVE` with zero findings after both [checkpoints](../../../../glossary.md#term-checkpoint). [Metal](../../../../glossary.md#term-metal) 0023 remains Complete at implementation
+`aa191ca469010d081150e97dcddd504ec626dd9e`. Final independent lean Class C review returned
+`APPROVE` with zero findings after both checkpoints. [Metal](../../../../glossary.md#term-metal) 0023 remains Complete at implementation
 `9a7911c9447eeb5125ceb8a4d78e55349ec18b97` plus evidence
 `80e6cedda96df2a03f284d551e6e34046eaaa2f3`. Metal 0025 is the sole [Ready](../../../../glossary.md#term-ready) successor.
 
@@ -45,7 +45,7 @@ prohibited.
 - Integration order: schema/identity, capability/analysis, native validation/lowering, prepared
   diagnostics, public proof, documentation, independent review.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [validation glossary](../../../../glossary.md#term-validation); [lowering glossary](../../../../glossary.md#lowering))</span>
 - Integration validation: focused Metal/conformance/real-Engine checkpoint, native export audit,
-  architecture checks, Javadoc, one final build, Markdown/diff validation.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
+  architecture checks, Javadoc, one final build, Markdown/diff validation.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - Shared-document integration [owner](../../../../glossary.md#term-owner): [Metal](../../../../glossary.md#term-metal) 0024 implementer.
 
 ## Goal
@@ -76,7 +76,7 @@ overlapping targets fail before selector [dispatch](../../../../glossary.md#term
 - Metal 0023 supplies exact canonical FLOAT32/INT32 caller and splat ingress, local FLOAT32
   publication, pre-dispatch index scanning, schema 9/wires through 17, and version-ten identities.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([FLOAT32 glossary](../../../../glossary.md#term-float32); [publication glossary](../../../../glossary.md#term-publication); [dispatch glossary](../../../../glossary.md#term-dispatch); [schema glossary](../../../../glossary.md#term-schema))</span>
 - Config 0006 and Engine 0018 carry the immutable profile. Shared Runtime, Prepare, Backend
-  Contract, Trace, and Engine lifecycle ownership needs no change.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [carry glossary](../../../../glossary.md#term-carry); [immutable glossary](../../../../glossary.md#term-immutable); [Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Backend glossary](../../../../glossary.md#backend); [Trace glossary](../../../../glossary.md#trace); [lifecycle glossary](../../../../glossary.md#lifecycle); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
+  Contract, Trace, and Engine lifecycle ownership needs no change.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [immutable glossary](../../../../glossary.md#term-immutable); [Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Backend glossary](../../../../glossary.md#backend); [Trace glossary](../../../../glossary.md#trace); [lifecycle glossary](../../../../glossary.md#lifecycle); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 
 The active [SDK](../../../../glossary.md#term-sdk) `MPSGraphScatterNDOps.h` documents the macOS 12.3 selector:
 
@@ -128,7 +128,7 @@ result[x] = raw bits of data[x] when no update addresses x
 ```
 
 Unique targets make update order irrelevant. [Row-major](../../../../glossary.md#term-row-major) order exists only for diagnostics. Preserve
-[signed zero](../../../../glossary.md#term-signed-zero), [subnormals](../../../../glossary.md#term-subnormal), [infinities](../../../../glossary.md#nan-infinity-and-signed-zero), and [NaN](../../../../glossary.md#term-nan) sign/[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication)/quiet-or-signaling bits as movement; inputs
+[signed zero](../../../../glossary.md#term-signed-zero), [subnormals](../../../../glossary.md#term-subnormal), [infinities](../../../../glossary.md#nan-infinity-and-signed-zero), and [NaN](../../../../glossary.md#term-nan) sign/payload/quiet-or-signaling bits as movement; inputs
 remain byte-for-byte unchanged. Use only the data-taking selector with
 `MPSGraphScatterModeSet`; do not synthesize replacement with arithmetic, [masks](../../../../glossary.md#term-boolean-mask), one-hot, reduction,
 or a custom [kernel](../../../../glossary.md#kernel).
@@ -175,7 +175,7 @@ Advance [backend](../../../../glossary.md#backend)-local [node](../../../../glos
   reduction keep-dimensions for reductions, third stable input for Scatter Elements, zero otherwise;<span data-glossary-navigation="true"> ([dimensions glossary](../../../../glossary.md#dimension); [Scatter Elements glossary](../../../../glossary.md#scatter-elements))</span>
 - rename Java/native internal `reserved` terminology atomically;
 - encode data/indices/updates/result as first/second/auxiliary/output, axis count one, normalized
-  axis, and no payload;<span data-glossary-navigation="true"> ([normalized axis glossary](../../../../glossary.md#normalized-axis); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  axis, and no payload;<span data-glossary-navigation="true"> ([normalized axis glossary](../../../../glossary.md#normalized-axis))</span>
 - reject every wrong arity/state/type/rank/Shape/axis/reduction/unused field and every old/unknown
   schema or wire before graph compilation.<span data-glossary-navigation="true"> ([arity glossary](../../../../glossary.md#term-arity); [graph glossary](../../../../glossary.md#graph); [compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names))</span>
 
@@ -218,7 +218,7 @@ Add no production package or shared-[module](../../../../glossary.md#term-module
 new shared abstraction, module edge, public [API](../../../../glossary.md#term-application-programming-interface-api), export/[ABI](../../../../glossary.md#term-application-binary-interface-abi) version, fallback, relaxed result, or
 unresolved collision rule.
 
-## [Lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) proof and [validation](../../../../glossary.md#term-validation)
+## Lean proof and [validation](../../../../glossary.md#term-validation)
 
 Before production edits, [run](../../../../glossary.md#term-run) one disposable [Objective-C](../../../../glossary.md#native-packaging-and-platform-vocabulary) valid-selector [smoke](../../../../glossary.md#term-smoke-test) for the only concrete
 undocumented risk: exact Set-mode bit movement. Use one [device](../../../../glossary.md#term-device)/context/[graph](../../../../glossary.md#graph)/executable/optimization/
@@ -275,10 +275,10 @@ unique effective anchors, balanced fences, final newlines, and trailing whitespa
 
 Independent review inspects selector/Set use, third-edge [schema](../../../../glossary.md#term-schema), pre-[dispatch](../../../../glossary.md#term-dispatch) bounds/uniqueness,
 diagnostic ordering, scratch [lifetime](../../../../glossary.md#term-lifetime)/complexity, unchanged [targets](../../../../glossary.md#term-target)/inputs, no [alias](../../../../glossary.md#aliasing-and-arena) path, profile
-monotonicity, [identity](../../../../glossary.md#term-identity-meanings) cutover, typed boundaries, [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) [device](../../../../glossary.md#term-device) evidence, backward boundary, and diff.
+monotonicity, [identity](../../../../glossary.md#term-identity-meanings) cutover, typed boundaries, lean [device](../../../../glossary.md#term-device) evidence, backward boundary, and diff.
 It reuses successful evidence and reruns executable work only for a concrete identified risk.
 
-## Implementation [checkpoint](../../../../glossary.md#term-checkpoint) for independent review
+## Implementation checkpoint for independent review
 
 Implementation began from exact clean revision
 `ad07e7e5d029f0472f1d05e82f2e869899d7dbf7`. Before any production edit, one disposable
@@ -339,7 +339,7 @@ The exact 34-path checkpoint is:
   `docs/planning/roadmap.md`, and `native/metal-macos-arm64/README.md`.
 
 Implementation `a947e574732273bee4469d42afe8935082d53109`, documentation remediation
-`aa191ca469010d081150e97dcddd504ec626dd9e`, and final independent [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) Class C `APPROVE` with zero
+`aa191ca469010d081150e97dcddd504ec626dd9e`, and final independent lean Class C `APPROVE` with zero
 findings close this task.
 
 ## Architecture impact

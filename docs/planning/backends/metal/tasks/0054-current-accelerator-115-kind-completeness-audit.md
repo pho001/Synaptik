@@ -29,7 +29,7 @@ create capability.
 The current [Model](../../../../glossary.md#term-model) declares exactly **40 [`OperationKind`](../../../../glossary.md#operationkind) enum families and 115 [operation](../../../../glossary.md#operation)-kind
 [constants](../../../../glossary.md#term-constant)**. Under `NumericalProfile.ACCELERATOR`:
 
-| [Partition](../../../../glossary.md#partition) | Distinct operation-kind constants | Current capability truth |
+| Partition | Distinct operation-kind constants | Current capability truth |
 |---|---:|---|
 | at least one current bounded [Metal](../../../../glossary.md#term-metal) domain | **19** | some occurrences `true`; every unlisted [dtype](../../../../glossary.md#data-type--datatype)/[shape](../../../../glossary.md#shape)/[layout](../../../../glossary.md#layout)/attribute/[gradient](../../../../glossary.md#term-gradient) [topology](../../../../glossary.md#term-topology) remains false |
 | Task 0051 historical / Task 0053 successor | **2** | [`EXP`](../../../../glossary.md#term-expx) and [`SIGMOID`](../../../../glossary.md#term-sigmoid) remain false; no Task-0053 candidate is `DOMAIN-PASS` |
@@ -50,7 +50,7 @@ route-cost method, and retained Gate-3 evidence then passed and selected fused c
 
 Current capability truth is `MetalCapabilityProvider.supportsOccurrence`, followed by private Java
 and native [preflight](../../../../glossary.md#term-preflight). [Planning](../../../../glossary.md#term-planning) records cannot make a rejected [occurrence](../../../../glossary.md#term-occurrence) true. Conversely, a kind
-with one accepted occurrence is counted once in the 19-kind current [partition](../../../../glossary.md#partition) even though most of
+with one accepted occurrence is counted once in the 19-kind current partition even though most of
 its [Model](../../../../glossary.md#term-model) [dtype](../../../../glossary.md#data-type--datatype)/[shape](../../../../glossary.md#shape)/[layout](../../../../glossary.md#layout)/[gradient](../../../../glossary.md#term-gradient) rows remain false.
 
 The count was regenerated from every source enum that directly `implements OperationKind`. Enum
@@ -122,7 +122,7 @@ The same 115 constants group by semantic family as follows:
 | [linear](../../../../glossary.md#term-linear-meanings) algebra | 1 |
 | [normalization](../../../../glossary.md#term-normalization) | 6 |
 | [losses](../../../../glossary.md#loss) | 3 |
-| [convolution](../../../../glossary.md#term-channels-first-convolution-layers) | 2 |
+| convolution | 2 |
 | [pooling](../../../../glossary.md#term-pooling) | 4 |
 | attention | 1 |
 | ordering | 3 |
@@ -196,14 +196,14 @@ cutover, production implementation, or capability change, and all 15 kinds were 
 [ADR](../../../../glossary.md#term-architecture-decision-record-adr) 0022 and [`../evidence/0052-gate3/`](../evidence/0052-gate3/README.md) now supersede only that
 historical stop reason: the one authorized actual-M3 Gate-3 run passed, selected [fused](../../../../glossary.md#specialization-and-fusion) custom
 `CLAMP`, and left Task 0052 in production implementation. This read-only audit's base, 115-kind
-[partition](../../../../glossary.md#partition), and counts are intentionally unchanged.
+partition, and counts are intentionally unchanged.
 
 Task 0052's future authorized domain is [canonical](../../../../glossary.md#term-canonical-form) positive-static [rank](../../../../glossary.md#term-rank)-`1..16` [`FLOAT32`](../../../../glossary.md#term-float32), forward and
 no-grad, with its exact broadcast/[axis](../../../../glossary.md#term-axis)/[scan](../../../../glossary.md#term-cumulative-scan) forms and terminal comparison [BOOL](../../../../glossary.md#data-type--datatype) [publication](../../../../glossary.md#term-publication). Integer,
 other floating [dtype](../../../../glossary.md#data-type--datatype), [rank-zero](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) input, zero/dynamic/[view](../../../../glossary.md#term-view-meanings), BOOL-consumer/transfer, masked/advanced
 reduction, and generated-[gradient](../../../../glossary.md#term-gradient) rows remain outside 0052 and false.
 
-## Remaining 79 false kinds: exact blocker [partition](../../../../glossary.md#partition)
+## Remaining 79 false kinds: exact blocker partition
 
 The 79 [constants](../../../../glossary.md#term-constant) not assigned to current true capability, Tasks 0051/0053, or Task 0052 are
 partitioned exactly once below. These are primary serial workstreams; a kind may also depend on an
@@ -219,7 +219,7 @@ earlier [schema](../../../../glossary.md#term-schema) or primitive prerequisite.
 | [normalization](../../../../glossary.md#term-normalization) | **6** | [`SOFTMAX`](../../../../glossary.md#softmax--log-softmax), `LOG_SOFTMAX`, `LAYER_NORM`, `RMS_NORM`, `BATCH_NORM_INFERENCE`, `BATCH_NORM_TRAINING` | recursive numerical proof, >3 inputs/multi-output BN, state slots and gradients |
 | [losses](../../../../glossary.md#loss) | **3** | `MEAN_SQUARED_ERROR`, `DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS`, `INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS` | reductions/softmax/log guards, [target](../../../../glossary.md#term-target)/index roles, loss attrs and gradients |
 | exact ordering/arg [extrema](../../../../glossary.md#saturation-pole-and-extremum) | **5** | `SORT`, `ARGSORT`, `TOP_K`, `ARG_MAX`, `ARG_MIN` | stable [NaN](../../../../glossary.md#term-nan)/zero/tie ordering, INT64 outputs, TOP_K multi-output |
-| [convolution](../../../../glossary.md#term-channels-first-convolution-layers)/[pooling](../../../../glossary.md#term-pooling) | **6** | [`CONV2D`](../../../../glossary.md#convolution--conv2d), [`CONV3D`](../../../../glossary.md#conv3d--ncdhw), `MAX_POOL2D`, `AVERAGE_POOL2D`, `MAX_POOL3D`, `AVERAGE_POOL3D` | [opaque](../../../../glossary.md#term-opaque) [contraction](../../../../glossary.md#contraction-dimension)/window algorithms, known max-pool winner failures, geometry/divisor and gradient proof |
+| convolution/[pooling](../../../../glossary.md#term-pooling) | **6** | [`CONV2D`](../../../../glossary.md#convolution--conv2d), [`CONV3D`](../../../../glossary.md#conv3d--ncdhw), `MAX_POOL2D`, `AVERAGE_POOL2D`, `MAX_POOL3D`, `AVERAGE_POOL3D` | [opaque](../../../../glossary.md#term-opaque) [contraction](../../../../glossary.md#contraction-dimension)/window algorithms, known max-pool winner failures, geometry/divisor and gradient proof |
 | attention | **1** | `SCALED_DOT_PRODUCT_ATTENTION` | 3–4 inputs/1–2 outputs, BOOL [mask](../../../../glossary.md#term-boolean-mask), contractions/softmax, [weights](../../../../glossary.md#term-weight) slot and gradients |
 | explicit [RNG](../../../../glossary.md#graph-rng-state--graphrngstate)/[dropout](../../../../glossary.md#dropout--inverted-dropout) | **2** | `INITIAL_STATE`, `DROPOUT` | zero input, INT64 state, three outputs, explicit auditable RNG; opaque framework randomness incompatible |
 | recurrent | **3** | `RNN_TANH`, `GRU_RESET_AFTER`, [`LSTM`](../../../../glossary.md#term-long-short-term-memory-lstm) | 5–7 inputs/2–3 outputs, INT64 valid lengths, state [publication](../../../../glossary.md#term-publication), recursive proof, [Compiler](../../../../glossary.md#term-compiler) FC gradient [ownership](../../../../glossary.md#term-ownership-meanings) |
@@ -235,12 +235,12 @@ earlier [schema](../../../../glossary.md#term-schema) or primitive prerequisite.
 | local value types | private value table supports only [`FLOAT32`](../../../../glossary.md#term-float32), [`INT32`](../../../../glossary.md#data-type--datatype), [`BOOL`](../../../../glossary.md#data-type--datatype); caller ingress only [canonical](../../../../glossary.md#term-canonical-form) FLOAT32/INT32; BOOL may publish but has no ingress/general consumer; [CPU](../../../../glossary.md#term-cpu)/[Metal](../../../../glossary.md#term-metal) transfer remains canonical non-[view](../../../../glossary.md#term-view-meanings) FLOAT32 | blocks [FLOAT64](../../../../glossary.md#term-float64)/[BFLOAT16](../../../../glossary.md#term-bfloat16), [INT64](../../../../glossary.md#data-type--datatype) indices/state/results, BOOL [graphs](../../../../glossary.md#graph)/[masks](../../../../glossary.md#term-boolean-mask), typed CAST closure, and mixed-[owner](../../../../glossary.md#term-owner) typed execution |
 | public types | [Model](../../../../glossary.md#term-model) already exposes `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, `BOOL` | none of the 115 [constants](../../../../glossary.md#term-constant) needs a new public type; [FLOAT16](../../../../glossary.md#term-float16) is a separate future Model project and is not in this audit |
 | geometry/[layout](../../../../glossary.md#layout) | fully static positive extents, maximum [rank](../../../../glossary.md#term-rank) 16, mostly canonical zero-offset values; only local zero-offset affine FLOAT32 views; rank zero only direct local SUM/[MEAN](../../../../glossary.md#term-mean) target and cannot feed another node | blocks scalar/[rank-zero](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) inputs/intermediates, zero/dynamic extents, general views/offsets, wider typed [materialization](../../../../glossary.md#materialization) and many composite formulas |
-| attributes | closed NONE/target-[shape](../../../../glossary.md#shape)/[permutation](../../../../glossary.md#permutation)/[axis](../../../../glossary.md#term-axis)/reduction/depth/window-axis vocabulary | blocks scalar/clamp/scan, [epsilon](../../../../glossary.md#epsilon)/correction, mask, sort/top-k, random, [convolution](../../../../glossary.md#term-channels-first-convolution-layers)/[pooling](../../../../glossary.md#term-pooling), attention, normalization, loss and [recurrent state](../../../../glossary.md#backpropagation-through-time-and-recurrent-state) |
+| attributes | closed NONE/target-[shape](../../../../glossary.md#shape)/[permutation](../../../../glossary.md#permutation)/[axis](../../../../glossary.md#term-axis)/reduction/depth/window-axis vocabulary | blocks scalar/clamp/scan, [epsilon](../../../../glossary.md#epsilon)/correction, mask, sort/top-k, random, convolution/[pooling](../../../../glossary.md#term-pooling), attention, normalization, loss and [recurrent state](../../../../glossary.md#backpropagation-through-time-and-recurrent-state) |
 | complete-domain proof | selector declaration/[sample](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters) is not authorization | [opaque](../../../../glossary.md#term-opaque) direct EXP, all Task-0052 direct routes, and many remaining direct-looking APIs stay `DOMAIN-BLOCKED`; custom/composed routes need auditable complete proofs |
 | measured cost | installed tooling cannot read required actual [dispatch](../../../../glossary.md#term-dispatch) and peak transient Metal facts | Task 0052 cannot run Gate 3; Task 0053 cannot consume its new [oracle](../../../../glossary.md#term-test-oracle) or later adjudicate under its conjunctive prerequisites |
 | [Compiler](../../../../glossary.md#term-compiler) [gradient](../../../../glossary.md#term-gradient) closure | current [registry](../../../../glossary.md#term-registry) text is stale at 38/111 while Model is 40/115; [Conv3d](../../../../glossary.md#conv3d--ncdhw) and three recurrent constants [fail closed](../../../../glossary.md#admission-preflight-and-fail-closed-validation); several current true forward kinds generate false dependencies | no global “requiresGrad means all-Metal” claim; per-[occurrence](../../../../glossary.md#term-occurrence) generated graph must remain entirely inside current true domains or fail/mix according to existing [ownership](../../../../glossary.md#term-ownership-meanings) rules |
 
-## Serial [dependency](../../../../glossary.md#term-dependency) and task [partition](../../../../glossary.md#partition)
+## Serial [dependency](../../../../glossary.md#term-dependency) and task partition
 
 No row below is [Ready](../../../../glossary.md#term-ready) merely because it is listed. Every [operation](../../../../glossary.md#operation) [slice](../../../../glossary.md#slice) retains the four gates:
 structural/[API](../../../../glossary.md#term-application-programming-interface-api), complete-domain proof, one bounded [regression](../../../../glossary.md#term-regression) [oracle](../../../../glossary.md#term-test-oracle), measured all-survivor cost with
@@ -272,7 +272,7 @@ actual [dispatch](../../../../glossary.md#term-dispatch)/transient facts, then o
 11. **[Losses](../../../../glossary.md#loss) — 3 kinds.** Consume normalization/reduction/[guard](../../../../glossary.md#term-guard) primitives with exact [target](../../../../glossary.md#term-target) roles.
 12. **Ordering and arg [extrema](../../../../glossary.md#saturation-pole-and-extremum) — 5 kinds.** Consume INT64 and multi-output schema plus exact stable
     order/tie/value-copy proof.
-13. **[Convolution](../../../../glossary.md#term-channels-first-convolution-layers) and [pooling](../../../../glossary.md#term-pooling) — 6 kinds.** Auditable contraction/window/winner/divisor routes;
+13. **Convolution and [pooling](../../../../glossary.md#term-pooling) — 6 kinds.** Auditable contraction/window/winner/divisor routes;
     separately close Conv3d Compiler ownership before gradient claims.<span data-glossary-navigation="true"> ([contraction glossary](../../../../glossary.md#contraction-dimension); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [Compiler glossary](../../../../glossary.md#term-compiler); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 14. **Attention — 1 kind.** Consume [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/[softmax](../../../../glossary.md#softmax--log-softmax)/BOOL/multi-output closure.
 15. **Explicit [RNG](../../../../glossary.md#graph-rng-state--graphrngstate)/[dropout](../../../../glossary.md#dropout--inverted-dropout) — 2 kinds.** Zero-input/three-output INT64-state lifecycle and exact
@@ -312,7 +312,7 @@ package/[Javadoc](../../../../glossary.md#term-javadoc), generated files, or ext
    custom candidates, but all capability remains false before Gate 3/4/production.
 6. The 79 remaining kinds are partitioned exactly into 12 blocker/workstream classes summing to 79.
 7. Current private schema/type/cardinality/geometry/attribute/proof/trace/gradient blockers and the
-   serial dependency partition are explicit.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [cardinality glossary](../../../../glossary.md#term-cardinality); [trace glossary](../../../../glossary.md#trace); [dependency glossary](../../../../glossary.md#term-dependency); [partition glossary](../../../../glossary.md#partition))</span>
+   serial dependency partition are explicit.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [cardinality glossary](../../../../glossary.md#term-cardinality); [trace glossary](../../../../glossary.md#trace); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 8. No device, build, test, compile, proof, timing, capture, production/schema/capability, or evidence
    change occurs.<span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device); [compile glossary](../../../../glossary.md#compile); [capture glossary](../../../../glossary.md#term-capture-meanings))</span>
 9. Changed Markdown links, headings/anchors, fences, final newlines, count equations, status/frontier

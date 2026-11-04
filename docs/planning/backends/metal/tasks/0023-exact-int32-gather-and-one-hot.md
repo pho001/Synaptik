@@ -20,8 +20,8 @@ connects this original forward slice to later typed routes without expanding its
 Complete
 
 Completed at implementation `9a7911c9447eeb5125ceb8a4d78e55349ec18b97` from clean base
-`854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`, with committed evidence [checkpoint](../../../../glossary.md#term-checkpoint)
-`80e6cedda96df2a03f284d551e6e34046eaaa2f3`. The final independent [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) Class C review returned
+`854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`, with committed evidence checkpoint
+`80e6cedda96df2a03f284d551e6e34046eaaa2f3`. The final independent lean Class C review returned
 `APPROVE` with zero findings. It reused the committed evidence and ran only one concrete-risk
 disposable production-[ABI](../../../../glossary.md#term-application-binary-interface-abi) probe: [GATHER](../../../../glossary.md#gather) preserved signaling-[NaN](../../../../glossary.md#term-nan) encodings `0x7fa12345` and
 `0xffa54321` exactly. The reviewer removed every probe [artifact](../../../../glossary.md#term-artifact). [Metal](../../../../glossary.md#term-metal) 0024 is the sole [Ready](../../../../glossary.md#term-ready)
@@ -176,7 +176,7 @@ risk independently justifies them.
 - Evolve the fixed 160-byte [MPSGraph](../../../../glossary.md#term-mpsgraph) [node](../../../../glossary.md#node) schema `8 -> 9`. Retain wires `1..15`; append only
   `GATHER=16` and `ONE_HOT=17`. Reuse attribute kind `AXIS=3` for the normalized GATHER axis.
   Append only <span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis))</span>`DEPTH=5` for ONE_HOT, with one positive 64-bit depth in `attributeValues[0]` and all
-  unused fields/reserved/padding zero. Unknown wires <span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding))</span>`18+`, unknown attributes `6+`, stale schema,
+  unused fields/reserved/padding zero. Unknown wires `18+`, unknown attributes `6+`, stale schema,
   malformed input slots, wrong states, invalid Shapes, and nonzero sentinels fail before resource
   creation.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape))</span>
 - [Compile](../../../../glossary.md#compile) placeholders and direct [target](../../../../glossary.md#term-target) `MPSGraphTensorData` with inferred
@@ -250,7 +250,7 @@ profile state, or a different invalid-index diagnostic, stop and report the cont
 - Integration order: Serial after Metal 0022; documented-selector implementation with the minimal
   valid-value device smoke, then schema/type/prevalidation, capability/topology, lifecycle, Engine
   proof, documentation, and independent Class C review<span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device); [smoke glossary](../../../../glossary.md#term-smoke-test); [topology glossary](../../../../glossary.md#term-topology); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
-- Integration [validation](../../../../glossary.md#term-validation): exact [INT32](../../../../glossary.md#data-type--datatype) [GATHER](../../../../glossary.md#gather)/ONE_HOT [Metal](../../../../glossary.md#term-metal) Class C [checkpoint](../../../../glossary.md#term-checkpoint)
+- Integration [validation](../../../../glossary.md#term-validation): exact [INT32](../../../../glossary.md#data-type--datatype) [GATHER](../../../../glossary.md#gather)/ONE_HOT [Metal](../../../../glossary.md#term-metal) Class C checkpoint
 - Shared-document integration [owner](../../../../glossary.md#term-owner): task implementer, finalized by independent Class C review
 
 ## Files and symbols
@@ -277,7 +277,7 @@ profile state, or a different invalid-index diagnostic, stop and report the cont
   `MetalNegTuningCodec` — version-ten deterministic [identity](../../../../glossary.md#term-identity-meanings) and stale rejection.
 - `native/metal-macos-arm64/src/synaptik_metal_foundation.m` — schema-nine validation/lowering,
   type inference, MPSGraph selectors, typed tensor data, stable permutations, and pre-dispatch
-  index scan.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [inference glossary](../../../../glossary.md#term-inference); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [tensor glossary](../../../../glossary.md#tensor); [dispatch glossary](../../../../glossary.md#term-dispatch); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  index scan.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [tensor glossary](../../../../glossary.md#tensor); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - `MetalCapabilityProviderTest`, `MetalMpsGraphAffineSchemaTest`,
   `MetalMpsGraphRawAbiNativeTest`, `MetalNegPreparedExecutionTest`,
   `MetalNegRouteCandidateGeneratorTest`, and new `MetalMpsGraphIndexingNativeTest`.
@@ -287,7 +287,7 @@ profile state, or a different invalid-index diagnostic, stop and report the cont
   guides, targeted glossary, authoritative current Metal capability text, and synchronized
   planning after executable behavior passes.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [backend glossary](../../../../glossary.md#backend); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [planning glossary](../../../../glossary.md#term-planning))</span>
 
-## Test and [checkpoint](../../../../glossary.md#term-checkpoint) requirements
+## Test and checkpoint requirements
 
 Focused capability tests cover the exact positive rows under both profiles and representative
 wrong kind, attr, type, [rank](../../../../glossary.md#term-rank), [axis](../../../../glossary.md#term-axis)/depth, output [Shape](../../../../glossary.md#shape), [layout](../../../../glossary.md#layout)/state, [INT64](../../../../glossary.md#data-type--datatype), [view](../../../../glossary.md#term-view-meanings), and transfer
@@ -364,14 +364,14 @@ Record the documented selectors, minimal valid-value [device](../../../../glossa
 pre-[dispatch](../../../../glossary.md#term-dispatch) OOB evidence, exact exception messages and unchanged [targets](../../../../glossary.md#term-target); exports/[schema](../../../../glossary.md#term-schema)/wires/
 attribute/[identity](../../../../glossary.md#term-identity-meanings) versions; focused test counts/skips; both-profile positives and negatives;
 typed ingress/[publication](../../../../glossary.md#term-publication) and unchanged transfer; [Compiler](../../../../glossary.md#term-compiler) no-production-change evidence; changed
-paths; and synchronized frontier/status. The serial worker owns one full [checkpoint](../../../../glossary.md#term-checkpoint). Independent
+paths; and synchronized frontier/status. The serial worker owns one full checkpoint. Independent
 review reuses evidence and reruns only for a concrete risk or relevant executable change.
 
 ## Documentation and review impact
 
 Independent Class C review inspects documented-selector use, the minimal raw-bit/[canonical](../../../../glossary.md#term-canonical-form)-[BOOL](../../../../glossary.md#data-type--datatype)
 [smoke](../../../../glossary.md#term-smoke-test) and [artifact](../../../../glossary.md#term-artifact) removal, OOB non-reliance, native prevalidation and Java exceptional rescan,
-deterministic first error, unchanged [targets](../../../../glossary.md#term-target), [schema](../../../../glossary.md#term-schema)/type [inference](../../../../glossary.md#term-inference), version-ten [identity](../../../../glossary.md#term-identity-meanings), typed
+deterministic first error, unchanged [targets](../../../../glossary.md#term-target), [schema](../../../../glossary.md#term-schema)/type inference, version-ten [identity](../../../../glossary.md#term-identity-meanings), typed
 ingress/local [publication](../../../../glossary.md#term-publication) versus unchanged transfer, focused [lifecycle](../../../../glossary.md#lifecycle) reliance, the real
 [Metal](../../../../glossary.md#term-metal)-only [Engine](../../../../glossary.md#term-engine) smoke, forward-only boundary, [Runtime](../../../../glossary.md#term-runtime)/[Trace](../../../../glossary.md#trace) absence, changed [scope](../../../../glossary.md#term-scope), and all
 [validation](../../../../glossary.md#term-validation)/documentation evidence.
@@ -379,7 +379,7 @@ ingress/local [publication](../../../../glossary.md#term-publication) versus unc
 ## Implementation evidence
 
 Implementation `9a7911c9447eeb5125ceb8a4d78e55349ec18b97` began from clean
-`854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`; committed evidence [checkpoint](../../../../glossary.md#term-checkpoint)
+`854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`; committed evidence checkpoint
 `80e6cedda96df2a03f284d551e6e34046eaaa2f3` records the final implementation evidence.
 
 Before any production edit, one disposable [Objective-C](../../../../glossary.md#native-packaging-and-platform-vocabulary) program at
@@ -394,7 +394,7 @@ zero. The single execution reported:
 task0023 selector smoke passed: gather raw bits, one-hot BOOL bytes, shapes [2,3]/[3,4]
 ```
 
-[GATHER](../../../../glossary.md#gather) selected raw [FLOAT32](../../../../glossary.md#term-float32) [signed zero](../../../../glossary.md#term-signed-zero), [subnormal](../../../../glossary.md#term-subnormal), [infinity](../../../../glossary.md#term-infinity), and [NaN](../../../../glossary.md#term-nan)-[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) encodings without
+[GATHER](../../../../glossary.md#gather) selected raw [FLOAT32](../../../../glossary.md#term-float32) [signed zero](../../../../glossary.md#term-signed-zero), [subnormal](../../../../glossary.md#term-subnormal), [infinity](../../../../glossary.md#term-infinity), and [NaN](../../../../glossary.md#term-nan)-payload encodings without
 conversion; ONE_HOT produced exact zero/one bytes and the declared [Shape](../../../../glossary.md#shape); all inputs remained
 unchanged. No optimization, context, repetition, or executable [matrix](../../../../glossary.md#term-matrix-meanings) ran. The source and
 `/tmp/synaptik_task0023_selector_smoke` [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) were removed before production edits.
@@ -476,9 +476,9 @@ Changed paths:
 
 ## Final independent review
 
-The independent [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) Class C review returned `APPROVE` with zero findings. It reused the committed
+The independent lean Class C review returned `APPROVE` with zero findings. It reused the committed
 implementation/evidence instead of repeating the established selector, [lifecycle](../../../../glossary.md#lifecycle), native,
-[conformance](../../../../glossary.md#term-conformance), [Engine](../../../../glossary.md#term-engine), architecture, or build [matrix](../../../../glossary.md#term-review-matrix). The reviewer identified one concrete [residual](../../../../glossary.md#scan-residual-port-and-history-demand)
+[conformance](../../../../glossary.md#term-conformance), [Engine](../../../../glossary.md#term-engine), architecture, or build [matrix](../../../../glossary.md#term-review-matrix). The reviewer identified one concrete residual
 raw-bit risk and ran one disposable production-[ABI](../../../../glossary.md#term-application-binary-interface-abi) [GATHER](../../../../glossary.md#gather) probe only: signaling-[NaN](../../../../glossary.md#term-nan) encodings
 `0x7fa12345` and `0xffa54321` were preserved exactly. All disposable source, [binary](../../../../glossary.md#term-binary-descriptor-and-metadata), and generated
 [artifacts](../../../../glossary.md#term-artifact) were removed. Implementation `9a7911c9` plus evidence `80e6cedd` is therefore Complete.

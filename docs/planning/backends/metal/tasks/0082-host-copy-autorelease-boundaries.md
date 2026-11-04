@@ -50,7 +50,7 @@ Keep [validation](../../../../glossary.md#term-validation), zero-count/range beh
 handle [ownership](../../../../glossary.md#term-ownership-meanings) unchanged. Retained caller [buffers](../../../../glossary.md#term-buffer) must remain usable after the pool drains.
 
 Only these two Foundation [host](../../../../glossary.md#term-host)-copy entrypoints change. Do not expand to context/create/[release](../../../../glossary.md#term-release)
-when the causal create-only arms are flat; no [Objective-C](../../../../glossary.md#native-packaging-and-platform-vocabulary)/[runtime](../../../../glossary.md#term-runtime) [FFM](../../../../glossary.md#term-ffm) helper or caller-pool [API](../../../../glossary.md#term-application-programming-interface-api)
+when the causal create-only arms are flat; no [Objective-C](../../../../glossary.md#native-packaging-and-platform-vocabulary)/runtime [FFM](../../../../glossary.md#term-ffm) helper or caller-pool [API](../../../../glossary.md#term-application-programming-interface-api)
 ships in Java. No new export, source [kernel](../../../../glossary.md#kernel), [shader](../../../../glossary.md#term-shader) byte, [schema](../../../../glossary.md#term-schema) field, [identity](../../../../glossary.md#term-identity-meanings) or executor.
 
 ## Integration fields
@@ -103,5 +103,5 @@ Exact frozen source/install/first-failure/GPU/public/category evidence is retain
 and the original controlled four-arm receipts. This [finite](../../../../glossary.md#term-finite) workload is not a universal allocation
 proof; no native [OOM](../../../../glossary.md#term-out-of-memory-oom) or [Objective-C](../../../../glossary.md#native-packaging-and-platform-vocabulary) exception was induced. Final independent source/evidence/docs
 review APPROVE has zero P1/P2 findings. This completes Metal0082 only, not the production [release](../../../../glossary.md#term-release)
-or its final source-matched root [checkpoint](../../../../glossary.md#term-checkpoint).
+or its final source-matched root checkpoint.
 

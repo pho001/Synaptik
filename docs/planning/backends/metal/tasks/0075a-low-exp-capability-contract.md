@@ -28,7 +28,7 @@ prematurely claiming that the current provider supports either type.
 
 - Replace unconditional current low-[`EXP`](../../../../glossary.md#term-expx) prohibition with an explicitly dated Task-0074
   checkpoint plus a conditional rule for Task 0075. The provider and v2 ledger remain false until
-  the new low route, conformance, and identity work pass.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [conformance glossary](../../../../glossary.md#term-conformance); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  the new low route, conformance, and identity work pass.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Keep homogeneous low types distinct, FLOAT32 working evaluation with one final low narrowing,
   exact special-value rules, a custom step for any low-valued <span data-glossary-navigation="true"> ([homogeneous glossary](../../../../glossary.md#term-homogeneous); [FLOAT32 glossary](../../../../glossary.md#term-float32); [evaluation glossary](../../../../glossary.md#term-evaluation); [narrowing glossary](../../../../glossary.md#term-narrowing))</span>`EXP`, and one fixed
   `CUSTOM_PROGRAM` whole-partition route. No low MPSGraph node, implicit cast, fallback, runtime
@@ -83,7 +83,7 @@ Complete or claim [BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT16](..
 
 - Root, [backend](../../../../glossary.md#backend) contract, and explanation agree that both low [`EXP`](../../../../glossary.md#term-expx) provider answers are still
   false at the Task-0074 checkpoint and may become true only through Task 0075's independently
-  qualified custom route and current-provider ledger/identity updates.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  qualified custom route and current-provider ledger/identity updates.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - FLOAT32 direct MPSGraph and explicit low-to-FLOAT32 cast composition remain unchanged;
   low-valued work never runs through MPSGraph.<span data-glossary-navigation="true"> ([FLOAT32 glossary](../../../../glossary.md#term-float32); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph))</span>
 - Independent Class C review finds no ambiguous premature support claim; all edited links and
@@ -97,7 +97,7 @@ review context are mandatory. [ADR](../../../../glossary.md#term-architecture-de
 ## Result
 
 The clean contract-writing context updated the root, owning [backend](../../../../glossary.md#backend) contract, and [Runtime](../../../../glossary.md#term-runtime)/[Prepare](../../../../glossary.md#prepare)
-explanation. Both low [`EXP`](../../../../glossary.md#term-expx) answers remain false at the Task-0074 [checkpoint](../../../../glossary.md#term-checkpoint); Task 0075 may admit
+explanation. Both low [`EXP`](../../../../glossary.md#term-expx) answers remain false at the Task-0074 checkpoint; Task 0075 may admit
 each only after a separately qualified custom step, provider/current-v2/[conformance](../../../../glossary.md#term-conformance) updates, and
 compatible [identity](../../../../glossary.md#term-identity-meanings) change. Independent review returned APPROVE with no in-[scope](../../../../glossary.md#term-scope) P0/P1/P2.
 Links/anchors, targeted glossary, and `git diff --check` passed; no executable tests were rerun

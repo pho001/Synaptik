@@ -39,7 +39,7 @@ Codify the behavior the current implementation already provides:
 
 This task records existing truth only. It does not add an [asynchronous](../../../../glossary.md#term-asynchronous) [API](../../../../glossary.md#term-application-programming-interface-api), futures, events,
 [cancellation](../../../../glossary.md#term-cancellation), timeout, [device](../../../../glossary.md#term-device) enumeration, explicit device selection, multi-device scheduling,
-cross-device migration/coherence, or [pooling](../../../../glossary.md#term-pooling).
+cross-device migration/coherence, or pooling.
 
 ## Decision boundary
 
@@ -105,7 +105,7 @@ whose reuse could imply a physical-device [fingerprint](../../../../glossary.md#
 [Immutable](../../../../glossary.md#term-immutable) source-owned splat [buffers](../../../../glossary.md#term-buffer) continue to persist exactly within their owning
 [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) and supply fresh read-only [run](../../../../glossary.md#term-run) [bindings](../../../../glossary.md#term-binding). [Mutable](../../../../glossary.md#term-mutable) outputs and address workspaces
 remain per-run resources. [Synchronous](../../../../glossary.md#term-synchronous) [device](../../../../glossary.md#term-device) completion alone does not end their [ownership](../../../../glossary.md#term-ownership-meanings): a
-[`RunResult`](../../../../glossary.md#run-result--runresult) can retain output resources after `run(...)` returns, and address workspaces [carry](../../../../glossary.md#term-carry)
+[`RunResult`](../../../../glossary.md#run-result--runresult) can retain output resources after `run(...)` returns, and address workspaces carry
 per-run mutable pointer arrays. This decision therefore retains Task 0048's rejection of a general
 output/workspace pool.
 
@@ -175,11 +175,11 @@ available. Multiple independent default-device contexts are not evidence of mult
 
 - Depends on: Task 0048 Complete at independently approved implementation `89f9fbb9` plus
   documentation finalization `a4ff40c2`; Runtime 0016; Prepare 0006; Engine 0010; Planning's current
-  device eligibility model; Trace 0003; Metal 0041–0042<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [device glossary](../../../../glossary.md#term-device); [model glossary](../../../../glossary.md#term-model); [Trace glossary](../../../../glossary.md#trace); [Metal glossary](../../../../glossary.md#term-metal))</span>
+  device eligibility model; Trace 0003; Metal 0041–0042<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [device glossary](../../../../glossary.md#term-device); [Trace glossary](../../../../glossary.md#trace); [Metal glossary](../../../../glossary.md#term-metal))</span>
 - Conflicts with: every concurrent edit to the original nine execution files below or the
   review-remediation Trace master path, and any asynchronous execution, result/resource lifetime,
   Metal device/context, planner device-selection, native ABI, trace, cache, tuning, route,
-  capability, or pooling decision<span data-glossary-navigation="true"> ([asynchronous glossary](../../../../glossary.md#term-asynchronous); [resource lifetime glossary](../../../../glossary.md#ownership-borrowing-and-lease); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [cache glossary](../../../../glossary.md#term-cache); [pooling glossary](../../../../glossary.md#term-pooling))</span>
+  capability, or pooling decision<span data-glossary-navigation="true"> ([asynchronous glossary](../../../../glossary.md#term-asynchronous); [resource lifetime glossary](../../../../glossary.md#ownership-borrowing-and-lease); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [cache glossary](../../../../glossary.md#term-cache))</span>
 - Parallel group: None
 - Common base revision: `a4ff40c2b4fc328926c15722241f7359744ff4ba`
 - Integration order: [planning](../../../../glossary.md#term-planning) `e32ad68d`; execution `6e95d523`; review-remediation `6d4246f7`;

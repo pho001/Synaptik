@@ -80,7 +80,7 @@ Javadocs; actual provider, [preflight](../../../../glossary.md#term-preflight), 
   document edit until serialized by coordinator.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema))</span>
 - Parallel group: PROJECT-REVIEW-2026-10-13-REPAIRS, serial Metal successor.
 - Common base revision: `b3c48901` plus this revised brief (0078 integrated at `1db53756`).
-- Integration order: 0078 → 0079 → combined [checkpoint](../../../../glossary.md#term-checkpoint); independent of [CPU](../../../../glossary.md#term-cpu) code [ownership](../../../../glossary.md#term-ownership-meanings).
+- Integration order: 0078 → 0079 → combined checkpoint; independent of [CPU](../../../../glossary.md#term-cpu) code [ownership](../../../../glossary.md#term-ownership-meanings).
 - Integration [validation](../../../../glossary.md#term-validation): focused/[module](../../../../glossary.md#term-module)/[device](../../../../glossary.md#term-device) evidence, independent review and final checkpoint.
 - Shared-document integration [owner](../../../../glossary.md#term-owner): coordinator; no worker plans or shared version edits.
 
@@ -96,7 +96,7 @@ identify a [rank-one](../../../../glossary.md#axis-rank-scalar-vector-and-matrix
 source review confirms `exact_float32_scalar` creates `shape:@[@1]` and MUL currently performs no
 [rank](../../../../glossary.md#term-rank) repair. Its bounded standalone rank-zero correction is authorized under the same advertised
 capability contract. This adds no [operation](../../../../glossary.md#operation), provider domain, [fusion](../../../../glossary.md#term-fusion) or numerical contract.
-[Resume](../../../../glossary.md#schema-serialization-and-checkpoint) the same clean isolated context with this revised brief. Shared version documents remain
+Resume the same clean isolated context with this revised brief. Shared version documents remain
 coordinator-owned.
 
 ## Integration record
@@ -107,7 +107,7 @@ Implementation `1f9a5833` integrated as `22a2f1be` after independent Class C APP
 Native source/package [hashes](../../../../glossary.md#term-hash) were independently checked. Exact commands and source-matched
 [identity](../../../../glossary.md#term-identity-meanings)-36 library: `backends/metal/evidence/0079/validation.json`.
 Worker guide/README/Javadocs and coordinator shared version/glossary corrections were reviewed.
-No unresolved 0079 finding; shared-document finalization and the group [checkpoint](../../../../glossary.md#term-checkpoint) passed.
+No unresolved 0079 finding; shared-document finalization and the group checkpoint passed.
 
 Completion checkpoint: [integrated review evidence](../../../project-review-2026-10-13-findings.md#final-integrated-checkpoint).
 Required independent code/Javadoc/documentation review and the combined `test javadoc` passed.

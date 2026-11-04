@@ -93,7 +93,7 @@ of reuse, all [backend](../../../../glossary.md#backend), [conformance](../../..
   remain rejected.
 - Wire `ABS=12` has attribute kind `NONE`, one input, `second_input = UINT32_MAX`, zero attribute
   count/payload/reserved cells, equal input/output Shape, canonical input state, and canonical
-  output state. Java and native validation must agree.<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [Shape glossary](../../../../glossary.md#shape); [canonical glossary](../../../../glossary.md#term-canonical-form); [validation glossary](../../../../glossary.md#term-validation))</span>
+  output state. Java and native validation must agree.<span data-glossary-navigation="true"> ([Shape glossary](../../../../glossary.md#shape); [canonical glossary](../../../../glossary.md#term-canonical-form); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Advance workload-signature, exact-policy, candidate, compatibility, route-policy, and codec
   identities <span data-glossary-navigation="true"> ([codec glossary](../../../../glossary.md#term-codec))</span>`6 -> 7`. Include requested profile, node schema 6, ordered ABS topology/edges,
   descriptors, states, targets, geometry, ABI, and splats. Version-six, cross-profile, malformed,
@@ -132,7 +132,7 @@ or value-dependent [dispatch](../../../../glossary.md#term-dispatch), stop and r
 - Parallel group: None
 - Common base revision: `9f7ad2d3e3d0fbdd690f200c14887fd4a158b514` plus this [planning](../../../../glossary.md#term-planning)-only authorization
 - Integration order: Serial; after 0015 and before Metal 0017–0018
-- Integration [validation](../../../../glossary.md#term-validation): exact both-profile Metal ABS [checkpoint](../../../../glossary.md#term-checkpoint)
+- Integration [validation](../../../../glossary.md#term-validation): exact both-profile Metal ABS checkpoint
 - Shared-document integration [owner](../../../../glossary.md#term-owner): task implementer, finalized by independent Class C review
 
 ## Files and symbols
@@ -187,7 +187,7 @@ materialized [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-i
 [Runtime](../../../../glossary.md#term-runtime)/[Trace](../../../../glossary.md#trace) profile state. Validate changed Markdown against the clean baseline for links,
 anchors, fences, final newlines, and whitespace.
 
-Integration/repository validation: the serial task owns the exact both-profile Metal ABS [checkpoint](../../../../glossary.md#term-checkpoint);
+Integration/repository validation: the serial task owns the exact both-profile Metal ABS checkpoint;
 [CI](../../../../glossary.md#term-continuous-integration-ci) owns the next full repository build unless implementation changes a [dependency](../../../../glossary.md#term-dependency) or shared build
 contract.
 

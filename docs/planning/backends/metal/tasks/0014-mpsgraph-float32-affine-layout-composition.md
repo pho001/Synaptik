@@ -59,7 +59,7 @@ flag. New execution evidence is forward-only; no [Metal](../../../../glossary.md
 - An affine node has the exact typed attributes and output Shape/layout produced by current Model
   and Compiler inference. Its input may be canonical or an exact resolved zero-offset view produced
   by an earlier admitted affine node in the same partition. Unresolved layouts reject. In
-  particular, a non-contiguous view cannot feed <span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [inference glossary](../../../../glossary.md#term-inference); [partition glossary](../../../../glossary.md#partition))</span>`RESHAPE` unless [`CONTIGUOUS`](../../../../glossary.md#term-contiguous) first makes its
+  particular, a non-contiguous view cannot feed <span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [partition glossary](../../../../glossary.md#partition))</span>`RESHAPE` unless [`CONTIGUOUS`](../../../../glossary.md#term-contiguous) first makes its
   logical geometry canonical.
 - `CONTIGUOUS` has exactly one input/output, `NoOperationAttrs.INSTANCE`, identical Shape/type and
   gradient eligibility, any exact canonical or locally produced resolved-view input, and exact<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient))</span>
@@ -108,7 +108,7 @@ Keep native [ABI](../../../../glossary.md#term-application-binary-interface-abi)
 schema from remediated version 3 to version 4. Preserve live wires `NEG=1` and affine `6..10`;
 withdrawn [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) wires `2..5` remain unassigned and rejected. Assign [operation](../../../../glossary.md#operation) wire `11` to
 [`CONTIGUOUS`](../../../../glossary.md#term-contiguous) with attribute kind `NONE`, one input, `second_input = UINT32_MAX`, zero attribute
-count/[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication)/reserved cells, and exact same input/output [Shape](../../../../glossary.md#shape). Java and native [validation](../../../../glossary.md#term-validation) use
+count/payload/reserved cells, and exact same input/output [Shape](../../../../glossary.md#shape). Java and native [validation](../../../../glossary.md#term-validation) use
 explicit value states: [canonical](../../../../glossary.md#term-canonical-form) feed/output, affine [view](../../../../glossary.md#term-view-meanings) output, and unavailable. Affine nodes may
 consume either prior state; `CONTIGUOUS` produces canonical state; `NEG` still rejects view state.
 
@@ -158,7 +158,7 @@ Blocked.
 - **Depends on:** Metal 0005's retained lifecycle/ABI foundation after binary withdrawal; Metal
   0008; current Model layout semantics and Compiler inference; Engine 0017; Compiler
   0006B7/0006B11; Prepare 0008; Runtime 0016. Not the withdrawn binary domain, Metal 0006–0007,
-  0009–0013, or Model 0026.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [lifecycle glossary](../../../../glossary.md#lifecycle); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [Model glossary](../../../../glossary.md#term-model); [layout glossary](../../../../glossary.md#layout); [Compiler glossary](../../../../glossary.md#term-compiler); [inference glossary](../../../../glossary.md#term-inference); [Engine glossary](../../../../glossary.md#term-engine); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
+  0009–0013, or Model 0026.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [lifecycle glossary](../../../../glossary.md#lifecycle); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [Model glossary](../../../../glossary.md#term-model); [layout glossary](../../../../glossary.md#layout); [Compiler glossary](../../../../glossary.md#term-compiler); [Engine glossary](../../../../glossary.md#term-engine); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - **Conflicts with:** every concurrent Metal capability, preparation, native schema, candidate/
   codec, materialization, or Engine Metal integration change.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [codec glossary](../../../../glossary.md#term-codec); [materialization glossary](../../../../glossary.md#materialization))</span>
 - **Parallel group:** None.

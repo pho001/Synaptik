@@ -31,7 +31,7 @@ positive, fully static [rank](../../../../glossary.md#term-rank)-four [`FLOAT32`
 [Model](../../../../glossary.md#term-model) geometry and exact [operation](../../../../glossary.md#operation)-local allowed-result set without a probe-derived geometry limit.
 
 The direct [MPSGraph](../../../../glossary.md#term-mpsgraph) selector maps the complete structural domain, but its [shape](../../../../glossary.md#shape)-dependent
-[contraction](../../../../glossary.md#contraction-dimension) realization is [opaque](../../../../glossary.md#term-opaque) and undocumented. Under the mandatory [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) policy, one allowed-
+[contraction](../../../../glossary.md#contraction-dimension) realization is [opaque](../../../../glossary.md#term-opaque) and undocumented. Under the mandatory lean policy, one allowed-
 set execution cannot authorize the full domain and a geometry/algorithm [matrix](../../../../glossary.md#term-matrix-meanings) is prohibited.
 Therefore this task is Blocked before any probe or production edit.
 
@@ -55,7 +55,7 @@ Therefore this task is Blocked before any probe or production edit.
 - Three-input biased [`CONV2D`](../../../../glossary.md#convolution--conv2d), a nullable [bias](../../../../glossary.md#term-bias), [fused](../../../../glossary.md#specialization-and-fusion) [epilogue](../../../../glossary.md#term-epilogue), or generic [scalar](../../../../glossary.md#term-scalar) arithmetic.
 - `requiresGrad=true`, direct MPSGraph gradient selectors, generated backward ownership, training,
   saved values, or hidden outputs.<span data-glossary-navigation="true"> ([MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [gradient glossary](../../../../glossary.md#term-gradient); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
-- Conv1d/[Conv3d](../../../../glossary.md#conv3d--ncdhw), max/average Pool1d/2d/3d, adaptive/global [pooling](../../../../glossary.md#term-pooling), or [convolution](../../../../glossary.md#term-channels-first-convolution-layers) [decomposition](../../../../glossary.md#term-decomposition).
+- Conv1d/[Conv3d](../../../../glossary.md#conv3d--ncdhw), max/average Pool1d/2d/3d, adaptive/global [pooling](../../../../glossary.md#term-pooling), or convolution [decomposition](../../../../glossary.md#term-decomposition).
 - Dynamic or zero extents, views/affine inputs, another layout/type/profile, transfer widening,
   fallback, host execution, custom-kernel implementation, or performance claims.<span data-glossary-navigation="true"> ([views glossary](../../../../glossary.md#term-view-meanings); [layout glossary](../../../../glossary.md#layout); [widening glossary](../../../../glossary.md#term-widening); [host glossary](../../../../glossary.md#term-host); [kernel glossary](../../../../glossary.md#kernel))</span>
 - A shape, group, kernel, stride, dilation, padding, profile, option, context, optimization, or
@@ -74,7 +74,7 @@ Therefore this task is Blocked before any probe or production edit.
 - [Model Conv2d](../../../modules/model/tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md)
   owns the signature, NCHW/OIHW grouped cross-correlation, Shape, accumulation, padding, and
   special-value contract.<span data-glossary-navigation="true"> ([signature glossary](../../../../glossary.md#term-signature); [NCHW glossary](../../../../glossary.md#term-nchw); [Shape glossary](../../../../glossary.md#shape); [padding glossary](../../../../glossary.md#padding))</span>
-- [Compiler convolution gradients](../../../modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md)<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [gradients glossary](../../../../glossary.md#term-gradient))</span>
+- [Compiler convolution gradients](../../../modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md)<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [gradients glossary](../../../../glossary.md#term-gradient))</span>
   owns backward formulas independently of backend execution.
 
 ## Exact [Model](../../../../glossary.md#term-model) and [Compiler](../../../../glossary.md#term-compiler) boundary
@@ -99,12 +99,12 @@ Each output is the sum of every declared group-local input/weight product. Conce
 [positive zero](../../../../glossary.md#nan-infinity-and-signed-zero) and participates in ordinary multiplication, including with [infinity](../../../../glossary.md#term-infinity). [FLOAT32](../../../../glossary.md#term-float32)
 accumulates in FLOAT32. [Reassociation](../../../../glossary.md#term-reassociation) and a corresponding multiply/add [FMA](../../../../glossary.md#term-fused-multiply-add-fma) are permitted;
 [`ACCELERATOR`](../../../../glossary.md#term-accelerator) additionally permits only CONV2D-scoped [DAZ](../../../../glossary.md#term-daz)/[FTZ](../../../../glossary.md#term-ftz). It does not inherit [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)'s final
-exact-zero [publication](../../../../glossary.md#term-publication) choice or [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) ADD's exact-zero sign freedom. Term [loss](../../../../glossary.md#loss), arbitrary reduced
-[precision](../../../../glossary.md#term-precision), algebraic replacement, cross-[node](../../../../glossary.md#node) [contraction](../../../../glossary.md#contraction-dimension), and [tolerance](../../../../glossary.md#term-tolerance) acceptance remain forbidden.
+exact-zero [publication](../../../../glossary.md#term-publication) choice or [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) ADD's exact-zero sign freedom. Term loss, arbitrary reduced
+[precision](../../../../glossary.md#term-precision), algebraic replacement, cross-[node](../../../../glossary.md#node) contraction, and [tolerance](../../../../glossary.md#term-tolerance) acceptance remain forbidden.
 
 Compiler already reconstructs selected input/weight cotangents through `UNFOLD2D`, `FOLD2D`,
 grouped reshape/permute, higher-[rank](../../../../glossary.md#term-rank) `MATMUL`, and reduction. That [graph](../../../../glossary.md#graph) is outside current [Metal](../../../../glossary.md#term-metal)
-capability. Task 0031 must not call [MPSGraph](../../../../glossary.md#term-mpsgraph) [convolution](../../../../glossary.md#term-channels-first-convolution-layers)-[gradient](../../../../glossary.md#term-gradient) selectors or imply backward
+capability. Task 0031 must not call [MPSGraph](../../../../glossary.md#term-mpsgraph) convolution-[gradient](../../../../glossary.md#term-gradient) selectors or imply backward
 closure; `requiresGrad=true` remains rejected.
 
 ## Documented direct [MPSGraph](../../../../glossary.md#term-mpsgraph) mapping
@@ -124,11 +124,11 @@ The [descriptor](../../../../glossary.md#term-descriptor) therefore structurally
 The selector has no [bias](../../../../glossary.md#term-bias) input. A future biased route could structurally reshape `[Cout]` to
 `[1,Cout,1,1]` and use documented broadcast addition, but that internal add cannot borrow generic
 [Metal](../../../../glossary.md#term-metal) ADD semantics: [accelerator](../../../../glossary.md#term-accelerator) ADD has exact-zero sign freedom that [CONV2D](../../../../glossary.md#convolution--conv2d) explicitly lacks.
-Bias needs its own [convolution](../../../../glossary.md#term-channels-first-convolution-layers)-level numerical proof and is excluded here.
+Bias needs its own convolution-level numerical proof and is excluded here.
 
 ## Documentation-first blocker
 
-The [MPSGraph](../../../../glossary.md#term-mpsgraph) [convolution](../../../../glossary.md#term-channels-first-convolution-layers) header specifies [rank](../../../../glossary.md#term-rank), [layouts](../../../../glossary.md#layout), groups, [stride](../../../../glossary.md#term-stride), [dilation](../../../../glossary.md#term-dilation), explicit [padding](../../../../glossary.md#padding),
+The [MPSGraph](../../../../glossary.md#term-mpsgraph) convolution header specifies [rank](../../../../glossary.md#term-rank), [layouts](../../../../glossary.md#layout), groups, [stride](../../../../glossary.md#term-stride), [dilation](../../../../glossary.md#term-dilation), explicit [padding](../../../../glossary.md#padding),
 and the direct selector. It does not specify the [contraction](../../../../glossary.md#contraction-dimension) algorithm, accumulation expression,
 [FLOAT32](../../../../glossary.md#term-float32) [rounding](../../../../glossary.md#term-rounding) sequence, algorithm-selection boundary, or a control that pins one realization.
 `MPSGraphReducedPrecisionFastMathNone` can prohibit a reduced-[precision](../../../../glossary.md#term-precision) option; it does not document
@@ -141,14 +141,14 @@ that other documented [kernels](../../../../glossary.md#kernel), groups, strides
 same realization or remain inside the [Model](../../../../glossary.md#term-model) set. [Shape](../../../../glossary.md#shape)-dependent alternatives such as transformed
 convolution would require arithmetic not authorized merely as reassociation/corresponding FMA.
 
-The [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) policy prohibits the geometry/algorithm [matrix](../../../../glossary.md#term-matrix-meanings) needed to characterize those regimes. A
+The lean policy prohibits the geometry/algorithm [matrix](../../../../glossary.md#term-matrix-meanings) needed to characterize those regimes. A
 one-geometry capability would be an unsound probe-derived [narrowing](../../../../glossary.md#term-narrowing) and is forbidden. No [device](../../../../glossary.md#term-device)
 probe ran, and no [schema](../../../../glossary.md#term-schema), [identity](../../../../glossary.md#term-identity-meanings), capability, [lowering](../../../../glossary.md#lowering), test, or source change exists.
 
 ## Why adjacent slices are not smaller sound routes
 
 - `AVERAGE_POOL2D` is a different exact unrelaxed numerical family with divisor, padding, and ceil
-  behavior; its direct selector does not prove convolution and needs its own semantic authorization.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers))</span>
+  behavior; its direct selector does not prove convolution and needs its own semantic authorization.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding))</span>
 - Max Pool1d is visible Pool2d composition and inherits blocked 0030 selection behavior. Average
   Pool1d inherits the unproved Average Pool2d route; rank edits do not supply missing numerical proof.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank))</span>
 - Pool3d adds rank, geometry, schema, and selector surface while retaining the corresponding exact
@@ -171,12 +171,12 @@ Retain wires `1..19`, [ABI](../../../../glossary.md#term-application-binary-inte
 
 Encode two inputs and one output, `attributeCount=7`, absent-[axis](../../../../glossary.md#term-axis) sentinel, `auxiliary=0`, and the
 seven `Conv2dAttrs` values in declaration order; require cells `7..15` zero. [Kernel](../../../../glossary.md#kernel) extents derive
-from [weight](../../../../glossary.md#term-weight) [Shape](../../../../glossary.md#shape). Fixed [NCHW](../../../../glossary.md#term-nchw)/OIHW/explicit-[padding](../../../../glossary.md#padding) policy and [bias](../../../../glossary.md#term-bias) absence need no [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) flag.
+from [weight](../../../../glossary.md#term-weight) [Shape](../../../../glossary.md#shape). Fixed [NCHW](../../../../glossary.md#term-nchw)/OIHW/explicit-[padding](../../../../glossary.md#padding) policy and [bias](../../../../glossary.md#term-bias) absence need no payload flag.
 Java validates profile, no-grad [metadata](../../../../glossary.md#term-metadata), [descriptors](../../../../glossary.md#term-descriptor), [topology](../../../../glossary.md#term-topology), groups, geometry, and output Shape;
 native independently validates schema, types, Shapes, conversions, and the same geometry before
 [graph](../../../../glossary.md#graph) creation. `requiresGrad` does not cross ABI v4 and remains Java-[preflight](../../../../glossary.md#term-preflight)/workload [identity](../../../../glossary.md#term-identity-meanings).
 
-## [Lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) [validation](../../../../glossary.md#term-validation) if unblocked
+## Lean [validation](../../../../glossary.md#term-validation) if unblocked
 
 Use focused capability/preparer positives and rejection boundaries; one exact [schema](../../../../glossary.md#term-schema)/raw-[ABI](../../../../glossary.md#term-application-binary-interface-abi) record
 and malformed-field checks; version-thirteen [identity](../../../../glossary.md#term-identity-meanings)/[codec](../../../../glossary.md#term-codec) stale rejection; native build/export
@@ -190,7 +190,7 @@ Task 0031 can unblock only through one of these separately authorized paths:
 1. an exact custom Metal kernel whose declared-product evaluation is proved for the complete
    candidate geometry; or<span data-glossary-navigation="true"> ([kernel glossary](../../../../glossary.md#kernel); [evaluation glossary](../../../../glossary.md#term-evaluation))</span>
 2. a preceding Model/architecture decision that explicitly broadens the convolution allowed-result
-   envelope to cover the intended MPSGraph realization.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers))</span>
+   envelope to cover the intended MPSGraph realization.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model))</span>
 
 Do not retry with one [MPSGraph](../../../../glossary.md#term-mpsgraph) geometry, narrow capability to a passing [shape](../../../../glossary.md#shape), infer behavior from a
 [pooling](../../../../glossary.md#term-pooling) or [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) route, or weaken the [oracle](../../../../glossary.md#term-test-oracle). Task 0031 is Blocked without a [device](../../../../glossary.md#term-device) probe or any

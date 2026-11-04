@@ -173,7 +173,7 @@ No [architecture test](../../../../glossary.md#term-architecture-test) applies b
 source remain unchanged; no integration harness supports public [Metal](../../../../glossary.md#term-metal) composition.
 
 Repository-wide validation is deferred to [continuous integration](../../../../glossary.md#term-continuous-integration-ci) or a later Metal capability
-[checkpoint](../../../../glossary.md#term-checkpoint): this is one [backend](../../../../glossary.md#backend)-local cold-preparation change with no shared/build/[dependency](../../../../glossary.md#term-dependency) or
+checkpoint: this is one [backend](../../../../glossary.md#backend)-local cold-preparation change with no shared/build/[dependency](../../../../glossary.md#term-dependency) or
 public-composition change. The independent review reuses successful executable evidence unless it
 changes Java behavior or identifies a concrete stale-evidence risk.
 

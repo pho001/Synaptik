@@ -38,7 +38,7 @@ replacement/[view](../../../../glossary.md#term-view-meanings)/window adjoints [
 
 Make every selected [occurrence](../../../../glossary.md#term-occurrence) use one deterministic `CUSTOM_PROGRAM` route chosen from authenticated
 [metadata](../../../../glossary.md#term-metadata) before resource creation. Preserve the existing external transfer contract and distinguish
-logical affine geometry from run-owned dense [materialization](../../../../glossary.md#materialization). Route choice may use no [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), timing,
+logical affine geometry from run-owned dense [materialization](../../../../glossary.md#materialization). Route choice may use no payload, timing,
 [autotuning](../../../../glossary.md#autotuning--model-autotuning), [cache](../../../../glossary.md#term-cache) winner, retry, fallback, or [host](../../../../glossary.md#term-host) repair.
 
 Do not duplicate a later full 115-kind semantic audit. This task inventories all 115 rows only far
@@ -94,7 +94,7 @@ That expands to `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, [`CONT
 `TILE`, `FOLD_AXIS`, `UNFOLD2D`, `FOLD2D`, `UNFOLD3D`, and `FOLD3D`.
 
 No arithmetic comparison, arithmetic [elementwise](../../../../glossary.md#term-elementwise), reduction, [scan](../../../../glossary.md#term-cumulative-scan), [MATMUL](../../../../glossary.md#matrix-multiplication--matmul), ordering, loss,
-[convolution](../../../../glossary.md#term-channels-first-convolution-layers), [pooling](../../../../glossary.md#term-pooling), random, attention, or recurrent row is silently included. Transfer is a
+convolution, [pooling](../../../../glossary.md#term-pooling), random, attention, or recurrent row is silently included. Transfer is a
 cross-cutting boundary rather than a registry [operation](../../../../glossary.md#operation) and is audited separately below.
 
 ### Common static geometry and physical-[layout](../../../../glossary.md#layout) contract
@@ -111,7 +111,7 @@ custom grid. Because Java products are positive signed `long` values, the grid's
 The preparer must authenticate two representations independently:
 
 1. the exact resolved logical layout from Compiler inference, including rank-zero, nonzero offsets,
-   positive strides, and <span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [rank-zero glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>`EXPAND` zero strides; and
+   positive strides, and <span data-glossary-navigation="true"> ([rank-zero glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>`EXPAND` zero strides; and
 2. the actual run-owned physical representation. Ordinary affine producers may materialize dense
    represented-order bytes while preserving their exact logical view descriptor. <span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run))</span>`SELECT` and
    explicit positive-step [`SLICE`](../../../../glossary.md#slice) retain their derived physical view layout and referenced span.
@@ -237,7 +237,7 @@ Integral and BOOL roles remain non-[differentiable](../../../../glossary.md#deri
 Proof is not a [sample](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters)-only [device](../../../../glossary.md#term-device) [oracle](../../../../glossary.md#term-test-oracle). Tests use an independent [scalar](../../../../glossary.md#term-scalar) oracle, exhaust all 65,536
 BFLOAT16 words for each distinct target behavior, exhaust BOOL, cover integral [extrema](../../../../glossary.md#saturation-pole-and-extremum) and [rounding](../../../../glossary.md#term-rounding)
 boundaries, cover every floating class/sign/[exponent](../../../../glossary.md#term-exponent) transition, and use deterministic partitioned
-raw-word corpora for FLOAT32/FLOAT64. NaN sign/quiet/[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), halfway ties, subnormal boundaries,
+raw-word corpora for FLOAT32/FLOAT64. NaN sign/quiet/payload, halfway ties, subnormal boundaries,
 overflow, [saturation](../../../../glossary.md#term-saturation), and signed zero are mandatory. Production helpers may not compute expected
 answers.
 
@@ -288,7 +288,7 @@ Keep every current [Model](../../../../glossary.md#term-model) geometry and exte
   Negative-step, empty-extent, and mixed unsupported view forms remain false.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [identity glossary](../../../../glossary.md#term-identity-meanings); [extent glossary](../../../../glossary.md#term-extent))</span>
 - [target](../../../../glossary.md#term-target)-relative `CropToShapeAttrs` `SLICE`: add backend-neutral Compiler layout inference for a
   fully static positive-count target (including scalar), a same-rank non-negative prefix, and
-  statically proved <span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [inference glossary](../../../../glossary.md#term-inference))</span>`prefix + target <= base` bounds over any resolved representable base layout.
+  statically proved <span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>`prefix + target <= base` bounds over any resolved representable base layout.
   It preserves the exact base logical strides, computes the checked prefix-relative logical storage
   offset, and returns the exact resolved logical view. Add a narrow topological<span data-glossary-navigation="true"> ([storage offset glossary](../../../../glossary.md#term-storage-offset); [topological glossary](../../../../glossary.md#term-topological-order))</span>
   `StaticResultLogicalLayoutClosure` branch that retries only this attribute form after its input
@@ -371,8 +371,8 @@ bit-defined predicate/WHERE. Ordinary movement/predicate/cast [dispatch](../../.
 each dense output ordinal. [View](../../../../glossary.md#term-view-meanings) outputs use one [owner](../../../../glossary.md#term-owner) per represented physical destination;
 broadcast logical views are materialized densely rather than racing writes to an aliased address.
 Replacement uses the existing ordered stages: complete [validation](../../../../glossary.md#term-validation), base copy, then one writer per
-proved-unique exact update destination. No [atomic](../../../../glossary.md#resource-transaction-and-rollback) arithmetic, scratch reduction, floating emulation
-library, [host](../../../../glossary.md#term-host) repair, or [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication)-dependent route is authorized.
+proved-unique exact update destination. No atomic arithmetic, scratch reduction, floating emulation
+library, [host](../../../../glossary.md#term-host) repair, or payload-dependent route is authorized.
 
 Java preparation and native [preflight](../../../../glossary.md#term-preflight) independently authenticate [operation](../../../../glossary.md#operation) wire, attribute kind and
 count, ordered roles, type [matrix](../../../../glossary.md#term-matrix-meanings), [rank](../../../../glossary.md#term-rank)/[Shape](../../../../glossary.md#shape), exact logical and physical [layout](../../../../glossary.md#layout), [gradient](../../../../glossary.md#term-gradient) flags,
@@ -430,7 +430,7 @@ Remain explicitly blocked:
   conversion/classification/selection, and any transcendental, reduction, attention, or recurrent
   assumption; and
 - direct MPSGraph execution for the selected set, host calculation/repair, payload selection,
-  timing, autotuning, cache winners, retry, or fallback.<span data-glossary-navigation="true"> ([MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [host glossary](../../../../glossary.md#term-host); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [cache glossary](../../../../glossary.md#term-cache))</span>
+  timing, autotuning, cache winners, retry, or fallback.<span data-glossary-navigation="true"> ([MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [host glossary](../../../../glossary.md#term-host); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [cache glossary](../../../../glossary.md#term-cache))</span>
 
 If implementation needs a new type/operation/attribute/route wire, [schema](../../../../glossary.md#term-schema) field, [ABI](../../../../glossary.md#term-application-binary-interface-abi) export, public
 [API](../../../../glossary.md#term-application-programming-interface-api), zero-byte [buffer](../../../../glossary.md#term-buffer), signed-[stride](../../../../glossary.md#term-stride) transfer, arithmetic emulation, additive update, [runtime](../../../../glossary.md#term-runtime) route
@@ -440,7 +440,7 @@ this one.
 ## Non-goals
 
 No [Model](../../../../glossary.md#term-model) [operation](../../../../glossary.md#operation) meaning, public [Tensor](../../../../glossary.md#tensor) [API](../../../../glossary.md#term-application-programming-interface-api), or [Compiler](../../../../glossary.md#term-compiler) [gradient](../../../../glossary.md#term-gradient)-formula change; the sole
-Compiler production change is [backend](../../../../glossary.md#backend)-neutral fully-static [target-relative crop](../../../../glossary.md#target-relative-crop) [inference](../../../../glossary.md#term-inference) plus its
+Compiler production change is [backend](../../../../glossary.md#backend)-neutral fully-static [target-relative crop](../../../../glossary.md#target-relative-crop) inference plus its
 narrow post-input-[layout](../../../../glossary.md#layout) closure branch. No [Planning](../../../../glossary.md#term-planning)/[Prepare](../../../../glossary.md#prepare)/[Runtime](../../../../glossary.md#term-runtime)/[Trace](../../../../glossary.md#trace)/[Engine](../../../../glossary.md#term-engine) API change; no
 [FLOAT16](../../../../glossary.md#term-float16); no new production kind; no reopening of Task 0053; no general reduction, transcendental,
 [normalization](../../../../glossary.md#term-normalization), [loss](../../../../glossary.md#loss), attention, random, or recurrent execution; no empty/dynamic tensors; no
@@ -483,7 +483,7 @@ closure as semantic support for another row.
   route/preparation/resource/publication/package/shared-document scope; resumed Task-0053 production;
   and any concurrent Compiler layout/gradient or transfer-contract change. Task 0066 owns only the
   backend-neutral fully-static target-relative crop inference and its narrow post-input-layout
-  closure branch, not a gradient-formula change.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [publication glossary](../../../../glossary.md#term-publication); [scope glossary](../../../../glossary.md#term-scope); [gradient glossary](../../../../glossary.md#term-gradient); [backend glossary](../../../../glossary.md#backend); [target-relative crop glossary](../../../../glossary.md#target-relative-crop); [inference glossary](../../../../glossary.md#term-inference))</span>
+  closure branch, not a gradient-formula change.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [publication glossary](../../../../glossary.md#term-publication); [scope glossary](../../../../glossary.md#term-scope); [gradient glossary](../../../../glossary.md#term-gradient); [backend glossary](../../../../glossary.md#backend); [target-relative crop glossary](../../../../glossary.md#target-relative-crop))</span>
 - Parallel group: None.
 - Common base revision: `c48b94d7fb2dfa6391901ede580cf886d74cc889`.
 - Integration order: independent plan review, then one serial implementation/proof cutover, package
@@ -504,7 +504,7 @@ Implementation [ownership](../../../../glossary.md#term-ownership-meanings):
   Javadocs and focused direct plus generated PAD/CONCAT graph tests for initially unresolved
   derivative splats and static/resolved versus dynamic/empty/unresolved cases;<span data-glossary-navigation="true"> ([PAD glossary](../../../../glossary.md#padding); [graph glossary](../../../../glossary.md#graph); [derivative glossary](../../../../glossary.md#term-derivative))</span>
 - `CapturedGraphInference`'s matching [layout](../../../../glossary.md#layout)-only deferral, explicitly restricted to `SLICE`, so
-  the inference/closure pass can resolve that crop without broadening <span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference))</span>`SLICE_UPDATE` or changing a
+  the inference/closure pass can resolve that crop without broadening `SLICE_UPDATE` or changing a
   gradient formula;
 - `AutogradPreflight`'s existing 3D window counterpart validation, corrected to compare semantic
   type, Shape, and gradient properties rather than an incidental intermediate layout;<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Shape glossary](../../../../glossary.md#shape))</span>
@@ -567,7 +567,7 @@ the complete [backend](../../../../glossary.md#backend)-neutral Compiler source 
    multi-path arithmetic accumulation, and all 32 false kinds remain outside this closure.<span data-glossary-navigation="true"> ([gather glossary](../../../../glossary.md#gather); [differentiable glossary](../../../../glossary.md#derivative-and-chain-rule))</span>
 9. Every selected [partition](../../../../glossary.md#partition) has only `CUSTOM_PROGRAM`. Exactly wires 6..11 and 16..19 move pending
    to custom-available; no MPSGraph candidate, retry, fallback, timing, autotuning, payload decision,
-   or host repair exists.<span data-glossary-navigation="true"> ([autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [host glossary](../../../../glossary.md#term-host))</span>
+   or host repair exists.<span data-glossary-navigation="true"> ([autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [host glossary](../../../../glossary.md#term-host))</span>
 10. Counts finish at `83/32` capability, `101/14` structural, `75/35/5` [MPSGraph](../../../../glossary.md#term-mpsgraph), and `70/45/0`
     custom. Schema 15, ABI 5, six type wires, 115 operation wires, 42 attribute wires, three route
     wires, and thirteen exports remain; all backend-local identities are 22 and identity 21 rejects.<span data-glossary-navigation="true"> ([Schema glossary](../../../../glossary.md#term-schema); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [operation glossary](../../../../glossary.md#operation); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
@@ -614,7 +614,7 @@ truth from [occurrence](../../../../glossary.md#term-occurrence) breadth, logica
 materialization from unauthenticated view [aliases](../../../../glossary.md#aliasing-and-arena). Historical tasks remain [immutable](../../../../glossary.md#term-immutable) evidence
 records.
 
-Independent plan review verified the exact 115-row [partition](../../../../glossary.md#partition), 33-wire selection, `+10` custom
+Independent plan review verified the exact 115-row partition, 33-wire selection, `+10` custom
 catalog arithmetic, 36-pair cast [matrix](../../../../glossary.md#term-matrix-meanings), [Model](../../../../glossary.md#term-model) gradient relations, [Compiler](../../../../glossary.md#term-compiler)-generated operations,
 saved roles, [scalar](../../../../glossary.md#term-scalar)/empty distinction, physical-layout safety, transfer boundary, fixed-route
 policy, and non-overlap with the future full [registry](../../../../glossary.md#term-registry) audit, then returned `APPROVE` with zero

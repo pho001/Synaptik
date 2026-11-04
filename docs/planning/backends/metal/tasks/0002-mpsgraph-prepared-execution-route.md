@@ -518,7 +518,7 @@ calls are outside its preconditions.
   MPSGraph Java types, or a backend registry<span data-glossary-navigation="true"> ([Objective-C glossary](../../../../glossary.md#native-packaging-and-platform-vocabulary); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [registry glossary](../../../../glossary.md#term-registry))</span>
 - general asynchronous API, futures, events, cancellation, timeout, cross-run overlap policy, or
   command-buffer exposure<span data-glossary-navigation="true"> ([asynchronous glossary](../../../../glossary.md#term-asynchronous); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [cancellation glossary](../../../../glossary.md#term-cancellation); [run glossary](../../../../glossary.md#term-run))</span>
-- bounded [buffer](../../../../glossary.md#term-buffer) [pooling](../../../../glossary.md#term-pooling), representation reuse, [aliasing](../../../../glossary.md#term-aliasing), [lease](../../../../glossary.md#term-lease)-bound public [`MemorySegment`](../../../../glossary.md#term-memorysegment)
+- bounded [buffer](../../../../glossary.md#term-buffer) pooling, representation reuse, [aliasing](../../../../glossary.md#term-aliasing), [lease](../../../../glossary.md#term-lease)-bound public [`MemorySegment`](../../../../glossary.md#term-memorysegment)
   views, persistent/shared prepared constant buffers, generic constant materialization, or
   whole-plan/local route autotuning<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [materialization glossary](../../../../glossary.md#materialization); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning))</span>
 - native executable serialization, cache persistence, packaging, discovery, extraction, signing,
@@ -727,7 +727,7 @@ required, stop and return the task to planning.
   zero, infinities, and NaN payload preservation; one fresh allocation/upload per splat per run;
   initialized validity, rollback/cleanup, concurrent-run isolation, and no prepared/shared
   constant buffer; and address-workspace identity, cold marshalling, exact close, and absence of
-  hot Java allocation/marshalling.<span data-glossary-navigation="true"> ([cardinality glossary](../../../../glossary.md#term-cardinality); [rank glossary](../../../../glossary.md#term-rank); [padding glossary](../../../../glossary.md#padding); [producer glossary](../../../../glossary.md#term-producer); [downcall glossary](../../../../glossary.md#term-downcall); [NaN payload glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [rollback glossary](../../../../glossary.md#term-rollback); [constant glossary](../../../../glossary.md#term-constant); [marshalling glossary](../../../../glossary.md#term-marshalling))</span>
+  hot Java allocation/marshalling.<span data-glossary-navigation="true"> ([cardinality glossary](../../../../glossary.md#term-cardinality); [rank glossary](../../../../glossary.md#term-rank); [producer glossary](../../../../glossary.md#term-producer); [downcall glossary](../../../../glossary.md#term-downcall); [NaN payload glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [rollback glossary](../../../../glossary.md#term-rollback); [constant glossary](../../../../glossary.md#term-constant); [marshalling glossary](../../../../glossary.md#term-marshalling))</span>
 - Runtime hot execution performs no graph compilation, operation inspection, slot lookup,
   representation cast, map lookup, reflection, string dispatch, route selection, allocation of
   Java collections, host copy, or per-element allocation.<span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup); [dispatch glossary](../../../../glossary.md#term-dispatch); [host glossary](../../../../glossary.md#term-host); [element glossary](../../../../glossary.md#term-element))</span>
@@ -821,7 +821,7 @@ behavior and test-only conformance edge:
   --tests '*BackendConformanceDependencyContractTest'
 ```
 
-Inspect the compiled/public/internal [shape](../../../../glossary.md#shape) and [hot path](../../../../glossary.md#term-hot-path):
+Inspect the compiled/public/internal shape and [hot path](../../../../glossary.md#term-hot-path):
 
 ```bash
 javap -classpath backends/metal/build/classes/java/main -p \
@@ -869,7 +869,7 @@ trailing whitespace, exact 28-path scope, package/type placement, [ABI](../../..
 consistency, task/master/roadmap status and order, no staged files, and no later detailed Metal
 task specification.
 
-Repository-wide Java validation is deferred to the Metal capability [checkpoint](../../../../glossary.md#term-checkpoint) or [continuous
+Repository-wide Java validation is deferred to the Metal capability checkpoint or [continuous
 integration](../../../../glossary.md#term-continuous-integration-ci) because the production change remains inside one [concrete backend](../../../../glossary.md#concrete-backend) and changes no
 shared contract or production edge. The focused architecture test above is required because the
 conformance build's exact test dependency list changes; a full architecture or repository suite
@@ -903,7 +903,7 @@ custom-[kernel](../../../../glossary.md#kernel), packaging, or mixed-[owner](../
   mixed owners. This task does not create that detailed specification.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host))</span>
 - More operations/types/layouts, device selection, asynchronous event chaining, buffer pooling,
   and packaging remain future work. Whole-partition lowering for the supported NEG domain is
-  complete task-0002 scope, not a follow-up.<span data-glossary-navigation="true"> ([layouts glossary](../../../../glossary.md#layout); [device glossary](../../../../glossary.md#term-device); [asynchronous glossary](../../../../glossary.md#term-asynchronous); [buffer glossary](../../../../glossary.md#term-buffer); [pooling glossary](../../../../glossary.md#term-pooling); [partition glossary](../../../../glossary.md#partition); [lowering glossary](../../../../glossary.md#lowering); [scope glossary](../../../../glossary.md#term-scope))</span>
+  complete task-0002 scope, not a follow-up.<span data-glossary-navigation="true"> ([layouts glossary](../../../../glossary.md#layout); [device glossary](../../../../glossary.md#term-device); [asynchronous glossary](../../../../glossary.md#term-asynchronous); [buffer glossary](../../../../glossary.md#term-buffer); [partition glossary](../../../../glossary.md#partition); [lowering glossary](../../../../glossary.md#lowering); [scope glossary](../../../../glossary.md#term-scope))</span>
 
 ## Architecture impact
 
@@ -1005,7 +1005,7 @@ Stop and return the task to [planning](../../../../glossary.md#term-planning) if
   No asynchronous, cancellation, timeout, cross-run throughput, or overlap guarantee is made.<span data-glossary-navigation="true"> ([synchronous glossary](../../../../glossary.md#term-synchronous); [asynchronous glossary](../../../../glossary.md#term-asynchronous); [cancellation glossary](../../../../glossary.md#term-cancellation); [run glossary](../../../../glossary.md#term-run); [throughput glossary](../../../../glossary.md#term-throughput))</span>
 - No FLOAT16, BFLOAT16, FLOAT64, integer, BOOL, scalar-rank, zero-extent, dynamic-shape,
   strided/view/offset, broadcast, multi-output, custom-kernel, pooling, persistent constant,
-  serialization, packaging, discovery, tuning, or performance-superiority capability is added.<span data-glossary-navigation="true"> ([FLOAT16 glossary](../../../../glossary.md#term-float16); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [FLOAT64 glossary](../../../../glossary.md#term-float64); [BOOL glossary](../../../../glossary.md#data-type--datatype); [scalar glossary](../../../../glossary.md#term-scalar); [extent glossary](../../../../glossary.md#term-extent); [kernel glossary](../../../../glossary.md#kernel); [pooling glossary](../../../../glossary.md#term-pooling); [serialization glossary](../../../../glossary.md#term-serialization))</span>
+  serialization, packaging, discovery, tuning, or performance-superiority capability is added.<span data-glossary-navigation="true"> ([FLOAT16 glossary](../../../../glossary.md#term-float16); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [FLOAT64 glossary](../../../../glossary.md#term-float64); [BOOL glossary](../../../../glossary.md#data-type--datatype); [scalar glossary](../../../../glossary.md#term-scalar); [extent glossary](../../../../glossary.md#term-extent); [kernel glossary](../../../../glossary.md#kernel); [serialization glossary](../../../../glossary.md#term-serialization))</span>
 - MPSGraph may use internal temporary storage. The no-copy statement is limited to Synaptik not
   requesting hidden result materialization or performing an explicit post-execution copy.<span data-glossary-navigation="true"> ([MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [materialization glossary](../../../../glossary.md#materialization))</span>
 

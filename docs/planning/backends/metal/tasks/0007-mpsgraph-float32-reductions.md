@@ -74,7 +74,7 @@ probe above nevertheless prevents this route from becoming production capability
 - `SumToShapeAttrs(targetShape)` carries the exact target Shape. Compiler right-aligns source and
   target; leading source axes reduce, target extent one reduces an aligned source axis, and equal
   extents preserve it. Other pairs fail at binding. The output descriptor is exactly targetShape.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target); [extent glossary](../../../../glossary.md#term-extent); [binding glossary](../../../../glossary.md#term-binding); [descriptor glossary](../../../../glossary.md#term-descriptor))</span>
-- Compiler [inference](../../../../glossary.md#term-inference) computes [rank](../../../../glossary.md#term-rank) changes and rank-0 [Shape](../../../../glossary.md#shape) precisely. `ReductionGradientRules`
+- Compiler inference computes [rank](../../../../glossary.md#term-rank) changes and rank-0 [Shape](../../../../glossary.md#shape) precisely. `ReductionGradientRules`
   restores ordinary SUM/MEAN gradients with <span data-glossary-navigation="true"> ([gradients glossary](../../../../glossary.md#term-gradient))</span>`expandDims` when axes are removed and then `expand`
   to the source Shape; `SUM_TO_SHAPE` backward directly calls `gradient.expand(sourceShape)`.
   Every nontrivial admitted reduction backward contains an EXPAND path. Metal 0008 may implement
@@ -83,7 +83,7 @@ probe above nevertheless prevents this route from becoming production capability
 - Compiler-generated gradient graphs were intended as a shape/contract gate only. No executable
   Metal-only backward claim survives this task's numerical failure.<span data-glossary-navigation="true"> ([graphs glossary](../../../../glossary.md#graph))</span>
 - No generic attribute bag is permitted. The backend schema must distinguish the four typed forms
-  and carry only validated axes, keep-dims, and right-aligned target geometry.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [schema glossary](../../../../glossary.md#term-schema); [carry glossary](../../../../glossary.md#term-carry))</span>
+  and carry only validated axes, keep-dims, and right-aligned target geometry.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [schema glossary](../../../../glossary.md#term-schema))</span>
 
 ## [MPSGraph](../../../../glossary.md#term-mpsgraph) [lowering](../../../../glossary.md#lowering) and geometry
 
@@ -180,7 +180,7 @@ No [CPU](../../../../glossary.md#term-cpu) fallback, route retry, [graph](../../
 
 ## Dependencies and review
 
-Depends on [Metal](../../../../glossary.md#term-metal) 0005, current [Model](../../../../glossary.md#term-model) reduction contracts, [Compiler](../../../../glossary.md#term-compiler) [autograd](../../../../glossary.md#autograd)/[inference](../../../../glossary.md#term-inference), [Engine](../../../../glossary.md#term-engine)
+Depends on [Metal](../../../../glossary.md#term-metal) 0005, current [Model](../../../../glossary.md#term-model) reduction contracts, [Compiler](../../../../glossary.md#term-compiler) [autograd](../../../../glossary.md#autograd)/inference, [Engine](../../../../glossary.md#term-engine)
 0017, Compiler 0006B7, [Prepare](../../../../glossary.md#prepare) 0008, and [Runtime](../../../../glossary.md#term-runtime) 0016. It does not depend on Metal 0006; both 0006
 and 0007 are independently Blocked by exact semantic failures. Metal 0008 may proceed with
 independent affine transforms, but it does not unblock reduction execution or claim Metal-only

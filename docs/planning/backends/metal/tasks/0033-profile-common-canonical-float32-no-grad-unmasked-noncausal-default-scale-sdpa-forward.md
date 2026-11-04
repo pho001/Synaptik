@@ -184,7 +184,7 @@ Unblocking requires one separately authorized complete-domain path:
 3. a preceding Model/architecture decision defining an attention-specific accelerator envelope
    covered by a documented/proved implementation without importing standalone row relaxations.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [accelerator glossary](../../../../glossary.md#term-accelerator))</span>
 
-Afterward, structural proof must cover duplicate Java/native [arity](../../../../glossary.md#term-arity), type, [Shape](../../../../glossary.md#shape), [layout](../../../../glossary.md#layout), [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication),
+Afterward, structural proof must cover duplicate Java/native [arity](../../../../glossary.md#term-arity), type, [Shape](../../../../glossary.md#shape), [layout](../../../../glossary.md#layout), payload,
 availability, conversion, [alias](../../../../glossary.md#aliasing-and-arena), result Shape, stale [identity](../../../../glossary.md#term-identity-meanings), [lifecycle](../../../../glossary.md#lifecycle), and [CPU](../../../../glossary.md#term-cpu)-free [Engine](../../../../glossary.md#term-engine)
 checks; it cannot substitute for numerical proof.
 

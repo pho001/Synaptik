@@ -66,7 +66,7 @@ bounded capability and executable state: 20..25 `GT/GE/LT/LE/EQ/NE` are
 `CA_0052` custom routes. [Pooling](../../../../glossary.md#term-pooling) wires 97/98 remain `DIRECT / MD_POOL2D` and 99/100 remain
 `COMPOSED / MC_WINDOW3D`, all custom-pending; only maximum-pool wires 97 and 99 have winner
 selection, and their generated `ARG_MAX` use does not make a pool [occurrence](../../../../glossary.md#term-occurrence) an ordering
-occurrence. [Loss](../../../../glossary.md#loss), [normalization](../../../../glossary.md#term-normalization), statistical reduction, random, recurrent, [convolution](../../../../glossary.md#term-channels-first-convolution-layers), attention,
+occurrence. [Loss](../../../../glossary.md#loss), [normalization](../../../../glossary.md#term-normalization), statistical reduction, random, recurrent, convolution, attention,
 and every other structural-only row retain their current decisions.
 
 ### Exact production domain
@@ -108,9 +108,9 @@ The fixed [dispatch](../../../../glossary.md#term-dispatch) truth table is:
 
 | Family | One-dimensional thread count | Additional indexed quantities |
 |---|---:|---|
-| `SORT`, `ARGSORT` | exact input [element](../../../../glossary.md#term-element) count | selected-[axis](../../../../glossary.md#term-axis) [extent](../../../../glossary.md#term-extent) and every destination [rank](../../../../glossary.md#term-rank) |
+| `SORT`, `ARGSORT` | exact input [element](../../../../glossary.md#term-element) count | selected-[axis](../../../../glossary.md#term-axis) [extent](../../../../glossary.md#term-extent) and every destination rank |
 | `TOP_K` | exact input element count | selected-axis extent, K, selected rank, and compacted output position |
-| `ARG_MAX`, `ARG_MIN` | exact output element count, including [scalar](../../../../glossary.md#term-scalar) count one | selected-axis [scan](../../../../glossary.md#term-cumulative-scan) extent and input/output [linear](../../../../glossary.md#term-linear-meanings) [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) |
+| `ARG_MAX`, `ARG_MIN` | exact output element count, including [scalar](../../../../glossary.md#term-scalar) count one | selected-axis scan extent and input/output [linear](../../../../glossary.md#term-linear-meanings) [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) |
 
 Every count and extent in the table is in `1..UINT32_MAX`; every coordinate, rank, position, and
 linear index is unsigned-32-bit representable and strictly below its governing count/extent when
@@ -135,7 +135,7 @@ language](../../../../glossary.md#term-metal-shading-language-msl)'s partial flo
   direction reversal.<span data-glossary-navigation="true"> ([negative infinity glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [positive infinity glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [Negative zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - Every floating NaN is one equal final class after every non-NaN for both directions. NaN sign,
   payload, and signaling/quiet state do not affect placement, but value-producing operations copy
-  the exact selected raw representation.<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  the exact selected raw representation.
 - Equal finite, integral, or Boolean values and multiple NaNs use increasing original logical-axis
   index. This index tiebreak is not direction-reversed. INT32/INT64 use signed mathematical order;
   BOOL uses <span data-glossary-navigation="true"> ([finite glossary](../../../../glossary.md#term-finite); [Boolean glossary](../../../../glossary.md#data-type--datatype); [axis index glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [INT32 glossary](../../../../glossary.md#data-type--datatype); [INT64 glossary](../../../../glossary.md#data-type--datatype); [BOOL glossary](../../../../glossary.md#data-type--datatype))</span>`false < true`.
@@ -180,17 +180,17 @@ Add one Task-0063 custom [Metal](../../../../glossary.md#term-metal) source/head
 For `SORT`, `ARGSORT`, and `TOP_K`, [dispatch](../../../../glossary.md#term-dispatch) one one-dimensional grid whose width is the exact input
 [element](../../../../glossary.md#term-element) count in `1..UINT32_MAX`. Each [kernel](../../../../glossary.md#kernel) reads only the 32-bit
 `thread_position_in_grid.x`; it does not reconstruct a wider identifier from `y`/`z`. The thread
-derives its [slice](../../../../glossary.md#slice) and source axis [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), computes that source's unique stable [rank](../../../../glossary.md#term-rank) by counting
+derives its [slice](../../../../glossary.md#slice) and source axis [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), computes that source's unique stable rank by counting
 strict predecessors under `(semantic order, original index)`, and writes only its unique
 destination. `SORT` copies raw [carrier](../../../../glossary.md#term-storage-carrier) bits; `ARGSORT` widens the validated non-negative 32-bit
 logical coordinate to INT64 only when storing the public result. `TOP_K` writes nothing when rank is
 at least K; otherwise one thread writes both paired outputs, using `rank` for sorted output or the
 number of earlier source coordinates whose stable rank is below K for unsorted output. Recomputing
-ranks for the unsorted form is permitted; no scratch, allocation, [atomic](../../../../glossary.md#resource-transaction-and-rollback), [race](../../../../glossary.md#term-race), timing choice, or
+ranks for the unsorted form is permitted; no scratch, allocation, atomic, [race](../../../../glossary.md#term-race), timing choice, or
 data-dependent route exists.
 
 For arg [extrema](../../../../glossary.md#saturation-pole-and-extremum), dispatch one one-dimensional grid whose width is the exact positive output element
-count at most `UINT32_MAX`. [Scan](../../../../glossary.md#term-cumulative-scan) the validated selected-axis [extent](../../../../glossary.md#term-extent) in increasing 32-bit logical
+count at most `UINT32_MAX`. Scan the validated selected-axis [extent](../../../../glossary.md#term-extent) in increasing 32-bit logical
 coordinate, maintain one raw best word and INT64 best index under the NaN/value/tie [invariant](../../../../glossary.md#term-invariant), and
 publish only the widened index. All [dimension](../../../../glossary.md#dimension), [stride](../../../../glossary.md#term-stride), slice, rank, count, coordinate, and logical
 [linear](../../../../glossary.md#term-linear-meanings)-index arithmetic stays in the prevalidated unsigned-32-bit domain; byte addressing retains
@@ -213,11 +213,11 @@ preserving [topological](../../../../glossary.md#term-topological-order) value o
 
 ### Complete-domain proof
 
-Authorization is source-structural and algebraic, never a sampled [device](../../../../glossary.md#term-device)-output [inference](../../../../glossary.md#term-inference):
+Authorization is source-structural and algebraic, never a sampled [device](../../../../glossary.md#term-device)-output inference:
 
 1. Prove the raw floating classifier partitions NaN from every non-NaN encoding. Prove separately
    for each sign partition that complement/sign-bit-toggle is a monotone bijection over all
-   non-NaN encodings and joins the partitions at <span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan); [partition glossary](../../../../glossary.md#partition); [bijection glossary](../../../../glossary.md#term-bijection))</span>`-0 < +0`; direction reversal affects only that
+   non-NaN encodings and joins the partitions at <span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan); [bijection glossary](../../../../glossary.md#term-bijection))</span>`-0 < +0`; direction reversal affects only that
    order. Enumerate all 65,536 BFLOAT16 words as a complete machine check and cover binary32/64
    exponent/fraction partitions algebraically.<span data-glossary-navigation="true"> ([BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [binary32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [exponent glossary](../../../../glossary.md#term-exponent))</span>
 2. Prove sign-bit toggle is a bijection from INT32/INT64 signed order to unsigned-key order and
@@ -251,7 +251,7 @@ plan before production edits rather than admitting a sampled subset.
 ### [Compiler](../../../../glossary.md#term-compiler) [gradients](../../../../glossary.md#term-gradient) and public callers
 
 [Model](../../../../glossary.md#term-model) and Compiler remain unchanged. Audit `TensorSortExpressions`, `TensorTopKExpressions`,
-`TensorArgExtremaExpressions`, their result carriers, [inference](../../../../glossary.md#term-inference), `AutogradPreflight`,
+`TensorArgExtremaExpressions`, their result carriers, inference, `AutogradPreflight`,
 `OrderingGradientRules`, `ReductionGradientRules`, [pooling](../../../../glossary.md#term-pooling) callers, and public [Tensor](../../../../glossary.md#tensor) overloads.
 Task 0063 admits forward occurrences with the exact [metadata](../../../../glossary.md#term-metadata) above but claims no generated ordering
 backward route:
@@ -307,7 +307,7 @@ Remain explicitly blocked:
 - [Model](../../../../glossary.md#term-model)-valid `TOP_K(k=0)`, because the current schema/native custom materialization contract is
   positive and this task adds no zero-dispatch/publication route;<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [materialization glossary](../../../../glossary.md#materialization); [dispatch glossary](../../../../glossary.md#term-dispatch); [publication glossary](../../../../glossary.md#term-publication))</span>
 - BOOL arg extrema, which Model rejects; user comparators, named axes, unstable sorting, partial or
-  percentage K, kth-value, search/partition, lexicographic ordering, and hidden outputs;<span data-glossary-navigation="true"> ([BOOL glossary](../../../../glossary.md#data-type--datatype); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [axes glossary](../../../../glossary.md#term-axis); [partition glossary](../../../../glossary.md#partition))</span>
+  percentage K, kth-value, search/partition, lexicographic ordering, and hidden outputs;<span data-glossary-navigation="true"> ([BOOL glossary](../../../../glossary.md#data-type--datatype); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [axes glossary](../../../../glossary.md#term-axis))</span>
 - any direct MPSGraph ordering/selection/arg-extrema selector, selector-result cast/repair, host
   sorting or validation, sampled-value authorization, retry, fallback, timing, autotuning, cache
   winner, or performance claim;<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host); [validation glossary](../../../../glossary.md#term-validation); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [cache glossary](../../../../glossary.md#term-cache))</span>
@@ -395,7 +395,7 @@ the subsequent documentation revision updates the authorized explanatory and sta
    creation.<span data-glossary-navigation="true"> ([arity glossary](../../../../glossary.md#term-arity); [Shape glossary](../../../../glossary.md#shape); [layout glossary](../../../../glossary.md#layout); [metadata glossary](../../../../glossary.md#term-metadata); [axis glossary](../../../../glossary.md#term-axis); [dispatch glossary](../../../../glossary.md#term-dispatch); [overflow glossary](../../../../glossary.md#term-overflow))</span>
 2. The integer-only raw comparator and algorithm proof cover the complete admitted carrier domains;
    BFLOAT16/BOOL exhaustive checks, floating/integer partition proofs, small-sequence exhaustive
-   checks, adversarial real-device corpora, and independent source review agree exactly.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [BOOL glossary](../../../../glossary.md#data-type--datatype); [partition glossary](../../../../glossary.md#partition); [device glossary](../../../../glossary.md#term-device))</span>
+   checks, adversarial real-device corpora, and independent source review agree exactly.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [BOOL glossary](../../../../glossary.md#data-type--datatype); [device glossary](../../../../glossary.md#term-device))</span>
 3. SORT/ARGSORT stability, NaNs-last, signed-zero and exact-copy behavior; TOP_K selected-set and
    both output orders; and arg-extrema NaN preference/ties are exact on every admitted axis/rank.<span data-glossary-navigation="true"> ([signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [NaN glossary](../../../../glossary.md#term-nan); [rank glossary](../../../../glossary.md#term-rank))</span>
 4. Every logical coordinate/index is checked in a wider carrier before narrowing, is unsigned-
@@ -462,10 +462,10 @@ source/test correction `86399d53` retains every INT32 magnitude bit with the lit
 `(word ^ 0x0000000080000000ul) & 0x00000000fffffffful` and restores the Task-0052 custom-only
 direct-[MPSGraph](../../../../glossary.md#term-mpsgraph) [guard](../../../../glossary.md#term-guard). The source uses only [unsigned integer](../../../../glossary.md#term-unsigned-integer) raw-word classification and keys:
 floating [exponent](../../../../glossary.md#term-exponent)/fraction tests separate every [NaN](../../../../glossary.md#term-nan) encoding, sign complement/sign-bit toggle maps
-each non-NaN sign [partition](../../../../glossary.md#partition) monotonically and joins at negative-zero-before-positive-zero,
+each non-NaN sign partition monotonically and joins at negative-zero-before-positive-zero,
 signed-integer sign-bit toggle maps signed order to unsigned order, and [BOOL](../../../../glossary.md#data-type--datatype) uses its complete
 `0/1` domain. The stable tuple is `(NaN class or numerical key, increasing logical index)`;
-predecessor counting therefore assigns one distinct [rank](../../../../glossary.md#term-rank) in `0..N-1` to every source [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix)
+predecessor counting therefore assigns one distinct rank in `0..N-1` to every source [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix)
 and one distinct destination writer. Direction reversal changes only non-NaN key order. TOP_K
 uses rank `< K` for its selected set and either rank or the count of earlier selected coordinates
 for output position. Arg [extrema](../../../../glossary.md#saturation-pole-and-extremum) maintain the best-so-far [invariant](../../../../glossary.md#term-invariant) with NaN preference and
@@ -478,7 +478,7 @@ cutoffs, compaction, and ties. `MetalOrderingNativeTest` and
 `EngineOrderingMetalIntegrationTest` independently compute raw-word expectations and execute all
 six ordering/top-K carriers, five arg-extrema carriers, both profiles, directions, largest/smallest,
 sorted/compacted forms, both tie policies, signed extrema, zeros, [subnormals](../../../../glossary.md#term-subnormal), [infinities](../../../../glossary.md#nan-infinity-and-signed-zero), repeated
-values, and signed/[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication)/signaling NaNs on the real [device](../../../../glossary.md#term-device). Exact input and selected raw words,
+values, and signed/payload/signaling NaNs on the real [device](../../../../glossary.md#term-device). Exact input and selected raw words,
 [INT64](../../../../glossary.md#data-type--datatype) logical indices, [target](../../../../glossary.md#term-target) subsets, nesting, [fan-out](../../../../glossary.md#term-fan-out), retained reuse, and independent sessions
 are observed.
 

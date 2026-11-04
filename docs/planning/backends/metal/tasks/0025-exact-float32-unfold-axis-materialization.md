@@ -24,7 +24,7 @@ Implementation began from exact clean [planning](../../../../glossary.md#term-pl
 `44edd86092509348e1e72cf7f0f4c3b13d141fa8`. The first independent review's selector-cap and
 capability-proof findings were remediated at `d0a947fa953bddb2714c1917c7114ac345c530b7`; the second
 wrong-kind proof finding was remediated at `f88066e3ad0547987bb03b2d18ed2813f97de223`. Final
-independent [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) Class C review of `f88066e3ad0547987bb03b2d18ed2813f97de223` returned `APPROVE`
+independent lean Class C review of `f88066e3ad0547987bb03b2d18ed2813f97de223` returned `APPROVE`
 with zero findings.
 
 ## Change class
@@ -43,14 +43,14 @@ context, and repetition matrices are prohibited.
 - Conflicts with: any Metal capability, schema, native-preflight, candidate/codec,
   ingress/publication, materialization, or public Engine scope; any blocked Metal 0016–0018
   restart; two- or three-dimensional window, fold, pad, convolution, or pooling work; Model 0026;
-  or shared-layer mutation.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [preflight glossary](../../../../glossary.md#term-preflight); [codec glossary](../../../../glossary.md#term-codec); [publication glossary](../../../../glossary.md#term-publication); [materialization glossary](../../../../glossary.md#materialization); [scope glossary](../../../../glossary.md#term-scope); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [pooling glossary](../../../../glossary.md#term-pooling))</span>
+  or shared-layer mutation.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [preflight glossary](../../../../glossary.md#term-preflight); [codec glossary](../../../../glossary.md#term-codec); [publication glossary](../../../../glossary.md#term-publication); [materialization glossary](../../../../glossary.md#materialization); [scope glossary](../../../../glossary.md#term-scope); [pooling glossary](../../../../glossary.md#term-pooling))</span>
 - Parallel group: None.
 - Common base revision: `c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e`.
 - Integration order: one optionality-free one-run movement smoke before production, schema/identity,
   capability/analysis, documented native selector composition, focused public proof,
   documentation, independent review.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [smoke glossary](../../../../glossary.md#term-smoke-test); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Integration validation: focused Metal/conformance/real-Engine checkpoint, native export audit,
-  architecture checks, Javadoc, one final build, Markdown/diff validation.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [conformance glossary](../../../../glossary.md#term-conformance); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
+  architecture checks, Javadoc, one final build, Markdown/diff validation.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [conformance glossary](../../../../glossary.md#term-conformance); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - Shared-document integration [owner](../../../../glossary.md#term-owner): [Metal](../../../../glossary.md#term-metal) 0025 implementer.
 
 ## Goal
@@ -155,7 +155,7 @@ before [graph](../../../../glossary.md#graph) compilation.
 ## Minimal [device](../../../../glossary.md#term-device) evidence policy
 
 The [SDK](../../../../glossary.md#term-sdk) documents the structural selector mapping but does not promise preservation of every
-[`FLOAT32`](../../../../glossary.md#term-float32) [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) bit through the composed [slice](../../../../glossary.md#slice)/expand/concat path. That is the only concrete
+[`FLOAT32`](../../../../glossary.md#term-float32) payload bit through the composed [slice](../../../../glossary.md#slice)/expand/concat path. That is the only concrete
 undocumented behavior risk.
 
 Before production edits, [run](../../../../glossary.md#term-run) at most one disposable [Objective-C](../../../../glossary.md#native-packaging-and-platform-vocabulary) program, once, using one context,
@@ -178,7 +178,7 @@ task without production changes; a pass authorizes only this exact documented co
   normalized axis in the existing axis cell, positive size in <span data-glossary-navigation="true"> ([normalized axis glossary](../../../../glossary.md#normalized-axis); [axis glossary](../../../../glossary.md#term-axis))</span>`attributeValues[0]`, and positive
   step in `attributeValues[1]`. Set `attributeCount=3`, auxiliary to zero, and every remaining
   attribute/padding cell to zero. Native and Java validators must treat this as one closed typed
-  form rather than generic integers.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding))</span>
+  form rather than generic integers.
 - Reject unknown wire `20+`, attribute `7+`, stale schema, nonzero sentinel, size above 16, wrong
   value state/type/rank/Shape, and any malformed attribute topology before creating a graph
   resource.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [Shape glossary](../../../../glossary.md#shape); [topology glossary](../../../../glossary.md#term-topology); [graph glossary](../../../../glossary.md#graph))</span>
@@ -232,7 +232,7 @@ now.
 
 ## Non-goals
 
-No `FOLD_AXIS`; two- or three-dimensional unfold/fold; [`PAD`](../../../../glossary.md#padding); [convolution](../../../../glossary.md#term-channels-first-convolution-layers) or [pooling](../../../../glossary.md#term-pooling); overlap
+No `FOLD_AXIS`; two- or three-dimensional unfold/fold; [`PAD`](../../../../glossary.md#padding); convolution or [pooling](../../../../glossary.md#term-pooling); overlap
 addition; [FLOAT64](../../../../glossary.md#term-float64)/[BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT16](../../../../glossary.md#term-float16)/integral/[BOOL](../../../../glossary.md#data-type--datatype) window; [scalar](../../../../glossary.md#term-scalar)/dynamic/zero-[extent](../../../../glossary.md#term-extent)/[view](../../../../glossary.md#term-view-meanings) form;
 window size above 16; [padding](../../../../glossary.md#padding)/[dilation](../../../../glossary.md#term-dilation)/ceil mode; asymmetric window; output [alias](../../../../glossary.md#aliasing-and-arena); transfer [widening](../../../../glossary.md#term-widening);
 custom [kernel](../../../../glossary.md#kernel); [host](../../../../glossary.md#term-host) result; [compiler](../../../../glossary.md#term-compiler)/shared production change; backward/training claim; new export,
@@ -257,7 +257,7 @@ raw-[ABI](../../../../glossary.md#term-application-binary-interface-abi), native
 can defend the observable contract. Shared [Model](../../../../glossary.md#term-model), [Compiler](../../../../glossary.md#term-compiler), [Planning](../../../../glossary.md#term-planning), [Prepare](../../../../glossary.md#prepare), [Runtime](../../../../glossary.md#term-runtime), Config,
 [Trace](../../../../glossary.md#trace), Engine, Training, and transfer production remain read-only.
 
-## [Lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) proof and [validation](../../../../glossary.md#term-validation)
+## Lean proof and [validation](../../../../glossary.md#term-validation)
 
 Permanent proof must be contract-minimal:
 
@@ -291,7 +291,7 @@ unless it identifies one new concrete risk.
 - The one bounded smoke, focused reused proof, final validation, synchronized current docs, clean
   diff, and independent Class C <span data-glossary-navigation="true"> ([smoke glossary](../../../../glossary.md#term-smoke-test); [validation glossary](../../../../glossary.md#term-validation))</span>`APPROVE` with zero findings close the task.
 
-## Implementation [checkpoint](../../../../glossary.md#term-checkpoint) for independent review
+## Implementation checkpoint for independent review
 
 Implementation began from exact clean [planning](../../../../glossary.md#term-planning) revision
 `c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e`, correcting the preplanning common-base [metadata](../../../../glossary.md#term-metadata)
@@ -358,7 +358,7 @@ rejection under both profiles solely because the kind is not `UNFOLD_AXIS`. Its 
 invocation passed: `BUILD SUCCESSFUL`, 19 actionable tasks, two executed and 17 up-to-date. No
 production code changed and the already-successful broader validation was not rerun.
 
-Final independent [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) Class C re-review then inspected exact remediation revision
+Final independent lean Class C re-review then inspected exact remediation revision
 `f88066e3ad0547987bb03b2d18ed2813f97de223` and returned `APPROVE` with zero findings. This closes
 Task 0025 without further code, test, [device](../../../../glossary.md#term-device), or documentation changes.
 

@@ -38,7 +38,7 @@ future CPU prepare/execution
 ```
 
 Dense [row-major](../../../../glossary.md#term-row-major) no-[transpose](../../../../glossary.md#term-transpose) [GEMM](../../../../glossary.md#general-matrix-multiplication--gemm) is the concrete first native building block for current [MATMUL](../../../../glossary.md#matrix-multiplication--matmul),
-[linear](../../../../glossary.md#term-linear-meanings), [scaled dot-product attention](../../../../glossary.md#scaled-dot-product-attention), and [convolution](../../../../glossary.md#term-channels-first-convolution-layers) [lowering](../../../../glossary.md#lowering). A broader provider surface would
+[linear](../../../../glossary.md#term-linear-meanings), [scaled dot-product attention](../../../../glossary.md#scaled-dot-product-attention), and convolution [lowering](../../../../glossary.md#lowering). A broader provider surface would
 move [CPU](../../../../glossary.md#term-cpu)-owned [normalization](../../../../glossary.md#term-normalization) and route policy into the [leaf](../../../../glossary.md#term-leaf). A separate public invocation
 abstraction has no current consumer and would separate calls from the [`OpenBlasLibrary`](../../../../glossary.md#openblas-library-handle--openblaslibrary) [lifetime](../../../../glossary.md#term-lifetime)
 they require, so the two methods belong directly on that public final [owner](../../../../glossary.md#term-owner).
@@ -84,7 +84,7 @@ they require, so the two methods belong directly on that public final [owner](..
 - synchronization, active-call accounting, reference counting, close/call serialization, or a
   successful-call guarantee when <span data-glossary-navigation="true"> ([synchronization glossary](../../../../glossary.md#term-synchronization); [serialization glossary](../../../../glossary.md#term-serialization))</span>`close()` races an invocation
 - OpenBLAS thread control, compatible installed-library validation, native access launch policy,
-  or the provider capability checkpoint retained by task 0003<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  or the provider capability checkpoint retained by task 0003<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - Gradle, native packaging, dependency, architecture-contract, ADR, architecture-test,
   backend-conformance, integration-test, or CPU task changes<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - a detailed task-0003 specification
@@ -165,7 +165,7 @@ Type placement:
   existing package-private exact SGEMM/DGEMM accessors already supply the required handles.<span data-glossary-navigation="true"> ([SGEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm); [DGEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm))</span>
 
 Tests remain in the production package because they must inject exact handles through the existing
-package-private loading/[binding](../../../../glossary.md#term-binding) boundary and lock the helper's visibility and stateless [shape](../../../../glossary.md#shape).
+package-private loading/[binding](../../../../glossary.md#term-binding) boundary and lock the helper's visibility and stateless shape.
 
 ## Exact public and package-private [API](../../../../glossary.md#term-application-programming-interface-api) intent
 
@@ -350,7 +350,7 @@ limits of the current dimension [carrier](../../../../glossary.md#term-storage-c
 - A caller must not [race](../../../../glossary.md#term-race) `close()` with invocation. There is no lock, active-call counter,
   reference count, or successful-call guarantee. A race may fail at the stable owner-open check
   or later through a JDK/native lifetime failure.<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
-- This task does not invoke or [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [OpenBLAS](../../../../glossary.md#term-openblas) thread-control functions. Different
+- This task does not invoke or coordinate [OpenBLAS](../../../../glossary.md#term-openblas) thread-control functions. Different
   [`OpenBlasLibrary`](../../../../glossary.md#openblas-library-handle--openblaslibrary) owners may still refer to one process-global native thread state.
 
 ## Affected files
@@ -426,7 +426,7 @@ and propose a bounded planning correction or follow-up.
 - [x] Ordinary tests never load OpenBLAS, skip on missing OpenBLAS, or require native-access JVM
       enablement.<span data-glossary-navigation="true"> ([JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm))</span>
 - [x] Tests lock exact public/package-private shape, imports, zero project dependencies, excluded
-      mechanisms, and the narrow update replacing the prior source assertion that no<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
+      mechanisms, and the narrow update replacing the prior source assertion that no
       `invokeExact` exists.
 - [x] No allocation, copy, retained slice, caller-memory closure, call synchronization,
       thread-control invocation, config, fallback, route, Tensor, Prepare, Runtime, or CPU
@@ -445,7 +445,7 @@ and propose a bounded planning correction or follow-up.
 
 Focused development tests may [run](../../../../glossary.md#term-run) while executable Java stabilizes. Tests must cover:
 
-- both [precision](../../../../glossary.md#term-precision)-specific public methods and exact public return/[parameter](../../../../glossary.md#term-parameter) [shape](../../../../glossary.md#shape);
+- both [precision](../../../../glossary.md#term-precision)-specific public methods and exact public return/[parameter](../../../../glossary.md#term-parameter) shape;
 - the package-private helper being final and field-free with no public surface;
 - [constants](../../../../glossary.md#term-constant) `101`, `111`, all fourteen ordered [arguments](../../../../glossary.md#term-argument), derived `lda`/`ldb`/`ldc`, and exact
   SGEMM/DGEMM method types;<span data-glossary-navigation="true"> ([SGEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm); [DGEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm))</span>
@@ -491,7 +491,7 @@ final newlines, and trailing whitespace.
 
 Repository-wide tests, architecture tests, [backend](../../../../glossary.md#backend) [conformance](../../../../glossary.md#term-conformance), integration tests, and real-native
 numerical validation are deferred to task 0003's explicitly supplied installed-library provider
-capability [checkpoint](../../../../glossary.md#term-checkpoint) or [continuous integration](../../../../glossary.md#term-continuous-integration-ci). This task changes one [leaf](../../../../glossary.md#term-leaf) module without a
+capability checkpoint or [continuous integration](../../../../glossary.md#term-continuous-integration-ci). This task changes one [leaf](../../../../glossary.md#term-leaf) module without a
 [dependency](../../../../glossary.md#term-dependency), architecture, shared-build, or cross-module executable change.
 
 ## Dependencies
@@ -510,7 +510,7 @@ No installed OpenBLAS library is required for ordinary implementation or test [v
 
 - OpenBLAS provider 0003 remains a Draft row only. It owns low-level thread-count query/control,
   explicitly supplied installed-library numerical/ABI validation, JDK native-access enablement,
-  process/global thread-state semantics, and the provider capability checkpoint.<span data-glossary-navigation="true"> ([OpenBLAS glossary](../../../../glossary.md#term-openblas); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [validation glossary](../../../../glossary.md#term-validation); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  process/global thread-state semantics, and the provider capability checkpoint.<span data-glossary-navigation="true"> ([OpenBLAS glossary](../../../../glossary.md#term-openblas); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [validation glossary](../../../../glossary.md#term-validation); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk))</span>
 - CPU 0001 and later CPU work remain Draft. CPU will own capability truth, route/fallback policy,
   batching, broadcasting, transpose/layout conversion, packing, loops, storage, execution, and
   use of this low-level GEMM surface.<span data-glossary-navigation="true"> ([broadcasting glossary](../../../../glossary.md#broadcasting); [transpose glossary](../../../../glossary.md#term-transpose); [layout glossary](../../../../glossary.md#layout); [GEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm))</span>
@@ -524,7 +524,7 @@ Expected impact: None.
 This task implements [GEMM](../../../../glossary.md#general-matrix-multiplication--gemm) calls already assigned to the [OpenBLAS](../../../../glossary.md#term-openblas) provider, preserves the provider
 as a zero-project-[dependency leaf](../../../../glossary.md#term-dependency-leaf), and leaves [CPU](../../../../glossary.md#term-cpu) route selection and execution [ownership](../../../../glossary.md#term-ownership-meanings)
 unchanged. If implementation needs the provider to interpret [Tensor](../../../../glossary.md#tensor)/config/[layout](../../../../glossary.md#layout)/route facts,
-depend on another project [module](../../../../glossary.md#term-module), [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) active calls, or expose a native handle, stop and
+depend on another project [module](../../../../glossary.md#term-module), coordinate active calls, or expose a native handle, stop and
 report the conflict rather than editing architecture.
 
 ## Documentation impact
@@ -544,7 +544,7 @@ The separate documentation-focused pass must:
 - record reasoned no-change conclusions for Tensor, Compile, and Training APIs; Model
   capabilities/master plan and the MATMUL/linear/attention/convolution semantic contracts;
   Prepare, Runtime, Backend Contract, Config, CPU implementation; architecture/tests;
-  backend-conformance/integration; Gradle/root/settings; native packaging; and other modules.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Model glossary](../../../../glossary.md#term-model); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [linear glossary](../../../../glossary.md#term-linear-meanings); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [conformance glossary](../../../../glossary.md#term-conformance); [Gradle glossary](../../../../glossary.md#term-gradle); [modules glossary](../../../../glossary.md#term-module))</span>
+  backend-conformance/integration; Gradle/root/settings; native packaging; and other modules.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Model glossary](../../../../glossary.md#term-model); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [linear glossary](../../../../glossary.md#term-linear-meanings); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [conformance glossary](../../../../glossary.md#term-conformance); [Gradle glossary](../../../../glossary.md#term-gradle); [modules glossary](../../../../glossary.md#term-module))</span>
 
 ## Implementation prompt
 
@@ -609,7 +609,7 @@ without a file and every CPU task Draft.
 - The API starts each matrix at segment byte offset zero and exposes no stride, offset, transpose,
   column-major, batch, or packing control.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [matrix glossary](../../../../glossary.md#term-matrix-meanings); [stride glossary](../../../../glossary.md#term-stride); [transpose glossary](../../../../glossary.md#term-transpose); [column-major glossary](../../../../glossary.md#term-column-major); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>
 - Heap segments are rejected; callers must provide suitably aligned native memory with sufficient
-  spatial, temporal, and thread-access bounds.<span data-glossary-navigation="true"> ([Heap glossary](../../../../glossary.md#term-heap); [native memory glossary](../../../../glossary.md#aliasing-and-arena); [spatial glossary](../../../../glossary.md#term-spatial-axes))</span>
+  spatial, temporal, and thread-access bounds.<span data-glossary-navigation="true"> ([Heap glossary](../../../../glossary.md#term-heap); [native memory glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - The provider does not define or verify OpenBLAS numerical accuracy, rounding, exceptional-value
   behavior, determinism, or performance.<span data-glossary-navigation="true"> ([rounding glossary](../../../../glossary.md#term-rounding))</span>
 - Ordinary tests prove Java validation and ABI forwarding with fake handles only. Real native ABI
@@ -646,19 +646,19 @@ without a file and every CPU task Draft.
   behavior, exact scalar/ABI forwarding, and throwable policy without another native seam.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [row-major glossary](../../../../glossary.md#term-row-major); [scalar glossary](../../../../glossary.md#term-scalar); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
 - Deterministic fake-handle tests cover both typed call sites, exact ABI shape and values,
   validation/failure order, spans and overflow, overlap, zero dimensions, scalar families,
-  lifecycle ownership, and invocation throwable translation without installed OpenBLAS.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [overflow glossary](../../../../glossary.md#term-overflow); [dimensions glossary](../../../../glossary.md#dimension); [lifecycle glossary](../../../../glossary.md#lifecycle); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [OpenBLAS glossary](../../../../glossary.md#term-openblas))</span>
+  lifecycle ownership, and invocation throwable translation without installed OpenBLAS.<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow); [dimensions glossary](../../../../glossary.md#dimension); [lifecycle glossary](../../../../glossary.md#lifecycle); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [OpenBLAS glossary](../../../../glossary.md#term-openblas))</span>
 - Finalized public/helper/package Javadocs and the CPU guide. Added a reusable glossary distinction
   between low-level GEMM invocation and backend-independent MATMUL semantics.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [GEMM glossary](../../../../glossary.md#general-matrix-multiplication--gemm); [backend glossary](../../../../glossary.md#backend); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul))</span>
 - No Tensor, Compile, or Training API changes are justified: the provider accepts native segments
   only and does not expose model, compiler, or extension semantics. Model capabilities/master
   planning and current MATMUL, linear, attention, and convolution contracts remain accurate
-  because they describe semantic expressions, not backend lowering or execution.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [model glossary](../../../../glossary.md#term-model); [compiler glossary](../../../../glossary.md#term-compiler); [planning glossary](../../../../glossary.md#term-planning); [linear glossary](../../../../glossary.md#term-linear-meanings); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [lowering glossary](../../../../glossary.md#lowering))</span>
+  because they describe semantic expressions, not backend lowering or execution.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [model glossary](../../../../glossary.md#term-model); [compiler glossary](../../../../glossary.md#term-compiler); [planning glossary](../../../../glossary.md#term-planning); [linear glossary](../../../../glossary.md#term-linear-meanings); [lowering glossary](../../../../glossary.md#lowering))</span>
 - No Prepare, Runtime, Backend Contract, Config, or CPU implementation changes are justified:
   ownership, route normalization, storage, execution, and fallback remain future CPU work. No
   architecture or architecture-test change is justified because module ownership and dependency
   direction are unchanged. Backend-conformance/integration and real-native numerical validation
   remain deferred to task 0003's provider checkpoint. Gradle/root/settings, native packaging, and
-  every other module remain unchanged because the leaf keeps its JDK-only dependency surface.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [normalization glossary](../../../../glossary.md#term-normalization); [module glossary](../../../../glossary.md#term-module); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools); [conformance glossary](../../../../glossary.md#term-conformance); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [Gradle glossary](../../../../glossary.md#term-gradle); [leaf glossary](../../../../glossary.md#term-leaf); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [dependency glossary](../../../../glossary.md#term-dependency))</span>
+  every other module remain unchanged because the leaf keeps its JDK-only dependency surface.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [normalization glossary](../../../../glossary.md#term-normalization); [module glossary](../../../../glossary.md#term-module); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools); [conformance glossary](../../../../glossary.md#term-conformance); [Gradle glossary](../../../../glossary.md#term-gradle); [leaf glossary](../../../../glossary.md#term-leaf); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 
 ## Completion summary
 

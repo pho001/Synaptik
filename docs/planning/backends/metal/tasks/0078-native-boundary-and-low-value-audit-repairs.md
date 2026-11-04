@@ -31,13 +31,13 @@ existing capability and exact [Model](../../../../glossary.md#term-model) contra
 4. Native buffer wrappers carry device but no exact creating-context identity. Enforce the
    existing exact-context contract in custom-program, MPSGraph and singleton-NEG invocation;
    same MTLDevice is insufficient. Choose ownership-safe identity with no dangling/reused pointer
-   acceptance, retain existing release lifetime, and reject before target mutation.<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer); [carry glossary](../../../../glossary.md#term-carry); [device glossary](../../../../glossary.md#term-device); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [singleton glossary](../../../../glossary.md#term-singleton); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [release glossary](../../../../glossary.md#term-release); [lifetime glossary](../../../../glossary.md#term-lifetime); [target glossary](../../../../glossary.md#term-target))</span>
+   acceptance, retain existing release lifetime, and reject before target mutation.<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer); [device glossary](../../../../glossary.md#term-device); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [singleton glossary](../../../../glossary.md#term-singleton); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [release glossary](../../../../glossary.md#term-release); [lifetime glossary](../../../../glossary.md#term-lifetime); [target glossary](../../../../glossary.md#term-target))</span>
 
 Own native [Metal](../../../../glossary.md#term-metal) foundation/low header and smallest associated Java [identity](../../../../glossary.md#term-identity-meanings)/tests, [conformance](../../../../glossary.md#term-conformance),
 source/package evidence and focused documentation changes. No [Engine](../../../../glossary.md#term-engine)/[Compiler](../../../../glossary.md#term-compiler)/Training edits;
 Engine 0019 separately restores [heterogeneous](../../../../glossary.md#term-heterogeneous) fixtures. ABI7/schema20 stay unless actual format
 or export changes require a justified version change. Advance relevant semantic [compatibility
-identity](../../../../glossary.md#identity-meanings-and-algebraic-identities), update its owning scoped version text and focused explanation atomically, and [rebind](../../../../glossary.md#capture-graph-ports-and-reconstruction)
+identity](../../../../glossary.md#identity-meanings-and-algebraic-identities), update its owning scoped version text and focused explanation atomically, and rebind
 active source-[authentication](../../../../glossary.md#term-authentication) evidence. Do not rewrite historical proofs or frozen v1 ledger.
 
 ## Required contracts
@@ -53,7 +53,7 @@ headings [Concrete backend](../../../../glossary.md#concrete-backend) [modules](
 - Rank16 WHERE false branches work for F32/F16, including broadcast variants; no metadata
   out-of-bounds read/write remains in either affected kernel.<span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F16 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [metadata glossary](../../../../glossary.md#term-metadata); [kernel glossary](../../../../glossary.md#kernel))</span>
 - Low ScatterAdd preserves untouched signed/payload NaNs, signed zeros, and subnormal words for
-  both low dtypes and both index widths; addressed values retain arithmetic semantics.<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [subnormal glossary](../../../../glossary.md#term-subnormal); [dtypes glossary](../../../../glossary.md#data-type--datatype))</span>
+  both low dtypes and both index widths; addressed values retain arithmetic semantics.<span data-glossary-navigation="true"> ([subnormal glossary](../../../../glossary.md#term-subnormal); [dtypes glossary](../../../../glossary.md#data-type--datatype))</span>
 - Low scans cover forward/reverse × inclusive/exclusive, negative-zero first prefixes and
   empty-prefix identities, with independent raw-bit expectations.
 - Direct native tests use two same-device contexts and reject foreign inputs/outputs for all
@@ -64,7 +64,7 @@ headings [Concrete backend](../../../../glossary.md#concrete-backend) [modules](
   environmental block as a block, never a pass. Reuse existing active source/AIR workflow only
   where source hashes require renewal. No timing or broad historical oracle matrix.<span data-glossary-navigation="true"> ([hashes glossary](../../../../glossary.md#term-hash))</span><span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [module glossary](../../../../glossary.md#term-module); [Javadoc glossary](../../../../glossary.md#term-javadoc); [conformance glossary](../../../../glossary.md#term-conformance); [GPU glossary](../../../../glossary.md#term-gpu); [AIR glossary](../../../../glossary.md#term-air); [oracle glossary](../../../../glossary.md#term-test-oracle); [matrix glossary](../../../../glossary.md#term-matrix-meanings))</span>
 - Independent Class C review checks algorithms, native identity lifetime, compatibility,
-  source/package binding and docs. Coordinator owns final full integration checkpoint.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [lifetime glossary](../../../../glossary.md#term-lifetime); [binding glossary](../../../../glossary.md#term-binding); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  source/package binding and docs. Coordinator owns final full integration checkpoint.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [lifetime glossary](../../../../glossary.md#term-lifetime); [binding glossary](../../../../glossary.md#term-binding))</span>
 - [Commit](../../../../glossary.md#term-commit) scoped files, no push/shared plans; report commit/files/tests/doc impact and status.
 
 ## Dependencies and integration
@@ -76,7 +76,7 @@ headings [Concrete backend](../../../../glossary.md#concrete-backend) [modules](
 - Integration order: standalone native repair; Engine 0019 final device validation uses this
   source-matched library after integration. No other worker edits Metal identity contract text.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [device glossary](../../../../glossary.md#term-device); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Integration validation: native/package/focused device/conformance evidence, independent review,
-  combined repository and mixed-owner checkpoint.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [owner glossary](../../../../glossary.md#term-owner); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
+  combined repository and mixed-owner checkpoint.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [owner glossary](../../../../glossary.md#term-owner))</span>
 - Shared-document integration owner: coordinator; worker owns only exact Metal version fact
   in owning contract and affected native/backend explanation/evidence.
 
@@ -93,7 +93,7 @@ Four new actual-[device](../../../../glossary.md#term-device) tests passed; full
 diff checks passed. Exact commands, environment and source [hashes](../../../../glossary.md#term-hash):
 `backends/metal/evidence/0078/validation.json`. Coordinator also corrected the glossary corpus
 fact. Shared version documentation was re-reviewed after correction.
-The repair group's final combined [checkpoint](../../../../glossary.md#term-checkpoint) passed. D5 was separately closed by serial 0079.
+The repair group's final combined checkpoint passed. D5 was separately closed by serial 0079.
 
 Completion checkpoint: [integrated review evidence](../../../project-review-2026-10-13-findings.md#final-integrated-checkpoint).
 Required independent code/Javadoc/documentation review and the combined `test javadoc` passed.

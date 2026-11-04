@@ -195,7 +195,7 @@ task.
 - All timing arrays and [distributions](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings) are labeled descriptive and correlated.
 - The no-change decision retains both routes and the existing no-selected-decision heuristic without
   performance endorsement.<span data-glossary-navigation="true"> ([heuristic glossary](../../../../glossary.md#term-heuristic))</span>
-- The broader production domain and every missing [inference](../../../../glossary.md#term-inference) [dimension](../../../../glossary.md#dimension) are explicit.
+- The broader production domain and every missing inference [dimension](../../../../glossary.md#dimension) are explicit.
 - No additional measurement, production conclusion, report [artifact](../../../../glossary.md#term-artifact), or out-of-[scope](../../../../glossary.md#term-scope) file exists.
 - Task 0044 becomes Complete after documentation validation; Metal has no newly invented Ready
   implementation frontier.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Metal glossary](../../../../glossary.md#term-metal); [Ready glossary](../../../../glossary.md#term-ready))</span>

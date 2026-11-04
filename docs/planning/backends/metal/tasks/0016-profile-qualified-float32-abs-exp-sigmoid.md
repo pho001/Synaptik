@@ -20,7 +20,7 @@ Blocked
 
 Readiness was verified before execution: [CPU](../../../../glossary.md#term-cpu) 0017 and [Metal](../../../../glossary.md#term-metal) 0015 were Complete, their independent
 Class C reviews returned `APPROVE` with zero findings, and the serial numerical-profile [backend](../../../../glossary.md#backend)
-[checkpoint](../../../../glossary.md#term-checkpoint) passed. The mandatory real-[device](../../../../glossary.md#term-device) gate then blocked this task before production edits.
+checkpoint passed. The mandatory real-[device](../../../../glossary.md#term-device) gate then blocked this task before production edits.
 Historical Metal 0006 remains Blocked; this task neither rewrites that result nor assumes its broad
 nine-[operation](../../../../glossary.md#operation) [scope](../../../../glossary.md#term-scope).
 
@@ -127,7 +127,7 @@ If any [operation](../../../../glossary.md#operation) needs relaxed semantics, a
 - Parallel group: None
 - Common base revision: N/A
 - Integration order: Serial; after 0015 and before Metal 0017–0018
-- Integration [validation](../../../../glossary.md#term-validation): profile-qualified Metal [unary](../../../../glossary.md#term-unary) [checkpoint](../../../../glossary.md#term-checkpoint)
+- Integration [validation](../../../../glossary.md#term-validation): profile-qualified Metal [unary](../../../../glossary.md#term-unary) checkpoint
 - Shared-document integration [owner](../../../../glossary.md#term-owner): task implementer, finalized by independent Class C review
 
 ## Files and symbols
@@ -178,7 +178,7 @@ Inspect the per-[operation](../../../../glossary.md#operation) [oracle](../../..
 materialized [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity), and absence of new [Runtime](../../../../glossary.md#term-runtime)/[Trace](../../../../glossary.md#trace) profile state. Validate changed Markdown
 against the clean baseline for links, anchors, fences, final newlines, and whitespace.
 
-Integration/repository validation: the serial task owns its focused Metal [checkpoint](../../../../glossary.md#term-checkpoint); [CI](../../../../glossary.md#term-continuous-integration-ci) owns the
+Integration/repository validation: the serial task owns its focused Metal checkpoint; [CI](../../../../glossary.md#term-continuous-integration-ci) owns the
 next full repository build unless implementation changes a [dependency](../../../../glossary.md#term-dependency) or shared build contract.
 
 ## Documentation and review impact

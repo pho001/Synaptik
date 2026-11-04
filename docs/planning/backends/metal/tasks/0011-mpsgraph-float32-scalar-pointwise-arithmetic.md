@@ -135,7 +135,7 @@ schema from version 2 to version 3. Preserve [operation](../../../../glossary.md
 `ADD/SUB/MUL/DIV` in that order and attribute wire `4` to `FLOAT32_SCALAR`. A scalar record has one
 input, `second_input = UINT32_MAX`, `attribute_count = 1`, `axis = UINT32_MAX`, `reserved = 0`, and
 the exact unsigned raw 32 bits in the low half of `attribute_values[0]` with its high half zero.
-Every other unused [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) cell is zero.
+Every other unused payload cell is zero.
 
 Java [preflight](../../../../glossary.md#term-preflight) validates exact [`FLOAT32`](../../../../glossary.md#term-float32) [descriptors](../../../../glossary.md#term-descriptor), flags, kind/attribute pairing, and geometry.
 Native creation validates schema sentinels, payload width, [Shapes](../../../../glossary.md#shape), [topology](../../../../glossary.md#term-topology), and geometry, then

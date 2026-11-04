@@ -23,7 +23,7 @@ Blocked
 
 Class C — this task adds a five-input floating numerical [operation](../../../../glossary.md#operation) to both [Metal](../../../../glossary.md#term-metal) profile [matrices](../../../../glossary.md#term-matrix-meanings),
 evolves the [backend](../../../../glossary.md#backend)-private native [schema](../../../../glossary.md#term-schema) and route [identities](../../../../glossary.md#term-identity-meanings), and changes the generated native
-[graph](../../../../glossary.md#graph). Use one clean implementation context and an independent [lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) Class C review.
+[graph](../../../../glossary.md#graph). Use one clean implementation context and an independent lean Class C review.
 
 ## Goal
 
@@ -201,7 +201,7 @@ subnormal-producing values, weaken the raw-bit/class rule, retry the selector, m
 - Encode `first_input=input`, `second_input=scale`, `auxiliary=bias`, `axis=channelAxis`,
   `attribute_values[0]=runningMean index`, `[1]=runningVariance index`, and
   `[2]=zero-extended raw FLOAT32 epsilon bits`; set `attributeCount=4` for this closed typed form and
-  require every remaining payload cell to be zero.<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  require every remaining payload cell to be zero.
 - Validate all five indices independently for range, availability, canonical state, FLOAT32 type,
   exact role Shape, and repeated-index legality. Reconstruct epsilon from raw bits, not numeric
   integer conversion, and revalidate finite-positive FLOAT32.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [FLOAT32 glossary](../../../../glossary.md#term-float32); [Shape glossary](../../../../glossary.md#shape); [epsilon glossary](../../../../glossary.md#epsilon); [raw bits glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [finite glossary](../../../../glossary.md#term-finite))</span>
@@ -254,7 +254,7 @@ and transfer production remain read-only.
    composition, and one CPU-free public Engine forward under both profiles.<span data-glossary-navigation="true"> ([vector glossary](../../../../glossary.md#term-vector); [epsilon glossary](../../../../glossary.md#epsilon); [CPU glossary](../../../../glossary.md#term-cpu); [Engine glossary](../../../../glossary.md#term-engine))</span>
 5. Training and generated backward remain explicitly unsupported; no shared production changes.
 6. Native export/link audit, focused Metal/conformance/Engine tests, architecture checks, Javadoc,
-   one final build, synchronized docs, clean diff, and independent lean Class C approval pass.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [Javadoc glossary](../../../../glossary.md#term-javadoc); [lean glossary](../../../../glossary.md#proof-assistant-and-model-checking-tools))</span>
+   one final build, synchronized docs, clean diff, and independent lean Class C approval pass.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 
 At implementation stabilization, update current [Metal](../../../../glossary.md#term-metal)/[backend](../../../../glossary.md#backend) documentation only; [Model](../../../../glossary.md#term-model)/[API](../../../../glossary.md#term-application-programming-interface-api)/[compiler](../../../../glossary.md#term-compiler)
 semantics and glossary terminology are already current. Review uses successful implementation

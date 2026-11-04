@@ -78,7 +78,7 @@ native framework, [registry](../../../glossary.md#term-registry), manager, confi
 |---|---|---|---|---|
 | 0001 | [Library loading and required symbol binding](tasks/0001-library-loading-and-required-symbol-binding.md)<span data-glossary-navigation="true"> ([symbol glossary](../../../glossary.md#term-symbol); [binding glossary](../../../glossary.md#term-binding))</span> | Complete | [Prepare](../../../glossary.md#prepare) 0003; [JDK](../../../glossary.md#term-java-development-kit-jdk) 26 [FFM](../../../glossary.md#term-ffm) and [OpenBLAS](../../../glossary.md#term-openblas) C [ABI](../../../glossary.md#term-application-binary-interface-abi) evidence | Load one caller-specified library, bind the exact [FLOAT32](../../../glossary.md#term-float32)/[FLOAT64](../../../glossary.md#term-float64) [GEMM](../../../glossary.md#general-matrix-multiplication--gemm) and get/set thread-count symbols, and own their closeable [lookup](../../../glossary.md#term-lookup) [lifetime](../../../glossary.md#term-lifetime) without invocation or policy. |
 | 0002 | [FLOAT32/FLOAT64 row-major GEMM invocation](tasks/0002-float32-float64-row-major-gemm-invocation.md) | Complete | 0001 | Add validated dense [row-major](../../../glossary.md#term-row-major) no-[transpose](../../../glossary.md#term-transpose) [`MemorySegment`](../../../glossary.md#term-memorysegment) GEMM calls over the task-0001 lifetime without [Tensor](../../../glossary.md#tensor), route, allocation, or fallback behavior. |
-| 0003 | [Thread control and native provider checkpoint](tasks/0003-thread-control-and-native-provider-checkpoint.md)<span data-glossary-navigation="true"> ([checkpoint glossary](../../../glossary.md#term-checkpoint))</span> | Complete | 0001–0002 | Add low-level thread-count query/control and explicit compatible-library [validation](../../../glossary.md#term-validation), then close the original provider capability milestone. |
+| 0003 | [Thread control and native provider checkpoint](tasks/0003-thread-control-and-native-provider-checkpoint.md) | Complete | 0001–0002 | Add low-level thread-count query/control and explicit compatible-library [validation](../../../glossary.md#term-validation), then close the original provider capability milestone. |
 | 0004 | [Optional direct BFLOAT16-output GEMM capability](tasks/0004-optional-direct-bfloat16-output-gemm-capability.md) | Blocked | 0001–0003; pinned OpenBLAS direct-BGEMM ABI and semantic proof | Pinned OpenBLAS v0.3.31 does not establish an exported `cblas_bgemm` C ABI and narrows [BFLOAT16](../../../glossary.md#term-bfloat16) output between sufficiently large [contraction](../../../glossary.md#contraction-dimension) panels, so no capability was exposed; retry only with evidence that resolves both gates. |
 
 ## Milestones
@@ -94,7 +94,7 @@ The mandatory provider baseline is Complete; optional task 0004 is Blocked and d
 capability side branch. Tasks 0001–0003 remain Complete and provide explicit caller-directed loading, complete required-[symbol](../../../glossary.md#term-symbol)
 [binding](../../../glossary.md#term-binding), caller-owned [lookup](../../../glossary.md#term-lookup) [lifetime](../../../glossary.md#term-lifetime), validated [FLOAT32](../../../glossary.md#term-float32)/[FLOAT64](../../../glossary.md#term-float64) dense [row-major](../../../glossary.md#term-row-major) no-[transpose](../../../glossary.md#term-transpose) [GEMM](../../../glossary.md#general-matrix-multiplication--gemm)
 invocation, and direct positive thread-count query/control over the already-bound handles. The
-ordinary provider suite passed 5 suites and 50 tests. The isolated native [checkpoint](../../../glossary.md#term-checkpoint) passed
+ordinary provider suite passed 5 suites and 50 tests. The isolated native checkpoint passed
 against the caller-supplied [arm64](../../../glossary.md#native-packaging-and-platform-vocabulary) [OpenBLAS](../../../glossary.md#term-openblas) 0.3.33 library, verified shared observation through two
 [owners](../../../glossary.md#term-owner) and the fixed [SGEMM](../../../glossary.md#general-matrix-multiplication--gemm)/[DGEMM](../../../glossary.md#general-matrix-multiplication--gemm) cases, and restored the original thread count of 16. The ordered
 repository/architecture capability checkpoint then passed with 54 actionable tasks (2 executed,
@@ -110,7 +110,7 @@ independently confirms only optional absence: its header declares `cblas_bgemm`,
 exports `cblas_sbgemm` and not `cblas_bgemm`. No optional capability was exposed, and the completed
 FLOAT32/FLOAT64/thread baseline remains usable. [CPU](../../../glossary.md#term-cpu) 0010D1 remains a dependent, non-executable
 blocked/deferred optional side branch. It does not precede or block FLOAT32/FLOAT64 CPU 0010E,
-[Prepare](../../../glossary.md#prepare) 0004, or tools/tuning 0001. Provider 0004 may [resume](../../../glossary.md#schema-serialization-and-checkpoint) only when both proof gates have new
+[Prepare](../../../glossary.md#prepare) 0004, or tools/tuning 0001. Provider 0004 may resume only when both proof gates have new
 concrete evidence.
 
 ## Open questions
@@ -167,7 +167,7 @@ concrete evidence.
 - Task 0003's real-native checkpoint is a test-source command accepting one explicit absolute
   compatible-library path. It runs with explicitly enabled JDK native access, verifies shared
   observation through two owners and one fixed SGEMM/DGEMM case per precision, and restores the
-  captured count in <span data-glossary-navigation="true"> ([checkpoint glossary](../../../glossary.md#term-checkpoint); [JDK glossary](../../../glossary.md#term-java-development-kit-jdk); [SGEMM glossary](../../../glossary.md#general-matrix-multiplication--gemm); [DGEMM glossary](../../../glossary.md#general-matrix-multiplication--gemm); [precision glossary](../../../glossary.md#term-precision))</span>`finally`; production and ordinary tests perform no discovery or native load.
+  captured count in <span data-glossary-navigation="true"> ([JDK glossary](../../../glossary.md#term-java-development-kit-jdk); [SGEMM glossary](../../../glossary.md#general-matrix-multiplication--gemm); [DGEMM glossary](../../../glossary.md#general-matrix-multiplication--gemm); [precision glossary](../../../glossary.md#term-precision))</span>`finally`; production and ordinary tests perform no discovery or native load.
 
 ## Risks
 

@@ -13,23 +13,23 @@ The constructive-real bridge and source-to-proof obligations are blockers for th
 
 Blocked
 
-The retained [finite](../../../../glossary.md#term-finite) [certificate](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions) and integer-only raw-word candidate passed their structural,
-algebraic, source-audit, and independent all-`2^32` corroboration [checkpoints](../../../../glossary.md#term-checkpoint), but no pinned
+The retained finite [certificate](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions) and integer-only raw-word candidate passed their structural,
+algebraic, source-audit, and independent all-`2^32` corroboration checkpoints, but no pinned
 no-axiom constructive-real exponential bridge is available to prove the required Taylor
 enclosures, exponential [identities](../../../../glossary.md#term-identity-meanings), [range reduction](../../../../glossary.md#range-reduction-and-approximation), reconstruction error, and [binary32](../../../../glossary.md#floating-point-precision-and-rounding) [rounding](../../../../glossary.md#term-rounding).
 The independent checkpoint review found no P0/P1/P2 issue and explicitly did not grant
 `DOMAIN-PASS`. Production capability, compiled-[MSL](../../../../glossary.md#term-metal-shading-language-msl) audit, and [device](../../../../glossary.md#term-device) execution therefore remain
-[fail-closed](../../../../glossary.md#term-fail-closed). Work may [resume](../../../../glossary.md#schema-serialization-and-checkpoint) only when that external proof prerequisite exists; Task 0057 is the
+[fail-closed](../../../../glossary.md#term-fail-closed). Work may resume only when that external proof prerequisite exists; Task 0057 is the
 active serialized [Metal](../../../../glossary.md#term-metal) frontier.
 
 The concrete custom candidate uses raw-bit classification and integer/[fixed-point arithmetic](../../../../glossary.md#fixed-point-arithmetic) only;
 the native boundary may load and store raw words but may not rely on ungrounded [GPU](../../../../glossary.md#term-gpu) [FLOAT32](../../../../glossary.md#term-float32)
-rounding, [fused](../../../../glossary.md#specialization-and-fusion)-multiply-add, [contraction](../../../../glossary.md#contraction-dimension), [denormal](../../../../glossary.md#subnormal-daz-ftz-overflow-and-underflow), or fast-math behavior. [MPSGraph](../../../../glossary.md#term-mpsgraph) direct
+rounding, [fused](../../../../glossary.md#specialization-and-fusion)-multiply-add, contraction, [denormal](../../../../glossary.md#subnormal-daz-ftz-overflow-and-underflow), or fast-math behavior. [MPSGraph](../../../../glossary.md#term-mpsgraph) direct
 [`EXP`](../../../../glossary.md#term-expx)/[`SIGMOID`](../../../../glossary.md#term-sigmoid) and the inherited stable composition remain structural catalog candidates only.
 Selector presence, headers, bounded [samples](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters), and timing grant no correctness approval, so no
 MPSGraph candidate may be forced unless it independently passes the same complete-domain proof.
 
-Production capability remains gated on retained source/[constants](../../../../glossary.md#term-constant)/manifests, proof-[kernel](../../../../glossary.md#kernel) replay,
+Production capability remains gated on retained source/[constants](../../../../glossary.md#term-constant)/manifests, proof-kernel replay,
 an independent exhaustive or partitioned all-word checker with zero unresolved inputs, exact
 source-to-proof/[compiler](../../../../glossary.md#term-compiler)-site audit, [rank](../../../../glossary.md#term-rank)-`1..16` launch proof, recursive stable-SIGMOID proof,
 one proof-first device [smoke](../../../../glossary.md#term-smoke-test), and independent Class C approval. A single correct custom survivor
@@ -91,7 +91,7 @@ A future occurrence is eligible only when all of the following are true:
 - element and byte geometry, launch products, offsets, and buffer bounds are checked before native
   resource creation; and<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [buffer glossary](../../../../glossary.md#term-buffer))</span>
 - the occurrence, topology, feeds, targets, ownership, state, and all sentinels/padding pass the
-  then-current Java and native preflight before candidate creation.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [targets glossary](../../../../glossary.md#term-target); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [padding glossary](../../../../glossary.md#padding); [preflight glossary](../../../../glossary.md#term-preflight))</span>
+  then-current Java and native preflight before candidate creation.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [targets glossary](../../../../glossary.md#term-target); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [preflight glossary](../../../../glossary.md#term-preflight))</span>
 
 Every strict occurrence and every excluded descriptor remains capability-false. Passing a bounded
 rank or value [sample](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters) never narrows or expands this domain.
@@ -99,7 +99,7 @@ rank or value [sample](../../../../glossary.md#term-sample-machine-learning-and-
 ## Exact [EXP](../../../../glossary.md#term-expx) result-set obligation
 
 Interpret an input word `x` as [binary32](../../../../glossary.md#floating-point-precision-and-rounding). The complete proof must use the disjoint and exhaustive raw
-[partition](../../../../glossary.md#partition) below over all `2^32` words, with counts and coverage checked by the proof [kernel](../../../../glossary.md#kernel):
+partition below over all `2^32` words, with counts and coverage checked by the proof kernel:
 
 1. positive and negative NaNs: [exponent](../../../../glossary.md#term-exponent) `0xff`, fraction nonzero;
 2. positive and [negative infinity](../../../../glossary.md#nan-infinity-and-signed-zero): exponent `0xff`, fraction zero;
@@ -115,7 +115,7 @@ alternative set and prove the chosen result belongs to it.
 For each chosen finite input value, evaluate mathematical `exp` with a certified directed [enclosure](../../../../glossary.md#interval-arithmetic-and-directed-rounding)
 and define `r` as its [correctly rounded](../../../../glossary.md#nan-infinity-and-signed-zero) binary32 [round-to-nearest](../../../../glossary.md#floating-point-precision-and-rounding)-even result. The allowed result is:
 
-- any binary32 [NaN](../../../../glossary.md#term-nan) for a NaN input; [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), sign, signaling/quiet state are abstract;
+- any binary32 [NaN](../../../../glossary.md#term-nan) for a NaN input; payload, sign, signaling/quiet state are abstract;
 - exactly [positive zero](../../../../glossary.md#nan-infinity-and-signed-zero) for negative infinity;
 - exactly [positive infinity](../../../../glossary.md#nan-infinity-and-signed-zero) for positive infinity;
 - exactly `0x3f800000` for either signed zero;
@@ -192,11 +192,11 @@ The pinned [toolchain](../../../../glossary.md#term-toolchain) is locally instal
 Tools do not provide a standalone [Metal](../../../../glossary.md#term-metal) [compiler](../../../../glossary.md#term-compiler) or [MSL](../../../../glossary.md#term-metal-shading-language-msl) standard-library source capable of
 grounding hardware [FLOAT32](../../../../glossary.md#term-float32) site semantics. The candidate therefore uses integer/[fixed-point
 arithmetic](../../../../glossary.md#fixed-point-arithmetic) over raw [binary32](../../../../glossary.md#floating-point-precision-and-rounding) words and an explicit integer packer; any compiler-created FLOAT32
-arithmetic, conversion, [FMA](../../../../glossary.md#term-fused-multiply-add-fma), [contraction](../../../../glossary.md#contraction-dimension), or [opaque](../../../../glossary.md#term-opaque) intrinsic rejects the candidate.
+arithmetic, conversion, [FMA](../../../../glossary.md#term-fused-multiply-add-fma), contraction, or [opaque](../../../../glossary.md#term-opaque) intrinsic rejects the candidate.
 
 The repository must retain the concrete candidate source/[constants](../../../../glossary.md#term-constant) and all [artifacts](../../../../glossary.md#term-artifact) in the proof
 package below. A pinned offline proof command must succeed, a second implementation-independent
-all-raw-word or complete [partition](../../../../glossary.md#partition) checker must succeed with zero unresolved inputs, and
+all-raw-word or complete partition checker must succeed with zero unresolved inputs, and
 independent read-only review must issue `DOMAIN-PASS` before capability or a [device](../../../../glossary.md#term-device) [run](../../../../glossary.md#term-run) is enabled.
 
 Full Xcode and [trace](../../../../glossary.md#trace) tooling are not prerequisites for the closed source-owned route. Exact
@@ -220,8 +220,8 @@ Gate 1B review, retain reviewable source that:
 - freezes range-reduction representation, table dimensions, exact table bytes, polynomial or other
   approximation, coefficient bytes, evaluation order, exception records, and output packer;<span data-glossary-navigation="true"> ([dimensions glossary](../../../../glossary.md#dimension); [evaluation glossary](../../../../glossary.md#term-evaluation))</span>
 - uses only operations enumerated in the source model and has checked shifts, carries, conversions,
-  indices, offsets, and buffer lengths;<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [buffer glossary](../../../../glossary.md#term-buffer))</span>
-- compiles with safe math, fast/relaxed math disabled, and an explicit [contraction](../../../../glossary.md#contraction-dimension) policy;
+  indices, offsets, and buffer lengths;<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer))</span>
+- compiles with safe math, fast/relaxed math disabled, and an explicit contraction policy;
 - contains no undefined signed overflow, implementation-defined conversion, unchecked table read,
   hidden allocation, or data-dependent fallback; and<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow))</span>
 - preserves exact input/output [Shape](../../../../glossary.md#shape) and one-output [pointwise](../../../../glossary.md#term-pointwise) [ownership](../../../../glossary.md#term-ownership-meanings) for every admitted [rank](../../../../glossary.md#term-rank).
@@ -242,12 +242,12 @@ and every authorized [Shape](../../../../glossary.md#shape), not a [sample](../.
 
 The checked package proves:
 
-1. raw-class [partition](../../../../glossary.md#partition) disjointness, exact counts, and union equal to all `2^32` words;
+1. raw-class partition disjointness, exact counts, and union equal to all `2^32` words;
 2. [NaN](../../../../glossary.md#term-nan)/[infinity](../../../../glossary.md#term-infinity)/zero/[subnormal](../../../../glossary.md#term-subnormal) behavior and the represented/same-[signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero) [DAZ](../../../../glossary.md#term-daz) alternatives;
 3. exact conversion from binary32 to the candidate's integer/fixed-point or proved floating
-   representation, including sign, shift, carry, and width bounds;<span data-glossary-navigation="true"> ([binary32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [fixed-point glossary](../../../../glossary.md#fixed-point-arithmetic); [carry glossary](../../../../glossary.md#term-carry))</span>
+   representation, including sign, shift, carry, and width bounds;<span data-glossary-navigation="true"> ([binary32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [fixed-point glossary](../../../../glossary.md#fixed-point-arithmetic))</span>
 4. unique range-reduction quotient selection and a directed enclosure for the residual, without
-   treating an irrational constant such as <span data-glossary-navigation="true"> ([enclosure glossary](../../../../glossary.md#interval-arithmetic-and-directed-rounding); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [constant glossary](../../../../glossary.md#term-constant))</span>`ln(2)` as exact;
+   treating an irrational constant such as <span data-glossary-navigation="true"> ([enclosure glossary](../../../../glossary.md#interval-arithmetic-and-directed-rounding); [constant glossary](../../../../glossary.md#term-constant))</span>`ln(2)` as exact;
 5. every table-index formula is total and in bounds, every table interval encloses its mathematical
    value, and every scaling exponent/shift is in range;<span data-glossary-navigation="true"> ([exponent glossary](../../../../glossary.md#term-exponent))</span>
 6. the polynomial or other approximation is valid over the entire certified residual interval,
@@ -273,7 +273,7 @@ linear(x,y,z) = x + W * (y + H * z)
 
 for the exact [host](../../../../glossary.md#term-host) grid construction. The proof must show products fit their types, every integer
 `0 <= linear < N` has exactly one grid [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), excess grid threads write nothing, each admitted
-thread reads and writes exactly one in-bounds element, and no 32-bit [truncation](../../../../glossary.md#term-truncation-toward-zero) occurs. The theorem
+thread reads and writes exactly one in-bounds element, and no 32-bit truncation occurs. The theorem
 must cover every resource-feasible positive rank-`1..16` [Shape](../../../../glossary.md#shape), not only the future rank witnesses.
 
 ### Mandatory [SIGMOID](../../../../glossary.md#term-sigmoid) theorems
@@ -296,10 +296,10 @@ Before the [oracle](../../../../glossary.md#term-test-oracle), retain under a de
 
 - exact `.metal` source and [host](../../../../glossary.md#term-host) staging source;
 - machine-readable candidate, raw-partition, FLOAT32-site, constants, table, polynomial, exception,
-  launch, and resource manifests;<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [FLOAT32 glossary](../../../../glossary.md#term-float32))</span>
+  launch, and resource manifests;<span data-glossary-navigation="true"> ([FLOAT32 glossary](../../../../glossary.md#term-float32))</span>
 - [constant](../../../../glossary.md#term-constant)/coefficient generator inputs and deterministic generated outputs;
-- the formal source [model](../../../../glossary.md#term-model) and theorem sources;
-- proof-[kernel](../../../../glossary.md#kernel) outputs/certificates and a single offline proof driver;
+- the formal source model and theorem sources;
+- proof-kernel outputs/certificates and a single offline proof driver;
 - an independent exhaustive `2^32`-word checker, its source, exact-reference configuration, partition
   counts, class counts, maximum ordered distance and witness, unresolved count, exception count,
   and deterministic report;
@@ -312,7 +312,7 @@ unneeded transient workspaces are disposable.
 
 ### Acceptable proof tools
 
-The numerical and bit-level theorems must terminate in a small proof [kernel](../../../../glossary.md#kernel). Accepted primary paths
+The numerical and bit-level theorems must terminate in a small proof kernel. Accepted primary paths
 are either:
 
 - a pinned **[Lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) 4** toolchain checking the raw-word, IEEE/RNE, interval, approximation, indexing,
@@ -340,11 +340,11 @@ environment. The review rejects the candidate on any:
 - `sorry`, `admit`, candidate-specific axiom, unchecked foreign [callback](../../../../glossary.md#term-callback), proof timeout, solver
   `unknown`, or unreviewed [trusted assumption](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions);
 - raw-word partition gap/overlap/count mismatch, unproved DAZ/FTZ branch, unresolved interval,
-  ambiguous rounding boundary, or maximum distance greater than <span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [DAZ glossary](../../../../glossary.md#term-daz); [FTZ glossary](../../../../glossary.md#term-ftz); [rounding glossary](../../../../glossary.md#term-rounding))</span>`5`;
+  ambiguous rounding boundary, or maximum distance greater than <span data-glossary-navigation="true"> ([DAZ glossary](../../../../glossary.md#term-daz); [FTZ glossary](../../../../glossary.md#term-ftz); [rounding glossary](../../../../glossary.md#term-rounding))</span>`5`;
 - range-reduction gap, invalid constant enclosure, table/index/shift/carry/buffer bound gap,
-  duplicate exception key, or incomplete exception proof;<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [enclosure glossary](../../../../glossary.md#interval-arithmetic-and-directed-rounding); [carry glossary](../../../../glossary.md#term-carry); [buffer glossary](../../../../glossary.md#term-buffer))</span>
+  duplicate exception key, or incomplete exception proof;<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [enclosure glossary](../../../../glossary.md#interval-arithmetic-and-directed-rounding); [buffer glossary](../../../../glossary.md#term-buffer))</span>
 - source/model/constants/compiler-options mismatch, unmodeled FLOAT32/FMA/contraction site, opaque
-  numerical call, or compiler-created operation not present in the site manifest;<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [compiler glossary](../../../../glossary.md#term-compiler); [FLOAT32 glossary](../../../../glossary.md#term-float32); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [contraction glossary](../../../../glossary.md#contraction-dimension); [opaque glossary](../../../../glossary.md#term-opaque); [operation glossary](../../../../glossary.md#operation); [manifest glossary](../../../../glossary.md#term-manifest))</span>
+  numerical call, or compiler-created operation not present in the site manifest;<span data-glossary-navigation="true"> ([compiler glossary](../../../../glossary.md#term-compiler); [FLOAT32 glossary](../../../../glossary.md#term-float32); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [opaque glossary](../../../../glossary.md#term-opaque); [operation glossary](../../../../glossary.md#operation); [manifest glossary](../../../../glossary.md#term-manifest))</span>
 - [SIGMOID](../../../../glossary.md#term-sigmoid) final-envelope [argument](../../../../glossary.md#term-argument) in place of recursive site membership; or
 - launch proof that omits a rank, positive checked extent, resource-feasible element count, exact
   one-writer coverage, or in-bounds access.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [extent glossary](../../../../glossary.md#term-extent); [element glossary](../../../../glossary.md#term-element))</span>
@@ -382,7 +382,7 @@ outputs, and prints raw words plus control [metadata](../../../../glossary.md#te
 Shapes.
 
 An independent offline validator uses adaptive directed [MPFR](../../../../glossary.md#high-precision-numerical-tools)/[MPFI](../../../../glossary.md#high-precision-numerical-tools) enclosures for [EXP](../../../../glossary.md#term-expx) and the formal
-recursive site [model](../../../../glossary.md#term-model) for [SIGMOID](../../../../glossary.md#term-sigmoid). It records per candidate: source/proof/corpus/output [identities](../../../../glossary.md#term-identity-meanings),
+recursive site model for [SIGMOID](../../../../glossary.md#term-sigmoid). It records per candidate: source/proof/corpus/output [identities](../../../../glossary.md#term-identity-meanings),
 class/sign failures, maximum ordinary ordered distance and witness, [DAZ](../../../../glossary.md#term-daz)/[FTZ](../../../../glossary.md#term-ftz) observations, recursive
 membership, every rank/control verdict, and first failure. The bounded [oracle](../../../../glossary.md#term-test-oracle) is [regression](../../../../glossary.md#term-regression) evidence
 only; it can reject but cannot establish `DOMAIN-PASS`.
@@ -439,7 +439,7 @@ substitute or widen [binary](../../../../glossary.md#term-binary-descriptor-and-
 
 - Depends on: completed and independently approved Model 0030/0031; Task 0051's preserved blocked
   record; Complete Task 0055's ABI-5/schema-13 foundation; Complete Task 0056's canonical route
-  identity/catalog; Compiler unary inference/gradient capture; Config 0006; and Engine 0018.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [schema glossary](../../../../glossary.md#term-schema); [canonical glossary](../../../../glossary.md#term-canonical-form); [identity glossary](../../../../glossary.md#term-identity-meanings); [Compiler glossary](../../../../glossary.md#term-compiler); [unary glossary](../../../../glossary.md#term-unary); [inference glossary](../../../../glossary.md#term-inference); [gradient glossary](../../../../glossary.md#term-gradient); [capture glossary](../../../../glossary.md#term-capture-meanings); [Engine glossary](../../../../glossary.md#term-engine))</span>
+  identity/catalog; Compiler unary inference/gradient capture; Config 0006; and Engine 0018.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [schema glossary](../../../../glossary.md#term-schema); [canonical glossary](../../../../glossary.md#term-canonical-form); [identity glossary](../../../../glossary.md#term-identity-meanings); [Compiler glossary](../../../../glossary.md#term-compiler); [unary glossary](../../../../glossary.md#term-unary); [gradient glossary](../../../../glossary.md#term-gradient); [capture glossary](../../../../glossary.md#term-capture-meanings); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - [Planning](../../../../glossary.md#term-planning) base: current clean Task-0056 completion plus cast-reason remediation `fa9387e0`.
 - Proof tools: pinned [Lean](../../../../glossary.md#proof-assistant-and-model-checking-tools) `4.34.1`, [Sollya](../../../../glossary.md#high-precision-numerical-tools) `8.0`, [MPFI](../../../../glossary.md#high-precision-numerical-tools) `1.5.4`, [MPFR](../../../../glossary.md#high-precision-numerical-tools) `4.2.2`, [GMP](../../../../glossary.md#high-precision-numerical-tools) `6.3.0`.
 - Supersedes: Task 0051 for all new EXP/SIGMOID source, proof, device smoke, route, schema,
@@ -456,7 +456,7 @@ substitute or widen [binary](../../../../glossary.md#term-binary-descriptor-and-
 
 Retain a dedicated Task-0053 evidence directory containing exact custom `.metal` source, generated
 embedded-source bytes, [constant](../../../../glossary.md#term-constant)/table generator inputs and outputs, machine-readable manifests,
-formal [model](../../../../glossary.md#term-model) and theorem sources, proof-[kernel](../../../../glossary.md#kernel) output, the independent checker and deterministic
+formal model and theorem sources, proof-kernel output, the independent checker and deterministic
 report, launch proof, source-to-proof/[compiler](../../../../glossary.md#term-compiler)-site audit, tool [identities](../../../../glossary.md#term-identity-meanings), and a top-level
 [SHA-256](../../../../glossary.md#term-sha-256) [manifest](../../../../glossary.md#term-manifest). Production cutover may update the existing [Metal](../../../../glossary.md#term-metal) capability, [lowering](../../../../glossary.md#lowering), [canonical](../../../../glossary.md#term-canonical-form)
 prepared-route/candidate [identity](../../../../glossary.md#term-identity-meanings), custom-program native [lifecycle](../../../../glossary.md#lifecycle), package [metadata](../../../../glossary.md#term-metadata), focused
@@ -468,9 +468,9 @@ the Metal master, and roadmap.
 1. Task 0051 remains an unchanged historical record and its source/[oracle](../../../../glossary.md#term-test-oracle) is never rerun.
 2. The custom source is integer/fixed-point over raw words with explicit specials, DAZ/FTZ,
    overflow/underflow, range reduction, exact-byte table, polynomial, and bit packer; its compiler
-   audit reports no hardware FLOAT32/FMA/contraction site.<span data-glossary-navigation="true"> ([fixed-point glossary](../../../../glossary.md#fixed-point-arithmetic); [DAZ glossary](../../../../glossary.md#term-daz); [FTZ glossary](../../../../glossary.md#term-ftz); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [range reduction glossary](../../../../glossary.md#range-reduction-and-approximation); [compiler glossary](../../../../glossary.md#term-compiler); [FLOAT32 glossary](../../../../glossary.md#term-float32); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [contraction glossary](../../../../glossary.md#contraction-dimension))</span>
+   audit reports no hardware FLOAT32/FMA/contraction site.<span data-glossary-navigation="true"> ([fixed-point glossary](../../../../glossary.md#fixed-point-arithmetic); [DAZ glossary](../../../../glossary.md#term-daz); [FTZ glossary](../../../../glossary.md#term-ftz); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [range reduction glossary](../../../../glossary.md#range-reduction-and-approximation); [compiler glossary](../../../../glossary.md#term-compiler); [FLOAT32 glossary](../../../../glossary.md#term-float32); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma))</span>
 3. Pinned Lean replay checks the complete raw partition, exact decode, thresholds/quotient/table/
-   residual/polynomial/reconstruction bounds, tie-even packer, inclusive EXP distance <span data-glossary-navigation="true"> ([Lean glossary](../../../../glossary.md#proof-assistant-and-model-checking-tools); [partition glossary](../../../../glossary.md#partition); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [EXP glossary](../../../../glossary.md#term-expx))</span>`<=5`, and
+   residual/polynomial/reconstruction bounds, tie-even packer, inclusive EXP distance <span data-glossary-navigation="true"> ([Lean glossary](../../../../glossary.md#proof-assistant-and-model-checking-tools); [EXP glossary](../../../../glossary.md#term-expx))</span>`<=5`, and
    exact rank-<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank))</span>`1..16` launch/index coverage without `sorry`, `admit`, or candidate-specific axioms.
 4. An implementation-independent [MPFR](../../../../glossary.md#high-precision-numerical-tools)/[MPFI](../../../../glossary.md#high-precision-numerical-tools) checker covers all `2^32` input words directly or by
    checked complete partitions and records zero unresolved words, correct class/sign behavior, and
@@ -508,8 +508,8 @@ source/proof [identity](../../../../glossary.md#term-identity-meanings), [compil
 
 ## Result
 
-Execution is Blocked after the retained [checkpoint](../../../../glossary.md#term-checkpoint) from exact clean base `fa9387e0`. One shared integer core is expanded
-into the [MSL](../../../../glossary.md#term-metal-shading-language-msl) NSString and included directly by the C checker [model](../../../../glossary.md#term-model), eliminating the duplicate
+Execution is Blocked after the retained checkpoint from exact clean base `fa9387e0`. One shared integer core is expanded
+into the [MSL](../../../../glossary.md#term-metal-shading-language-msl) NSString and included directly by the C checker model, eliminating the duplicate
 algorithm. Its signed-magnitude conversion, shifts, products, additions/subtractions, table index,
 and pack paths are explicitly guarded or [saturating](../../../../glossary.md#saturation-pole-and-extremum) outside the admitted range. Retained evidence
 also includes [MPFR](../../../../glossary.md#high-precision-numerical-tools)-generated table and class/one-[rounding](../../../../glossary.md#term-rounding) thresholds, a [Sollya](../../../../glossary.md#high-precision-numerical-tools) degree-six
@@ -528,16 +528,16 @@ selection, or production approval occurred.
 
 The no-axiom Lean checkpoint now retains an exact Nat/Int definition of the candidate, proves
 nearest-even division error and monotonicity, monotonic [fixed-point](../../../../glossary.md#fixed-point-arithmetic) decode/shift behavior, and
-boundary examples, and [kernel](../../../../glossary.md#kernel)-replays the generated table intervals as exact rational enclosures of
+boundary examples, and kernel-replays the generated table intervals as exact rational enclosures of
 the positive roots satisfying `y^128 = 2^i`. A generated 32,778-record sign/[exponent](../../../../glossary.md#term-exponent)/quotient
 [certificate](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions) is checked in the kernel for endpoint quotients and same-exponent intervals; generic
 Lean theorems prove that its [contiguous](../../../../glossary.md#term-contiguous) positive and negative interval lists cover their complete
 active magnitude ranges and are disjoint. MPFR and Sollya remain generators/corroboration only.
 
-That retained [finite](../../../../glossary.md#term-finite) certificate is not sufficient for a sound mathematical-EXP theorem in the
+That retained finite certificate is not sufficient for a sound mathematical-EXP theorem in the
 pinned environment. No constructive-real or equivalent rational-Cauchy exponential development is
 available to bridge a checked rational [Taylor enclosure](../../../../glossary.md#range-reduction-and-approximation) to mathematical `exp`, prove
-`exp(x + y) = exp(x) * exp(y)` and the `ln(2)/128` reduction identity, and [carry](../../../../glossary.md#term-carry) those semantics
+`exp(x + y) = exp(x) * exp(y)` and the `ln(2)/128` reduction identity, and carry those semantics
 through the [Q48](../../../../glossary.md#fixed-point-arithmetic)/[Q32](../../../../glossary.md#fixed-point-arithmetic) polynomial, reconstruction, and [binary32](../../../../glossary.md#floating-point-precision-and-rounding) rounding result. The exact external
 blocker is a pinned no-axiom library or formal lemma set providing that bridge. Source-to-Lean
 semantic equivalence and the stable-SIGMOID materialized ADD/DIV RNE-or-[FTZ](../../../../glossary.md#term-ftz) membership theorem also
