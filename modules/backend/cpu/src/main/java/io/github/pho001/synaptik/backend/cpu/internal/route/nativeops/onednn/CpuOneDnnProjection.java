@@ -57,7 +57,10 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
     /**
      * Projects supported static F32 ordinary families and literal composite substeps.
      * Unsupported instructions reject the complete unit; dynamic, Scan, empty and multiple-output
-     * units stay ordinary. Native implementation qualification remains independently mandatory.
+     * units stay ordinary. Singleton-normalized operands must cover the native binary result
+     * domain, and unary/identity views must retain the exact input span. Unrepresentable valid
+     * broadcast geometry stays ordinary before recipe construction. Native implementation
+     * qualification remains independently mandatory.
      *
      * @param unit non-null already validated common execution unit
      * @return immutable numeric facts, or empty when this unit is not representable here
@@ -287,10 +290,9 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
             var unary = unary(instruction.opcode());
             var binary = binary(instruction.opcode());
             if (unary != null) {
-                var input = operands.getFirst();
-                var expanded = new CpuOneDnnKernelSpec.Tensor(input.dataType(),
-                        output.dimensions(), input.strides());
-                atomic = new CpuOneDnnKernelSpec.Unary(unary, expanded, output);
+                var expanded = sameSpanView(operands.getFirst(), output.dimensions());
+                if (expanded.isEmpty()) return Optional.empty();
+                atomic = new CpuOneDnnKernelSpec.Unary(unary, expanded.orElseThrow(), output);
             } else if (binary != null) {
                 if (instruction.scalarImmediate() != null) {
                     var immediate = instruction.scalarImmediate();
@@ -311,13 +313,15 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
                     java.util.Collections.reverse(operands);
                     java.util.Collections.reverse(operandSlots);
                 }
-                atomic = new CpuOneDnnKernelSpec.Binary(binary, operands.getFirst(), operands.get(1), output);
+                var projected = binarySpec(binary, operands.getFirst(), operands.get(1), output);
+                if (projected.isEmpty()) return Optional.empty();
+                atomic = projected.orElseThrow();
             } else if (instruction.opcode() == CpuPointwiseOpcode.CAST
                     && operands.getFirst().dataType() == output.dataType()
                     && output.dataType() == DataType.FLOAT32) {
-                var input = operands.getFirst();
-                atomic = new CpuOneDnnKernelSpec.Reorder(new CpuOneDnnKernelSpec.Tensor(
-                        input.dataType(), output.dimensions(), input.strides()), output);
+                var expanded = sameSpanView(operands.getFirst(), output.dimensions());
+                if (expanded.isEmpty()) return Optional.empty();
+                atomic = new CpuOneDnnKernelSpec.Reorder(expanded.orElseThrow(), output);
             } else return Optional.empty();
             steps.add(new CpuOneDnnKernelSpec.Step(atomic, operandSlots, slots[instruction.output()]));
         }
@@ -396,12 +400,13 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
         var divisor = dense(DataType.FLOAT32, java.util.Collections.nCopies(dimensions.size(), 1L));
         var constant = new CpuOneDnnKernelSpec.Constant(divisor,
                 List.of(Float.floatToRawIntBits((float) ir.domainCount())));
+        var division = binarySpec(CpuOneDnnKernelSpec.BinaryAlgorithm.DIV, sum, divisor, output);
+        if (division.isEmpty()) return Optional.empty();
         var pipeline = new CpuOneDnnKernelSpec.Pipeline(List.of(input), output,
                 List.of(sum), List.of(constant), List.of(
                     new CpuOneDnnKernelSpec.Step(new CpuOneDnnKernelSpec.Reduction(algorithm, input, sum),
                             List.of(0), 2),
-                    new CpuOneDnnKernelSpec.Step(new CpuOneDnnKernelSpec.Binary(
-                            CpuOneDnnKernelSpec.BinaryAlgorithm.DIV, sum, divisor, output), List.of(2, 3), 1)));
+                    new CpuOneDnnKernelSpec.Step(division.orElseThrow(), List.of(2, 3), 1)));
         return projection(unit, pipeline, offsets(unit));
     }
 
@@ -505,6 +510,62 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
         return new CpuOneDnnKernelSpec.Tensor(type, broadcast
                 ? broadcastDimensions(binding.extents(), binding.effectiveStrides()) : binding.extents(),
                 binding.effectiveStrides());
+    }
+
+    /**
+     * Retains exact binary shape validation while declining valid common broadcast domains that
+     * singleton normalization removes from both operands. Such an axis needs a separately qualified
+     * expanded-zero-stride native descriptor, not a weakened native binary shape invariant.
+     *
+     * @param algorithm non-null literal arithmetic or predicate site
+     * @param left non-null singleton-normalized left descriptor
+     * @param right non-null singleton-normalized right descriptor
+     * @param output non-null complete common result domain
+     * @return exact native binary recipe, or empty when both operands omit a non-singleton axis
+     * @throws IllegalArgumentException if operand ranks or non-singleton extents disagree
+     */
+    static Optional<CpuOneDnnKernelSpec.Binary> binarySpec(
+            CpuOneDnnKernelSpec.BinaryAlgorithm algorithm, CpuOneDnnKernelSpec.Tensor left,
+            CpuOneDnnKernelSpec.Tensor right, CpuOneDnnKernelSpec.Tensor output) {
+        int rank = output.dimensions().size();
+        if (left.dimensions().size() > rank || right.dimensions().size() > rank) {
+            throw new IllegalArgumentException("broadcast input rank exceeds output");
+        }
+        boolean missingExtent = false;
+        for (int axis = 0; axis < rank; axis++) {
+            int a = axis - rank + left.dimensions().size();
+            int b = axis - rank + right.dimensions().size();
+            long x = a < 0 ? 1 : left.dimensions().get(a);
+            long y = b < 0 ? 1 : right.dimensions().get(b);
+            long z = output.dimensions().get(axis);
+            if ((x != 1 && x != z) || (y != 1 && y != z)) {
+                throw new IllegalArgumentException("broadcast dimensions disagree");
+            }
+            if (x == 1 && y == 1 && z > 1) missingExtent = true;
+        }
+        return missingExtent ? Optional.empty()
+                : Optional.of(new CpuOneDnnKernelSpec.Binary(algorithm, left, right, output));
+    }
+
+    /**
+     * Expands only singleton zero-stride axes, preserving every descriptor-relative address.
+     *
+     * @param input non-null singleton-normalized source descriptor
+     * @param dimensions non-null complete unary or identity result dimensions
+     * @return exact-span source view, or empty when expansion would change the referenced storage
+     * @throws ArithmeticException if checked descriptor span arithmetic overflows
+     */
+    private static Optional<CpuOneDnnKernelSpec.Tensor> sameSpanView(
+            CpuOneDnnKernelSpec.Tensor input, List<Long> dimensions) {
+        if (input.dimensions().size() != dimensions.size()) return Optional.empty();
+        for (int axis = 0; axis < dimensions.size(); axis++) {
+            long source = input.dimensions().get(axis), target = dimensions.get(axis);
+            if (source != target && (source != 1 || input.strides().get(axis) != 0)) {
+                return Optional.empty();
+            }
+        }
+        var expanded = new CpuOneDnnKernelSpec.Tensor(input.dataType(), dimensions, input.strides());
+        return expanded.byteSize() == input.byteSize() ? Optional.of(expanded) : Optional.empty();
     }
 
     private static CpuOneDnnKernelSpec.Tensor dense(DataType type, List<Long> extents) {

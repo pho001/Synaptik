@@ -5,7 +5,6 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool2dIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
-import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnKernelSpec.Binary;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnKernelSpec.BinaryAlgorithm;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnKernelSpec.Constant;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnKernelSpec.Pipeline;
@@ -40,7 +39,8 @@ public final class CpuOneDnnCompositeProjection {
      * MSE mean retains SUM followed by DIV, and BatchNorm retains all six formula sites. Average
      * pooling is representable only with a power-of-two fixed divisor and actual conceptual positive
      * zero padding in every output window. Unsupported families, empty/symbolic domains and native
-     * descriptor geometry return empty before native selection; qualification remains separate.
+     * descriptor geometry return empty before native selection, including binary domains absent
+     * from both singleton-normalized operands; qualification remains separate.
      *
      * @param unit non-null already validated common CPU execution unit; never mutated or retained
      * @return immutable numeric recipe, or empty when the complete unit is not representable
@@ -147,16 +147,17 @@ public final class CpuOneDnnCompositeProjection {
         var intermediates = new ArrayList<Tensor>();
         intermediates.add(dense);
         var steps = new ArrayList<Step>();
-        steps.add(binary(BinaryAlgorithm.SUB, broadcast(prediction), broadcast(target), dense,
-                predictionSlot, targetSlot, deltaSlot));
+        if (!binary(steps, BinaryAlgorithm.SUB, broadcast(prediction), broadcast(target), dense,
+                predictionSlot, targetSlot, deltaSlot)) return Optional.empty();
         var constants = new ArrayList<Constant>();
         if (ir.reduction() == LossReduction.NONE) {
-            steps.add(binary(BinaryAlgorithm.MUL, dense, dense, output, deltaSlot, deltaSlot, unique));
+            if (!binary(steps, BinaryAlgorithm.MUL, dense, dense, output,
+                    deltaSlot, deltaSlot, unique)) return Optional.empty();
         } else {
             int squareSlot = unique + 2;
             intermediates.add(dense);
-            steps.add(binary(BinaryAlgorithm.MUL, dense, dense, dense,
-                    deltaSlot, deltaSlot, squareSlot));
+            if (!binary(steps, BinaryAlgorithm.MUL, dense, dense, dense,
+                    deltaSlot, deltaSlot, squareSlot)) return Optional.empty();
             Tensor reduced = singleton(dense.dimensions().size());
             if (ir.reduction() == LossReduction.SUM) {
                 steps.add(new Step(new Reduction(ReductionAlgorithm.SUM, dense, reduced),
@@ -170,8 +171,8 @@ public final class CpuOneDnnCompositeProjection {
                 for (long extent : extents) count = Math.multiplyExact(count, extent);
                 constants.add(new Constant(scalar(), List.of(Float.floatToRawIntBits((float) count))));
                 int countSlot = unique + 1 + intermediates.size();
-                steps.add(binary(BinaryAlgorithm.DIV, scalar(), scalar(), output,
-                        sumSlot, countSlot, unique));
+                if (!binary(steps, BinaryAlgorithm.DIV, scalar(), scalar(), output,
+                        sumSlot, countSlot, unique)) return Optional.empty();
             }
         }
         offsets.add(bytes(geometry.outputOffset()));
@@ -215,14 +216,17 @@ public final class CpuOneDnnCompositeProjection {
         Tensor biasView = channelView(inputs.get(bias), ir.inputRank(), ir.channelAxis());
         Tensor meanView = channelView(inputs.get(mean), ir.inputRank(), ir.channelAxis());
         Tensor rootView = channelView(channel, ir.inputRank(), ir.channelAxis());
-        List<Step> steps = List.of(
-                binary(BinaryAlgorithm.SUB, broadcast(inputs.get(x)), meanView, dense, x, mean, centered),
-                binary(BinaryAlgorithm.ADD, broadcast(inputs.get(variance)), scalar(), channel,
-                        variance, epsilon, radicand),
-                new Step(new Unary(UnaryAlgorithm.SQRT, channel, channel), List.of(radicand), root),
-                binary(BinaryAlgorithm.DIV, dense, rootView, dense, centered, root, normal),
-                binary(BinaryAlgorithm.MUL, dense, scaleView, dense, normal, scale, scaled),
-                binary(BinaryAlgorithm.ADD, dense, biasView, output, scaled, bias, unique));
+        var steps = new ArrayList<Step>();
+        if (!binary(steps, BinaryAlgorithm.SUB, broadcast(inputs.get(x)), meanView, dense,
+                    x, mean, centered)
+                || !binary(steps, BinaryAlgorithm.ADD, broadcast(inputs.get(variance)), scalar(), channel,
+                    variance, epsilon, radicand)) return Optional.empty();
+        steps.add(new Step(new Unary(UnaryAlgorithm.SQRT, channel, channel), List.of(radicand), root));
+        if (!binary(steps, BinaryAlgorithm.DIV, dense, rootView, dense, centered, root, normal)
+                || !binary(steps, BinaryAlgorithm.MUL, dense, scaleView, dense, normal, scale, scaled)
+                || !binary(steps, BinaryAlgorithm.ADD, dense, biasView, output, scaled, bias, unique)) {
+            return Optional.empty();
+        }
         offsets.add(bytes(layout.offset()));
         return projection(unit, new Pipeline(inputs, output,
                 List.of(dense, channel, channel, dense, dense),
@@ -266,10 +270,12 @@ public final class CpuOneDnnCompositeProjection {
                 List.of(bytes(inputOffset), bytes(outputOffset)));
     }
 
-    private static Step binary(BinaryAlgorithm algorithm, Tensor left, Tensor right, Tensor output,
-            int leftSlot, int rightSlot, int outputSlot) {
-        return new Step(new Binary(algorithm, left, right, output),
-                List.of(leftSlot, rightSlot), outputSlot);
+    private static boolean binary(List<Step> steps, BinaryAlgorithm algorithm,
+            Tensor left, Tensor right, Tensor output, int leftSlot, int rightSlot, int outputSlot) {
+        var spec = CpuOneDnnProjection.binarySpec(algorithm, left, right, output);
+        if (spec.isEmpty()) return false;
+        steps.add(new Step(spec.orElseThrow(), List.of(leftSlot, rightSlot), outputSlot));
+        return true;
     }
 
     private static Tensor channelView(Tensor channel, int rank, int axis) {
