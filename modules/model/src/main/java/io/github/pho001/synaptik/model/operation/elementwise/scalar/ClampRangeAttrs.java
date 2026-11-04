@@ -3,6 +3,8 @@ package io.github.pho001.synaptik.model.operation.elementwise.scalar;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import java.util.Objects;
@@ -12,7 +14,7 @@ import java.util.Objects;
  *
  * <p>The lower bound precedes the upper bound. Both values must have the same numeric data type
  * and are retained by exact reference. Construction compares them with that type's primitive
- * {@code >} operation, expanding raw BFLOAT16 or FLOAT16 bits to their exact binary32 value only
+ * {@code >} operation, expanding raw low floating bits to their exact binary32 value only
  * for comparison. Equal bounds, either ordering of signed zeros, ordered infinities, and one or
  * two floating NaN endpoints are accepted. INT64 comparison never passes through a floating
  * representation.</p>
@@ -66,6 +68,10 @@ public record ClampRangeAttrs(ScalarValue minValue, ScalarValue maxValue) implem
                     > BFloat16Bits.toFloat(maxValue.bfloat16Bits());
             case FLOAT16 -> Float16Bits.toFloat(minValue.float16Bits())
                     > Float16Bits.toFloat(maxValue.float16Bits());
+            case FLOAT8_E4M3 -> Float8E4M3Bits.toFloat(minValue.float8E4m3Bits())
+                    > Float8E4M3Bits.toFloat(maxValue.float8E4m3Bits());
+            case FLOAT8_E5M2 -> Float8E5M2Bits.toFloat(minValue.float8E5m2Bits())
+                    > Float8E5M2Bits.toFloat(maxValue.float8E5m2Bits());
             case INT32 -> minValue.int32Value() > maxValue.int32Value();
             case INT64 -> minValue.int64Value() > maxValue.int64Value();
             case BOOL -> throw new AssertionError("BOOL handled above");

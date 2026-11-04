@@ -26,9 +26,9 @@ package io.github.pho001.synaptik.model.operation.index;
  * {@code maxFinite}, {@code 2}, and {@code +0}, an overflow-first tree can produce NaN while a
  * different grouping can produce positive zero. NaN payload, sign, and signaling behavior are
  * unspecified. FLOAT32 multiplication rounds at named FLOAT32 sites; FLOAT64 sites do not permit
- * denormals-are-zero (DAZ) or flush-to-zero (FTZ). Homogeneous BFLOAT16 and FLOAT16 factors use
+ * denormals-are-zero (DAZ) or flush-to-zero (FTZ). Homogeneous low floating factors use
  * FLOAT32 working and accumulator values, then one final round-to-nearest, ties-to-even narrowing
- * to the declared low output. Named FLOAT32, BFLOAT16, and FLOAT16 multiplication inputs may use
+ * to the declared low output. Named FLOAT32, BFLOAT16, FLOAT16 and OFP8 multiplication inputs may use
  * same-signed-zero DAZ and finite subnormal primitive results may use FTZ under the family's
  * zero-sign rule, including low multiplication. Unaddressed cells retain their original bits.
  * No factor may be dropped, duplicated, or pre-narrowed; no once-rounded exact-product or bitwise

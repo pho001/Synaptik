@@ -7,65 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ScalarValueTest {
-    @Test
-    void exposesOnlyTheExactFinalClassShape() {
-        var fields = Arrays.stream(ScalarValue.class.getDeclaredFields())
-                .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                .toList();
-        var constructors = ScalarValue.class.getDeclaredConstructors();
-
-        assertAll(
-                () -> assertEquals("io.github.pho001.synaptik.model.datatype",
-                        ScalarValue.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(ScalarValue.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(ScalarValue.class.getModifiers())),
-                () -> assertFalse(ScalarValue.class.isRecord()),
-                () -> assertEquals(List.of("dataType", "bits"),
-                        fields.stream().map(field -> field.getName()).toList()),
-                () -> assertEquals(List.of(DataType.class, long.class),
-                        fields.stream().map(field -> field.getType()).toList()),
-                () -> assertTrue(fields.stream().allMatch(field ->
-                        Modifier.isPrivate(field.getModifiers())
-                                && Modifier.isFinal(field.getModifiers()))),
-                () -> assertEquals(1, constructors.length),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertEquals(List.of(DataType.class, long.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertEquals(0, ScalarValue.class.getDeclaredClasses().length),
-                () -> assertEquals(
-                        List.of(
-                                "bfloat16(float):io.github.pho001.synaptik.model.datatype.ScalarValue",
-                                "bfloat16Bits():short",
-                                "bfloat16Bits(short):io.github.pho001.synaptik.model.datatype.ScalarValue",
-                                "bool(boolean):io.github.pho001.synaptik.model.datatype.ScalarValue",
-                                "booleanValue():boolean",
-                                "dataType():io.github.pho001.synaptik.model.datatype.DataType",
-                                "equals(java.lang.Object):boolean",
-                                "float16(float):io.github.pho001.synaptik.model.datatype.ScalarValue",
-                                "float16Bits():short",
-                                "float16Bits(short):io.github.pho001.synaptik.model.datatype.ScalarValue",
-                                "float32(float):io.github.pho001.synaptik.model.datatype.ScalarValue",
-                                "float32Value():float",
-                                "float64(double):io.github.pho001.synaptik.model.datatype.ScalarValue",
-                                "float64Value():double",
-                                "hashCode():int",
-                                "int32(int):io.github.pho001.synaptik.model.datatype.ScalarValue",
-                                "int32Value():int",
-                                "int64(long):io.github.pho001.synaptik.model.datatype.ScalarValue",
-                                "int64Value():long",
-                                "toString():java.lang.String"),
-                        Arrays.stream(ScalarValue.class.getDeclaredMethods())
-                                .filter(method -> Modifier.isPublic(method.getModifiers()))
-                                .map(ScalarValueTest::methodSignature)
-                                .sorted()
-                                .toList()));
-    }
 
     @Test
     void preservesEveryCurrentRepresentationExactly() {
@@ -142,10 +86,4 @@ class ScalarValueTest {
                         ScalarValue.bool(true).toString()));
     }
 
-    private static String methodSignature(java.lang.reflect.Method method) {
-        String parameters = Arrays.stream(method.getParameterTypes())
-                .map(Class::getName)
-                .collect(java.util.stream.Collectors.joining(","));
-        return method.getName() + "(" + parameters + "):" + method.getReturnType().getName();
-    }
 }

@@ -29,6 +29,8 @@ class MemorySegmentStorageTest {
                 DataType.FLOAT32, MemorySegment.ofArray(new float[3]),
                 DataType.BFLOAT16, MemorySegment.ofArray(new short[3]),
                 DataType.FLOAT16, MemorySegment.ofArray(new short[3]),
+                DataType.FLOAT8_E4M3, MemorySegment.ofArray(new byte[3]),
+                DataType.FLOAT8_E5M2, MemorySegment.ofArray(new byte[3]),
                 DataType.INT32, MemorySegment.ofArray(new int[3]),
                 DataType.INT64, MemorySegment.ofArray(new long[3]),
                 DataType.BOOL, MemorySegment.ofArray(new byte[3]));

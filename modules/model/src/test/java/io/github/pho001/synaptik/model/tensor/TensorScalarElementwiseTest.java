@@ -291,6 +291,8 @@ class TensorScalarElementwiseTest {
             case FLOAT32 -> ScalarValue.float32((float) value);
             case BFLOAT16 -> ScalarValue.bfloat16((float) value);
             case FLOAT16 -> ScalarValue.float16((float) value);
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3((float) value);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2((float) value);
             default -> throw new IllegalArgumentException("not floating: " + dataType);
         };
     }

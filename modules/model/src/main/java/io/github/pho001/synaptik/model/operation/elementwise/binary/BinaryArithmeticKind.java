@@ -21,7 +21,7 @@ import java.util.List;
  * as an attribute or as mutable state on the kind.</p>
  *
  * <p>The arithmetic kinds use their named ADD, SUB, MUL, DIV, or POW site after exact broadcasting
- * and promotion. FLOAT32, BFLOAT16, and FLOAT16 may treat a subnormal input to a named floating
+ * and promotion. FLOAT32, BFLOAT16, FLOAT16 and OFP8 may treat a subnormal input to a named floating
  * arithmetic primitive as same-signed zero (DAZ) and flush a finite subnormal primitive result to
  * zero (FTZ), subject to the kind's signed-zero rule; FLOAT64 may do neither. Homogeneous low
  * arithmetic uses FLOAT32 working values and one final ties-to-even low narrowing. POW retains its
@@ -84,8 +84,8 @@ public enum BinaryArithmeticKind implements OperationKind {
     /**
      * Selects the mathematical minimum of the corresponding left and right element values.
      *
-     * <p>FLOAT64 and FLOAT32 compare the represented IEEE-754 value; FLOAT16 and BFLOAT16 compare
-     * the values represented by their exact 16-bit storage after the existing promotion. If either
+     * <p>All floating formats compare exact represented values after the existing promotion,
+     * including OFP8 subnormals. If either
      * candidate is NaN, the result is NaN. Opposite signed zeros produce negative zero,
      * independent of operand order. Infinities and unequal non-NaN values use ordinary numeric
      * order; equal nonzero candidates produce that numeric value. The request promises no NaN
@@ -99,8 +99,8 @@ public enum BinaryArithmeticKind implements OperationKind {
     /**
      * Selects the mathematical maximum of the corresponding left and right element values.
      *
-     * <p>FLOAT64 and FLOAT32 compare the represented IEEE-754 value; FLOAT16 and BFLOAT16 compare
-     * the values represented by their exact 16-bit storage after the existing promotion. If either
+     * <p>All floating formats compare exact represented values after the existing promotion,
+     * including OFP8 subnormals. If either
      * candidate is NaN, the result is NaN. Opposite signed zeros produce positive zero,
      * independent of operand order. Infinities and unequal non-NaN values use ordinary numeric
      * order; equal nonzero candidates produce that numeric value. The request promises no NaN

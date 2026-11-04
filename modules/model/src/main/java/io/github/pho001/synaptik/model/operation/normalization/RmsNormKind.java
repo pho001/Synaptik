@@ -22,7 +22,7 @@ import java.util.List;
  * <p>Exact slice membership, count, epsilon, guards, and scale mapping remain fixed. The formula
  * recurses through x*x, sum/count, epsilon addition, SQRT, division, and optional scale
  * multiplication. Every contributor participates once; only named floating arithmetic primitive
- * inputs/results may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64.
+ * inputs/results may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, FLOAT16 and OFP8, never FLOAT64.
  * Homogeneous low arithmetic uses FLOAT32 working and accumulator values and one final low
  * narrowing per output. The composite has no blanket result tolerance. See the <a
  * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model

@@ -31,8 +31,8 @@ import java.util.List;
  * <p>Every unfold preserves exact addressed mapping and stored payloads. Every fold preserves
  * exact geometry, contributor membership, and empty behavior. Nonoverlapping folds copy or place
  * values exactly; overlapping floating folds combine every contributor once in a rounded addition
- * tree. Only named arithmetic additions permit dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and
- * FLOAT16, never FLOAT64; homogeneous low arithmetic accumulates in FLOAT32 and narrows once at the
+ * tree. Only named arithmetic additions permit dtype-specific DAZ/FTZ for FLOAT32 and all low
+ * floating types, never FLOAT64; homogeneous low arithmetic accumulates in FLOAT32 and narrows once at the
  * declared output. See the <a
  * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
  * numerical-semantics contract</a>.</p>

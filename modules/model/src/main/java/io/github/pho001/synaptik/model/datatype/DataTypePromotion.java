@@ -15,9 +15,9 @@ public final class DataTypePromotion {
     }
 
     /**
-     * Promotes two floating data types to a common operation precision. BFLOAT16 and FLOAT16 are
-     * incomparable formats: mixed pairs promote to FLOAT32 rather than pretending one 16-bit
-     * format can represent the other. The operation is symmetric and idempotent.
+     * Promotes two floating data types to a common operation precision. Distinct low formats are
+     * incomparable: unlike BFLOAT16, FLOAT16 or OFP8 pairs promote to FLOAT32. FLOAT64 dominates
+     * all other formats. The operation is symmetric and idempotent.
      *
      * @param left non-null floating data type of the left operand
      * @param right non-null floating data type of the right operand

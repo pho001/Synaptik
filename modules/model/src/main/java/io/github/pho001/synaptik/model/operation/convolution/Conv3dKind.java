@@ -16,7 +16,7 @@ import java.util.List;
  * <p>Groups, stride, dilation, padding, layout mapping, contributor membership, and output
  * placement remain exact. Every declared product contributes once to a rounded sum tree, followed
  * by the optional bias addition; corresponding multiply/add fusion requires an unobservable
- * intermediate. FLOAT32, BFLOAT16, and FLOAT16 may use DAZ/FTZ only at named floating arithmetic
+ * intermediate. FLOAT32, BFLOAT16, FLOAT16 and OFP8 may use DAZ/FTZ only at named floating arithmetic
  * primitive inputs/results, including low multiplication; FLOAT64 may not. Homogeneous low
  * convolution works and accumulates in FLOAT32, then narrows once at the declared output. No term
  * may be dropped or invented, and no whole-output tolerance is implied. See the <a
@@ -27,7 +27,7 @@ public enum Conv3dKind implements OperationKind {
     /**
      * Grouped NCDHW cross-correlation with optional per-output-channel bias.
      *
-     * <p>FLOAT64 output accumulates in FLOAT64. FLOAT32, FLOAT16, and BFLOAT16 output accumulate
+     * <p>FLOAT64 output accumulates in FLOAT64. FLOAT32 and all low floating outputs accumulate
      * in FLOAT32, with one final low-type conversion when selected. Reassociation and fused
      * multiply-add are permitted. Conceptual padding is positive zero and participates in ordinary
      * IEEE-754

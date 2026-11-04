@@ -55,7 +55,7 @@ import java.util.List;
  * exact. NONE replacement preserves the original update representation; MIN and MAX select original
  * candidates using stored represented values and their NaN, signed-zero, and tie rules. Floating
  * ADD and MUL combine the base and every addressed update exactly once in a rounded tree; named
- * arithmetic primitives may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, but
+ * arithmetic primitives may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, FLOAT16 and OFP8, but
  * never FLOAT64. A rounded MUL tree may return NaN or positive zero for maxFinite * 2 * +0 through
  * intermediate overflow or a different grouping. Integral reductions use exact fixed-width modular
  * arithmetic. Homogeneous low arithmetic accumulates in FLOAT32 and narrows once at the declared

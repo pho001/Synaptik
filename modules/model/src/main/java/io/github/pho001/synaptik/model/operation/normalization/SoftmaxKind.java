@@ -32,8 +32,8 @@ import java.util.List;
  * contributors. Shifted EXP may be recomputed when producing outputs. A working shift
  * may overflow to negative infinity; this gives zero probability or negative-infinity
  * log-probability without using unshifted EXP. Only named floating
- * arithmetic primitive inputs/results may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and
- * FLOAT16, never FLOAT64. Homogeneous low arithmetic works and accumulates in FLOAT32, with one
+ * arithmetic primitive inputs/results may use dtype-specific DAZ/FTZ for FLOAT32 and all low
+ * floating types, never FLOAT64. Homogeneous low arithmetic works and accumulates in FLOAT32, with one
  * final low narrowing per output. Existing NaN, infinity, and empty-slice rules remain; neither
  * composite receives a blanket output tolerance. See the <a
  * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model

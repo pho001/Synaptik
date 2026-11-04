@@ -66,7 +66,7 @@ import java.util.List;
  * unaddressed cells remain exact. NONE replacement preserves the selected original update; MIN and
  * MAX use stored represented values and exact original-candidate rules. Floating ADD and MUL
  * include the base and each addressed update exactly once in a rounded tree; named arithmetic
- * primitives may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, but never FLOAT64.
+ * primitives may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, FLOAT16 and OFP8, but never FLOAT64.
  * An overflow-first MUL tree for maxFinite * 2 * +0 may produce NaN, while another grouping may
  * produce positive zero. Integral reductions retain fixed-width modular arithmetic. Homogeneous low
  * arithmetic accumulates in FLOAT32 with one final low narrowing. See the <a

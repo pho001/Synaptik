@@ -29,8 +29,11 @@ import java.util.List;
  * <p>Each family preserves exact axes, contributor membership, empty or point identity, mandatory
  * divisor, and special-value rule. Floating SUM, MEAN, PRODUCT, SUM_TO_SHAPE, statistics, and norms
  * evaluate every declared contributor once under a rounded tree; named arithmetic primitives may
- * use DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, including low multiplication, never FLOAT64.
+ * use DAZ/FTZ for FLOAT32, BFLOAT16, FLOAT16 and OFP8, including low multiplication, never FLOAT64.
  * Homogeneous low arithmetic accumulates in FLOAT32 and narrows once at each declared output.
+ * E4M3 narrows an infinite arithmetic or empty-identity result to canonical NaN. Nonempty
+ * extrema select an original represented winner: an unrepresentable infinity identity is not
+ * an encoded NaN candidate and must never poison a nonempty selection.
  * MIN/MAX and arg-extrema instead compare stored represented values, including subnormals, and
  * preserve NaN, signed-zero, tie, and selected-index rules without DAZ/FTZ. Final exact-zero
  * publication freedom remains local to qualifying SUM, MEAN, and SUM_TO_SHAPE outputs, not
@@ -67,7 +70,7 @@ public enum AggregateReductionKind implements OperationKind {
      * combines every selected term once in a rounded addition tree: NaN propagates, opposite
      * infinities produce NaN, a sole infinity sign is preserved, and an empty domain is positive
      * zero. Only named arithmetic additions may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16,
-     * and FLOAT16, never FLOAT64; homogeneous low sums accumulate in FLOAT32 with one final low
+     * FLOAT16 and OFP8, never FLOAT64; homogeneous low sums accumulate in FLOAT32 with one final low
      * narrowing. The family's qualifying final exact-zero publication rule does not change an
      * intermediate sum. Gradients, execution algorithms, and backend support remain outside this
      * semantic kind.</p>
@@ -87,7 +90,7 @@ public enum AggregateReductionKind implements OperationKind {
      * divides by the exact positive count: NaN and opposite infinities produce NaN, a sole
      * infinity sign is preserved, and empty is NaN. Its zero-sign rule follows SUM, including the
      * qualifying final exact-zero publication choice. Only named arithmetic additions and the
-     * quotient may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64;
+     * quotient may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, FLOAT16 and OFP8, never FLOAT64;
      * homogeneous low arithmetic accumulates in FLOAT32 with one final low narrowing. NaN payload,
      * execution algorithm, gradients, and backend support remain deliberately unspecified or
      * separately owned.</p>
@@ -114,7 +117,8 @@ public enum AggregateReductionKind implements OperationKind {
      * {@link AxisReductionAttrs}. For INT32 and INT64 ordinary forms, the result retains the input
      * type, values use signed order, and an empty domain produces {@link Integer#MAX_VALUE} or
      * {@link Long#MAX_VALUE}, respectively. Floating minimum propagates NaN, orders infinities
-     * normally, selects negative zero, and returns positive infinity for an empty domain.
+     * normally, selects negative zero, and returns positive infinity for an empty domain
+     * (canonical NaN for E4M3, which has no infinity).
      * Gradients, execution algorithms, and backend support remain outside this semantic kind.</p>
      */
     MIN,
@@ -126,7 +130,8 @@ public enum AggregateReductionKind implements OperationKind {
      * {@link AxisReductionAttrs}. For INT32 and INT64 ordinary forms, the result retains the input
      * type, values use signed order, and an empty domain produces {@link Integer#MIN_VALUE} or
      * {@link Long#MIN_VALUE}, respectively. Floating maximum propagates NaN, orders infinities
-     * normally, selects positive zero, and returns negative infinity for an empty domain.
+     * normally, selects positive zero, and returns negative infinity for an empty domain
+     * (canonical NaN for E4M3, which has no infinity).
      * Gradients, execution algorithms, and backend support remain outside this semantic kind.</p>
      */
     MAX,

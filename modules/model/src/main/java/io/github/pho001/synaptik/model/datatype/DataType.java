@@ -8,6 +8,12 @@ package io.github.pho001.synaptik.model.datatype;
  * differentiation. The enum deliberately contains no backend support, device format, storage
  * carrier, or kernel-selection information. Backend wires, schemas, generators, routes, and
  * executable capabilities remain separately versioned and qualified for every type.</p>
+ *
+ * <p>Low floating arithmetic uses binary32 working values and accumulators, with one final
+ * ties-to-even narrowing at each declared operation/public/saved boundary. OFP8 is unscaled and
+ * non-saturating. E4M3 has no infinity: an infinite formula result, pole or empty floating-extrema
+ * identity therefore narrows to canonical NaN. Nonempty exact extrema select represented input
+ * winners without introducing a NaN infinity sentinel.</p>
  */
 public enum DataType {
     /** IEEE-754 binary64 floating-point values. */
@@ -29,7 +35,13 @@ public enum DataType {
     BOOL(DataTypeCategory.BOOLEAN, 8, false),
 
     /** IEEE-754 binary16 floating-point values. */
-    FLOAT16(DataTypeCategory.FLOATING, 16, true);
+    FLOAT16(DataTypeCategory.FLOATING, 16, true),
+
+    /** OFP8 E4M3 values with finite maximum 448 and no infinity encoding. */
+    FLOAT8_E4M3(DataTypeCategory.FLOATING, 8, true),
+
+    /** OFP8 E5M2 values with finite maximum 57344 and signed infinity encodings. */
+    FLOAT8_E5M2(DataTypeCategory.FLOATING, 8, true);
 
     private final DataTypeCategory category;
     private final int bitWidth;
@@ -86,8 +98,8 @@ public enum DataType {
     /**
      * Reports whether this data type represents floating-point values.
      *
-     * @return {@code true} for {@link #FLOAT64}, {@link #FLOAT32}, {@link #BFLOAT16}, and
-     *     {@link #FLOAT16}; otherwise {@code false}
+     * @return {@code true} for FLOAT64, FLOAT32, BFLOAT16, FLOAT16 and both OFP8 types;
+     *     otherwise {@code false}
      */
     public boolean isFloating() {
         return category == DataTypeCategory.FLOATING;

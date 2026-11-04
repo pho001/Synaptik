@@ -3,6 +3,8 @@ package io.github.pho001.synaptik.model.tensor;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import java.util.Arrays;
@@ -118,6 +120,25 @@ final class TensorConstants {
     }
 
     /**
+     * Validates a constant descriptor, converts once to OFP8 and imports an exact byte fill.
+     *
+     * @param shape fully static requested shape, including scalar or empty
+     * @param type either OFP8 data type
+     * @param value binary32 semantic value to narrow once
+     * @param label non-null optional label
+     * @param requiresGrad model gradient eligibility request
+     * @return fresh dense constant with independent raw-byte storage
+     */
+    static Tensor fullFloat8(Shape shape, DataType type, float value,
+            Optional<String> label, boolean requiresGrad) {
+        TensorDescriptor descriptor = descriptor(shape, type, requiresGrad);
+        byte[] source = new byte[elementCount(descriptor)];
+        Arrays.fill(source, type == DataType.FLOAT8_E4M3
+                ? Float8E4M3Bits.fromFloat(value) : Float8E5M2Bits.fromFloat(value));
+        return TensorFactory.fromFlatArray(descriptor, label, source);
+    }
+
+    /**
      * Creates a rank-zero INT32 constant through exact signed-integer flat import.
      *
      * @param value exact signed 32-bit value
@@ -201,8 +222,8 @@ final class TensorConstants {
     /**
      * Creates a caller-shaped dense tensor by filling one exact typed carrier and importing it.
      *
-     * <p>The fill values are {@code 1.0d}, {@code 1.0f}, converted BFLOAT16 {@code 0x3F80},
-     * converted FLOAT16 {@code 0x3C00}, {@code 1}, {@code 1L}, and BOOL byte {@code 1}. Exactly
+     * <p>The fill value is each format's exact representation of one, including E4M3 byte
+     * {@code 0x38}, E5M2 byte {@code 0x3C}, and canonical BOOL byte {@code 1}. Exactly
      * one carrier is created, filled, and passed to exactly one matching flat-import overload.
      * Scalar shapes have one value; empty shapes use an empty carrier. The carrier is not
      * retained.</p>
@@ -544,6 +565,12 @@ final class TensorConstants {
                 Arrays.fill(source, Float16Bits.fromFloat(1.0f));
                 yield TensorFactory.fromFlatFloat16Array(descriptor, label, source);
             }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> {
+                byte[] source = new byte[length];
+                Arrays.fill(source, (byte) (descriptor.dataType() == DataType.FLOAT8_E4M3
+                        ? 0x38 : 0x3C));
+                yield TensorFactory.fromFlatArray(descriptor, label, source);
+            }
             case INT32 -> {
                 int[] source = new int[length];
                 Arrays.fill(source, 1);
@@ -607,6 +634,14 @@ final class TensorConstants {
                 short[] source = new short[length];
                 fillIdentityFloat16(source, diagonalLength, columns);
                 yield TensorFactory.fromFlatFloat16Array(descriptor, label, source);
+            }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> {
+                byte[] source = new byte[length];
+                byte one = (byte) (descriptor.dataType() == DataType.FLOAT8_E4M3 ? 0x38 : 0x3C);
+                for (int index = 0; index < diagonalLength; index++) {
+                    source[(int) (index * columns + index)] = one;
+                }
+                yield TensorFactory.fromFlatArray(descriptor, label, source);
             }
             case INT32 -> {
                 int[] source = new int[length];

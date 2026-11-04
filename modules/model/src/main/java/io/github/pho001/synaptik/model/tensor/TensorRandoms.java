@@ -3,6 +3,8 @@ package io.github.pho001.synaptik.model.tensor;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import java.util.Objects;
@@ -42,12 +44,12 @@ public final class TensorRandoms {
     /**
      * Creates an independent dense floating tensor from normally distributed samples.
      *
-     * <p>The result type is FLOAT64, FLOAT32, BFLOAT16, or FLOAT16. Each row-major element consumes
+     * <p>The result may use any Model floating type. Each row-major element consumes
      * exactly one {@link RandomGenerator#nextGaussian()} call and evaluates ordinary binary64
      * {@code mean + gaussian * standardDeviation}, multiplication before addition and without a
      * fused multiply-add substitution. FLOAT64 stores that value directly; FLOAT32 narrows once;
      * BFLOAT16 retains its established binary64-to-binary32-to-BFLOAT16 conversion, while FLOAT16
-     * rounds directly from binary64 without an intermediate binary32 rounding. Converted overflow,
+     * and OFP8 round directly from binary64 without an intermediate binary32 rounding. Converted overflow,
      * underflow, signed zero, infinity, and NaN are retained. Empty output consumes no sample; a
      * scalar consumes one.</p>
      *
@@ -59,8 +61,7 @@ public final class TensorRandoms {
      *
      * @param shape non-null fully static result shape whose logical count fits a Java array;
      *     scalar and zero-element shapes are valid
-     * @param dataType non-null exact floating output type, limited to FLOAT64, FLOAT32, BFLOAT16,
-     *     or FLOAT16
+     * @param dataType non-null exact Model floating output type
      * @param mean finite binary64 mean applied to every sampled Gaussian value
      * @param standardDeviation finite numerically non-negative binary64 standard deviation;
      *     either signed zero is accepted and still consumes one sample per element
@@ -105,6 +106,8 @@ public final class TensorRandoms {
                     descriptor, mean, standardDeviation, randomGenerator, label, length);
             case FLOAT16 -> sampleFloat16(
                     descriptor, mean, standardDeviation, randomGenerator, label, length);
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> sampleFloat8(
+                    descriptor, mean, standardDeviation, randomGenerator, label, length, false);
             case INT32, INT64, BOOL -> throw new AssertionError("validated floating data type");
         };
     }
@@ -112,8 +115,7 @@ public final class TensorRandoms {
     /**
      * Creates an independent dense floating tensor from bounded continuous-uniform samples.
      *
-     * <p>Validation requires a fully static Java-array-sized shape, one of FLOAT64, FLOAT32,
-     * BFLOAT16, or FLOAT16, finite bounds, and
+     * <p>Validation requires a fully static Java-array-sized shape, a Model floating type, finite bounds, and
      * {@code lowerBoundInclusive < upperBoundExclusive}. After constructing a canonical dense
      * descriptor, the selected typed loop invokes
      * {@link RandomGenerator#nextDouble(double, double)} exactly once per row-major element with
@@ -122,7 +124,7 @@ public final class TensorRandoms {
      * <p>A conforming source returns a binary64 sample in
      * {@code [lowerBoundInclusive, upperBoundExclusive)}. FLOAT64 stores that result directly;
      * FLOAT32 narrows once; BFLOAT16 retains its established binary64-to-binary32-to-BFLOAT16
-     * conversion; and FLOAT16 rounds directly from binary64. Narrowing may produce a stored value
+     * conversion; FLOAT16 and OFP8 round directly from binary64. Narrowing may produce a stored value
      * equal to the narrowed upper bound or a lower-rounded representable value. A non-conforming
      * custom source result is converted without post-validation.</p>
      *
@@ -134,8 +136,7 @@ public final class TensorRandoms {
      *
      * @param shape non-null fully static result shape whose logical count fits a Java array;
      *     scalar and zero-element shapes are valid
-     * @param dataType non-null exact floating output type, limited to FLOAT64, FLOAT32, BFLOAT16,
-     *     or FLOAT16
+     * @param dataType non-null exact Model floating output type
      * @param lowerBoundInclusive requested finite inclusive binary64 lower bound
      * @param upperBoundExclusive requested finite exclusive binary64 upper bound
      * @param randomGenerator non-null transient caller-owned source; it is never retained or
@@ -203,6 +204,9 @@ public final class TensorRandoms {
                     randomGenerator,
                     label,
                     length);
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> sampleFloat8(
+                    descriptor, lowerBoundInclusive, upperBoundExclusive,
+                    randomGenerator, label, length, true);
             case INT32, INT64, BOOL -> throw new AssertionError("validated floating data type");
         };
     }
@@ -713,6 +717,31 @@ public final class TensorRandoms {
             source[index] = Float16Bits.fromDouble(sample);
         }
         return TensorFactory.fromFlatFloat16Array(descriptor, label, source);
+    }
+
+    /**
+     * Samples the existing binary64 initializer formula and directly narrows once to raw OFP8.
+     *
+     * @param descriptor validated dense OFP8 result descriptor
+     * @param first normal mean or uniform inclusive lower bound
+     * @param second normal standard deviation or uniform exclusive upper bound
+     * @param generator caller-owned source, advanced once per element
+     * @param label optional label passed to flat import
+     * @param length validated source carrier length
+     * @param uniform whether to use bounded uniform rather than normal sampling
+     * @return fresh leaf with an independent exact byte copy
+     */
+    private static Tensor sampleFloat8(TensorDescriptor descriptor, double first, double second,
+            RandomGenerator generator, Optional<String> label, int length, boolean uniform) {
+        byte[] source = new byte[length];
+        boolean e4m3 = descriptor.dataType() == DataType.FLOAT8_E4M3;
+        for (int index = 0; index < length; index++) {
+            double sample = uniform ? generator.nextDouble(first, second)
+                    : first + generator.nextGaussian() * second;
+            source[index] = e4m3 ? Float8E4M3Bits.fromDouble(sample)
+                    : Float8E5M2Bits.fromDouble(sample);
+        }
+        return TensorFactory.fromFlatArray(descriptor, label, source);
     }
 
     /**

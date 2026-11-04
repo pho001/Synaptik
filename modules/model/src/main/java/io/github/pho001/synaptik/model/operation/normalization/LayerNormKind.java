@@ -24,7 +24,7 @@ import java.util.List;
  * fixed. The formula recurses through sum/count mean, subtraction, x*x, sum/count variance, epsilon
  * addition, SQRT, division, and optional scale multiplication and bias addition. Every contributor
  * participates once; only named floating arithmetic primitive inputs/results may use dtype-specific
- * DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low arithmetic uses
+ * DAZ/FTZ for FLOAT32, BFLOAT16, FLOAT16 and OFP8, never FLOAT64. Homogeneous low arithmetic uses
  * FLOAT32 working and accumulator values and one final low narrowing per output. The composite has
  * no blanket result tolerance. See the <a
  * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model

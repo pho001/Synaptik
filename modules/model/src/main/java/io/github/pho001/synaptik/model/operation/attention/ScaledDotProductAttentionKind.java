@@ -28,7 +28,7 @@ import java.util.List;
  * shift does not replace these attention sites. Output rows use value-weight multiply-contractions.
  * Guarded no-eligible, all-negative-infinity, and positive-infinity-tie cases retain their distinct
  * exact results. Only named arithmetic primitive inputs/results may use dtype-specific DAZ/FTZ for
- * FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low arithmetic works and accumulates
+ * FLOAT32, BFLOAT16, FLOAT16 and OFP8, never FLOAT64. Homogeneous low arithmetic works and accumulates
  * in FLOAT32 with one final low narrowing per output; no blanket attention tolerance applies. See
  * the <a
  * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model

@@ -33,7 +33,7 @@ final class TensorSoftmaxExpressions {
      * Validates local input metadata and creates one fresh normalization expression.
      *
      * <p>Validation null-checks {@code input} and then {@code kind}, requires FLOAT64, FLOAT32,
-     * BFLOAT16, or FLOAT16 input, reads the exact input Shape, normalizes {@code axis} exactly
+     * BFLOAT16, FLOAT16 or OFP8 input, reads the exact input Shape, normalizes {@code axis} exactly
      * once, and creates one {@link SoftmaxAttrs} before common construction. Type rejection
      * precedes axis validation, and every failure before factory delegation consumes no Tensor
      * identity.</p>

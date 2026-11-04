@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * resolved dense-contiguous tensor by copying its row-major logical values into newly allocated
  * heap storage. Nested primitive-array import additionally infers exact carrier type and fully
  * static dense shape after validating the complete rectangular structure. Numeric values and raw
- * BFLOAT16 or FLOAT16 bits are copied unchanged; BOOL bytes are normalized to zero or one. Heap
+ * low floating bits are copied unchanged; BOOL bytes are normalized to zero or one. Heap
  * allocation uses automatic-scope memory segments, so it introduces no arena, close operation,
  * external lifetime owner, or deterministic reclamation. Descriptor-based creation and flat
  * import do not build descriptors or resolve layouts. Nested import is the bounded exception: it
@@ -44,9 +44,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * source structure. Exact primitive scalar overloads, zeros, ones, type-safe full-value tensors,
  * rectangular identity matrices, like-shaped zero/one variants, and integer ranges create
  * independent dense-contiguous eager leaf tensors. Primitive full-value methods infer the exact
- * type from one primitive value; explicitly named BFLOAT16 and FLOAT16 scalar/full methods perform
- * the corresponding binary32-to-16-bit conversion. Rectangular identity creation supports all
- * seven current data types, writes typed one on the main diagonal, and leaves typed zero elsewhere.
+ * type from one primitive value; explicitly named BFLOAT16, FLOAT16 and OFP8 scalar/full methods perform
+ * the corresponding conversion. Rectangular identity creation supports every Model data type,
+ * writes typed one on the main diagonal, and leaves typed zero elsewhere.
  * The {@link #eye(long, long, DataType, Optional, boolean)} method is only an unchanged-argument
  * convenience delegation to canonical identity-matrix creation. These are eager leaf-data
  * constructors, not general mutable fill, identity operations, or expression semantics. The
@@ -292,7 +292,7 @@ public final class TensorFactory {
      * logical element count is not substituted. The data type selects {@code double[]},
      * {@code float[]}, {@code short[]}, {@code int[]}, {@code long[]}, or {@code byte[]} for
      * {@code FLOAT64}, {@code FLOAT32}, both {@code BFLOAT16} and {@code FLOAT16}, {@code INT32},
-     * {@code INT64}, or {@code BOOL}, respectively. Primitive-array contents begin with the JVM
+     * {@code INT64}, or {@code BOOL}/OFP8, respectively. Primitive-array contents begin with the JVM
      * default all-zero raw representation; this is an allocation fact, not a public fill or zeros
      * operation.</p>
      *
@@ -335,7 +335,7 @@ public final class TensorFactory {
      * <p>The exhaustive carrier mapping is {@code FLOAT64 -> double[]},
      * {@code FLOAT32 -> float[]}, {@code BFLOAT16 -> short[]},
      * {@code FLOAT16 -> short[]}, {@code INT32 -> int[]}, {@code INT64 -> long[]}, and
-     * {@code BOOL -> byte[]}. The matching
+     * {@code BOOL -> byte[]} and both OFP8 types {@code -> byte[]}. The matching
      * {@link MemorySegment#ofArray(double[]) MemorySegment.ofArray} overload creates a writable
      * heap segment with an automatic scope that keeps the array reachable and permits access from
      * any thread. Raw contents start with the JVM default zero representation. No backing-array
@@ -397,7 +397,7 @@ public final class TensorFactory {
             case BFLOAT16, FLOAT16 -> MemorySegment.ofArray(new short[length]);
             case INT32 -> MemorySegment.ofArray(new int[length]);
             case INT64 -> MemorySegment.ofArray(new long[length]);
-            case BOOL -> MemorySegment.ofArray(new byte[length]);
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> MemorySegment.ofArray(new byte[length]);
         };
         MemorySegmentStorage storage =
                 new MemorySegmentStorage(descriptor.dataType(), requiredSpan, segment);
@@ -640,11 +640,11 @@ public final class TensorFactory {
     }
 
     /**
-     * Creates a dense-contiguous {@link DataType#BOOL} tensor from flat logical bytes.
+     * Creates a dense-contiguous BOOL or exact OFP8 tensor from flat bytes.
      *
-     * <p>Each zero byte is stored as canonical false byte {@code 0}; every non-zero byte is stored
-     * as canonical true byte {@code 1}. Source order is logical row-major order. A resolved
-     * dense-contiguous layout and exact logical element count are required. The source array is not
+     * <p>OFP8 descriptors select raw copy: all byte patterns, including NaNs, remain unchanged.
+     * For BOOL only, each zero becomes canonical false and each nonzero becomes canonical true.
+     * A resolved dense-contiguous layout and exact logical element count are required. The source array is not
      * retained; allocation, label validation, and identifier side effects follow
      * {@link #allocate(TensorDescriptor, Optional)}. Carrier, layout, and length failures occur
      * before destination or identifier allocation. A blank label fails after destination and
@@ -652,14 +652,14 @@ public final class TensorFactory {
      * allocation and before normalization. Unexpected normalization failures consume the
      * identifier without rollback.</p>
      *
-     * @param descriptor non-null completed descriptor whose data type is {@code BOOL} and whose
+     * @param descriptor non-null completed BOOL or OFP8 descriptor whose
      *     resolved layout is dense-contiguous
      * @param label non-null optional diagnostic label delegated to allocation
-     * @param source non-null flat logical bytes to normalize and copy; the caller retains the array
-     * @return a non-null fresh tensor containing canonical zero-or-one bytes independent of source
+     * @param source non-null flat raw OFP8 or logical BOOL bytes; the caller retains the array
+     * @return a non-null fresh independent tensor, with normalization only for BOOL
      * @throws NullPointerException if {@code descriptor}, {@code label}, or {@code source} is null,
      *     checked in that order with the parameter name as the message
-     * @throws IllegalArgumentException if the descriptor data type is not {@code BOOL}, its layout
+     * @throws IllegalArgumentException if the descriptor data type is not BOOL or OFP8, its layout
      *     is unresolved or not dense-contiguous, source length differs from logical element count,
      *     or delegated Tensor validation rejects a blank label
      * @throws IllegalStateException if resolved geometry unexpectedly has no known logical element
@@ -672,12 +672,84 @@ public final class TensorFactory {
         Objects.requireNonNull(descriptor, "descriptor");
         Objects.requireNonNull(label, "label");
         Objects.requireNonNull(source, "source");
+        DataType type = descriptor.dataType();
+        if (type != DataType.FLOAT8_E4M3 && type != DataType.FLOAT8_E5M2) {
+            type = DataType.BOOL;
+        }
         return importFlat(
                 descriptor,
                 label,
-                DataType.BOOL,
+                type,
                 source.length,
                 MemorySegment.ofArray(source));
+    }
+
+    /**
+     * Creates a rank-zero E4M3 leaf by rounding binary32 once, without saturation.
+     *
+     * @param value binary32 input; NaNs, infinities and overflow become canonical NaN
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad model-level gradient eligibility request
+     * @return fresh independent dense E4M3 scalar
+     * @throws NullPointerException if label is null
+     * @throws IllegalArgumentException if the label is blank
+     */
+    public static Tensor scalarFloat8E4m3(float value, Optional<String> label, boolean requiresGrad) {
+        return fullFloat8E4m3(Shape.scalar(), value, label, requiresGrad);
+    }
+
+    /**
+     * Creates a rank-zero E5M2 leaf by rounding binary32 once, without saturation.
+     *
+     * @param value binary32 input; NaNs canonicalize and overflow becomes signed infinity
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad model-level gradient eligibility request
+     * @return fresh independent dense E5M2 scalar
+     * @throws NullPointerException if label is null
+     * @throws IllegalArgumentException if the label is blank
+     */
+    public static Tensor scalarFloat8E5m2(float value, Optional<String> label, boolean requiresGrad) {
+        return fullFloat8E5m2(Shape.scalar(), value, label, requiresGrad);
+    }
+
+    /**
+     * Creates a dense E4M3 leaf filled with a once-rounded binary32 value.
+     *
+     * @param shape non-null fully static shape, including scalar and empty shapes
+     * @param value value to round once using non-saturating ties-to-even
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad model-level gradient eligibility request
+     * @return fresh independent E4M3 tensor; no source or storage is shared
+     * @throws NullPointerException if shape or label is null
+     * @throws IllegalArgumentException if shape is dynamic, its count exceeds the Java array limit,
+     *     or label is blank
+     * @throws ArithmeticException if checked geometry overflows
+     */
+    public static Tensor fullFloat8E4m3(Shape shape, float value,
+            Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.fullFloat8(shape, DataType.FLOAT8_E4M3, value, label, requiresGrad);
+    }
+
+    /**
+     * Creates a dense E5M2 leaf filled with a once-rounded binary32 value.
+     *
+     * @param shape non-null fully static shape, including scalar and empty shapes
+     * @param value value to round once using non-saturating ties-to-even
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad model-level gradient eligibility request
+     * @return fresh independent E5M2 tensor; no source or storage is shared
+     * @throws NullPointerException if shape or label is null
+     * @throws IllegalArgumentException if shape is dynamic, its count exceeds the Java array limit,
+     *     or label is blank
+     * @throws ArithmeticException if checked geometry overflows
+     */
+    public static Tensor fullFloat8E5m2(Shape shape, float value,
+            Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.fullFloat8(shape, DataType.FLOAT8_E5M2, value, label, requiresGrad);
     }
 
     /**
@@ -1361,7 +1433,7 @@ public final class TensorFactory {
      * the result always has shape {@code [rows, columns]}. One default-zero matching carrier is
      * populated only at coordinates {@code (i, i)} for {@code 0 <= i < min(rows, columns)}, then
      * copied through one flat import. Diagonal values are typed one representations for FLOAT64,
-     * FLOAT32, BFLOAT16, FLOAT16, INT32, INT64, and BOOL; off-diagonal values retain typed zeros.
+     * FLOAT32, BFLOAT16, FLOAT16, OFP8, INT32, INT64, and BOOL; off-diagonal values retain typed zeros.
      * Square, wide, tall, zero-row, and zero-column matrices are valid. The result has new
      * descriptor, dense layout, source and destination carriers, storage, identity, and empty
      * provenance; no carrier is retained. Empty label means absent; present text is stripped and

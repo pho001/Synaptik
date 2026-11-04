@@ -3,6 +3,8 @@ package io.github.pho001.synaptik.model.operation.elementwise.cast;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import java.util.Objects;
 
@@ -10,12 +12,11 @@ import java.util.Objects;
  * Converts one exact scalar value according to the backend-independent {@link CastKind#CAST}
  * value contract.
  *
- * <p>All 49 source/target pairs among FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT64, INT32, and BOOL
- * are valid. Same-type conversion returns the exact source object. Every finite floating or
- * integer source converted to a floating target rounds directly to that target with
- * round-to-nearest, ties-to-even; in particular, conversion to either 16-bit floating format does
- * not first round through the other floating format. Floating-to-integral conversion truncates
- * toward zero and saturates, integral narrowing retains low bits, and numeric-to-Boolean
+ * <p>All source/target pairs among the nine Model data types are valid. Same-type conversion
+ * returns the exact source object. Every finite floating or integer source converted to a
+ * floating target rounds directly to that target with round-to-nearest, ties-to-even; no
+ * low conversion passes through a lossy binary32 intermediate. Floating-to-integral conversion
+ * truncates toward zero and saturates, integral narrowing retains low bits, and numeric-to-Boolean
  * conversion is false only for either signed floating zero or integer zero. Lossy floating
  * conversion produces the target's positive canonical quiet NaN. Lossless floating widening
  * preserves the source NaN sign, quiet/signaling bit, and complete fraction by left alignment.</p>
@@ -33,8 +34,8 @@ public final class CastValueConversions {
      * Converts one exact scalar to the requested target data type.
      *
      * <p>Signed floating zero is preserved when the target is floating; gradual underflow may
-     * produce a target subnormal or signed zero, while floating overflow produces signed
-     * infinity. NaN converts to zero for an integral target and to true for a Boolean target.
+     * produce a target subnormal or signed zero. Overflow produces signed infinity except in
+     * E4M3, where it produces canonical NaN. NaN converts to zero for an integral target and to true for a Boolean target.
      * Floating infinities saturate for an integral target. INT32-to-INT64 conversion sign-extends,
      * and INT64-to-INT32 conversion retains the low 32 two's-complement bits. BOOL converts to
      * positive numeric zero or one. Inexact, overflow, underflow, saturation, and modulo outcomes
@@ -57,6 +58,8 @@ public final class CastValueConversions {
             case FLOAT32 -> fromFloat32(source.float32Value(), targetDataType);
             case BFLOAT16 -> fromBFloat16(source.bfloat16Bits(), targetDataType);
             case FLOAT16 -> fromFloat16(source.float16Bits(), targetDataType);
+            case FLOAT8_E4M3 -> fromFloat8(source.float8E4m3Bits(), true, targetDataType);
+            case FLOAT8_E5M2 -> fromFloat8(source.float8E5m2Bits(), false, targetDataType);
             case INT64 -> fromInt64(source.int64Value(), targetDataType);
             case INT32 -> fromInt32(source.int32Value(), targetDataType);
             case BOOL -> fromBoolean(source.booleanValue(), targetDataType);
@@ -72,6 +75,8 @@ public final class CastValueConversions {
                     : (float) value);
             case BFLOAT16 -> ScalarValue.bfloat16Bits(float64ToBFloat16(bits));
             case FLOAT16 -> ScalarValue.float16Bits(Float16Bits.fromDouble(value));
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits(Float8E4M3Bits.fromDouble(value));
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits(Float8E5M2Bits.fromDouble(value));
             case INT64 -> ScalarValue.int64((long) value);
             case INT32 -> ScalarValue.int32((int) value);
             case BOOL -> ScalarValue.bool((bits & 0x7FFF_FFFF_FFFF_FFFFL) != 0);
@@ -88,6 +93,8 @@ public final class CastValueConversions {
             case FLOAT32 -> failSame();
             case BFLOAT16 -> ScalarValue.bfloat16Bits(BFloat16Bits.fromFloat(value));
             case FLOAT16 -> ScalarValue.float16Bits(Float16Bits.fromFloat(value));
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3(value);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2(value);
             case INT64 -> ScalarValue.int64((long) value);
             case INT32 -> ScalarValue.int32((int) value);
             case BOOL -> ScalarValue.bool((bits & 0x7FFF_FFFF) != 0);
@@ -105,6 +112,8 @@ public final class CastValueConversions {
             case FLOAT32 -> ScalarValue.float32(expanded);
             case BFLOAT16 -> failSame();
             case FLOAT16 -> ScalarValue.float16Bits(Float16Bits.fromFloat(expanded));
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3(expanded);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2(expanded);
             case INT64 -> ScalarValue.int64((long) expanded);
             case INT32 -> ScalarValue.int32((int) expanded);
             case BOOL -> ScalarValue.bool((bits & 0x7FFF) != 0);
@@ -123,9 +132,35 @@ public final class CastValueConversions {
             case BFLOAT16 -> ScalarValue.bfloat16Bits(
                     isFloat16NaN(bits) ? (short) 0x7FC0 : BFloat16Bits.fromFloat(expanded));
             case FLOAT16 -> failSame();
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3(expanded);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2(expanded);
             case INT64 -> ScalarValue.int64((long) expanded);
             case INT32 -> ScalarValue.int32((int) expanded);
             case BOOL -> ScalarValue.bool((bits & 0x7FFF) != 0);
+        };
+    }
+
+    private static ScalarValue fromFloat8(byte value, boolean e4m3, DataType target) {
+        int raw = value & 0xFF;
+        float expanded = e4m3 ? Float8E4M3Bits.toFloat(value) : Float8E5M2Bits.toFloat(value);
+        int floatBits = Float.floatToRawIntBits(expanded);
+        boolean nan = e4m3 ? (raw & 0x7F) == 0x7F : (raw & 0x7F) > 0x7C;
+        return switch (target) {
+            case FLOAT64 -> ScalarValue.float64(nan
+                    ? Double.longBitsToDouble(float32NaNToFloat64(floatBits))
+                    : (double) expanded);
+            case FLOAT32 -> ScalarValue.float32(expanded);
+            case BFLOAT16 -> ScalarValue.bfloat16Bits(nan
+                    ? (short) (floatBits >>> 16) : BFloat16Bits.fromFloat(expanded));
+            case FLOAT16 -> ScalarValue.float16Bits(nan
+                    ? (short) (((raw & 0x80) << 8) | 0x7C00
+                            | ((raw & (e4m3 ? 7 : 3)) << (e4m3 ? 7 : 8)))
+                    : Float16Bits.fromFloat(expanded));
+            case FLOAT8_E4M3 -> e4m3 ? failSame() : ScalarValue.float8E4m3(expanded);
+            case FLOAT8_E5M2 -> e4m3 ? ScalarValue.float8E5m2(expanded) : failSame();
+            case INT64 -> ScalarValue.int64((long) expanded);
+            case INT32 -> ScalarValue.int32((int) expanded);
+            case BOOL -> ScalarValue.bool((raw & 0x7F) != 0);
         };
     }
 
@@ -135,6 +170,8 @@ public final class CastValueConversions {
             case FLOAT32 -> ScalarValue.float32((float) value);
             case BFLOAT16 -> ScalarValue.bfloat16Bits(integerToBFloat16(value));
             case FLOAT16 -> ScalarValue.float16Bits(integerToFloat16(value));
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits(integerToFloat8(value, true));
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits(integerToFloat8(value, false));
             case INT64 -> failSame();
             case INT32 -> ScalarValue.int32((int) value);
             case BOOL -> ScalarValue.bool(value != 0);
@@ -147,6 +184,8 @@ public final class CastValueConversions {
             case FLOAT32 -> ScalarValue.float32((float) value);
             case BFLOAT16 -> ScalarValue.bfloat16Bits(integerToBFloat16(value));
             case FLOAT16 -> ScalarValue.float16Bits(integerToFloat16(value));
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits(integerToFloat8(value, true));
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits(integerToFloat8(value, false));
             case INT64 -> ScalarValue.int64(value);
             case INT32 -> failSame();
             case BOOL -> ScalarValue.bool(value != 0);
@@ -160,10 +199,23 @@ public final class CastValueConversions {
             case FLOAT32 -> ScalarValue.float32(numeric);
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) (value ? 0x3F80 : 0));
             case FLOAT16 -> ScalarValue.float16Bits((short) (value ? 0x3C00 : 0));
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) (value ? 0x38 : 0));
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) (value ? 0x3C : 0));
             case INT64 -> ScalarValue.int64(numeric);
             case INT32 -> ScalarValue.int32(numeric);
             case BOOL -> failSame();
         };
+    }
+
+    private static byte integerToFloat8(long value, boolean e4m3) {
+        // Only this bounded exact-in-binary64 range can produce a finite FP8 result.
+        if (e4m3) {
+            if (value < -464 || value > 464) return (byte) 0x7F;
+            return Float8E4M3Bits.fromDouble((double) value);
+        }
+        if (value <= -61440) return (byte) 0xFC;
+        if (value >= 61440) return (byte) 0x7C;
+        return Float8E5M2Bits.fromDouble((double) value);
     }
 
     private static short integerToFloat16(long value) {

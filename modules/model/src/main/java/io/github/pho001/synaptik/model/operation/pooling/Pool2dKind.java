@@ -16,7 +16,7 @@ import java.util.List;
  * empty identity, and original selected payload. Average pooling includes every declared kernel
  * position, including padding, once in a rounded sum tree and divides by the exact fixed divisor.
  * Only its named floating arithmetic primitives may use dtype-specific DAZ/FTZ for FLOAT32,
- * BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low averaging accumulates in FLOAT32 and
+ * BFLOAT16, FLOAT16 and OFP8, never FLOAT64. Homogeneous low averaging accumulates in FLOAT32 and
  * narrows once at the declared output; no whole-output tolerance is implied. See the <a
  * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
  * numerical-semantics contract</a>.</p>
@@ -27,7 +27,8 @@ public enum Pool2dKind implements OperationKind {
      *
      * <p>NaN propagates, positive zero orders above negative zero, and equal candidates select the
      * first logical kernel sample. A window with no in-bounds sample produces negative infinity
-     * in the input type.</p>
+     * in the input type, or canonical NaN for E4M3. A nonempty window selects an original
+     * represented winner without admitting an encoded NaN infinity identity.</p>
      */
     MAX_POOL2D,
 
@@ -35,7 +36,7 @@ public enum Pool2dKind implements OperationKind {
      * NCHW average pooling with a fixed kernel-position divisor and literal floor or ceiling grid.
      *
      * <p>Every logical kernel position counts in the divisor. Out-of-bounds positions contribute
-     * positive zero, so an all-padding window produces positive zero. FLOAT16, BFLOAT16, and
+     * positive zero, so an all-padding window produces positive zero. All low formats and
      * FLOAT32 use a FLOAT32 accumulator and one final division; FLOAT64 uses FLOAT64. Low results
      * narrow once after division. NaN propagates, opposing
      * infinities produce NaN, and one infinity sign is retained. Finite reassociation is

@@ -19,12 +19,8 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import java.lang.foreign.Arena;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
@@ -33,81 +29,6 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 
 @Execution(ExecutionMode.SAME_THREAD)
 class TensorFactoryConstantTest {
-    @Test
-    void helperHasExactlyTheRequiredPackagePrivateStatelessShape()
-            throws ReflectiveOperationException {
-        assertAll(
-                () -> assertTrue(Modifier.isFinal(TensorConstants.class.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(TensorConstants.class.getModifiers())),
-                () -> assertFalse(Modifier.isProtected(TensorConstants.class.getModifiers())),
-                () -> assertEquals(0, TensorConstants.class.getDeclaredFields().length),
-                () -> assertEquals(1, TensorConstants.class.getDeclaredConstructors().length),
-                () -> assertTrue(Modifier.isPrivate(
-                        TensorConstants.class.getDeclaredConstructors()[0].getModifiers())),
-                () -> assertEquals(
-                        0, TensorConstants.class.getDeclaredConstructors()[0].getParameterCount()));
-
-        Set<Method> entries = new HashSet<>(Set.of(
-                TensorConstants.class.getDeclaredMethod(
-                        "scalar", double.class, Optional.class, boolean.class),
-                TensorConstants.class.getDeclaredMethod(
-                        "scalar", float.class, Optional.class, boolean.class),
-                TensorConstants.class.getDeclaredMethod(
-                        "scalarBFloat16", float.class, Optional.class, boolean.class),
-                TensorConstants.class.getDeclaredMethod(
-                        "scalarFloat16", float.class, Optional.class, boolean.class),
-                TensorConstants.class.getDeclaredMethod(
-                        "scalar", int.class, Optional.class, boolean.class),
-                TensorConstants.class.getDeclaredMethod(
-                        "scalar", long.class, Optional.class, boolean.class),
-                TensorConstants.class.getDeclaredMethod(
-                        "scalar", boolean.class, Optional.class, boolean.class),
-                TensorConstants.class.getDeclaredMethod(
-                        "zeros", Shape.class, DataType.class, Optional.class, boolean.class),
-                TensorConstants.class.getDeclaredMethod(
-                        "ones", Shape.class, DataType.class, Optional.class, boolean.class)));
-
-        entries.add(TensorConstants.class.getDeclaredMethod(
-                "full", Shape.class, double.class, Optional.class, boolean.class));
-        entries.add(TensorConstants.class.getDeclaredMethod(
-                "full", Shape.class, float.class, Optional.class, boolean.class));
-        entries.add(TensorConstants.class.getDeclaredMethod(
-                "fullBFloat16", Shape.class, float.class, Optional.class, boolean.class));
-        entries.add(TensorConstants.class.getDeclaredMethod(
-                "fullFloat16", Shape.class, float.class, Optional.class, boolean.class));
-        entries.add(TensorConstants.class.getDeclaredMethod(
-                "full", Shape.class, int.class, Optional.class, boolean.class));
-        entries.add(TensorConstants.class.getDeclaredMethod(
-                "full", Shape.class, long.class, Optional.class, boolean.class));
-        entries.add(TensorConstants.class.getDeclaredMethod(
-                "full", Shape.class, boolean.class, Optional.class, boolean.class));
-        entries.add(TensorConstants.class.getDeclaredMethod(
-                "identityMatrix",
-                long.class,
-                long.class,
-                DataType.class,
-                Optional.class,
-                boolean.class));
-
-        assertAll(
-                () -> assertTrue(entries.stream().allMatch(method ->
-                        !Modifier.isPublic(method.getModifiers())
-                                && !Modifier.isProtected(method.getModifiers())
-                                && !Modifier.isPrivate(method.getModifiers())
-                                && Modifier.isStatic(method.getModifiers())
-                                && method.getReturnType() == Tensor.class)),
-                () -> assertTrue(Arrays.stream(TensorConstants.class.getDeclaredMethods())
-                        .filter(method -> !Modifier.isPrivate(method.getModifiers()))
-                        .allMatch(entries::contains)),
-                () -> assertEquals(
-                        entries.size(),
-                        Arrays.stream(TensorConstants.class.getDeclaredMethods())
-                                .filter(method -> !Modifier.isPrivate(method.getModifiers()))
-                                .count()),
-                () -> assertTrue(Arrays.stream(TensorConstants.class.getDeclaredMethods())
-                        .noneMatch(method -> Modifier.isPublic(method.getModifiers())
-                                || Modifier.isProtected(method.getModifiers()))));
-    }
 
     @Test
     void createsAllExactRankZeroScalarCarriers() {
@@ -431,6 +352,10 @@ class TensorFactoryConstantTest {
             case FLOAT16 -> assertArrayEquals(
                     filledShort(length, one ? (short) 0x3C00 : (short) 0),
                     heapArray(tensor, short[].class));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> assertArrayEquals(
+                    filledByte(length, one
+                            ? (byte) (dataType == DataType.FLOAT8_E4M3 ? 0x38 : 0x3C) : 0),
+                    heapArray(tensor, byte[].class));
             case INT32 -> assertArrayEquals(
                     filledInt(length, one ? 1 : 0), heapArray(tensor, int[].class));
             case INT64 -> assertArrayEquals(

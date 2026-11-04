@@ -5,7 +5,7 @@ package io.github.pho001.synaptik.model.datatype;
  *
  * <p>The named factories preserve the representation of each current data type. Floating-point
  * signed zeros and raw NaN payloads remain distinct, integral values never pass through a floating
- * representation, raw BFLOAT16 and FLOAT16 patterns remain unchanged, and booleans use canonical
+ * representation, raw low floating patterns remain unchanged, and booleans use canonical
  * zero-or-one bits. This value is an operation parameter, not a scalar Tensor, storage value,
  * conversion request, serialization, or executable constant. Inspection is deliberately
  * type-specific: an inspector for a different data type fails instead of converting the value.</p>
@@ -82,6 +82,46 @@ public final class ScalarValue {
      */
     public static ScalarValue float16Bits(short bits) {
         return new ScalarValue(DataType.FLOAT16, bits & 0xFFFFL);
+    }
+
+    /**
+     * Rounds binary32 once to non-saturating OFP8 E4M3.
+     *
+     * @param value binary32 input; NaNs and overflow become canonical NaN
+     * @return non-null converted E4M3 scalar
+     */
+    public static ScalarValue float8E4m3(float value) {
+        return float8E4m3Bits(Float8E4M3Bits.fromFloat(value));
+    }
+
+    /**
+     * Retains an exact E4M3 byte without conversion or NaN canonicalization.
+     *
+     * @param bits raw storage; every byte pattern is accepted
+     * @return non-null exact E4M3 scalar
+     */
+    public static ScalarValue float8E4m3Bits(byte bits) {
+        return new ScalarValue(DataType.FLOAT8_E4M3, bits & 0xFFL);
+    }
+
+    /**
+     * Rounds binary32 once to non-saturating OFP8 E5M2.
+     *
+     * @param value binary32 input; NaNs canonicalize and overflow becomes signed infinity
+     * @return non-null converted E5M2 scalar
+     */
+    public static ScalarValue float8E5m2(float value) {
+        return float8E5m2Bits(Float8E5M2Bits.fromFloat(value));
+    }
+
+    /**
+     * Retains an exact E5M2 byte without conversion or NaN canonicalization.
+     *
+     * @param bits raw storage; every byte pattern is accepted
+     * @return non-null exact E5M2 scalar
+     */
+    public static ScalarValue float8E5m2Bits(byte bits) {
+        return new ScalarValue(DataType.FLOAT8_E5M2, bits & 0xFFL);
     }
 
     /**
@@ -169,6 +209,28 @@ public final class ScalarValue {
     }
 
     /**
+     * Returns the exact raw E4M3 pattern.
+     *
+     * @return all eight stored bits, without conversion
+     * @throws IllegalStateException if this scalar is not FLOAT8_E4M3
+     */
+    public byte float8E4m3Bits() {
+        requireType(DataType.FLOAT8_E4M3);
+        return (byte) bits;
+    }
+
+    /**
+     * Returns the exact raw E5M2 pattern.
+     *
+     * @return all eight stored bits, without conversion
+     * @throws IllegalStateException if this scalar is not FLOAT8_E5M2
+     */
+    public byte float8E5m2Bits() {
+        requireType(DataType.FLOAT8_E5M2);
+        return (byte) bits;
+    }
+
+    /**
      * Returns the exact signed 32-bit integral value.
      *
      * @return stored signed value
@@ -244,7 +306,7 @@ public final class ScalarValue {
             case FLOAT64, INT64 -> 16;
             case FLOAT32, INT32 -> 8;
             case FLOAT16, BFLOAT16 -> 4;
-            case BOOL -> 2;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> 2;
         };
         return "ScalarValue[dataType="
                 + dataType

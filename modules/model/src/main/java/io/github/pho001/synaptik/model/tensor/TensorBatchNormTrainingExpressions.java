@@ -22,8 +22,8 @@ import java.util.Optional;
  * savedInverseStandardDeviation]}. It reduces
  * every non-channel axis, uses biased batch variance for normalization, correction-one variance
  * for the explicit running-variance transition, and treats momentum as the new-batch weight.
- * Epsilon appears only inside {@code 1 / sqrt(biasedVariance + epsilon)}. BFLOAT16, FLOAT16, and
- * FLOAT32 results use FLOAT32 reduction and formula arithmetic; FLOAT64 uses FLOAT64. FLOAT16
+ * Epsilon appears only inside {@code 1 / sqrt(biasedVariance + epsilon)}. All low types and
+ * FLOAT32 results use FLOAT32 reduction and formula arithmetic; FLOAT64 uses FLOAT64. FLOAT16 and OFP8
  * result metadata uses exact FLOAT32 momentum and epsilon.</p>
  *
  * <p>The helper reads no values and owns no running state. It creates five fresh indexed Tensor
@@ -45,8 +45,8 @@ final class TensorBatchNormTrainingExpressions {
      * @param runningMean non-null floating rank-one old running mean at position three
      * @param runningVariance non-null floating rank-one old running variance at position four
      * @param momentum non-null finite new-batch weight in {@code [0, 1]} matching the result type,
-     *     except FLOAT16 uses FLOAT32
-     * @param epsilon non-null finite positive stabilizer matching the result type, except FLOAT16
+     *     except FLOAT16 and OFP8 use FLOAT32
+     * @param epsilon non-null finite positive stabilizer matching the result type, except FLOAT16 or OFP8
      *     uses FLOAT32
      * @return three-component public result selecting producer slots zero through two; never
      *     {@code null}
@@ -82,8 +82,8 @@ final class TensorBatchNormTrainingExpressions {
      * @param runningMean non-null floating rank-one old running mean at position three
      * @param runningVariance non-null floating rank-one old running variance at position four
      * @param momentum non-null finite new-batch weight in {@code [0, 1]} matching the result type,
-     *     except FLOAT16 uses FLOAT32
-     * @param epsilon non-null finite positive stabilizer matching the result type, except FLOAT16
+     *     except FLOAT16 and OFP8 use FLOAT32
+     * @param epsilon non-null finite positive stabilizer matching the result type, except FLOAT16 or OFP8
      *     uses FLOAT32
      * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
      * @return null after descriptor-only completion, otherwise the ordinary canonical result
@@ -156,14 +156,16 @@ final class TensorBatchNormTrainingExpressions {
         resultType = DataTypePromotion.promoteFloating(resultType, meanType);
         resultType = DataTypePromotion.promoteFloating(resultType, varianceType);
         if (momentum.dataType() != resultType
-                && (resultType != DataType.FLOAT16
+                && ((resultType != DataType.FLOAT16 && resultType != DataType.FLOAT8_E4M3
+                                && resultType != DataType.FLOAT8_E5M2)
                         || momentum.dataType() != DataType.FLOAT32)) {
             throw new IllegalArgumentException(
                     "batchNormTraining momentum data type must match result data type: momentum="
                             + momentum.dataType() + ", result=" + resultType);
         }
         if (epsilon.dataType() != resultType
-                && (resultType != DataType.FLOAT16
+                && ((resultType != DataType.FLOAT16 && resultType != DataType.FLOAT8_E4M3
+                                && resultType != DataType.FLOAT8_E5M2)
                         || epsilon.dataType() != DataType.FLOAT32)) {
             throw new IllegalArgumentException(
                     "batchNormTraining epsilon data type must match result data type: epsilon="

@@ -22,7 +22,7 @@ import java.util.List;
  *
  * <p>For floating operands, every relation compares the represented numeric values after the
  * existing same-category promotion. FLOAT64 and FLOAT32 use their represented IEEE-754 binary64
- * and binary32 values; BFLOAT16 and FLOAT16 use the values represented by their exact 16-bit
+ * and binary32 values; low formats, including OFP8, use the values represented by their exact raw
  * storage. Ordered relations are false when either operand is NaN. Negative and positive zero compare equal, so
  * neither strict relation holds and both inclusive relations hold in either operand order.
  * Equality is exact numeric equality rather than bit or tolerance equality: NaN is unequal to

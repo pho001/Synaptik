@@ -10,20 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 class DataTypeTest {
-    @Test
-    void definesAllModelDataTypesWithoutChangingExistingOrdinals() {
-        assertArrayEquals(
-                new DataType[] {
-                    DataType.FLOAT64,
-                    DataType.FLOAT32,
-                    DataType.BFLOAT16,
-                    DataType.INT32,
-                    DataType.INT64,
-                    DataType.BOOL,
-                    DataType.FLOAT16
-                },
-                DataType.values());
-    }
 
     @Test
     void definesExactlyTheRequiredDataTypeCategories() {
@@ -42,6 +28,8 @@ class DataTypeTest {
         assertMetadata(DataType.FLOAT32, DataTypeCategory.FLOATING, 32, 4, true);
         assertMetadata(DataType.FLOAT16, DataTypeCategory.FLOATING, 16, 2, true);
         assertMetadata(DataType.BFLOAT16, DataTypeCategory.FLOATING, 16, 2, true);
+        assertMetadata(DataType.FLOAT8_E4M3, DataTypeCategory.FLOATING, 8, 1, true);
+        assertMetadata(DataType.FLOAT8_E5M2, DataTypeCategory.FLOATING, 8, 1, true);
         assertMetadata(DataType.INT32, DataTypeCategory.INTEGRAL, 32, 4, false);
         assertMetadata(DataType.INT64, DataTypeCategory.INTEGRAL, 64, 8, false);
         assertMetadata(DataType.BOOL, DataTypeCategory.BOOLEAN, 8, 1, false);

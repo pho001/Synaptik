@@ -39,7 +39,7 @@ import java.util.List;
  * bias, addition, and TANH; GRU and LSTM recurse through their packed contractions, gate additions,
  * sigmoid/tanh branches, and state arithmetic. Each contraction includes every contributor once,
  * and skipped timesteps perform no arithmetic. Only named floating arithmetic primitive
- * inputs/results may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64.
+ * inputs/results may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, FLOAT16 and OFP8, never FLOAT64.
  * Homogeneous low arithmetic works and accumulates in FLOAT32 with one final low narrowing per
  * published value. Stored states and saved outputs remain exact published results, not blanket
  * tolerance sites. See the <a

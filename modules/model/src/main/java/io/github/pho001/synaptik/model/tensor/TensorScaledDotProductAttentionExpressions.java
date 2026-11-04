@@ -268,7 +268,9 @@ final class TensorScaledDotProductAttentionExpressions {
             validateMask(mask, scoreShape);
         }
         Optional<ScalarValue> scale = attrs.scale();
-        DataType scaleType = resultType == DataType.FLOAT16 ? DataType.FLOAT32 : resultType;
+        DataType scaleType = resultType == DataType.FLOAT16
+                        || resultType == DataType.FLOAT8_E4M3 || resultType == DataType.FLOAT8_E5M2
+                ? DataType.FLOAT32 : resultType;
         if (scale.isPresent() && scale.orElseThrow().dataType() != scaleType) {
             throw new IllegalArgumentException(
                     "scale data type must match attention scalar metadata type: scale="

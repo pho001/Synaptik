@@ -19,8 +19,8 @@ import java.util.Optional;
  * <p>For channel {@code c}, the semantic formula is
  * {@code ((input - runningMean[c]) / sqrt(runningVariance[c] + epsilon)) * scale[c] + bias[c]}.
  * The helper reads no values, so negative running variance is retained for ordinary floating
- * square-root behavior rather than rejected or repaired. BFLOAT16, FLOAT16, and FLOAT32 results
- * compute in FLOAT32; FLOAT64 results compute in FLOAT64. FLOAT16 result metadata uses an exact
+ * square-root behavior rather than rejected or repaired. BFLOAT16, FLOAT16, OFP8, and FLOAT32 results
+ * compute in FLOAT32; FLOAT64 results compute in FLOAT64. FLOAT16 and OFP8 result metadata uses an exact
  * FLOAT32 epsilon. Empty and special-value behavior, permitted reassociation, and rounding are
  * semantic constraints for later conforming execution.</p>
  *
@@ -42,7 +42,7 @@ final class TensorBatchNormInferenceExpressions {
      * @param bias non-null floating rank-one per-channel bias retained at position 2
      * @param runningMean non-null floating rank-one estimated mean retained at position 3
      * @param runningVariance non-null floating rank-one estimated variance retained at position 4
-     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 uses FLOAT32
+     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 and OFP8 use FLOAT32
      * @return fresh unlabeled, storage-free, layout-unresolved result with exact input Shape,
      *     promoted type, combined gradient eligibility, and output index zero; never {@code null}
      * @throws NullPointerException if a Tensor argument or epsilon is null, checked in logical
@@ -74,7 +74,7 @@ final class TensorBatchNormInferenceExpressions {
      * @param bias non-null floating rank-one per-channel bias retained at position 2
      * @param runningMean non-null floating rank-one estimated mean retained at position 3
      * @param runningVariance non-null floating rank-one estimated variance retained at position 4
-     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 uses FLOAT32
+     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 and OFP8 use FLOAT32
      * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
      * @return null after descriptor-only completion, otherwise the ordinary canonical result
      * @throws NullPointerException if a Tensor argument or epsilon is null, checked in logical
@@ -142,7 +142,8 @@ final class TensorBatchNormInferenceExpressions {
         resultType = DataTypePromotion.promoteFloating(resultType, meanType);
         resultType = DataTypePromotion.promoteFloating(resultType, varianceType);
         if (epsilon.dataType() != resultType
-                && (resultType != DataType.FLOAT16
+                && ((resultType != DataType.FLOAT16 && resultType != DataType.FLOAT8_E4M3
+                                && resultType != DataType.FLOAT8_E5M2)
                         || epsilon.dataType() != DataType.FLOAT32)) {
             throw new IllegalArgumentException(
                     "batchNormInference epsilon data type must match result data type: epsilon="

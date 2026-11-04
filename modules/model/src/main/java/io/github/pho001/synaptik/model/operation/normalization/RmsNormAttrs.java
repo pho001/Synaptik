@@ -11,8 +11,8 @@ import java.util.Objects;
  * Carries the exact trailing normalized Shape and positive typed epsilon for RMS normalization.
  *
  * <p>The normalized Shape has positive rank and identifies exact trailing input axes. Epsilon is
- * a finite, strictly positive BFLOAT16, FLOAT32, or FLOAT64 value added to the uncentered mean
- * square inside the square root; FLOAT32 is the scalar metadata format for a FLOAT16 result.
+ * a finite, strictly positive BFLOAT16, OFP8, FLOAT32, or FLOAT64 value added to the uncentered mean
+ * square inside the square root; FLOAT32 is the scalar metadata format for a FLOAT16 or OFP8 result.
  * Input cardinality identifies whether explicit scale is present. This record retains both
  * immutable references unchanged and owns no operand, statistic, gradient, compiler, backend, runtime, or execution state.</p>
  *

@@ -78,7 +78,7 @@ final class TensorAxisGatherExpressions {
     /**
      * Validates an embedding-weight table and creates one canonical axis-zero GATHER expression.
      *
-     * <p>{@code weights} must have rank two and exact BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type.
+     * <p>{@code weights} must have rank two and exact BFLOAT16, FLOAT16, OFP8, FLOAT32, or FLOAT64 type.
      * Its axis zero is the vocabulary axis and axis one is the embedding Dimension. Indices may
      * have any rank, including scalar, but must have exact INT32 or INT64 type. The result Shape is
      * the complete indices Shape followed by the exact weight axis-one Dimension.</p>
@@ -94,7 +94,7 @@ final class TensorAxisGatherExpressions {
      * sparse-gradient, maximum-norm, or frequency-scaling option changes that ordinary Gather
      * occurrence.</p>
      *
-     * @param weights non-null rank-two BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 table retained as
+     * @param weights non-null rank-two BFLOAT16, FLOAT16, OFP8, FLOAT32, or FLOAT64 table retained as
      *     provenance input zero and never mutated
      * @param indices non-null INT32 or INT64 coordinates of any rank retained as provenance input
      *     one and never mutated
@@ -114,7 +114,7 @@ final class TensorAxisGatherExpressions {
      * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
      * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
      * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
-     * @param weights non-null rank-two BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 table retained as
+     * @param weights non-null rank-two BFLOAT16, FLOAT16, OFP8, FLOAT32, or FLOAT64 table retained as
      *     provenance input zero and never mutated
      * @param indices non-null INT32 or INT64 coordinates of any rank retained as provenance input
      *     one and never mutated

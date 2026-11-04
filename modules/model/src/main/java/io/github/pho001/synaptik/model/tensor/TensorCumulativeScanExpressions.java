@@ -17,7 +17,7 @@ import java.util.Optional;
  * the first traversed position the selected kind's identity. Reverse mode changes traversal
  * direction without reversing output positions.</p>
  *
- * <p>This package-private boundary accepts exactly FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and
+ * <p>This package-private boundary accepts exactly FLOAT64, FLOAT32, BFLOAT16, FLOAT16, OFP8, INT32, and
  * INT64 inputs, normalizes one axis, preserves the exact input Shape, data type, and
  * gradient-eligibility metadata, and records exact one-input provenance. It does not inspect or accumulate values,
  * preserve resolved layout,
@@ -37,7 +37,7 @@ final class TensorCumulativeScanExpressions {
      * constructs one {@link CumulativeScanAttrs}. Failures before factory delegation consume no
      * Tensor identity.</p>
      *
-     * @param input non-null FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64 Tensor retained as
+     * @param input non-null FLOAT64, FLOAT32, BFLOAT16, FLOAT16, OFP8, INT32, or INT64 Tensor retained as
      *     the sole provenance input
      * @param kind non-null cumulative arithmetic kind retained by the operation
      * @param axis positive or negative input axis accepted by {@link Shape#normalizeAxis(int)}
@@ -69,7 +69,7 @@ final class TensorCumulativeScanExpressions {
      * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
      * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
      * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
-     * @param input non-null FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64 Tensor retained as
+     * @param input non-null FLOAT64, FLOAT32, BFLOAT16, FLOAT16, OFP8, INT32, or INT64 Tensor retained as
      *     the sole provenance input
      * @param kind non-null cumulative arithmetic kind retained by the operation
      * @param axis positive or negative input axis accepted by {@link Shape#normalizeAxis(int)}

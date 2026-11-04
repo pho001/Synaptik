@@ -17,7 +17,7 @@ import java.util.Optional;
  * no Tensor, dropout state, backend choice, execution algorithm, or gradient rule.</p>
  *
  * @param scale non-null optional exact FLOAT64, FLOAT32, or BFLOAT16 positive finite scale; FLOAT32
- *     is the scalar metadata format for a FLOAT16 result, and empty selects the embedding-derived default
+ *     is the scalar metadata format for a FLOAT16 or OFP8 result, and empty selects the embedding-derived default
  * @param causal whether top-left-aligned causal eligibility is combined with any explicit mask
  */
 public record ScaledDotProductAttentionAttrs(Optional<ScalarValue> scale, boolean causal)
@@ -25,11 +25,12 @@ public record ScaledDotProductAttentionAttrs(Optional<ScalarValue> scale, boolea
     /**
      * Creates validated immutable attention attributes.
      *
-     * @param scale non-null optional exact floating scale; a present value must be finite and
-     *     strictly positive
+     * @param scale non-null optional exact FLOAT64, FLOAT32 or BFLOAT16 scale; a present value
+     *     must be finite and strictly positive; FLOAT16 and OFP8 results require FLOAT32 metadata
      * @param causal whether key position {@code j} is additionally restricted to {@code j <= i}
      * @throws NullPointerException if {@code scale} is null
-     * @throws IllegalArgumentException if a present scale is not floating, finite, and positive
+     * @throws IllegalArgumentException if a present scale has an unsupported metadata type,
+     *     is non-finite or is not positive
      */
     public ScaledDotProductAttentionAttrs {
         Objects.requireNonNull(scale, "scale");
@@ -39,6 +40,11 @@ public record ScaledDotProductAttentionAttrs(Optional<ScalarValue> scale, boolea
             if (!dataType.isFloating()) {
                 throw new IllegalArgumentException(
                         "scale must have a floating data type, but was " + dataType);
+            }
+            if (dataType != DataType.FLOAT64 && dataType != DataType.FLOAT32
+                    && dataType != DataType.BFLOAT16) {
+                throw new IllegalArgumentException(
+                        "scale metadata must be FLOAT64, FLOAT32 or BFLOAT16, but was " + dataType);
             }
             double decoded = switch (dataType) {
                 case FLOAT64 -> value.float64Value();

@@ -19,7 +19,7 @@ import java.util.List;
  * exact pairings through the family-owned signatures.</p>
  *
  * <p>Scalar ADD, SUB, MUL, DIV, and POW retain their declared operand order, typed attribute, and
- * formula. At named floating arithmetic primitives only, FLOAT32, BFLOAT16, and FLOAT16 permit
+ * formula. At named floating arithmetic primitives only, FLOAT32, BFLOAT16, FLOAT16 and OFP8 permit
  * same-signed-zero input DAZ and finite-subnormal-result FTZ under the family zero-sign rule;
  * FLOAT64 permits neither. Homogeneous low arithmetic works in FLOAT32 and narrows once to the
  * declared low output. Scalar MIN, MAX, and CLAMP compare stored represented candidates, including

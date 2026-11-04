@@ -21,8 +21,8 @@ import java.util.List;
  *
  * <p>Broadcast mapping, contraction extent, contributor membership, empty identity, and output
  * placement remain exact. Each mapped product contributes once to a rounded sum tree; corresponding
- * multiply/add fusion is permitted only without an observable intermediate. FLOAT32, BFLOAT16, and
- * FLOAT16 may use DAZ/FTZ only at named floating arithmetic primitive inputs/results, including low
+ * multiply/add fusion is permitted only without an observable intermediate. FLOAT32 and all low
+ * floating types may use DAZ/FTZ only at named floating arithmetic primitive inputs/results, including low
  * multiplication; FLOAT64 may not. Homogeneous low contractions work and accumulate in FLOAT32,
  * followed by one final ties-to-even low narrowing. The established final exact-zero publication
  * freedom applies only to qualifying nonempty MATMUL results; an empty contraction remains positive
@@ -35,7 +35,7 @@ public enum MatmulKind implements OperationKind {
      * Requests the sum of pairwise products across one shared contraction dimension.
      *
      * <p>Floating results use the promoted floating type, with FLOAT32 accumulation for FLOAT16,
-     * BFLOAT16, and FLOAT32 results and FLOAT64 accumulation for FLOAT64 results.
+     * BFLOAT16, OFP8, and FLOAT32 results and FLOAT64 accumulation for FLOAT64 results.
      * Reassociation and fused multiply-add are permitted, so bitwise or cross-backend identical
      * rounding is not promised.
      * Signed-integral results use the promoted width and exact modular arithmetic modulo

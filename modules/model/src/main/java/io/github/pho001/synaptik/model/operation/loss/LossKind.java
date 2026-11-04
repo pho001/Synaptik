@@ -23,7 +23,7 @@ import java.util.List;
  * subtraction, EXP, class sum, LOG, max addition, logit subtraction, declared target
  * multiplication, aggregation, negation, and optional divisor. Every contributor participates once;
  * only named floating arithmetic primitive inputs/results may use dtype-specific DAZ/FTZ for
- * FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low arithmetic works and accumulates
+ * FLOAT32, BFLOAT16, FLOAT16 and OFP8, never FLOAT64. Homogeneous low arithmetic works and accumulates
  * in FLOAT32 with one final low narrowing per declared output. Exact guards and special classes
  * remain; neither loss has a blanket output tolerance. See the <a
  * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
@@ -62,7 +62,7 @@ public enum LossKind implements OperationKind {
      * max-shifted log-sum-exp slice, rather than invoking first-class LOG_SOFTMAX;
      * mean reduction divides by the number of non-ignored targets. INT32 and INT64 targets are
      * exact indices, while floating computation and result type follow the logits: FLOAT16,
-     * BFLOAT16, and FLOAT32 use at least FLOAT32 computation, and FLOAT64 uses FLOAT64.
+     * BFLOAT16, OFP8, and FLOAT32 use at least FLOAT32 computation, and FLOAT64 uses FLOAT64.
      * NaN, infinity, empty, and all-ignored behavior is part of the semantic contract, not eager
      * evaluation.</p>
      */

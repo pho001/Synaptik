@@ -382,7 +382,7 @@ final class TensorWindowExpressions {
     }
 
     /**
-     * Requires one of FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 for NCHW/NCDHW transforms.
+     * Requires one of FLOAT64, FLOAT32, BFLOAT16, FLOAT16 or OFP8 for NCHW/NCDHW transforms.
      *
      * @param dataType non-null exact input data type
      * @param operation non-null constant operation name used in failures

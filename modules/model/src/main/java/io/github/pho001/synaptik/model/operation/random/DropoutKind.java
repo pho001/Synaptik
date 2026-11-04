@@ -22,7 +22,7 @@ import java.util.List;
  * guards, traversal, and dropped positive zero remain exact. A kept value uses
  * typed-one-minus-probability, typed-one division, then input multiplication. Only these named
  * floating arithmetic primitive inputs/results may use dtype-specific DAZ/FTZ for FLOAT32,
- * BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low arithmetic works in FLOAT32 with one final
+ * BFLOAT16, FLOAT16 and OFP8, never FLOAT64. Homogeneous low arithmetic works in FLOAT32 with one final
  * low narrowing per value; the mask and next state gain no tolerance. See the <a
  * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
  * numerical-semantics contract</a>.</p>

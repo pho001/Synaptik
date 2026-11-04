@@ -17,7 +17,7 @@ import java.util.List;
  * empty identity, and original selected payload. Average pooling includes every declared kernel
  * position, including padding, once in a rounded sum tree and divides by the exact fixed divisor.
  * Only its named floating arithmetic primitives may use dtype-specific DAZ/FTZ for FLOAT32,
- * BFLOAT16, and FLOAT16, never FLOAT64. Homogeneous low averaging accumulates in FLOAT32 and
+ * BFLOAT16, FLOAT16 and OFP8, never FLOAT64. Homogeneous low averaging accumulates in FLOAT32 and
  * narrows once at the declared output; no whole-output tolerance is implied. See the <a
  * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
  * numerical-semantics contract</a>.</p>
@@ -28,7 +28,8 @@ public enum Pool3dKind implements OperationKind {
      *
      * <p>Logical samples are ordered by increasing depth, then height, then width. NaN dominates,
      * positive zero orders above negative zero, and equal candidates retain the first eligible
-     * sample. A window with no in-bounds sample produces negative infinity in the input type.</p>
+     * sample. A window with no in-bounds sample produces negative infinity, or canonical NaN
+     * for E4M3. Nonempty selection never admits an encoded NaN infinity identity.</p>
      */
     MAX_POOL3D,
 
@@ -37,7 +38,7 @@ public enum Pool3dKind implements OperationKind {
      * grids.
      *
      * <p>Every logical kernel position counts in the divisor, and out-of-bounds positions
-     * contribute positive zero. FLOAT16, BFLOAT16, and FLOAT32 accumulate and divide in FLOAT32,
+     * contribute positive zero. FLOAT16, BFLOAT16, OFP8, and FLOAT32 accumulate and divide in FLOAT32,
      * while FLOAT64 uses FLOAT64; low results narrow once after division. Finite accumulation may
      * reassociated. NaN propagates, opposing infinities produce NaN, and an exact-zero result is
      * negative only when every divisor position is an in-bounds negative zero.</p>

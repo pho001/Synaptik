@@ -25,18 +25,20 @@ import java.util.List;
  * #toString()} text is stable diagnostic vocabulary only, not a serialization token, registry
  * key, or string-dispatch contract.</p>
  *
- * <p>Each of the nineteen kinds has one Model formula for accepted BFLOAT16, FLOAT16, FLOAT32, and
- * FLOAT64 values. ABS and NEG transform non-NaN represented sign bits exactly; NaN class is
- * preserved without a payload or sign promise. SIGN, FLOOR, CEIL, and RELU retain exact
+ * <p>Each of the nineteen kinds has one Model formula for accepted BFLOAT16, FLOAT16, OFP8, FLOAT32, and
+ * FLOAT64 values. ABS and NEG transform represented sign bits exactly, including raw low NaNs.
+ * Arithmetic NaNs preserve class without a payload or sign promise. SIGN, FLOOR, CEIL, and RELU retain exact
  * represented-value rules. None of these six uses arithmetic DAZ or FTZ. RECIPROCAL is
  * a named division. LOG, LOG1P, EXP, EXPM1, ERF, SQRT, and TANH retain their mathematical
  * reference, domain, class, range, and signed-zero rules; finite accuracy is qualified per backend
  * route in tests rather than by a public ordered-distance or error envelope. RSQRT, SIGMOID, GELU,
  * tanh GELU, and SiLU recurse through their named guards, constants, elementary functions, and
  * rounded arithmetic primitives; they gain no blanket output tolerance. Only named arithmetic
- * primitive inputs/results may use DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64; exact
+ * primitive inputs/results may use DAZ/FTZ for FLOAT32, BFLOAT16, FLOAT16 and OFP8, never FLOAT64; exact
  * unary sites and stored outputs do not inherit that permission. Homogeneous low arithmetic uses
- * FLOAT32 working values and one final ties-to-even low narrowing. See the <a
+ * FLOAT32 working values and one final ties-to-even low narrowing.
+ * E4M3 cannot represent infinity: an infinite working/formula result (including a function pole)
+ * narrows to canonical NaN, never to a saturated finite value. See the <a
  * href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics">Model
  * numerical-semantics contract</a>.</p>
  */

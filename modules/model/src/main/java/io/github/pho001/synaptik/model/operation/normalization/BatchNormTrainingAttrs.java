@@ -12,7 +12,7 @@ import java.util.Objects;
  *
  * <p>Momentum is the new-batch weight in the explicit running-statistic transition. Epsilon is
  * added only to biased batch variance inside the saved inverse-standard-deviation square root.
- * Each scalar is BFLOAT16, FLOAT32, or FLOAT64; FLOAT32 is the metadata format for FLOAT16
+ * Each scalar is BFLOAT16, OFP8, FLOAT32, or FLOAT64; FLOAT32 is the metadata format for FLOAT16 and OFP8
  * results. Both exact immutable scalar references are retained. This record owns no Tensor, running state, training session, compiler saved-value lifetime, backend, runtime, or execution behavior.</p>
  *
  * @param channelAxis normalized non-negative logical channel axis

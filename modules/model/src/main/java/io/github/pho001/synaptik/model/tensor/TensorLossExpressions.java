@@ -53,7 +53,7 @@ final class TensorLossExpressions {
      * <p>The selected meaning is {@code (prediction - target)^2}. None retains every coordinate,
      * sum reduces the complete logical domain, and mean divides that sum by the complete logical
      * element count. A scalar count is one; a zero-extent domain has empty none, positive-zero sum,
-     * and NaN mean. BFLOAT16, FLOAT16, and FLOAT32 use FLOAT32 computation; FLOAT64 uses FLOAT64.
+     * and NaN mean. BFLOAT16, FLOAT16, OFP8, and FLOAT32 use FLOAT32 computation; FLOAT64 uses FLOAT64.
      * NaN, infinity, signed-zero, overflow, reassociation, and determinism follow the public
      * {@link Tensor#meanSquaredError(Tensor, LossReduction)} contract.</p>
      *
@@ -146,7 +146,7 @@ final class TensorLossExpressions {
      *
      * <p>On the dense branch, logits and target participate in floating promotion and gradient
      * eligibility. On the index branch, result type and gradient eligibility come only from
-     * logits; the integral target is neither promoted nor cast. BFLOAT16, FLOAT16, and FLOAT32
+     * logits; the integral target is neither promoted nor cast. BFLOAT16, FLOAT16, OFP8, and FLOAT32
      * index results use at least FLOAT32 log-sum-exp, subtraction, accumulation, and division,
      * while FLOAT64 uses FLOAT64. These are semantic requirements, not eager evaluation or backend-algorithm
      * selection.</p>
@@ -237,12 +237,12 @@ final class TensorLossExpressions {
      * extent retains the later obligation that the sample domain is empty or every target is
      * ignored; dynamic Shape equality and bounds also remain deferred.</p>
      *
-     * <p>BFLOAT16, FLOAT16, and FLOAT32 use at least FLOAT32 computation; FLOAT64 uses FLOAT64.
+     * <p>BFLOAT16, FLOAT16, OFP8, and FLOAT32 use at least FLOAT32 computation; FLOAT64 uses FLOAT64.
      * Ignored positions stay positive zero without propagating their logits' NaN or infinity. For
      * a non-ignored slice, NaN or positive infinity and an all-negative-infinity slice produce NaN;
      * selecting negative infinity when another class is finite produces positive infinity.</p>
      *
-     * @param logits non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 logits retained at input zero
+     * @param logits non-null BFLOAT16, FLOAT16, OFP8, FLOAT32, or FLOAT64 logits retained at input zero
      * @param target non-null exact INT32 or INT64 class-index target retained at input one
      * @param classAxis positive or negative logits class axis normalized exactly once
      * @param reduction non-null explicit none, sum, or non-ignored-count mean reduction
@@ -269,7 +269,7 @@ final class TensorLossExpressions {
      * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
      * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
      * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
-     * @param logits non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 logits retained at input zero
+     * @param logits non-null BFLOAT16, FLOAT16, OFP8, FLOAT32, or FLOAT64 logits retained at input zero
      * @param target non-null exact INT32 or INT64 class-index target retained at input one
      * @param classAxis positive or negative logits class axis normalized exactly once
      * @param reduction non-null explicit none, sum, or non-ignored-count mean reduction

@@ -326,6 +326,14 @@ class TensorFactoryFullIdentityTest {
                     identityShort(length, rows, columns), heapArray(tensor, short[].class));
             case FLOAT16 -> assertArrayEquals(
                     identityFloat16(length, rows, columns), heapArray(tensor, short[].class));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> {
+                byte[] expected = new byte[length];
+                for (int index = 0; index < Math.min(rows, columns); index++) {
+                    expected[index * columns + index] =
+                            (byte) (dataType == DataType.FLOAT8_E4M3 ? 0x38 : 0x3C);
+                }
+                assertArrayEquals(expected, heapArray(tensor, byte[].class));
+            }
             case INT32 -> assertArrayEquals(
                     identityInt(length, rows, columns), heapArray(tensor, int[].class));
             case INT64 -> assertArrayEquals(

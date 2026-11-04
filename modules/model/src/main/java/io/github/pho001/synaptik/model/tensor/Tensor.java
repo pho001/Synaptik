@@ -142,7 +142,7 @@ import java.util.Optional;
  * (DAZ). Unary ABS, NEG, SIGN, FLOOR, CEIL, and RELU are exact represented-value sites.
  * Floating arithmetic retains its family formula, guards, contributor domain, rounding sites,
  * and special-value rules. At named primitive arithmetic inputs/results only, FLOAT32, BFLOAT16,
- * and FLOAT16 may use same-signed-zero input DAZ and finite-subnormal-result flush-to-zero (FTZ)
+ * FLOAT16 and OFP8 may use same-signed-zero input DAZ and finite-subnormal-result flush-to-zero (FTZ)
  * under the family's zero-sign rule; FLOAT64 permits neither. Homogeneous low arithmetic works
  * and accumulates in FLOAT32 with one final ties-to-even low narrowing. Aggregates use every
  * declared contributor once in a rounded tree; corresponding multiply/add fusion requires an
@@ -644,7 +644,7 @@ public final class Tensor {
      * weight output-channel Dimension references.</p>
      *
      * <p>Input and weight types promote through the floating hierarchy. FLOAT64 output accumulates
-     * in FLOAT64; BFLOAT16, FLOAT16, and FLOAT32 output accumulate in FLOAT32, with one final
+     * in FLOAT64; BFLOAT16, FLOAT16, OFP8, and FLOAT32 output accumulate in FLOAT32, with one final
      * low-format conversion. Each output is the increasing-logical-index sum over its contiguous channel group
      * and kernel positions. Out-of-range coordinates are conceptual positive zero and participate
      * in ordinary IEEE-754 multiplication, including with infinity. NaN, infinity, and signed zero
@@ -733,7 +733,7 @@ public final class Tensor {
      * and weight output-channel Dimension references.</p>
      *
      * <p>Input and weight types promote through the floating hierarchy. FLOAT64 output accumulates
-     * in FLOAT64; BFLOAT16, FLOAT16, and FLOAT32 output accumulate in FLOAT32, with one final
+     * in FLOAT64; BFLOAT16, FLOAT16, OFP8, and FLOAT32 output accumulate in FLOAT32, with one final
      * low-format conversion. Each output is a grouped cross-correlation in increasing logical input-channel,
      * kernel-depth, kernel-height, then kernel-width order; the stored kernel is not reversed.
      * Out-of-range coordinates are conceptual positive zero and participate in ordinary IEEE-754
@@ -955,7 +955,7 @@ public final class Tensor {
      *
      * <p>Every window has divisor {@code kernelHeight * kernelWidth}. Each in-bounds position
      * contributes its value; each out-of-bounds position contributes exact positive zero while
-     * still counting in the divisor. BFLOAT16, FLOAT16, and FLOAT32 accumulate and divide in
+     * still counting in the divisor. BFLOAT16, FLOAT16, OFP8, and FLOAT32 accumulate and divide in
      * FLOAT32; FLOAT64 uses FLOAT64, and a low result narrows once. The sum is divided once.
      * Reassociation is permitted, without fixed traversal, bitwise cross-backend,
      * or NaN payload/sign guarantees.</p>
@@ -1037,7 +1037,7 @@ public final class Tensor {
      * <p>Every logical kernel position counts in the fixed mathematical divisor
      * {@code kernelDepth * kernelHeight * kernelWidth}. Dilation changes coordinates, not that
      * divisor. In-bounds positions contribute once; padding contributes conceptual positive zero
-     * and still counts. BFLOAT16, FLOAT16, and FLOAT32 accumulate and divide in FLOAT32, FLOAT64
+     * and still counts. BFLOAT16, FLOAT16, OFP8, and FLOAT32 accumulate and divide in FLOAT32, FLOAT64
      * does so in FLOAT64, the sum is divided once by the fixed divisor, and a low result narrows
      * once after that division. Construction does not materialize the three-factor divisor as a {@code long}.</p>
      *
@@ -1086,7 +1086,7 @@ public final class Tensor {
      * gradient eligibility equal to the logical OR of the operands, no label or storage, and
      * provenance containing {@link MatmulKind#MATMUL}, {@code NoOperationAttrs.INSTANCE}, ordered
      * exact inputs {@code [this, right]}, and output index zero. FLOAT64 results accumulate in
-     * FLOAT64; BFLOAT16, FLOAT16, and FLOAT32 results accumulate in FLOAT32, with one final
+     * FLOAT64; BFLOAT16, FLOAT16, OFP8, and FLOAT32 results accumulate in FLOAT32, with one final
      * low-format conversion. Broadcast and contraction membership stay exact; every pairwise
      * product participates once in a rounded sum tree, and only named floating arithmetic sites
      * may use dtype-specific DAZ/FTZ. The existing qualifying nonempty final exact-zero
@@ -1120,7 +1120,7 @@ public final class Tensor {
      * logical element count. Empty sum is positive zero and empty mean is NaN. Target broadcasting
      * and implicit casts are not accepted.</p>
      *
-     * <p>BFLOAT16, FLOAT16, and FLOAT32 results perform formula and reduction arithmetic in
+     * <p>BFLOAT16, FLOAT16, OFP8, and FLOAT32 results perform formula and reduction arithmetic in
      * FLOAT32; FLOAT64 results use FLOAT64. NaN operands and equal-sign infinity pairs produce NaN squared
      * error. One finite and one infinite operand, or opposite-sign infinities, produce positive
      * infinity; every exact zero difference squares to positive zero. Reduced NaN propagates and,
@@ -1134,7 +1134,7 @@ public final class Tensor {
      * storage-free producer with ordered {@code [prediction, target]} provenance; it reads no
      * values and defines no gradient, compiler, backend, runtime, execution, or training behavior.</p>
      *
-     * @param target non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 target with equal rank and
+     * @param target non-null BFLOAT16, FLOAT16, OFP8, FLOAT32, or FLOAT64 target with equal rank and
      *     positionally compatible dimensions; unequal static dimensions are rejected and unresolved equality
      *     is deferred
      * @param reduction non-null explicit none, sum, or complete-domain mean reduction
@@ -1174,7 +1174,7 @@ public final class Tensor {
      * remain later obligations. Index results retain exact logits type and use only logits
      * gradient eligibility.</p>
 
-     * <p>Index selection uses stable negative log-softmax. BFLOAT16, FLOAT16, and FLOAT32 logits
+     * <p>Index selection uses stable negative log-softmax. BFLOAT16, FLOAT16, OFP8, and FLOAT32 logits
      * use at least FLOAT32 computation and FLOAT64 logits use FLOAT64; the result retains logits type.
      * Non-ignored NaN or positive-infinity slices and all-negative-infinity slices produce NaN.
      * With at least one finite value, selecting negative infinity produces positive infinity.
@@ -1183,7 +1183,7 @@ public final class Tensor {
      * <p>{@link LossReduction#NONE} removes the class axis. Sum and mean return scalar Shape, with
      * mean dividing by the number of non-class groups. An empty group domain produces empty none,
      * positive-zero sum, and NaN mean. A non-empty group domain requires positive class extent;
-     * unresolved cases remain for later compiler binding. BFLOAT16, FLOAT16, and FLOAT32 use
+     * unresolved cases remain for later compiler binding. BFLOAT16, FLOAT16, OFP8, and FLOAT32 use
      * FLOAT32 computation meaning, while FLOAT64 uses FLOAT64; the public result has the floating
      * type promoted from logits and target.</p>
      *
@@ -1200,7 +1200,7 @@ public final class Tensor {
      * {@code [logits, target]} provenance at output index zero. This method defines no gradient,
      * compiler, backend, runtime, execution, or training behavior.</p>
      *
-     * @param target non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 dense target with exact logits
+     * @param target non-null BFLOAT16, FLOAT16, OFP8, FLOAT32, or FLOAT64 dense target with exact logits
      *     Shape, or exact INT32/INT64 index target with the class-axis-removed Shape
      * @param classAxis positive or negative class axis in the logits Shape
      * @param reduction non-null explicit none, sum, or sample-domain mean reduction
@@ -1236,7 +1236,7 @@ public final class Tensor {
      * reads no values and leaves that alternative, dynamic Shape equality, bounds proof,
      * evaluation, gradients, compilation, lowering, and execution to later lifecycle owners.</p>
 
-     * <p>BFLOAT16, FLOAT16, and FLOAT32 logits use at least FLOAT32 computation; FLOAT64 logits
+     * <p>BFLOAT16, FLOAT16, OFP8, and FLOAT32 logits use at least FLOAT32 computation; FLOAT64 logits
      * use FLOAT64, and the final result retains logits type. Ignored positions remain positive zero
      * even when their logits contain NaN or infinity. For non-ignored positions, NaN or positive
      * infinity and an all-negative-infinity slice produce NaN; selecting negative infinity from
@@ -1408,7 +1408,7 @@ public final class Tensor {
      * @param key non-null floating key shaped {@code [..., S, E]}
      * @param value non-null floating value shaped {@code [..., S, Ev]}
      * @param attrs non-null scale/causal semantics retained by exact reference; a present scale
-     *     must match the promoted attention data type, except FLOAT16 uses FLOAT32 scalar metadata
+     *     must match the promoted attention data type, except FLOAT16 and OFP8 use FLOAT32 scalar metadata
      * @return non-null fresh storage-free attention output shaped {@code [..., L, Ev]}, with
      *     promoted type, exact selected Dimension references, unresolved layout, and provenance
      * @throws NullPointerException if an argument is null, checked in declaration order
@@ -1453,7 +1453,7 @@ public final class Tensor {
      * <p>Query, key, and value leading prefixes broadcast right-aligned together. The mask then
      * broadcasts exactly to score Shape {@code [..., L, S]}; causal eligibility, when selected,
      * combines with it by logical AND. Floating promotion is query/key then value. FLOAT64 uses
-     * FLOAT64 score and output accumulation; BFLOAT16, FLOAT16, and FLOAT32 use FLOAT32
+     * FLOAT64 score and output accumulation; BFLOAT16, FLOAT16, OFP8, and FLOAT32 use FLOAT32
      * accumulation, with one final low-format conversion. Reassociation remains subject to the
      * attention formula's exact guards and literal eligible-score EXP/sum/division sites; the
      * distinct first-class finite-softmax shift does not replace those sites.</p>
@@ -1535,7 +1535,7 @@ public final class Tensor {
      * @param key non-null floating key shaped {@code [..., S, E]}
      * @param value non-null floating value shaped {@code [..., S, Ev]}
      * @param attrs non-null exact scale/causal attributes retained by reference; present scale must
-     *     have the promoted attention data type, except FLOAT16 uses FLOAT32 scalar metadata
+     *     have the promoted attention data type, except FLOAT16 and OFP8 use FLOAT32 scalar metadata
      * @return non-null result containing output slot zero and normalized weights slot one from one
      *     exact shared producer
      * @throws NullPointerException if an argument is null, checked in declaration order
@@ -4231,7 +4231,7 @@ public final class Tensor {
     /**
      * Builds an axis-removing arg-min expression using the first logical index for ties.
      *
-     * <p>This tensor must have FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64 type. The
+     * <p>This tensor must have FLOAT64, FLOAT32, BFLOAT16, FLOAT16, OFP8, INT32, or INT64 type. The
      * caller axis is normalized once and removed; rank-one input produces the canonical scalar Shape, and every
      * unaffected Dimension reference is retained. This convenience delegates directly with
      * {@link ArgExtremaTiePolicy#FIRST_INDEX}, which requests the smallest logical coordinate
@@ -4344,7 +4344,7 @@ public final class Tensor {
     /**
      * Builds an axis-removing arg-max expression using the first logical index for ties.
      *
-     * <p>This tensor must have FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64 type. The
+     * <p>This tensor must have FLOAT64, FLOAT32, BFLOAT16, FLOAT16, OFP8, INT32, or INT64 type. The
      * caller axis is normalized once and removed; rank-one input produces the canonical scalar Shape, and every
      * unaffected Dimension reference is retained. This convenience delegates directly with
      * {@link ArgExtremaTiePolicy#FIRST_INDEX}, which requests the smallest logical coordinate
@@ -4463,7 +4463,7 @@ public final class Tensor {
      * equivalent to {@code cumSum(axis, false, false)}.</p>
      *
      * <p>The axis may be positive or negative and is normalized against the input rank. The input
-     * must have FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64 data type. Construction
+     * must have FLOAT64, FLOAT32, BFLOAT16, FLOAT16, OFP8, INT32, or INT64 data type. Construction
      * retains the exact input Shape, data type, and gradient-eligibility metadata, but leaves result layout
      * unresolved. It returns a fresh unlabeled, storage-free Tensor whose provenance contains
      * this Tensor as its sole input. Construction does not inspect or accumulate values and does
@@ -4503,7 +4503,7 @@ public final class Tensor {
      *
      * <p>Exclusive mode omits the current element from its prefix. Reverse mode changes traversal
      * direction, not output Shape or dimension order. The axis may be positive or negative and is
-     * normalized against the input rank. FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and INT64
+     * normalized against the input rank. FLOAT64, FLOAT32, BFLOAT16, FLOAT16, OFP8, INT32, and INT64
      * are accepted; BOOL is rejected before axis validation. Construction retains the exact input
      * Shape, data type, and gradient-eligibility metadata in an unresolved-layout descriptor. It
      * creates a fresh unlabeled, storage-free Tensor with exact one-input provenance, without
@@ -4539,7 +4539,7 @@ public final class Tensor {
      * {@code cumProd(axis, false, false)}.</p>
      *
      * <p>The axis may be positive or negative and is normalized against the input rank. The input
-     * must have FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, or INT64 data type. Construction
+     * must have FLOAT64, FLOAT32, BFLOAT16, FLOAT16, OFP8, INT32, or INT64 data type. Construction
      * retains the exact input Shape, data type, and gradient-eligibility metadata, but leaves result layout
      * unresolved. It returns a fresh unlabeled, storage-free Tensor whose provenance contains
      * this Tensor as its sole input. Construction does not inspect or multiply values and does not
@@ -4678,7 +4678,7 @@ public final class Tensor {
      * normalized values. The semantic contract propagates a NaN or infinity anywhere in a
      * non-empty slice to NaN throughout that standardized slice and gives a finite constant slice
      * exact positive-zero standardized values. The fresh result retains this Tensor's exact Shape,
-     * data type, and gradient eligibility. BFLOAT16, FLOAT16, and FLOAT32 results accumulate in
+     * data type, and gradient eligibility. BFLOAT16, FLOAT16, OFP8, and FLOAT32 results accumulate in
      * FLOAT32; FLOAT64 results accumulate in FLOAT64. Construction reads no values, calculates no
      * saved statistic, creates no gradient, and selects no compiler, backend, or runtime behavior.</p>
      *
@@ -4705,7 +4705,7 @@ public final class Tensor {
      * {@code standardized * scale + bias}. Scale and bias must each have Shape exactly equal to
      * {@code normalizedShape}; broadcasting and partial affine forms are not accepted. The three
      * floating operand types promote in input, scale, bias order. Epsilon has the exact result type
-     * except that a FLOAT16 result uses FLOAT32 epsilon metadata. BFLOAT16, FLOAT16, and FLOAT32
+     * except that a FLOAT16 result uses FLOAT32 epsilon metadata. BFLOAT16, FLOAT16, OFP8, and FLOAT32
      * results accumulate mean and variance in FLOAT32; FLOAT64 results use FLOAT64. Affine
      * arithmetic occurs in the result arithmetic domain with one final low narrowing. Empty and
      * standardized special-value behavior is the same as the no-affine form, after which ordinary floating multiply/add class behavior applies. Construction reads no values, creates no implicit
@@ -4738,7 +4738,7 @@ public final class Tensor {
      * {@code x / sqrt(sum(x * x) / N + epsilon)}. The mean square is uncentered, divides by the
      * population count {@code N}, and receives epsilon inside the square root. Static trailing
      * extents must match; unresolved unequal dimensions defer equality proof. Empty results
-     * evaluate no divisor. BFLOAT16, FLOAT16, and FLOAT32 results accumulate in FLOAT32; FLOAT64
+     * evaluate no divisor. BFLOAT16, FLOAT16, OFP8, and FLOAT32 results accumulate in FLOAT32; FLOAT64
      * results accumulate in FLOAT64. NaN, infinity, signed-zero, and finite overflow follow the
      * documented RMS-normalization semantic policy without selecting an algorithm or fixed traversal.</p>
      *
@@ -4862,8 +4862,8 @@ public final class Tensor {
      * {@code (1 - momentum) * old + momentum * batch}. The exact static or deferred domain
      * obligation is {@code C == 0 || N >= 2}, where {@code C} is the channel extent.</p>
      *
-     * <p>All five Tensor inputs may be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64. BFLOAT16,
-     * FLOAT16, and FLOAT32 results use FLOAT32 reductions and formula arithmetic. A FLOAT16 result
+     * <p>All five Tensor inputs may be BFLOAT16, FLOAT16, OFP8, FLOAT32, or FLOAT64. BFLOAT16,
+     * FLOAT16, OFP8, and FLOAT32 results use FLOAT32 reductions and formula arithmetic. A FLOAT16 result
      * therefore uses exact FLOAT32 momentum and epsilon metadata; other results use exact
      * result-typed scalars. FLOAT64 results use FLOAT64 arithmetic.</p>
      *
@@ -5636,7 +5636,7 @@ public final class Tensor {
      *     the exact embedding Dimension, with weight metadata and unresolved layout
      * @throws NullPointerException if {@code indices} is null, with message {@code indices}
      * @throws IllegalArgumentException if this tensor is not rank two, its type is not BFLOAT16,
-     *     FLOAT16, FLOAT32, or FLOAT64, or the indices type is not INT32 or INT64, checked in that order
+     *     FLOAT16, OFP8, FLOAT32, or FLOAT64, or the indices type is not INT32 or INT64, checked in that order
      * @throws ArithmeticException if checked Gather result-Shape metadata construction overflows
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
@@ -6413,7 +6413,7 @@ public final class Tensor {
      * define the final coordinate, with width fastest in both groups.</p>
      *
      * <p>Samples outside the unpadded input are represented positive zero, including terminal
-     * literal-ceil positions. The input must be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64. The fresh
+     * literal-ceil positions. The input must be BFLOAT16, FLOAT16, OFP8, FLOAT32, or FLOAT64. The fresh
      * result preserves type and gradient eligibility, has unresolved layout and no label or storage, and
      * records exact one-input {@link WindowTransformKind#UNFOLD3D} provenance. Construction does
      * not read values, materialize columns, define gradients, compile, lower, or execute.</p>

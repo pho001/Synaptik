@@ -10,8 +10,8 @@ import java.util.Objects;
  * Carries the normalized channel axis and exact typed epsilon for batch-normalization inference.
  *
  * <p>The channel axis is already normalized to a non-negative logical position. Epsilon is a
- * finite, strictly positive BFLOAT16, FLOAT32, or FLOAT64 value added to the explicit running
- * variance inside the square root; FLOAT32 is the scalar metadata format for a FLOAT16 result.
+ * finite, strictly positive BFLOAT16, OFP8, FLOAT32, or FLOAT64 value added to the explicit running
+ * variance inside the square root; FLOAT32 is the scalar metadata format for a FLOAT16 or OFP8 result.
  * Both values are immutable semantic metadata; this record owns no Tensor, raw axis, statistic, training state, compiler, backend, runtime, or result.</p>
  *
  * @param channelAxis normalized non-negative logical channel axis

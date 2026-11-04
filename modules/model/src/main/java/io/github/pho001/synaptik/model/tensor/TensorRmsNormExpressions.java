@@ -19,8 +19,8 @@ import java.util.Optional;
  * <p>Each non-empty slice has the semantic formula
  * {@code x / sqrt(sum(x * x) / N + epsilon)}, optionally followed by elementwise scale. There is
  * no centering, correction, bias, saved output, hidden state, or eager evaluation. BFLOAT16,
- * FLOAT16, and FLOAT32 results accumulate squares and sums in FLOAT32; FLOAT64 results use
- * FLOAT64. FLOAT16 result metadata uses an exact FLOAT32 epsilon. Empty, NaN, infinity,
+ * FLOAT16, OFP8, and FLOAT32 results accumulate squares and sums in FLOAT32; FLOAT64 results use
+ * FLOAT64. FLOAT16 and OFP8 result metadata uses an exact FLOAT32 epsilon. Empty, NaN, infinity,
  * signed-zero, overflow, reassociation, and rounding policies remain semantic constraints for
  * later conforming execution rather than algorithms selected here.</p>
  *
@@ -38,7 +38,7 @@ final class TensorRmsNormExpressions {
      *
      * @param input non-null floating input retained as sole producer input
      * @param normalizedShape non-null positive-rank Shape matched to trailing input axes
-     * @param epsilon non-null finite positive scalar matching the input type, except FLOAT16 uses FLOAT32
+     * @param epsilon non-null finite positive scalar matching the input type, except FLOAT16 and OFP8 use FLOAT32
      * @return fresh unlabeled, storage-free, layout-unresolved result retaining exact input Shape,
      *     type, and gradient eligibility, with sole-input provenance at output index zero; never
      *     {@code null}
@@ -58,7 +58,7 @@ final class TensorRmsNormExpressions {
      * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
      * @param input non-null floating input retained as sole producer input
      * @param normalizedShape non-null positive-rank Shape matched to trailing input axes
-     * @param epsilon non-null finite positive scalar matching the input type, except FLOAT16 uses FLOAT32
+     * @param epsilon non-null finite positive scalar matching the input type, except FLOAT16 and OFP8 use FLOAT32
      * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
      * @return null after descriptor-only completion, otherwise the ordinary canonical result
      * @throws NullPointerException if an argument is null, checked in declaration order
@@ -102,7 +102,7 @@ final class TensorRmsNormExpressions {
      * @param input non-null floating input retained as first producer input
      * @param normalizedShape non-null positive-rank Shape matched to trailing input axes
      * @param scale non-null floating scale with Shape exactly equal to normalized Shape
-     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 uses FLOAT32
+     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 and OFP8 use FLOAT32
      * @return fresh unlabeled, storage-free, layout-unresolved result retaining exact input Shape,
      *     promoted type, combined gradient eligibility, and ordered {@code [input, scale]}
      *     provenance at output index zero; never {@code null}
@@ -124,7 +124,7 @@ final class TensorRmsNormExpressions {
      * @param input non-null floating input retained as first producer input
      * @param normalizedShape non-null positive-rank Shape matched to trailing input axes
      * @param scale non-null floating scale with Shape exactly equal to normalized Shape
-     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 uses FLOAT32
+     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 and OFP8 use FLOAT32
      * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
      * @return null after descriptor-only completion, otherwise the ordinary canonical result
      * @throws NullPointerException if an argument is null, checked in declaration order
@@ -232,7 +232,8 @@ final class TensorRmsNormExpressions {
 
     private static void validateEpsilonType(ScalarValue epsilon, DataType resultType) {
         if (epsilon.dataType() != resultType
-                && (resultType != DataType.FLOAT16
+                && ((resultType != DataType.FLOAT16 && resultType != DataType.FLOAT8_E4M3
+                                && resultType != DataType.FLOAT8_E5M2)
                         || epsilon.dataType() != DataType.FLOAT32)) {
             throw new IllegalArgumentException(
                     "rmsNorm epsilon data type must match result data type: epsilon="

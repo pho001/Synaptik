@@ -222,7 +222,7 @@ class TensorLayerNormExpressionTest {
     private static ScalarValue epsilon(DataType dataType) {
         return switch (dataType) {
             case BFLOAT16 -> ScalarValue.bfloat16(1.0e-2f);
-            case FLOAT16 -> ScalarValue.float32(1.0e-5f);
+            case FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> ScalarValue.float32(1.0e-5f);
             case FLOAT32 -> ScalarValue.float32(1.0e-5f);
             case FLOAT64 -> ScalarValue.float64(1.0e-5);
             case INT32 -> ScalarValue.int32(1);

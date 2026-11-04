@@ -27,7 +27,7 @@ import java.util.List;
  * SQRT, division, scale multiplication, and bias addition. Training also uses sum/count mean,
  * centered x*x sums with exact N and N-1 divisors, and fixed running-statistic multiply/add
  * transitions. Every contributor participates once; only named floating arithmetic primitive
- * inputs/results may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, and FLOAT16, never FLOAT64.
+ * inputs/results may use dtype-specific DAZ/FTZ for FLOAT32, BFLOAT16, FLOAT16 and OFP8, never FLOAT64.
  * Homogeneous low arithmetic works and accumulates in FLOAT32, with one final low narrowing per
  * declared output; saved and state values are exact published results, not extra tolerance sites.
  * See the <a
