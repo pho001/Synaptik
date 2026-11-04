@@ -39,7 +39,7 @@ Qualified fixed recurrent sources now use that same configured TrainingSession a
 first-order AD, including mixed fixed/general sources, ordinary heads and final-state roots.
 Fixed presence is not a separate inference-only admission guard. Keep the source's original
 fixed/general recipe, storage carriers and rounding boundaries; low-output objectives explicitly
-cast to FLOAT32/FLOAT64, and the CPU low-arithmetic restriction still applies.
+cast to FLOAT32/FLOAT64. CPU low types retain the existing family and actual derivative guards.
 Actual backend/AD rejection follows the existing setup, native transition and retry ordering.
 No optimizer/session history is restored by graph load; configure fresh training on restored values.
 
@@ -142,14 +142,15 @@ and independently calculated losses and updates.
 
 ## Initial parameter domain
 
-The update path supports non-empty `FLOAT64`, `FLOAT32`, `BFLOAT16`, and `FLOAT16` parameters whose
+The update path supports non-empty `FLOAT64`, `FLOAT32`, `BFLOAT16`, `FLOAT16`,
+`FLOAT8_E4M3`, and `FLOAT8_E5M2` parameters whose
 Shapes are fully static and whose layouts are dense-contiguous, offset zero, non-view, and exact-
 span. Storage must be writable, exact-capacity, element-aligned native host memory shareable across
 operation threads. Initial parameter values must be finite. Empty or non-finite parameters fail
 during capture before private seed allocation, compile, or prepare. The session updates accepted
-storage in place, preserving the Tensor identity captured by the compiled graph. BFLOAT16 and
-FLOAT16 parameters retain private FLOAT32 masters and publish one narrowed logical value only
-after a successful update. Each logical snapshot payload and each FLOAT32/FLOAT64-width master,
+storage in place, preserving the Tensor identity captured by the compiled graph. All four low
+types retain private FLOAT32 masters and publish one narrowed logical value only after a
+successful update. Each logical snapshot payload and each FLOAT32/FLOAT64-width master,
 momentum, or accumulation payload must fit in a Java byte array (at most `Integer.MAX_VALUE`
 bytes). Capture rejects an oversized payload before inspecting that parameter's storage,
 allocating its update buffers or the private seed, or compiling; earlier parameters may already
@@ -157,9 +158,13 @@ have been captured. JVM-heap, read-only, thread-confined, strided/view,
 integral, BOOL, and device-only parameter storage are outside this domain. The caller grants the
 session exclusive use of the live source's membership, storage associations and parameter bytes until close.
 
-The CPU numerical lock does not remove low parameter storage or these F32 masters. A low
-parameter used in numerical graph work needs an explicit cast to FLOAT32 before that work;
-the optimizer master does not implicitly change graph dtypes or enable a low CPU kernel.
+CPU numerical execution uses the existing shared Compiler AD and ordinary operation owners for
+all four low types under their family and geometry constraints. Masters do not implicitly change
+graph dtypes: the objective must still be a visible scalar FLOAT32/FLOAT64 value, using explicit
+casts where needed. Both master candidates and their narrowed logical representations must be
+finite before publication. E4M3 overflow to NaN and E5M2 overflow to infinity reject the update;
+failure preserves logical raw bytes, masters and optimizer state transactionally. No implicit
+loss scaling or clipping is provided.
 
 ## Generic live parameter admission
 
@@ -268,7 +273,7 @@ and learning rate `lr`, SGD first computes `d = g + wd * p`. Without momentum, t
 `p = p - lr * d`. With momentum, the first successful optimizer step stores `d` without applying
 dampening; later steps store `m * previous + (1 - damp) * d`. Ordinary momentum selects that new
 slot, while Nesterov selects `d + m * newSlot`. Dampening is in `[0, 1]`; Nesterov requires
-positive momentum and exactly zero dampening. FLOAT32, BFLOAT16, and FLOAT16 parameters validate
+positive momentum and exactly zero dampening. FLOAT32 and all four low parameter types validate
 coefficients after one binary32 narrowing and use finite binary32 master, momentum, accumulation,
 and candidate arithmetic. A successful low-precision update narrows the validated master candidate
 once to the declared logical type. FLOAT64 parameters use binary64.
@@ -338,10 +343,10 @@ existing `momentumBytes()` is the first-slot payload: SGD momentum or Adam/AdamW
 `firstMomentBytes()` is its neutral alias; `secondMomentBytes()` returns a fresh read-only view
 for Adam/AdamW and `Optional.empty()` for SGD. All views are detached and fresh. Logical payloads
 use the declared
-type width: two bytes per BFLOAT16/FLOAT16 element, four for FLOAT32, and eight for FLOAT64.
-Master, first-slot, optional second-moment, and pending-gradient payloads use four bytes per
-element for BFLOAT16, FLOAT16,
-and FLOAT32 parameters and eight for FLOAT64. `restore(state)` validates the complete default
+type width: one byte for either FP8 type, two bytes for BFLOAT16/FLOAT16, four for FLOAT32,
+and eight for FLOAT64. Master, first-slot, optional second-moment, and pending-gradient payloads
+use four bytes per element for all four low types and FLOAT32, and eight for FLOAT64.
+`restore(state)` validates the complete default
 optimizer and ordered groups (including dampening), counters, paths, schemas, finite payloads,
 and exact slot presence/lengths, including a non-negative finite adaptive second moment, before
 installing anything. This is an in-memory handoff, not a durable checkpoint format.
@@ -386,9 +391,10 @@ algorithm-specific slot validity. `restore` performs those checks before any ins
 **Goal and input.** Given `source = session.state()` from an existing compatible open session,
 reconstruct every entry from its exposed canonical bytes. For the external test's FLOAT32 Adam
 snapshot after one reset-and-step and one accumulate run, the counters are `(2, 1, 1)` and each
-`Shape.of(2)` entry has eight bytes in every payload. Low-precision logical payloads instead have
-four bytes; their optimizer payloads still have eight. This helper also handles FLOAT64, SGD,
-AdamW, and ordered mixed groups. Save the following as `DetachedTrainingCopy.java` with Training
+`Shape.of(2)` entry has eight bytes in every payload. BFLOAT16/FLOAT16 logical payloads instead
+have four bytes and FP8 logical payloads have two; their optimizer payloads still have eight.
+This helper also handles FLOAT64, SGD, AdamW, and ordered mixed groups. Save the following as
+`DetachedTrainingCopy.java` with Training
 and its public dependencies on the classpath:
 
 ```java
@@ -845,7 +851,7 @@ grouped Conv2d/Conv3d rule and the visible Conv1d composition. Static CPU FLOAT3
 and Metal FLOAT32 Conv3d training, including overlap and save/load/new training for the existing
 default biased cold source, are qualified in the
 [production support matrix](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
-Low CPU arithmetic remains locked, and CPU Pool3d still requires `requiresGrad=false`;
+CPU low arithmetic and Pool3d use the existing shared derivative owners under their geometry guards;
 gradient-eligible parameter flags alone never prove a backend can execute a complete graph.
 `ModuleFactory.standard()` supplies matching stateless `conv1d`, `conv2d`, and `conv3d` recipes,
 but each direct or factory-created layer has the same state, validation, and forwarding contract.
@@ -1087,7 +1093,7 @@ Each scan reads current bindings once in declaration order and rechecks their ex
 replacement affects later occurrences and remains caller-coordinated.
 
 RNN additionally exposes `forwardGeneralScan` with the same explicit arguments/result carrier,
-for configured homogeneous FLOAT32/FLOAT64/BFLOAT16/FLOAT16. It shares ordinary cell mathematics and the
+for configured homogeneous floating types, including both OFP8 types. It shares ordinary cell mathematics and the
 existing initialization gate, but preflights canonical formals, emission and actual latent
 histories before initialization/body IDs, including overflowing empty-domain stride geometry.
 Its dense emission is general port 1, final carry port 0; fixed ordering stays 0/1.
@@ -1097,9 +1103,9 @@ requires the actual general-Scan binder/read domain. No hidden state or downstre
 Low general bodies preserve ordinary low operation-result rounding, unlike fixed low RNN's
 FLOAT32 working projections/aggregate/tanh and next-state narrowing. The builder keeps that
 distinct fixed low program; it is not a type-support fallback. Low cold acquisition/rebind and
-v5 persistence preserve carriers without CPU execution. Actual Metal training requires its
-complete first-order closure, with an explicit FLOAT32/FLOAT64 scalar objective cast; CPU low
-arithmetic and the objective policy are unchanged.
+persistence preserve logical carriers, with FP8 selecting graph v7 rather than the old v5 domain.
+Actual Metal training requires its complete first-order closure and admits no FP8.
+The explicit FLOAT32/FLOAT64 scalar objective policy remains unchanged.
 
 
 One call returns the canonical ports of one producer regardless of time extent. Produced inputs,
@@ -1118,16 +1124,16 @@ length values, statically unroll a cell, own parameters, or execute.
 The Compiler supports the current forward family and selected first-order AD through its shared
 cell/Scan construction; actual reverse bodies still require independent backend admission.
 Higher-order recurrence remains unsupported. The CPU scalar fixed route qualifies homogeneous
-static FLOAT32/FLOAT64 and resolved nonnegative read layouts, both directions/
+static floating types, including all four low types, and resolved nonnegative read layouts, both directions/
 bias modes, with trainable NN parameter flags. Compile through public Engine, prepare once and runValues
 with fresh full-descriptor values in `compiled.inputs()` order, including parameters and states.
 Each run validates every length in `[0,time]` before writing scan results; invalid values may be
 repaired and the preparation reused. Fixed expression validity remains distinct from execution
 qualification. Owned fixed-scan-containing Models compute and configure qualified first-order
 training through those same owners; see [owned Model training](#owned-model-training-convenience).
-Low fixed-scan source/storage remains retained, while BF16/FP16 CPU numerical execution is
-temporarily locked; private F32 optimizer masters do not widen that fixed forward capability.
-NN0033's F32/F64 general RNN composition keeps its distinct working/publication recipe.
+Low fixed scans use FLOAT32 working projections and declared next-state narrowing through the
+existing CPU owner; optimizer masters do not change that recipe. General RNN composition keeps
+its distinct ordinary operation-result rounding and working/publication recipe.
 
 The additive scan method does not redirect any existing `forward` overload or bidirectional
 container. Their Java `long[]` construction-time lengths, compact per-step outputs, provenance

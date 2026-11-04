@@ -17,8 +17,8 @@ continuation.
 
 | Workflow | Stored kind | What load requires and returns |
 |---|---|---|
-| Whole model | `whole-model.v1` | No target or configuration digest; returns an independent, value-loaded evaluation `DeclarativeModel`. |
-| Values only | `model.v1` | Caller-recreated fully bound target and expected digests; installs values into that target. |
+| Whole model | `whole-model.v1` / FP8 `whole-model.v2` | No target or configuration digest; returns an independent, value-loaded evaluation `DeclarativeModel`. |
+| Values only | `model.v1` / FP8 `model.v2` | Caller-recreated fully bound target and expected digests; installs values into that target. |
 
 Choose whole-model recovery for the closed layer matrix below; values-only recovery remains the
 advanced boundary for other NN state. The opaque artifact API interprets neither kind.
@@ -45,11 +45,22 @@ Although the source parameter is `Module`, only ordinary supported `Sequential` 
 `DeclarativeModel` roots are recognized. Custom roots/children and unbound state fail before
 Engine or filesystem work. The supported NN0026 matrix is nested sequences, Linear, affine
 LayerNorm, Embedding, Conv1d/2d/3d, and RELU/TANH/SIGMOID. Parameters support FLOAT64, FLOAT32,
-BFLOAT16 and FLOAT16. Each layer retains its complete configuration, guards and input semantics:
+BFLOAT16, FLOAT16, FLOAT8_E4M3 and FLOAT8_E5M2. Each layer retains its complete configuration, guards and input semantics:
 Embedding accepts INT32/INT64 indices; compatible leading Dimensions are not frozen to an example
 batch. See the [layer compatibility guide](../user-guide/declarative-models.md#compatibility-sharing-and-failures).
 Recurrence, BatchNorm, Dropout, branches, custom I/O and arbitrary `Model.define` callbacks are not
 captured. No topology is guessed from values or Shapes.
+
+FP8 selects new formats conditionally, not for every save. Values-only state containing either
+FP8 type uses `model.v2`, eight ASCII schema magic bytes `SYNMOD02`, and big-endian i32
+version 2. Definition metadata requiring FP8 uses `SYNDEF02` and i32 version 2, and its complete
+composition is `whole-model.v2` with matching `model.v2` values under `model/`.
+Each v2 dtype domain appends 8=FLOAT8_E4M3 and 9=FLOAT8_E5M2; old IDs 1..7 retain their
+meanings. Raw FP8 payloads use one byte per element, preserving every bit without scales.
+Non-FP8 sources retain the original v1 format selection and byte-identical schemas/payloads:
+`model.v1` / `SYNMOD01`, `SYNDEF01`, and `whole-model.v1`. Matching kind/header/version
+validation rejects incompatible domains rather than reinterpreting them. These NN formats are
+separate from the generic graph v7 format.
 
 `whole-model.v1` contains canonical `SYNDEF01` version-one definition bytes at `definition/schema`
 and unchanged values-only entries under `model/`. Configuration SHA-256 is automatically computed
@@ -57,7 +68,7 @@ from those exact definition bytes. Complete ordered descriptors and raw bytes wi
 group are independently checked before publication. Aliases mean the same exact parameter Tensor,
 not equal values or overlapping storage; re-saving observes current joins and splits. Neither hashes
 nor a prior inspection authenticate the artifact or authorize later validation. Existing values-only
-inspection/byte-access methods still accept `model.v1`, not the outer whole-model kind.
+inspection/byte-access methods accept `model.v1` and `model.v2`, not an outer whole-model kind.
 
 ### Expected input identity
 
@@ -113,9 +124,9 @@ The remaining sections describe the unchanged advanced values-only API, includin
 digests, fully bound target, failure types and target-defined aliases.
 
 ```text
-quiescent Module --one NN snapshot + public Engine.compute--> detached model.v1 envelope
+quiescent Module --one NN snapshot + public Engine.compute--> detached model.v1/v2 envelope
 envelope --independent validation per call--> descriptors / canonical path bytes / NN load
-model.v1 file --ArtifactFile integrity checks + model validation--> descriptors / NN load
+model.v1/v2 file --ArtifactFile integrity checks + model validation--> descriptors / NN load
 ```
 
 The arrows show who owns each stage: NN exports/installs state and its `nn.checkpoint` package
@@ -127,7 +138,7 @@ The file-free operations use existing public `ArtifactEnvelope`, `ArtifactLimits
 `ModelCheckpointInspection` types:
 
 - `capture(Module, Engine, configDigest, inputDigest, ArtifactLimits)` returns a fully detached,
-  semantically validated `model.v1` envelope without changing source bindings.
+  semantically validated `model.v1` or FP8 `model.v2` envelope without changing source bindings.
 - `inspect(ArtifactEnvelope, ArtifactLimits)` returns ordered descriptors and defensive digests,
   not value bytes or a trusted-validation credential.
 - `canonicalStateBytes(ArtifactEnvelope, ArtifactLimits)` returns every parameter and buffer's
@@ -141,7 +152,7 @@ apply before schema copying. It has no encoded file checksum to verify. `Artifac
 file framing and integrity checks; constructing an opaque envelope alone proves no model validity.
 
 `save(Path, Module, Engine, configDigest, inputDigest, ArtifactLimits)` snapshots the complete
-state once through public Engine materialization and publishes the existing version-one envelope.
+state once through public Engine materialization and publishes the smallest sufficient v1/v2 envelope.
 Fully bound native and matching primitive-array heap leaves, including previously loaded state,
 can be saved directly on the validated CPU route; callers need no expression wrappers.
 `inspect(Path, ArtifactLimits)`
@@ -162,9 +173,10 @@ to reject lazy/unbound groups, even though NN's in-memory loader can initialize 
 The recreated target's exact Tensor-identity groups define aliases. Every path in one group must
 have byte-identical stored values; one fresh dense-contiguous host Tensor is then installed for
 that group. A group containing a parameter is gradient-eligible; buffer-only groups are not.
-All seven current data types use compatible primitive-array heap carriers and native byte order.
-Floating values are restored by raw bits, without conversion or NaN normalization. Rank-zero
-shapes contain one element; a zero extent produces an empty payload.
+All nine current data types use compatible primitive-array heap carriers and native byte order.
+FP8 uses `byte[]`, BFLOAT16/FLOAT16 use `short[]`, and floating values restore by raw bits,
+without conversion or NaN normalization.
+Rank-zero shapes contain one element; a zero extent produces an empty payload.
 
 ## Inputs, outputs, and ownership
 
@@ -201,7 +213,8 @@ materializes nonempty state and checks returned type, Shape, and byte length. Em
 no Engine call, even with a closed Engine. Each path still receives a separate payload.
 
 This raw movement preserves signed zeros, subnormals, infinities, and NaN payload/sign bits;
-it uses neither identity arithmetic nor casts. Tests cover all seven data types on native and
+it uses neither identity arithmetic nor casts. The original seven-carrier test coverage remains
+historical evidence; FP8 additionally uses exact raw byte lanes. This includes native and
 matching heap carriers, scalar and zero-extent state, and mixed leaves/expressions. It is not a
 generic promise that Engine prepares provenance-free outputs, or a backend capability expansion.
 

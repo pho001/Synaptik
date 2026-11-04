@@ -686,7 +686,11 @@ general-body exception, not all NN layers or arbitrary PURE bodies. Save/load us
 [body-free persistence slice](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence)
 or [bounded v4 body persistence](../api/graph-checkpoint-api.md#bounded-general-scan-persistence),
 through the same Model API.
-Execution and training support are independent of raw graph persistence's seven data types.
+Execution and training support are independent of raw graph persistence's nine data types.
+FP8 graph sources select v7; NN values/definitions select their separate v2 formats only when
+FP8 is present. Old-only sources retain their original smallest sufficient formats and bytes.
+Files retain logical low storage, not FLOAT32 optimizer masters. Loading and opening a new
+Training session starts fresh optimizer state; this is not optimizer continuation.
 
 This complete example learns one FLOAT32 weight, starting at 2. Both batch and target are [1,1].
 It saves before compute, trains on input 3 and target 1, then restores the trained source.
@@ -792,11 +796,14 @@ Use `Model.graph` or `defineTensor` for a fixed-count general scan, not a new Mo
 **All-valid** means every static time step participates; there is no runtime length or padding mask.
 Use the Java 26/NN/CPU setup above. Current general Scan composes every ordinary CPU-supported
 PURE unit under ordinary dtype/layout/value and derivative guards, with selected actual
-FLOAT32/FLOAT64 first-order AD; forward and actual reverse qualify independently. All-valid
+floating first-order AD, including the four low types; forward and actual reverse qualify independently. All-valid
 bodies use WholeTensor. Families without backward retain that limit. Cold acquisition is
-separate: low TANH may be copied while Java BFLOAT16/FLOAT16 computation stays locked. It requires
-the exact [cold constructor inventory](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction),
-not merely PURE operations. Execution does not widen cold/wire, NN recipes or Metal Scan admission.
+separate: numerical CPU parity for BFLOAT16, FLOAT16 and both OFP8 types does not itself widen
+source acquisition. It requires the exact
+[cold constructor inventory](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction),
+not merely PURE operations. CPU low execution uses FLOAT32 working values and final logical
+narrowing, with existing family, geometry and actual derivative guards. It does not widen NN
+recipes or Metal Scan admission; Metal has no FP8 support.
 Length-aware body values may be proved ROW(axis) values or arbitrary-shape SHARED tensors.
 Lengths is a separate final non-gradient INT64 `[B]` control with no body formal, not a scalar
 alternative. Original AD carries/sequences and emission boundaries remain ROW(0); intermediate

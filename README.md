@@ -20,9 +20,13 @@ The current public surface includes Tensor expressions, graph compilation, reusa
 executions with isolated per-run state, detached host materialization, one-shot forward
 computation, and a bounded scalar-objective backward convenience.
 The [first-production matrix and remaining gates](docs/backend-guide/production-support.md)
-declare equal Java CPU FLOAT32/FLOAT64 targets and required Metal support. Java BFLOAT16/FLOAT16
-numerical computation is temporarily locked, not removed; storage, explicit casts and exact/raw/
-discrete operations remain. General Scan composes ordinary CPU-supported PURE operations through
+declare equal Java CPU FLOAT32/FLOAT64 targets and required Metal support. CPU BFLOAT16, FLOAT16,
+FLOAT8_E4M3 and FLOAT8_E5M2 numerical execution uses the existing operation, shared Compiler AD,
+Scan and recurrent owners under their family, geometry and derivative constraints. Homogeneous
+low arithmetic uses FLOAT32 working values and accumulators with final ties-to-even narrowing;
+there is no implicit scale or quantization. Native oneDNN selection is occurrence-specific, not
+a prerequisite for ordinary CPU execution; FLOAT64 remains ordinary CPU/OpenBLAS, not oneDNN.
+General Scan composes ordinary CPU-supported PURE operations through
 the existing lowering/emitters in all-valid and length-aware modes, including actual selected
 backward, typed activity and static/qualified one-B geometry. Cold/wire and Metal Scan support
 remain independently bounded; component qualification is not a whole-release claim.
@@ -69,7 +73,10 @@ remains schema 20, data-type wires remain `1..7`, and backend-local route, workl
 codec identities are version 40. Low-precision preparation trace reports the selected custom route
 and ordered logical dtype tuple; tracing is diagnostic, not a numerical selector.
 Standard-Metal convenience, generic plugin discovery, CUDA and broader optimizers remain planned.
-Source-domain-bounded v1-v6 graph/Model persistence is available; it stores no optimizer/session continuation.
+Source-domain-bounded graph/Model persistence selects v7 only for FP8; old-only sources retain
+their smallest sufficient v1-v6 format and bytes. NN checkpoints likewise select their FP8 v2
+formats only when needed. Neither workflow stores optimizer/session continuation. Metal retains
+its own seven-carrier domain and has no FP8 support.
 Focused documentation identifies the exact current boundary for each area.
 
 CPU also supports explicit **oneDNN** (external native kernel library) 3.14.0 composition through

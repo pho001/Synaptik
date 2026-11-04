@@ -162,7 +162,7 @@ the separate ModelCheckpoint workflow; automatic Training-owned resume is not ad
 The implemented `modules:model` surface contains:
 
 - data type metadata, typed scalar values, and numeric promotion;
-- BFLOAT16 scalar bit conversion;
+- BFLOAT16, FLOAT16 and both OFP8 scalar bit conversions (see [low floating types](../user-guide/tensors.md#low-floating-types-and-raw-bytes));
 - static, named dynamic, and expression dimensions, immutable Shapes, and local broadcasting;
 - resolved static layout geometry and host-storage contracts;
 - public mutable `Tensor`, eager leaf factories, explicit-source random construction, and
@@ -486,7 +486,10 @@ ROW(axis) and SHARED roles; SHARED tensors are not restricted to scalars. Origin
 carries/sequences and emissions stay ROW(0), while intermediate ROW axes follow the proof.
 Row-mixing requires materialized same-length support, not Tensor identity.
 Selected ordinary VJPs retain ND cuts and finite-path guards; absence is not a present zero seed.
-Java BFLOAT16/FLOAT16 computation remains locked, and no Metal general Scan support follows.
+CPU BFLOAT16, FLOAT16 and both OFP8 types use these same ordinary and shared Compiler AD owners,
+with FLOAT32 working values and final logical narrowing under existing family/geometry guards.
+This adds neither Metal FP8 nor Metal general Scan support. Unlike low operands promote to
+FLOAT32 and FLOAT64 dominates; Metal retains its independent mixed-low restrictions.
 Cold/wire and NN workflow inventories remain separately bounded. The
 [CPU guide](../backend-guide/cpu-backend.md#bounded-float32-general-scan) states the execution scope.
 

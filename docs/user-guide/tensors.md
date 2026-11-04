@@ -129,6 +129,56 @@ does not extend the storage lifetime. Factory-created heap storage has an automa
 when callers instead attach an arena-backed `HostTensorStorage`, they continue to own that arena,
 must keep its segment alive, and may access it only from threads permitted by the segment scope.
 
+## Low floating types and raw bytes
+
+`BFLOAT16`, `FLOAT16`, `FLOAT8_E4M3` and `FLOAT8_E5M2` are distinct floating,
+gradient-eligible storage types. OFP8 means the unscaled eight-bit floating formats here, not
+integer quantization: no scale, calibration, clipping or automatic loss scaling is attached.
+Both FP8 types use one raw `byte` per element and a `byte[]` heap carrier, not `short[]`.
+Interpret a diagnostic raw byte as unsigned with `bits & 0xff`.
+
+The public `io.github.pho001.synaptik.model.datatype.Float8E4M3Bits` and
+`Float8E5M2Bits` helpers each expose `toFloat(byte)`, `fromFloat(float)` and
+`fromDouble(double)`. Decoding accepts all 256 byte patterns; numeric encoding uses
+non-saturating round-to-nearest, ties-to-even:
+
+| Format | Representation and numeric conversion |
+|---|---|
+| E4M3 | Sign/exponent/fraction 1/4/3, bias 7, signed zeros and subnormals, finite maximum 448, no infinity. NaNs are `0x7f`/`0xff`; numeric NaN, infinity input and overflow become canonical `0x7f`. Magnitude 464 is the inclusive tie that rounds to 448; larger magnitudes become NaN. |
+| E5M2 | Sign/exponent/fraction 1/5/2, bias 15, signed zeros and subnormals, finite maximum 57344. Infinities are `0x7c`/`0xfc`; exponent 31 with nonzero fraction is NaN. Numeric NaN becomes `0x7e`; magnitude at or above the 61440 overflow tie becomes signed infinity. |
+
+`ScalarValue.float8E4m3(float)` and `float8E5m2(float)` encode numeric values.
+`ScalarValue.float8E4m3Bits(byte)` / `float8E5m2Bits(byte)` and the corresponding
+instance bit accessors preserve exact raw patterns, including NaN sign/payload.
+`TensorFactory.scalarFloat8E4m3(float, label, requiresGrad)` and
+`scalarFloat8E5m2(float, label, requiresGrad)` create rank-zero leaves;
+`fullFloat8E4m3(shape, float, label, requiresGrad)` and
+`fullFloat8E5m2(shape, float, label, requiresGrad)` fill fully static Shapes.
+These numeric factories round once and allocate independent storage.
+
+For exact import, use `TensorFactory.fromFlatArray(descriptor, label, byte[])` with the
+FP8 descriptor and a resolved dense-contiguous layout. It copies exactly one byte per logical
+element into independent storage without retaining the source array or normalizing any bit.
+The same overload normalizes nonzero bytes only when the descriptor is BOOL.
+Engine `HostTensorValue.bytes()` publishes FP8 as exact raw bytes in its detached read-only
+canonical row-major payload; multi-byte types use big-endian elements.
+
+Same-type casts and raw movement/persistence preserve every bit. Direct FLOAT64 and integral
+casts round to the target without a lossy FLOAT32 intermediate; `fromDouble` likewise rounds
+directly. Widening preserves represented NaN sign/payload bits where the destination permits.
+Numeric narrowing may canonicalize NaNs and is not a substitute for a raw import.
+
+Homogeneous low arithmetic retains the low result type, computes with FLOAT32 working values
+and accumulators, and narrows once at each declared ordinary operation, saved or public boundary.
+Unlike low operands promote to FLOAT32; FLOAT32 dominates low operands and FLOAT64 dominates
+all other floating types. Exact sign operations, comparisons, selection, masks and indices
+remain exact. An E4M3 infinity-class formula result, pole or empty floating extremum narrows to
+NaN; a nonempty extremum still selects an actual represented input winner.
+CPU execution reuses existing families, shared Compiler AD, Scan and recurrent owners under
+their geometry and derivative constraints. Native oneDNN availability is separate; no conversion
+of FP8 inputs to FLOAT32 constitutes native FP8 execution. Metal retains its seven-carrier
+scope without FP8 and its independently qualified BFLOAT16/FLOAT16 restrictions.
+
 ## Common errors
 
 | Symptom | Likely cause | Fix |

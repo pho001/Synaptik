@@ -24,7 +24,7 @@ FLOAT32/FLOAT64 and Metal FLOAT32 training; it does not restore optimizer histor
 
 ```text
 borrowed Source -> copy -> private state + reconstructed ordinary provenance
-borrowed Source -> save -> graph-model.v1/v2/v3/v4/v5/v6 -> load -> private heap state + ordinary provenance
+borrowed Source -> save -> graph-model.v1..v7 -> load -> private heap state + ordinary provenance
 Source + replacement inputs -> rebind -> ordinary outputs -> explicit caller Engine
 ```
 
@@ -47,11 +47,12 @@ The generic facade remains cold and NN-free. See the
 NN's implemented all-valid general-scan workflow acquires graph/definition sources through this
 bounded cold inventory, independently of CPU capability. Public `Model.graph` retains Source
 list/null snapshots; definitions perform one prototype forward before acquisition. Qualified
-static canonical homogeneous FLOAT32/FLOAT64 occurrences can compute/train through existing
-Engine/Training owners. All-valid means every static time step participates, not arbitrary body
-support. Fixed recurrent training rejection stays unchanged. All-valid general-body Model
-save/load uses Checkpoint v4; static homogeneous length-aware bodies use v5, unless an outer or
-body Pool3d occurrence selects v6. The same APIs add no NN wire, execution path or optimizer resume.
+static canonical floating occurrences, including the four low types, can compute/train through
+existing Engine/Training and shared Compiler AD owners under their actual family/geometry guards.
+All-valid means every static time step participates, not arbitrary body support. Fixed recurrence
+uses its own qualified shared derivative closure, not an inference-only blanket rejection.
+Non-FP8 general-body sources select v4, length-aware sources v5 and Pool3d sources v6 as needed;
+FP8 anywhere in the encoded source selects v7. These APIs add no execution path or optimizer resume.
 
 ## Inputs, outputs and identity
 
@@ -69,9 +70,9 @@ order is retained independently of first source encounter and input signature or
 Checkpoint's body-free disk source admission is the closed static FORWARD **flat**
 [Compiler slice](../architecture/contracts/compiler-autograd.md#compile-lifecycle): the original
 eight kinds plus the selected CNN/static recurrent transforms and fixed scans described below.
-Full descriptors, sharing and occurrences remain exact. All seven raw types persist where Model
-permits them; outer SUB, NEG and activations require floating operands. V4 adds general SCAN with
-the bounded body inventory below; v5 adds its static homogeneous FLOAT32/FLOAT64 length mode.
+Full descriptors, sharing and occurrences remain exact. All nine raw types persist where Model
+permits them, with FP8 requiring v7; outer SUB, NEG and activations require floating operands.
+V4 adds general SCAN with the bounded body inventory below; v5 adds its static length mode.
 Body SUB also preserves Model's integral forms where admitted.
 No optimization, layout closure
 or implicit family extension occurs. Zero-node graphs are valid data, not a new Engine execution
@@ -84,7 +85,7 @@ FLOAT32/FLOAT64 length intersection through the exact
 [Compiler cold constructor inventory](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction).
 A body is the scan's contained ordinary Tensor algebra, with distinct declared carry, step and
 invariant formals. This bounded inventory is not all PURE Model operations and is not a backend
-capability check: applicable low TANH bodies can be copied while Java low-type computation remains locked.
+capability check: copying a low TANH body does not qualify a backend route.
 Body-only operations do not extend the flat outer-source inventory or old disk formats.
 
 Length-mode cold support preserves ROW(0), rank-two ROW(1), SHARED sequences/invariants and
@@ -130,6 +131,20 @@ before any candidate Tensor is created, for all supported versions. This metadat
 seam checks every stored node/body without Tensor identities, host reads/copies or tensor-storage
 allocation. Normal leaf association and reconstruction checks still follow.
 
+## FP8 graph persistence
+
+Sources containing `FLOAT8_E4M3` or `FLOAT8_E5M2` select `graph-model.v7`, with eight
+ASCII magic bytes `SYNGRF07` and big-endian i32 version 7. This applies to every encoded
+descriptor and typed scalar/cast attribute, including contained Scan bodies, not just named
+state. V7 appends dtype IDs 8=E4M3 and 9=E5M2 and stores exact one-byte raw lanes; it adds
+no scale or quantization metadata and no new operation inventory.
+
+Old dtype IDs 1..7 remain unchanged. Non-FP8 sources retain byte-identical encoding and the
+smallest sufficient v1-v6 selection described below; v1-v6 do not admit FP8 IDs. Readers require
+matching kind, magic and version, and older readers reject v7. Copy/rebind, cold reconstruction,
+Scan mode and geometry constraints remain separate from CPU numerical capability. A graph file
+stores source and logical values, not FLOAT32 optimizer masters or Training continuation.
+
 ## Selective graph format versions
 
 Within the original eight-kind slice, sources containing RELU, TANH or SIGMOID save as
@@ -172,8 +187,8 @@ execution or BPTT. Separately, ordinary CPU Engine compile/prepare/run supports 
 FLOAT32/FLOAT64 scans with resolved nonnegative read layouts and canonical outputs
 after logical layout closure, including PARAMETER weights restored by this API;
 INT64 length values are checked at execution, not during save/load/rebind.
-BF16/FP16 source, storage and cold reconstruction remain retained, but their CPU numerical
-execution is temporarily locked; persistence does not bypass that backend boundary.
+BFLOAT16, FLOAT16 and both OFP8 CPU numerical execution reuse existing Scan owners with FLOAT32
+working values and final narrowing under the same family/geometry and actual AD constraints.
 
 For a cold scan roundtrip, declare a FLOAT32 sequence `[2,1,3]`,
 non-gradient INT64 lengths `[1]` and FLOAT32 initial hidden `[1,4]` as ordered storage-free inputs;
