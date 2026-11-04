@@ -42,9 +42,9 @@ import org.junit.jupiter.api.Test;
  * Verifies direct schema-58 generated loss bodies and independently rejected low fixtures.
  *
  * <p>The representative cases cover the three loss families and reductions, supported binary64/
- * binary32 accumulator domains, explicit unsupported BFLOAT16 numerical roles, both index widths,
+ * binary32 accumulator domains, all low numerical roles, both index widths,
  * shared input roles, non-contiguous cold layouts, and segment carriers. Supported fixtures invoke
- * their generated artifact directly, independently of every low-negative assertion.</p>
+ * their generated artifact directly, including their explicit represented output boundaries.</p>
  */
 class CpuLossGeneratedKernelTest {
     @Test
@@ -248,7 +248,7 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void contiguousFloat64IndexLsePassKeepsDirectLogitLoadOnStack() {
+    void contiguousFloat64IndexLsePassKeepsDirectLogitLoadOnStack() throws Throwable {
         Shape logits = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.SUM,
@@ -273,7 +273,7 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void contiguousIndexMaximumPassKeepsItsClassAddressOnStack() {
+    void contiguousIndexMaximumPassKeepsItsClassAddressOnStack() throws Throwable {
         Shape logits = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.SUM,
@@ -305,9 +305,8 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void contiguousDenseSegmentTargetAccumulatesItsContributionWithoutATemporarySpill() {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        Shape logits = Shape.of(2, 32, 64);
+    void contiguousDenseSegmentTargetAccumulatesItsContributionWithoutATemporarySpill() throws Throwable {
+        { Shape logits = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new DenseCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN)),
                 List.of(0, 1), List.of(desc(DataType.BFLOAT16, logits),
@@ -319,17 +318,16 @@ class CpuLossGeneratedKernelTest {
                 .map(Instruction::opcode).toList();
         int multiply = java.util.stream.IntStream.range(0, opcodes.size()).filter(index ->
                 opcodes.get(index) == Opcode.FMUL).findFirst().orElseThrow();
-
+        
         assertAll(
                 () -> assertEquals(Opcode.FADD, opcodes.get(multiply + 1),
                         "loss + weight * (lse - logit) must remain on the operand stack"),
                 () -> assertEquals(Opcode.FSTORE, opcodes.get(multiply + 2),
-                        "only the accumulated loss may be stored after the contribution"));
-        });
+                        "only the accumulated loss may be stored after the contribution")); }
     }
 
     @Test
-    void contiguousIndexMeanSegmentTargetDefersItsScalarOutputAddressUntilTheFinalStore() {
+    void contiguousIndexMeanSegmentTargetDefersItsScalarOutputAddressUntilTheFinalStore() throws Throwable {
         Shape logits = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN,
@@ -391,8 +389,7 @@ class CpuLossGeneratedKernelTest {
                 () -> assertEquals(CpuLossIr.RangeForm.COMPLETE_REDUCTION,
                         loss(sumPlan).rangeForm()));
 
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        var meanPlan = plan(new Operation(LossKind.MEAN_SQUARED_ERROR,
+        { var meanPlan = plan(new Operation(LossKind.MEAN_SQUARED_ERROR,
                 new MeanSquaredErrorAttrs(LossReduction.MEAN)), List.of(0, 0),
                 List.of(desc(DataType.BFLOAT16, shape)), desc(DataType.BFLOAT16, Shape.scalar()),
                 List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY));
@@ -401,8 +398,7 @@ class CpuLossGeneratedKernelTest {
         invoke(artifact(meanPlan), meanPlan, shared, mean, 0L, 1L);
         assertAll(() -> assertEquals(List.of(0, 0), loss(meanPlan).roleBoundaryPositions()),
                 () -> assertEquals(2, loss(meanPlan).boundaryTypes().size()),
-                () -> assertEquals(bf16(0.0f), mean[0]));
-        });
+                () -> assertEquals(bf16(0.0f), mean[0])); }
     }
 
     @Test
@@ -457,8 +453,7 @@ class CpuLossGeneratedKernelTest {
 
     @Test
     void generatedDenseBfloatMeanSupportsSharedInputCarrierRole() throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        Shape logitsShape = Shape.of(2, 2);
+        { Shape logitsShape = Shape.of(2, 2);
         var plan = plan(new Operation(LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new DenseCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN)),
                 List.of(0, 0), List.of(desc(DataType.BFLOAT16, logitsShape)),
@@ -470,8 +465,7 @@ class CpuLossGeneratedKernelTest {
         float[] decoded = decode(shared);
         float expected = CpuLossReferenceKernel.denseCategoricalCrossEntropy(decoded, decoded,
                 2, 2, LossReduction.MEAN)[0];
-        assertEquals(bf16(expected), output[0]);
-        });
+        assertEquals(bf16(expected), output[0]); }
     }
 
     @Test
@@ -569,8 +563,7 @@ class CpuLossGeneratedKernelTest {
 
         assertAll(() -> assertEquals(1, loss(f64None).geometry().targetRank()),
                 () -> assertEquals(1, loss(f64None).geometry().outputRank()));
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        var bfMean = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+        { var bfMean = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN,
                         Optional.of(ScalarValue.int32(-1)))), List.of(0, 1),
                 List.of(desc(DataType.BFLOAT16, logitsShape), desc(DataType.INT32, targetShape)),
@@ -582,15 +575,13 @@ class CpuLossGeneratedKernelTest {
         invoke(artifact(bfMean), bfMean, bfLogits, bfIndices, bfOutput, 0L, 1L);
         float expected = CpuLossReferenceKernel.indexCategoricalCrossEntropy(decode(bfLogits),
                 new long[] {-1, 1}, 3, -1L, LossReduction.MEAN)[0];
-        assertEquals(bf16(expected), bfOutput[0]);
-        });
+        assertEquals(bf16(expected), bfOutput[0]); }
     }
 
     @Test
     void generalizedCategoricalSegmentCarrierFormsKeepTheFrozenDirectSemantics() throws Throwable {
         Shape logits = Shape.of(2, 3);
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        var dense = plan(new Operation(LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+        { var dense = plan(new Operation(LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new DenseCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN)),
                 List.of(0, 1), List.of(desc(DataType.BFLOAT16, logits),
                         desc(DataType.FLOAT32, logits)), desc(DataType.FLOAT32, Shape.scalar()),
@@ -603,8 +594,7 @@ class CpuLossGeneratedKernelTest {
                 MemorySegment.ofArray(denseOutput), 0L, 1L);
         assertEquals(Float.floatToRawIntBits(CpuLossReferenceKernel
                 .denseCategoricalCrossEntropy(decode(denseLogits), denseTarget, 2, 3,
-                        LossReduction.MEAN)[0]), Float.floatToRawIntBits(denseOutput[0]));
-        });
+                        LossReduction.MEAN)[0]), Float.floatToRawIntBits(denseOutput[0])); }
 
         var indexed = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.NONE,
@@ -623,7 +613,7 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void contiguousIndexBodyDoesNotReserveMseOrDenseOnlyLocals() {
+    void contiguousIndexBodyDoesNotReserveMseOrDenseOnlyLocals() throws Throwable {
         Shape logitsShape = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN,
@@ -659,7 +649,7 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void contiguousIndexSumDoesNotReserveMeanOnlyIncludedCount() {
+    void contiguousIndexSumDoesNotReserveMeanOnlyIncludedCount() throws Throwable {
         Shape logitsShape = Shape.of(2, 32, 64);
         var sum = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.SUM,
@@ -683,9 +673,8 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void exactArrayIndexMeanSegmentUsesOneFinalDirectSegmentStore() {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        Shape logits = Shape.of(2, 32, 64);
+    void exactArrayIndexMeanSegmentUsesOneFinalDirectSegmentStore() throws Throwable {
+        { Shape logits = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN,
                         Optional.of(ScalarValue.int32(-1)))), List.of(0, 1),
@@ -708,12 +697,11 @@ class CpuLossGeneratedKernelTest {
                 () -> assertTrue(calls.stream().anyMatch(call -> call.owner().asInternalName()
                         .equals("java/lang/Float") && call.name().stringValue().equals("intBitsToFloat"))),
                 () -> assertFalse(calls.stream().anyMatch(call -> call.owner().asInternalName()
-                        .startsWith("io/github/pho001/synaptik")), "no generated helper/dispatch call"));
-        });
+                        .startsWith("io/github/pho001/synaptik")), "no generated helper/dispatch call")); }
     }
 
     @Test
-    void exactArrayIndexMeanKeepsTheFrozenF32ArrayOracleLifetimeGraph() {
+    void exactArrayIndexMeanKeepsTheFrozenF32ArrayOracleLifetimeGraph() throws Throwable {
         Shape logits = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN,
@@ -731,7 +719,7 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void contiguousMixedMseNoneKeepsTargetLoadAndOutputAddressOnTheDirectOracleStackPath() {
+    void contiguousMixedMseNoneKeepsTargetLoadAndOutputAddressOnTheDirectOracleStackPath() throws Throwable {
         Shape shape = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.MEAN_SQUARED_ERROR,
                 new MeanSquaredErrorAttrs(LossReduction.NONE)), List.of(0, 1),
@@ -758,7 +746,7 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void contiguousMixedMseNoneRetainsTheOracleBaseOrdinalAndSourceAddressLifetimes() {
+    void contiguousMixedMseNoneRetainsTheOracleBaseOrdinalAndSourceAddressLifetimes() throws Throwable {
         Shape shape = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.MEAN_SQUARED_ERROR,
                 new MeanSquaredErrorAttrs(LossReduction.NONE)), List.of(0, 1),
@@ -857,7 +845,7 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void exactArrayIndexSumKeepsTheFrozenF32ArrayOracleLifetimeGraph() {
+    void exactArrayIndexSumKeepsTheFrozenF32ArrayOracleLifetimeGraph() throws Throwable {
         Shape logits = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.SUM,
@@ -875,7 +863,7 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void exactHeapIndexNoneKeepsTheFrozenF32AndF64ValueLocalShapes() {
+    void exactHeapIndexNoneKeepsTheFrozenF32AndF64ValueLocalShapes() throws Throwable {
         Shape logits = Shape.of(2, 32, 64);
         Shape target = Shape.of(2, 64);
         var f32 = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
@@ -908,7 +896,7 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void contiguousArrayInputIndexNoneRetainsItsOracleLoopWhenOutputIsASegment() {
+    void contiguousArrayInputIndexNoneRetainsItsOracleLoopWhenOutputIsASegment() throws Throwable {
         Shape logits = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.NONE,
@@ -974,7 +962,7 @@ class CpuLossGeneratedKernelTest {
     }
 
     @Test
-    void generatedLossClassIsPublicFieldFreeAndCallsNoSynaptikReferenceOrHelper() {
+    void generatedLossClassIsPublicFieldFreeAndCallsNoSynaptikReferenceOrHelper() throws Throwable {
         Shape shape = Shape.of(1);
         var plan = plan(new Operation(LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new DenseCategoricalCrossEntropyWithLogitsAttrs(0, LossReduction.NONE)),
@@ -1012,6 +1000,65 @@ class CpuLossGeneratedKernelTest {
                 () -> assertFalse(members.toString().contains("java/lang/reflect")),
                 () -> assertFalse(members.toString().contains("java/lang/invoke")),
                 () -> assertTrue(members.toString().contains("java/lang/StrictMath.exp")));
+    }
+
+    @Test void allLowLossFamiliesUseFloatWorkingValuesAndOneFinalStorageBoundary() throws Throwable {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            CarrierAccess lowCarrier = type.byteWidth() == 1 ? CarrierAccess.BYTE_ARRAY : CarrierAccess.SHORT_ARRAY;
+            for (LossReduction reduction : LossReduction.values()) {
+                Shape outputShape = reduction == LossReduction.NONE ? Shape.of(2) : Shape.scalar();
+                var selected = plan(new Operation(LossKind.MEAN_SQUARED_ERROR,
+                        new MeanSquaredErrorAttrs(reduction)), List.of(0, 1),
+                        List.of(desc(type, Shape.of(2)), desc(type, Shape.of(2))), desc(type, outputShape),
+                        List.of(lowCarrier, lowCarrier, lowCarrier));
+                double[] expected = reduction == LossReduction.NONE ? new double[] {1, 4}
+                        : new double[] {reduction == LossReduction.SUM ? 5 : 2.5};
+                Object output = CpuLayerNormGeneratedKernelTest.represented(type, new double[expected.length]);
+                invoke(artifact(selected), selected,
+                        CpuLayerNormGeneratedKernelTest.represented(type, new double[] {1, 3}),
+                        CpuLayerNormGeneratedKernelTest.represented(type, new double[] {0, 1}), output,
+                        0, expected.length);
+                double[] actual = CpuLayerNormGeneratedKernelTest.decoded(type, output);
+                for (int i = 0; i < expected.length; i++) assertEquals(
+                        CpuLayerNormGeneratedKernelTest.raw(type, expected[i]),
+                        CpuLayerNormGeneratedKernelTest.raw(type, actual[i]), type + "/" + reduction);
+            }
+            Shape logits = Shape.of(1, 2);
+            for (boolean index : List.of(false, true)) {
+                var selected = plan(index
+                        ? new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                                new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN, Optional.empty()))
+                        : new Operation(LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                                new DenseCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN)),
+                        List.of(0, 1), List.of(desc(type, logits),
+                                desc(index ? DataType.INT32 : type, index ? Shape.of(1) : logits)),
+                        desc(type, Shape.scalar()),
+                        List.of(lowCarrier, index ? CarrierAccess.INT_ARRAY : lowCarrier, lowCarrier));
+                Object output = CpuLayerNormGeneratedKernelTest.represented(type, new double[1]);
+                invoke(artifact(selected), selected,
+                        CpuLayerNormGeneratedKernelTest.represented(type, new double[] {0, 0}),
+                        index ? new int[] {0} : CpuLayerNormGeneratedKernelTest.represented(type, new double[] {1, 0}),
+                        output, 0, 1);
+                assertEquals(CpuLayerNormGeneratedKernelTest.raw(type, (float) StrictMath.log(2)),
+                        CpuLayerNormGeneratedKernelTest.raw(type,
+                                CpuLayerNormGeneratedKernelTest.decoded(type, output)[0]), type + "/index=" + index);
+            }
+        }
+    }
+
+    @Test void unlikeLowMseOperandsPromoteWithoutPreNarrowingTheFloatOutput() throws Throwable {
+        var selected = plan(new Operation(LossKind.MEAN_SQUARED_ERROR,
+                new MeanSquaredErrorAttrs(LossReduction.NONE)), List.of(0, 1),
+                List.of(desc(DataType.FLOAT8_E4M3, Shape.of(2)), desc(DataType.FLOAT8_E5M2, Shape.of(2))),
+                desc(DataType.FLOAT32, Shape.of(2)),
+                List.of(CarrierAccess.BYTE_ARRAY, CarrierAccess.BYTE_ARRAY, CarrierAccess.FLOAT_ARRAY));
+        float[] output = new float[2];
+        invoke(artifact(selected), selected,
+                CpuLayerNormGeneratedKernelTest.represented(DataType.FLOAT8_E4M3, new double[] {1.125, 3}),
+                CpuLayerNormGeneratedKernelTest.represented(DataType.FLOAT8_E5M2, new double[] {1, 2}),
+                output, 0, 2);
+        assertArrayEquals(new float[] {0.015625f, 1f}, output);
     }
 
     private static io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel

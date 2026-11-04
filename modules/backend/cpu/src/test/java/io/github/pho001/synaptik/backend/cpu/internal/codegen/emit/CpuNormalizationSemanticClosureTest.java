@@ -82,7 +82,7 @@ class CpuNormalizationSemanticClosureTest {
 
     private static void invoke(Fixture fixture) throws Throwable {
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(fixture.context(), fixture.request());
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr());

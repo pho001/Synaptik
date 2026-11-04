@@ -112,6 +112,9 @@ public final class CpuBatchNormInferenceReferenceKernel {
         if (type == DataType.FLOAT64) return value;
         float narrowed = (float) value;
         if (type == DataType.FLOAT32) return narrowed;
+        if (type == DataType.FLOAT16) return Float.float16ToFloat(Float.floatToFloat16(narrowed));
+        if (type == DataType.FLOAT8_E4M3) return io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(narrowed));
+        if (type == DataType.FLOAT8_E5M2) return io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(narrowed));
         int bits = Float.floatToRawIntBits(narrowed);
         if ((bits & 0x7fff_ffff) > 0x7f80_0000) return Float.intBitsToFloat(0x7fc0_0000);
         bits += 0x7fff + ((bits >>> 16) & 1);

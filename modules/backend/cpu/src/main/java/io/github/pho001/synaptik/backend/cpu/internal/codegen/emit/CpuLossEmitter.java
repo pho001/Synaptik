@@ -34,7 +34,7 @@ import java.util.List;
  * code. Same-typed contiguous FLOAT32/FLOAT64 MSE {@code NONE} may instead use unmasked preferred-
  * species subtraction and self-multiplication for complete chunks followed by this same scalar
  * formula for the remainder. Reduced MSE and categorical forms always remain scalar.
- * BFLOAT16 and FLOAT32 bodies use binary32 accumulator locals; FLOAT64 bodies use binary64.
+ * All low formats and FLOAT32 bodies use binary32 accumulator locals; FLOAT64 bodies use binary64.
  * Index targets are loaded and compared to a present ignore value before any logits load. The
  * prepared executable's cold pre-write validator proves every non-ignored target is in range
  * before this entry can run, so the generated hot loop neither allocates an exception nor repeats
@@ -73,7 +73,7 @@ public final class CpuLossEmitter {
      * @param owner non-null declaring class used for both direct static calls
      * @param prefix non-null caller-owned deterministic namespace, empty for standalone generation
      * @param type non-null typed descriptor shared by the entry and both private bodies
-     * @param specialization non-null schema-58 scalar or schema-62 vector MSE carrier specialization
+     * @param specialization non-null selectively versioned scalar or schema-62 vector MSE carrier specialization
      * @param ir non-null canonical loss identity with no executable instructions
      * @return immutable inventory of the three actual declarations in emission order
      * @throws NullPointerException if a required fact is null
@@ -224,7 +224,7 @@ public final class CpuLossEmitter {
             int inputAddress = -1;
             int predictionRepresented = kind == LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
                     && (predictionType == DataType.BFLOAT16
-                            || predictionType == DataType.FLOAT16 || predictionType != resultType)
+                            || predictionType == DataType.FLOAT16 || predictionType == DataType.FLOAT8_E4M3 || predictionType == DataType.FLOAT8_E5M2 || predictionType != resultType)
                             ? code.allocateLocal(representedKind(predictionType)) : -1;
             int targetRepresented = kind == LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
                     ? code.allocateLocal(representedKind(targetType)) : -1;
@@ -438,7 +438,7 @@ public final class CpuLossEmitter {
             carriers.endFrozenStoreAtStackValue(resultType,
                     specialization.carrierPattern().get(2));
         } else {
-            if (reduction == LossReduction.MEAN) divideByIntCount(code, f64, total, count);
+            if (reduction == LossReduction.MEAN) divideTypedByIntCount(code, resultType, f64, total, count);
             int outputAddress = code.allocateLocal(TypeKind.INT);
             geometry(code, 3, 6).l2i().istore(outputAddress);
             store(code, carriers, specialization, resultType, 2, outputAddress, total, true);
@@ -602,7 +602,12 @@ public final class CpuLossEmitter {
         boolean indexIgnorePresent = Boolean.parseBoolean(field(ir.familyIdentity(), "indexIgnore="));
         int[] roles = roles(ir.familyIdentity());
         int boundaryCount = specialization.boundaryDataTypes().size();
-        boolean scalar = specialization.classIdentitySchema() == 58
+        boolean scalar = (specialization.classIdentitySchema() == 58
+                || specialization.classIdentitySchema() == CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
+                    && specialization.boundaryDataTypes().stream().anyMatch(CpuNormEmitter::low)
+                || specialization.classIdentitySchema() == CpuKernelSpecialization.FLOAT32_MSE_EXACT_COUNT_SCHEMA
+                    && kind == LossKind.MEAN_SQUARED_ERROR && resultType == DataType.FLOAT32
+                    && reduction == LossReduction.MEAN)
                 && specialization.executionStrategy().compute() == Compute.SCALAR;
         boolean vectorMse = specialization.classIdentitySchema() == 62
                 && specialization.executionStrategy().compute() == Compute.VECTOR
@@ -778,10 +783,12 @@ public final class CpuLossEmitter {
         if (reduction != LossReduction.NONE) {
             if (reduction == LossReduction.MEAN) {
                 if (kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS || contributorRow) {
-                    divideByCount(code, f64, reduced, included);
+                    if (kind == LossKind.MEAN_SQUARED_ERROR) divideMseByCount(code, f64, reduced, included);
+                    else divideTypedByCount(code, resultType, f64, reduced, included);
                 } else {
                     geometry(code, geometry, 9).lstore(included);
-                    divideByCount(code, f64, reduced, included);
+                    if (kind == LossKind.MEAN_SQUARED_ERROR) divideMseByCount(code, f64, reduced, included);
+                    else divideTypedByCount(code, resultType, f64, reduced, included);
                 }
             }
             geometry(code, geometry, 6).lstore(outputAddress);
@@ -905,7 +912,7 @@ public final class CpuLossEmitter {
             code.iload(outputAddress).iload(ordinal).iadd();
             carriers.endFrozenStoreAtStackIntAddress(resultType,
                     specialization.carrierPattern().get(outputBoundary));
-            if (resultType == DataType.BFLOAT16 || resultType == DataType.FLOAT16) {
+            if (resultType == DataType.BFLOAT16 || resultType == DataType.FLOAT16 || resultType == DataType.FLOAT8_E4M3 || resultType == DataType.FLOAT8_E5M2) {
                 multiply(code, f64, loss, loss, loss);
                 emitLowPrecisionStoreValue(code, resultType, loss);
             } else if (f64) code.dload(loss).dload(loss).dmul();
@@ -920,7 +927,7 @@ public final class CpuLossEmitter {
                 .branch(Opcode.GOTO, loop).labelBinding(done);
         if (reduction != LossReduction.NONE) {
             if (reduction == LossReduction.MEAN) {
-                geometry(code, geometry, 9).l2i().istore(included); divideByIntCount(code, f64, reduced, included);
+                geometry(code, geometry, 9).l2i().istore(included); divideMseByIntCount(code, f64, reduced, included);
             }
             geometry(code, geometry, 6).l2i().istore(outputAddress);
             store(code, carriers, specialization, resultType, outputBoundary, outputAddress, reduced, true);
@@ -1038,7 +1045,7 @@ public final class CpuLossEmitter {
         if (reduction != LossReduction.NONE) {
             if (reduction == LossReduction.MEAN) {
                 geometry(code, specialization.boundaryDataTypes().size(), 9).lstore(included);
-                divideByCount(code, f64, reduced, included);
+                divideMseByCount(code, f64, reduced, included);
             }
             geometry(code, specialization.boundaryDataTypes().size(), 6).lstore(outputAddress);
             store(code, carriers, specialization, resultType, outputBoundary, outputAddress, reduced);
@@ -1250,10 +1257,10 @@ public final class CpuLossEmitter {
         if (reduction != LossReduction.NONE) {
             if (reduction == LossReduction.MEAN) {
                 if (kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS) {
-                    divideByCount(code, f64, reduced, included);
+                    divideTypedByCount(code, resultType, f64, reduced, included);
                 } else {
                     geometry(code, specialization.boundaryDataTypes().size(), 9).lstore(included);
-                    divideByCount(code, f64, reduced, included);
+                    divideTypedByCount(code, resultType, f64, reduced, included);
                 }
             }
             geometry(code, specialization.boundaryDataTypes().size(), 6).lstore(outputAddress);
@@ -1379,7 +1386,7 @@ public final class CpuLossEmitter {
         code.iinc(outerIndex, 1).branch(Opcode.GOTO, outerLoop).labelBinding(outerDone);
         if (reduction != LossReduction.NONE) {
             if (reduction == LossReduction.MEAN) {
-                divideByIntCount(code, f64, reduced, included);
+                divideTypedByIntCount(code, resultType, f64, reduced, included);
             }
             /* clazz is dead after the class loops and is the frozen oracle's final output
              * address slot for a reduced categorical result. */
@@ -1460,7 +1467,7 @@ public final class CpuLossEmitter {
                 .iadd().istore(predictionAddress);
         code.iinc(outerIndex, 1).branch(Opcode.GOTO, outerLoop).labelBinding(outerDone);
         if (reduction != LossReduction.NONE) {
-            if (reduction == LossReduction.MEAN) divideByIntCount(code, f64, reduced, included);
+            if (reduction == LossReduction.MEAN) divideTypedByIntCount(code, resultType, f64, reduced, included);
             geometry(code, geometry, 6).l2i().istore(outputAddress);
             store(code, carriers, specialization, resultType, outputBoundary, outputAddress,
                     reduced, true);
@@ -1537,7 +1544,11 @@ public final class CpuLossEmitter {
             if (f64) code.f2d();
             return;
         }
-        if (type == DataType.BFLOAT16) {
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            int raw = code.allocateLocal(TypeKind.INT);
+            code.istore(raw);
+            CpuCastEmitter.emitLowToFloat(code, type, raw);
+        } else if (type == DataType.BFLOAT16) {
             code.loadConstant(16).ishl().invokestatic(FLOAT, "intBitsToFloat", floatFromBits());
         } else if (type == DataType.FLOAT16) {
             code.i2s().invokestatic(FLOAT, "float16ToFloat",
@@ -1677,6 +1688,11 @@ public final class CpuLossEmitter {
             return;
         }
         storeRepresented(code, type, represented);
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            CpuCastEmitter.emitLowToFloat(code, type, represented);
+            if (f64) code.f2d().dstore(destination); else code.fstore(destination);
+            return;
+        }
         if (f64) {
             if (type == DataType.FLOAT64) code.dload(represented).dstore(destination);
             else if (type == DataType.FLOAT32) code.fload(represented).f2d().dstore(destination);
@@ -1744,12 +1760,21 @@ public final class CpuLossEmitter {
                     MethodTypeDesc.of(ConstantDescs.CD_short, ConstantDescs.CD_float))
                     .istore(represented);
         }
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            represented = code.allocateLocal(TypeKind.INT);
+            CpuCastEmitter.emitFloatToLow(code, type, result);
+            code.istore(represented);
+        }
         carriers.storeFrozen(type, specialization.carrierPattern().get(boundary), boundary, address,
                 represented, intAddress);
     }
 
-    /** Narrows one binary32 loss local to the requested low-precision raw short value. */
+    /** Narrows one binary32 loss local to the requested low-precision raw storage value. */
     private static void emitLowPrecisionStoreValue(CodeBuilder code, DataType type, int result) {
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            CpuCastEmitter.emitFloatToLow(code, type, result);
+            return;
+        }
         if (type == DataType.FLOAT16) {
             code.fload(result).invokestatic(FLOAT, "floatToFloat16",
                     MethodTypeDesc.of(ConstantDescs.CD_short, ConstantDescs.CD_float));
@@ -1766,6 +1791,32 @@ public final class CpuLossEmitter {
                 .loadConstant(0x7fff).iadd().iload(bits).loadConstant(16).iushr().loadConstant(1)
                 .iand().iadd().loadConstant(16).iushr().istore(represented)
                 .labelBinding(rounded).iload(represented);
+    }
+
+    private static void divideTypedByCount(CodeBuilder code, DataType type, boolean f64,
+            int result, int count) {
+        if (CpuNormEmitter.low(type)) divideMseByCount(code, false, result, count);
+        else divideByCount(code, f64, result, count);
+    }
+
+    private static void divideTypedByIntCount(CodeBuilder code, DataType type, boolean f64,
+            int result, int count) {
+        if (CpuNormEmitter.low(type)) divideMseByIntCount(code, false, result, count);
+        else divideByIntCount(code, f64, result, count);
+    }
+
+    private static void divideMseByCount(CodeBuilder code, boolean f64, int result, int count) {
+        if (f64) divideByCount(code, true, result, count);
+        else CpuExactSumEmitter.emitFloatDivideByCount(code, result, count);
+    }
+
+    private static void divideMseByIntCount(CodeBuilder code, boolean f64, int result, int count) {
+        if (f64) divideByIntCount(code, true, result, count);
+        else {
+            int exactCount = code.allocateLocal(TypeKind.LONG);
+            code.iload(count).i2l().lstore(exactCount);
+            CpuExactSumEmitter.emitFloatDivideByCount(code, result, exactCount);
+        }
     }
 
     private static void divideByCount(CodeBuilder code, boolean f64, int result, int count) {
@@ -1844,7 +1895,7 @@ public final class CpuLossEmitter {
         switch (type) {
             case FLOAT64 -> code.dstore(local);
             case FLOAT32 -> code.fstore(local);
-            case BFLOAT16, FLOAT16, INT32 -> code.istore(local);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32 -> code.istore(local);
             case INT64 -> code.lstore(local);
             default -> throw new IllegalArgumentException("loss type");
         }
@@ -1854,7 +1905,7 @@ public final class CpuLossEmitter {
         return switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
-            case BFLOAT16, FLOAT16, INT32 -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32 -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
             default -> throw new IllegalArgumentException("loss type");
         };
@@ -1865,7 +1916,7 @@ public final class CpuLossEmitter {
     }
 
     private static boolean floating(DataType type) {
-        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
+        return type == DataType.BFLOAT16 || type == DataType.FLOAT16 || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
                 || type == DataType.FLOAT32 || type == DataType.FLOAT64;
     }
 

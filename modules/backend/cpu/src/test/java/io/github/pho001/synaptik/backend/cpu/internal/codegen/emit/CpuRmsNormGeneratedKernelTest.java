@@ -41,69 +41,67 @@ class CpuRmsNormGeneratedKernelTest {
 
     @Test void allFormsAndResultTypesGenerateDirectTypedArtifacts() throws Throwable {
         for (boolean scaled : List.of(false, true)) for (DataType type : List.of(
-                DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
-                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
-                        int inputs = scaled ? 2 : 1;
-                        var base = CpuTrailingNormalizationLoweringTest.context(false, scaled, type,
-                                Shape.of(2, 3), Shape.of(3), scaled ? List.of(0, 1) : List.of(0));
-                        var carriers = new java.util.ArrayList<CarrierAccess>();
-                        for (int i = 0; i <= inputs; i++) carriers.add(array(type));
-                        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
-                        var plan = new CpuPartitionPreparer().analyze(context).plan();
-                        var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
-                        byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-                        var model = ClassFile.of().parse(bytes);
-                        assertEquals(inputs + 4, generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes)
-                                .entryPoint().type().parameterCount());
-                        var members = java.util.stream.StreamSupport.stream(
-                                model.constantPool().spliterator(), false).filter(MemberRefEntry.class::isInstance)
-                                .map(MemberRefEntry.class::cast).toList();
-                        assertAll(() -> assertTrue(model.fields().isEmpty()),
-                                () -> assertEquals(1, model.methods().size()),
-                                () -> assertTrue(members.stream().anyMatch(member -> member.owner()
-                                        .asInternalName().equals("java/lang/Math")
-                                        && member.name().stringValue().equals("hypot"))),
-                                () -> assertTrue(members.stream().noneMatch(member -> member.owner()
-                                        .asInternalName().startsWith("io/github/pho001/synaptik"))));
-                        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
-                        Object input = CpuLayerNormGeneratedKernelTest.represented(type,
-                                new double[] {1, 2, 3, -3, -2, -1});
-                        Object output = CpuLayerNormGeneratedKernelTest.represented(type, new double[6]);
-                        Object scale = CpuLayerNormGeneratedKernelTest.represented(type,
-                                new double[] {2, -1, .5});
-                        var geometry = plan.trailingNormalizationGeometry().orElseThrow();
-                        if (scaled) artifact.entryPoint().invokeWithArguments(input, scale, output,
-                                geometry.pack(new long[3]), 0L, 2L);
-                        else artifact.entryPoint().invokeWithArguments(input, output,
-                                geometry.pack(new long[2]), 0L, 2L);
-                        double[][] semanticInputs = scaled
-                                ? new double[][] {{1, 2, 3, -3, -2, -1}, {2, -1, .5}}
-                                : new double[][] {{1, 2, 3, -3, -2, -1}};
-                        double[] expected = CpuTrailingNormalizationReferenceKernel.evaluate(
-                                CpuTrailingNormalizationIr.Kind.RMS, scaled
-                                        ? CpuTrailingNormalizationIr.Form.RMS_SCALED
-                                        : CpuTrailingNormalizationIr.Form.RMS,
-                                java.util.Collections.nCopies(inputs, type), type,
-                                CpuLayerNormGeneratedKernelTest.epsilon(type), semanticInputs,
-                                scaled ? new long[][] {{2, 3}, {3}} : new long[][] {{2, 3}},
-                                new long[inputs], scaled ? new long[][] {{3, 1}, {1}}
-                                        : new long[][] {{3, 1}}, 1);
-                        double[] actual = CpuLayerNormGeneratedKernelTest.decoded(type, output);
-                        for (int index = 0; index < actual.length; index++) assertEquals(
-                                CpuLayerNormGeneratedKernelTest.raw(type, expected[index]),
-                                CpuLayerNormGeneratedKernelTest.raw(type, actual[index]),
-                                type + "/" + scaled + "/" + index + " expectedValue=" + expected[index]
-                                        + " actualValue=" + actual[index]);
-                        CpuLayerNormGeneratedKernelTest.retain("rms-" + (scaled ? "scaled-" : "plain-")
-                                + type.name().toLowerCase(), bytes, route.specialization().compatibilityBytes(),
-                                route.specialization().toString());
-                    });
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2,
+                DataType.FLOAT32, DataType.FLOAT64)) {
+                    { int inputs = scaled ? 2 : 1;
+                    var base = CpuTrailingNormalizationLoweringTest.context(false, scaled, type,
+                            Shape.of(2, 3), Shape.of(3), scaled ? List.of(0, 1) : List.of(0));
+                    var carriers = new java.util.ArrayList<CarrierAccess>();
+                    for (int i = 0; i <= inputs; i++) carriers.add(array(type));
+                    var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+                    var plan = new CpuPartitionPreparer().analyze(context).plan();
+                    var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
+                    byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+                    var model = ClassFile.of().parse(bytes);
+                    assertEquals(inputs + 4, generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes)
+                            .entryPoint().type().parameterCount());
+                    var members = java.util.stream.StreamSupport.stream(
+                            model.constantPool().spliterator(), false).filter(MemberRefEntry.class::isInstance)
+                            .map(MemberRefEntry.class::cast).toList();
+                    assertAll(() -> assertTrue(model.fields().isEmpty()),
+                            () -> assertEquals(1, model.methods().size()),
+                            () -> assertTrue(members.stream().anyMatch(member -> member.owner()
+                                    .asInternalName().equals("java/lang/Math")
+                                    && member.name().stringValue().equals("hypot"))),
+                            () -> assertTrue(members.stream().noneMatch(member -> member.owner()
+                                    .asInternalName().startsWith("io/github/pho001/synaptik"))));
+                    var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
+                    Object input = CpuLayerNormGeneratedKernelTest.represented(type,
+                            new double[] {1, 2, 3, -3, -2, -1});
+                    Object output = CpuLayerNormGeneratedKernelTest.represented(type, new double[6]);
+                    Object scale = CpuLayerNormGeneratedKernelTest.represented(type,
+                            new double[] {2, -1, .5});
+                    var geometry = plan.trailingNormalizationGeometry().orElseThrow();
+                    if (scaled) artifact.entryPoint().invokeWithArguments(input, scale, output,
+                            geometry.pack(new long[3]), 0L, 2L);
+                    else artifact.entryPoint().invokeWithArguments(input, output,
+                            geometry.pack(new long[2]), 0L, 2L);
+                    double[][] semanticInputs = scaled
+                            ? new double[][] {{1, 2, 3, -3, -2, -1}, {2, -1, .5}}
+                            : new double[][] {{1, 2, 3, -3, -2, -1}};
+                    double[] expected = CpuTrailingNormalizationReferenceKernel.evaluate(
+                            CpuTrailingNormalizationIr.Kind.RMS, scaled
+                                    ? CpuTrailingNormalizationIr.Form.RMS_SCALED
+                                    : CpuTrailingNormalizationIr.Form.RMS,
+                            java.util.Collections.nCopies(inputs, type), type,
+                            CpuLayerNormGeneratedKernelTest.epsilon(type), semanticInputs,
+                            scaled ? new long[][] {{2, 3}, {3}} : new long[][] {{2, 3}},
+                            new long[inputs], scaled ? new long[][] {{3, 1}, {1}}
+                                    : new long[][] {{3, 1}}, 1);
+                    double[] actual = CpuLayerNormGeneratedKernelTest.decoded(type, output);
+                    for (int index = 0; index < actual.length; index++) assertEquals(
+                            CpuLayerNormGeneratedKernelTest.raw(type, expected[index]),
+                            CpuLayerNormGeneratedKernelTest.raw(type, actual[index]),
+                            type + "/" + scaled + "/" + index + " expectedValue=" + expected[index]
+                                    + " actualValue=" + actual[index]);
+                    CpuLayerNormGeneratedKernelTest.retain("rms-" + (scaled ? "scaled-" : "plain-")
+                            + type.name().toLowerCase(), bytes, route.specialization().compatibilityBytes(),
+                            route.specialization().toString()); }
                 }
     }
 
     @Test void bfloatBodyRequiresNoScratchAndPreservesSigns() throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        var base = CpuTrailingNormalizationLoweringTest.context(false, false, DataType.BFLOAT16,
+        { var base = CpuTrailingNormalizationLoweringTest.context(false, false, DataType.BFLOAT16,
                 Shape.of(1, 3), Shape.of(3), List.of(0));
         var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
         List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY)));
@@ -114,8 +112,7 @@ class CpuRmsNormGeneratedKernelTest {
         artifact.entryPoint().invokeWithArguments(input, output,
                 plan.trailingNormalizationGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
         assertAll(() -> assertTrue((output[0] & 0x8000) != 0), () -> assertEquals(0, output[1]),
-                () -> assertTrue((output[2] & 0x8000) == 0));
-        });
+                () -> assertTrue((output[2] & 0x8000) == 0)); }
     }
 
     @Test void scaledFloatBodyReusesTrailingScale() throws Throwable {
@@ -178,5 +175,6 @@ class CpuRmsNormGeneratedKernelTest {
     }
     private static CarrierAccess array(DataType type) { return type == DataType.FLOAT64
             ? CarrierAccess.DOUBLE_ARRAY : type == DataType.FLOAT32
-                ? CarrierAccess.FLOAT_ARRAY : CarrierAccess.SHORT_ARRAY; }
+                ? CarrierAccess.FLOAT_ARRAY : type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
+                    ? CarrierAccess.BYTE_ARRAY : CarrierAccess.SHORT_ARRAY; }
 }

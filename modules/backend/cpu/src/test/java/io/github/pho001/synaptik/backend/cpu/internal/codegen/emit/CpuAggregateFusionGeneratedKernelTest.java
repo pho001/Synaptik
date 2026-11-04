@@ -79,7 +79,7 @@ public class CpuAggregateFusionGeneratedKernelTest {
         assertArrayEquals(new float[]{16, 35, -19}, output);
     }
 
-    @Test void sevenAndEightNodeUnitsDoNotEnlargeTheSixMemberRecognitionBudget() {
+    @Test void sevenAndEightNodeUnitsDoNotEnlargeTheSixMemberRecognitionBudget() throws Throwable {
         for (int length : List.of(7,8)) {
             var c = context(DataType.FLOAT32,Shape.of(2,3),new AxisReductionAttrs(1,false),Shape.of(2),true,3,false,Set.of(),List.of());
             var nodes = new ArrayList<CompiledNode>(); var values = new ArrayList<>(c.values());
@@ -99,7 +99,7 @@ public class CpuAggregateFusionGeneratedKernelTest {
         }
     }
 
-    @Test void lateZeroSelectedExtentEmitsNoContributorTraversal() {
+    @Test void lateZeroSelectedExtentEmitsNoContributorTraversal() throws Throwable {
         for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64)) for (boolean mean : List.of(false,true)) {
             var plan = new CpuPartitionPreparer().analyze(context(type,Shape.of(1_000_000_000,0),NoOperationAttrs.INSTANCE,
                     Shape.scalar(),true,0,mean,Set.of(),List.of())).plan();
@@ -140,7 +140,7 @@ public class CpuAggregateFusionGeneratedKernelTest {
         return context(DataType.FLOAT32,Shape.of(rows,256),new AxisReductionAttrs(1,false),Shape.of(rows),true,0,false,Set.of(),List.of());
     }
     /** Proves actual normalization scale AD reaches ordinary SUM, not only SUM-to-Shape. */
-    @Test void actualCompilerLayerNormScaleGradientSelectsOrdinaryFusionAndRemovesItsProducer() {
+    @Test void actualCompilerLayerNormScaleGradientSelectsOrdinaryFusionAndRemovesItsProducer() throws Throwable {
         var input = leaf(Shape.of(2,3),false); var scale = leaf(Shape.of(3),true); var bias = leaf(Shape.of(3),false);
         var upstream = leaf(Shape.of(2,3),false);
         var objective = input.layerNorm(Shape.of(3),scale,bias,io.github.pho001.synaptik.model.datatype.ScalarValue.float32(.01f)).mul(upstream).sum();
@@ -176,7 +176,7 @@ public class CpuAggregateFusionGeneratedKernelTest {
         return io.github.pho001.synaptik.model.tensor.TensorFactory.create(new TensorDescriptor(DataType.FLOAT32,shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)),gradient));
     }
-    @Test void expandingAddStaysSplitAndInvalidDirectInputIsRejected() {
+    @Test void expandingAddStaysSplitAndInvalidDirectInputIsRejected() throws Throwable {
         var c = context(DataType.FLOAT32,Shape.of(2,3),NoOperationAttrs.INSTANCE,Shape.scalar(),true,1,false,Set.of(),List.of());
         var values = new ArrayList<>(c.values());
         for (int id : List.of(4,5)) values.set(id,new GraphValue(new ValueId(id),new TensorDescriptor(DataType.FLOAT32,
@@ -194,7 +194,7 @@ public class CpuAggregateFusionGeneratedKernelTest {
                 tailOnly.boundaries(),tailOnly.inputExtents()));
     }
 
-    @Test void fanOutOutsidePartitionAndUnsupportedTypesKeepTheirStores() {
+    @Test void fanOutOutsidePartitionAndUnsupportedTypesKeepTheirStores() throws Throwable {
         for (boolean outside : List.of(false,true)) {
             var c = context(DataType.FLOAT32,Shape.of(2,3),new AxisReductionAttrs(1,false),Shape.of(2),true,3,false,Set.of(),List.of());
             var nodes = new ArrayList<>(c.nodes()); var values = new ArrayList<>(c.values()); var memory = new ArrayList<>(c.memoryRequirements());
@@ -212,7 +212,7 @@ public class CpuAggregateFusionGeneratedKernelTest {
                 c = new PrepareContext<>(partition,nodes,values,memory,Map.of(),c.backendInputs());
             }
             if (outside) c = new PrepareContext<>(c.partition(),nodes,values,memory,Map.of(),c.backendInputs());
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(c)) continue;
+            
             var plan = new CpuPartitionPreparer().analyze(c).plan();
             assertTrue(plan.bufferDeclarations().stream().anyMatch(b -> b.valueId().equals(new ValueId(2))));
             assertTrue(plan.units().stream().map(u -> u.portablePlan().portableKernelIr()).filter(CpuAggregateFusionIr.class::isInstance)
@@ -220,7 +220,7 @@ public class CpuAggregateFusionGeneratedKernelTest {
         }
         for (var type : List.of(DataType.INT32,DataType.INT64,DataType.BFLOAT16,DataType.FLOAT16)) {
             var c = context(type,Shape.of(2,3),new AxisReductionAttrs(1,false),Shape.of(2),true,0,false,Set.of(),List.of());
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(c)) continue;
+            
             var plan = new CpuPartitionPreparer().analyze(c).plan();
             assertEquals(2,plan.units().size());
             assertTrue(plan.bufferDeclarations().stream().anyMatch(b -> b.valueId().equals(new ValueId(2))));
@@ -265,7 +265,7 @@ public class CpuAggregateFusionGeneratedKernelTest {
         }
     }
 
-    @Test void selectedPrivateResourcesAndProtectedPartialFusionAreExact() {
+    @Test void selectedPrivateResourcesAndProtectedPartialFusionAreExact() throws Throwable {
         var context = context(DataType.FLOAT64,Shape.of(2,3),new AxisReductionAttrs(1,false),Shape.of(2),true,3,false,Set.of(),List.of());
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         assertEquals(1,plan.units().size());

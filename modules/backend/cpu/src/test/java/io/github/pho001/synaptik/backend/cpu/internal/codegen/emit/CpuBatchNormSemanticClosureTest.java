@@ -59,7 +59,7 @@ class CpuBatchNormSemanticClosureTest {
     private static void inference(Fixture f) throws Throwable {
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(CpuBatchNormInferenceLoweringTest.context(
                 f.types, SHAPE, f.axis, List.of(0, 1, 2, 3, 4)), f.request);
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         CpuPartitionPreparationPlan plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -79,7 +79,7 @@ class CpuBatchNormSemanticClosureTest {
     private static void training(Fixture f) throws Throwable {
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(CpuBatchNormTrainingLoweringTest.context(
                 f.types, SHAPE, f.axis, List.of(0, 1, 2, 3, 4), trainingLayouts(SHAPE, f.axis)), f.request);
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         CpuPartitionPreparationPlan plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
         byte[] first = generator.generateClassBytes(route.specialization(), route.kernelIr());

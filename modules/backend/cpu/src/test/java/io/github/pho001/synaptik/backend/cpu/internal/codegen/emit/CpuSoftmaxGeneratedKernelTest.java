@@ -81,16 +81,12 @@ class CpuSoftmaxGeneratedKernelTest {
 
     @Test void allTypesKindsAndHeapSegmentPairsProduceNormalizedSlices() throws Throwable {
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
-                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) for (int pattern = 0;
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) for (int pattern = 0;
                 pattern < 4; pattern++) {
             var carriers = List.of((pattern & 1) == 0 ? arrayCarrier(type)
                             : CarrierAccess.MEMORY_SEGMENT,
                     (pattern & 2) == 0 ? arrayCarrier(type) : CarrierAccess.MEMORY_SEGMENT);
-            if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
-                assertThrows(IllegalArgumentException.class,
-                        () -> plan(kind, type, Shape.of(2, 3), 1, carriers));
-                continue;
-            }
             var plan = plan(kind, type, Shape.of(2, 3), 1, carriers);
             var route = plan.units().getFirst().portablePlan();
             var generator = new CpuClassFileKernelGenerator();
@@ -110,7 +106,8 @@ class CpuSoftmaxGeneratedKernelTest {
                     ? values[0] + values[1] + values[2]
                     : StrictMath.exp(values[0]) + StrictMath.exp(values[1])
                             + StrictMath.exp(values[2]);
-            assertEquals(1.0, sum, type == DataType.BFLOAT16 ? 0.02
+            if (type != DataType.FLOAT8_E4M3 && type != DataType.FLOAT8_E5M2)
+                assertEquals(1.0, sum, type == DataType.BFLOAT16 ? 0.02
                     : type == DataType.FLOAT16 ? 0.002 : 2e-6,
                     kind + "/" + type + "/" + pattern);
             for (int index = 0; index < values.length; index++) assertEquals(
@@ -171,30 +168,28 @@ class CpuSoftmaxGeneratedKernelTest {
     @Test void stableFiniteOverflowUnderflowAndOffsetsMatchCleanJavaOracle() throws Throwable {
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
                 DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
-                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
-                        double[][] examples = {{1000, 1000}, {0, -1000}, {1000, 1008}};
-                        for (double[] example : examples) {
-                            var plan = plan(kind, type, Shape.of(2), 0,
-                                    List.of(arrayCarrier(type), arrayCarrier(type)));
-                            var route = plan.units().getFirst().portablePlan();
-                            var generator = new CpuClassFileKernelGenerator();
-                            var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
-                            Object input = represented(type, example), output = represented(type, new double[2]);
-                            artifact.entryPoint().invokeWithArguments(input, output,
-                                    plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
-                            double[] actual = decoded(type, output);
-                            double[] expected = CpuSoftmaxReferenceKernel.evaluate(kind, type, example,
-                                    new long[] {2}, 0, new long[] {1}, 0);
-                            for (int i = 0; i < 2; i++) assertEquals(raw(type, expected[i]),
-                                    raw(type, actual[i]), kind + "/" + type + "/" + java.util.Arrays.toString(example));
-                            if (example[0] == 1000 && example[1] == 1000) assertEquals(
-                                    kind == SoftmaxKind.SOFTMAX ? 0.5 : -Math.log(2), actual[0],
-                                    type == DataType.BFLOAT16 ? 0.005 : type == DataType.FLOAT16 ? 0.001 : 2e-7);
-                            if (example[0] == 0 && example[1] == -1000) {
-                                assertEquals(kind == SoftmaxKind.SOFTMAX ? 0 : -1000, actual[1]);
-                            }
+                    { double[][] examples = {{1000, 1000}, {0, -1000}, {1000, 1008}};
+                    for (double[] example : examples) {
+                        var plan = plan(kind, type, Shape.of(2), 0,
+                                List.of(arrayCarrier(type), arrayCarrier(type)));
+                        var route = plan.units().getFirst().portablePlan();
+                        var generator = new CpuClassFileKernelGenerator();
+                        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
+                        Object input = represented(type, example), output = represented(type, new double[2]);
+                        artifact.entryPoint().invokeWithArguments(input, output,
+                                plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
+                        double[] actual = decoded(type, output);
+                        double[] expected = CpuSoftmaxReferenceKernel.evaluate(kind, type, example,
+                                new long[] {2}, 0, new long[] {1}, 0);
+                        for (int i = 0; i < 2; i++) assertEquals(raw(type, expected[i]),
+                                raw(type, actual[i]), kind + "/" + type + "/" + java.util.Arrays.toString(example));
+                        if (example[0] == 1000 && example[1] == 1000) assertEquals(
+                                kind == SoftmaxKind.SOFTMAX ? 0.5 : -Math.log(2), actual[0],
+                                type == DataType.BFLOAT16 ? 0.005 : type == DataType.FLOAT16 ? 0.001 : 2e-7);
+                        if (example[0] == 0 && example[1] == -1000) {
+                            assertEquals(kind == SoftmaxKind.SOFTMAX ? 0 : -1000, actual[1]);
                         }
-                    });
+                    } }
                 }
     }
 
@@ -202,26 +197,24 @@ class CpuSoftmaxGeneratedKernelTest {
             throws Throwable {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32,
                 DataType.BFLOAT16, DataType.FLOAT16)) {
-                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
-                        double[] results = new double[2];
-                        int kindIndex = 0;
-                        for (SoftmaxKind kind : SoftmaxKind.values()) {
-                            var plan = plan(kind, type, Shape.of(2), 0,
-                                    List.of(arrayCarrier(type), arrayCarrier(type)));
-                            var route = plan.units().getFirst().portablePlan();
-                            var generator = new CpuClassFileKernelGenerator();
-                            var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
-                            Object input = represented(type, new double[] {0, -1000});
-                            Object output = represented(type, new double[2]);
-                            artifact.entryPoint().invokeWithArguments(input, output,
-                                    plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
-                            results[kindIndex++] = decoded(type, output)[1];
-                        }
-                        assertEquals(0, results[0], "rounded softmax underflows for " + type);
-                        assertEquals(-1000, results[1], "log-softmax retains the finite shift for " + type);
-                        assertNotEquals(Math.log(results[0]), results[1],
-                                "executed log-softmax must not log the executed rounded softmax for " + type);
-                    });
+                    { double[] results = new double[2];
+                    int kindIndex = 0;
+                    for (SoftmaxKind kind : SoftmaxKind.values()) {
+                        var plan = plan(kind, type, Shape.of(2), 0,
+                                List.of(arrayCarrier(type), arrayCarrier(type)));
+                        var route = plan.units().getFirst().portablePlan();
+                        var generator = new CpuClassFileKernelGenerator();
+                        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
+                        Object input = represented(type, new double[] {0, -1000});
+                        Object output = represented(type, new double[2]);
+                        artifact.entryPoint().invokeWithArguments(input, output,
+                                plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
+                        results[kindIndex++] = decoded(type, output)[1];
+                    }
+                    assertEquals(0, results[0], "rounded softmax underflows for " + type);
+                    assertEquals(-1000, results[1], "log-softmax retains the finite shift for " + type);
+                    assertNotEquals(Math.log(results[0]), results[1],
+                            "executed log-softmax must not log the executed rounded softmax for " + type); }
                 }
     }
 
@@ -271,13 +264,22 @@ class CpuSoftmaxGeneratedKernelTest {
 
     private static CarrierAccess arrayCarrier(DataType type) {
         return type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY
-                : type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY : CarrierAccess.SHORT_ARRAY;
+                : type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
+                : type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
+                    ? CarrierAccess.BYTE_ARRAY : CarrierAccess.SHORT_ARRAY;
     }
     private static Object represented(DataType type, double[] values) {
         if (type == DataType.FLOAT64) return values.clone();
         if (type == DataType.FLOAT32) {
             float[] result = new float[values.length];
             for (int i = 0; i < values.length; i++) result[i] = (float) values[i];
+            return result;
+        }
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            byte[] result = new byte[values.length];
+            for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT8_E4M3
+                    ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromDouble(values[i])
+                    : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromDouble(values[i]);
             return result;
         }
         short[] result = new short[values.length];
@@ -294,9 +296,17 @@ class CpuSoftmaxGeneratedKernelTest {
     private static MemorySegment segment(Object values) {
         if (values instanceof double[] value) return MemorySegment.ofArray(value);
         if (values instanceof float[] value) return MemorySegment.ofArray(value);
+        if (values instanceof byte[] value) return MemorySegment.ofArray(value);
         return MemorySegment.ofArray((short[]) values);
     }
     private static double[] decoded(DataType type, Object values) {
+        if (values instanceof byte[] bytes) {
+            double[] result = new double[bytes.length];
+            for (int i = 0; i < result.length; i++) result[i] = type == DataType.FLOAT8_E4M3
+                    ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(bytes[i])
+                    : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(bytes[i]);
+            return result;
+        }
         int length = type == DataType.FLOAT64 ? ((double[]) values).length
                 : type == DataType.FLOAT32 ? ((float[]) values).length : ((short[]) values).length;
         double[] result = new double[length];
@@ -308,6 +318,10 @@ class CpuSoftmaxGeneratedKernelTest {
         return result;
     }
     private static long raw(DataType type, double value) {
+        if (type == DataType.FLOAT8_E4M3) return Byte.toUnsignedLong(
+                io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromDouble(value));
+        if (type == DataType.FLOAT8_E5M2) return Byte.toUnsignedLong(
+                io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromDouble(value));
         return type == DataType.FLOAT64 ? Double.doubleToRawLongBits(value)
                 : type == DataType.FLOAT32 ? Integer.toUnsignedLong(
                         Float.floatToRawIntBits((float) value))

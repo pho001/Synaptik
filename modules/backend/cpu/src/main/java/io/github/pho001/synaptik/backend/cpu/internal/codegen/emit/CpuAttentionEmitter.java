@@ -45,7 +45,9 @@ public final class CpuAttentionEmitter {
    */
   public void emit(CodeBuilder c, CpuKernelSpecialization s, CpuKernelIr ir) {
     if (!ir.familyIdentity().startsWith("attention:")
-        || s.classIdentitySchema() != CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
+        || (s.classIdentitySchema() != CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
+            && !(s.classIdentitySchema() == CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
+                && s.boundaryDataTypes().stream().anyMatch(CpuNormEmitter::low)))
         || !s.scratchParameter()
         || s.executionStrategy().compute()
             != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
@@ -219,7 +221,7 @@ public final class CpuAttentionEmitter {
 
     // Attention owns literal eligible-score EXP/sum/division, unlike first-class softmax.
     int sum = mode + 1, expJ = sum + valueWidth, weight = expJ + 2;
-    boolean lowPrecisionResult = rt == DataType.BFLOAT16 || rt == DataType.FLOAT16;
+    boolean lowPrecisionResult = rt == DataType.BFLOAT16 || rt == DataType.FLOAT16 || rt == DataType.FLOAT8_E4M3 || rt == DataType.FLOAT8_E5M2;
     int resultBits = lowPrecisionResult ? weight + valueWidth : -1;
     int resultRepresented = lowPrecisionResult ? resultBits + 1 : -1;
     Label nonOrd = c.newLabel(), classified = c.newLabel();
@@ -448,7 +450,7 @@ public final class CpuAttentionEmitter {
       CpuKernelSpecialization s, DataType type, int boundary, int geometry, int header,
       int rank, int layout, int base, int extent) {
     int index = l(c), address = l(c), representedZero = value(c, type);
-    boolean low = type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+    boolean low = type == DataType.BFLOAT16 || type == DataType.FLOAT16 || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2;
     int bits = low ? i(c) : -1, represented = low ? i(c) : -1;
     zero(c, type);
     store(c, type, representedZero);
@@ -685,7 +687,11 @@ public final class CpuAttentionEmitter {
       DataType domain) {
     int boundary = role;
     ce.loadFrozen(t, s.carrierPattern().get(boundary), boundary, address, false);
-    if (t == DataType.BFLOAT16) {
+    if (t == DataType.FLOAT8_E4M3 || t == DataType.FLOAT8_E5M2) {
+      int raw = c.allocateLocal(TypeKind.INT);
+      c.istore(raw);
+      CpuCastEmitter.emitLowToFloat(c, t, raw);
+    } else if (t == DataType.BFLOAT16) {
       c.invokestatic(
               SHORT,
               "toUnsignedInt",
@@ -717,7 +723,11 @@ public final class CpuAttentionEmitter {
       int local,
       int bits,
       int represented) {
-    if (t == DataType.BFLOAT16) {
+    if (t == DataType.FLOAT8_E4M3 || t == DataType.FLOAT8_E5M2) {
+      CpuCastEmitter.emitFloatToLow(c, t, local);
+      c.istore(represented);
+      ce.storeFrozen(t, s.carrierPattern().get(boundary), boundary, address, represented, false);
+    } else if (t == DataType.BFLOAT16) {
       c.fload(local)
           .invokestatic(
               FLOAT,
@@ -768,7 +778,7 @@ public final class CpuAttentionEmitter {
       int address,
       int local,
       int represented) {
-    if (t == DataType.BFLOAT16 || t == DataType.FLOAT16) {
+    if (t == DataType.BFLOAT16 || t == DataType.FLOAT16 || t == DataType.FLOAT8_E4M3 || t == DataType.FLOAT8_E5M2) {
       c.loadConstant(0).istore(represented);
       ce.storeFrozen(t, s.carrierPattern().get(boundary), boundary, address, represented, false);
     } else {

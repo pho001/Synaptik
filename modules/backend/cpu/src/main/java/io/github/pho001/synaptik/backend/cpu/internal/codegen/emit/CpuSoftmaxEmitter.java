@@ -16,7 +16,7 @@ import java.lang.constant.MethodTypeDesc;
  * <p>Kind selection occurs while generating the class. Both bodies find the slice maximum and
  * accumulate shifted exponentials; only log-softmax computes the logarithm of that sum, while
  * softmax proceeds directly to exponential-and-division stores. FLOAT64 uses double sites;
- * FLOAT32, BFLOAT16, and FLOAT16 use float sites with one final low narrowing. All-finite slices
+ * FLOAT32 and all four low formats use float sites with one final low narrowing. All-finite slices
  * retain maximum-shifted compensated accumulation. NaN and positive-infinity slices preserve
  * Model result classes, while slices containing only negative infinity as a nonfinite value
  * use their literal unshifted formula. Empty slices publish nothing.</p>
@@ -308,6 +308,11 @@ public final class CpuSoftmaxEmitter {
         carriers.load(type, specialization.carrierPattern().getFirst(), 0, address, intAddress);
         if (type == DataType.FLOAT64) code.dstore(represented).dload(represented).dstore(value);
         else if (type == DataType.FLOAT32) code.fstore(represented).fload(represented).fstore(value);
+        else if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            code.istore(represented);
+            CpuCastEmitter.emitLowToFloat(code, type, represented);
+            code.fstore(value);
+        }
         else if (type == DataType.FLOAT16) code.istore(represented).iload(represented).i2s()
                 .invokestatic(ClassDesc.of(Float.class.getName()), "float16ToFloat",
                         MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.SHORT.upperBound()))
@@ -326,6 +331,11 @@ public final class CpuSoftmaxEmitter {
         if (type == DataType.FLOAT64) code.dstore(represented).dload(represented).dstore(value);
         else if (type == DataType.FLOAT32) code.fstore(represented).fload(represented)
                 .fstore(value);
+        else if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            code.istore(represented);
+            CpuCastEmitter.emitLowToFloat(code, type, represented);
+            code.fstore(value);
+        }
         else if (type == DataType.FLOAT16) code.istore(represented).iload(represented).i2s()
                 .invokestatic(ClassDesc.of(Float.class.getName()), "float16ToFloat",
                         MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.SHORT.upperBound()))
@@ -476,6 +486,11 @@ public final class CpuSoftmaxEmitter {
                     .iload(bits).loadConstant(0x7fff).iadd().iload(bits).loadConstant(16).iushr()
                     .loadConstant(1).iand().iadd().loadConstant(16).iushr()
                     .istore(represented).labelBinding(rounded);
+        }
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            represented = code.allocateLocal(TypeKind.INT);
+            CpuCastEmitter.emitFloatToLow(code, type, value);
+            code.istore(represented);
         }
         if (frozenLayout) carriers.storeFrozen(type, specialization.carrierPattern().getLast(),
                 1, address, represented, intAddress);

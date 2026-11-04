@@ -129,11 +129,11 @@ public record CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] sele
      * canonical one-byte Boolean representation.
      */
     public enum Kind {
-        /** Computes the exact real sum before one represented rounding. */
+        /** Finalizes the exact real sum at working precision, then the declared storage boundary. */
         SUM,
-        /** Divides the exact real sum by the exact domain cardinality before rounding. */
+        /** Divides the exact sum by the exact domain cardinality before working and storage rounding. */
         MEAN,
-        /** Computes the exact real product before one represented rounding. */
+        /** Finalizes the exact real product at working precision, then the declared storage boundary. */
         PROD,
         /** Selects the numerically least value, with negative zero preferred over positive zero. */
         MIN,
@@ -216,11 +216,11 @@ public record CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] sele
             throw new IllegalArgumentException("aggregate axes must be increasing and distinct");
         boolean bool = kind == Kind.ALL || kind == Kind.ANY;
         boolean floating = dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16;
+                || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16 || dataType == DataType.FLOAT8_E4M3 || dataType == DataType.FLOAT8_E5M2;
         boolean reduction = form != Form.SUM_TO_SHAPE || selectedAxes.length != 0;
         boolean exact = reduction && (kind == Kind.SUM || kind == Kind.MEAN || kind == Kind.PROD);
         boolean numeric = dataType == DataType.FLOAT64 || dataType == DataType.FLOAT32
-                || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16
+                || dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16 || dataType == DataType.FLOAT8_E4M3 || dataType == DataType.FLOAT8_E5M2
                 || dataType == DataType.INT32 || dataType == DataType.INT64;
         if (bool != (dataType == DataType.BOOL) || !bool && !numeric
                 || kind == Kind.MEAN && !floating || domainCount < 0

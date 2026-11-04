@@ -17,7 +17,9 @@ import java.lang.foreign.ValueLayout;
  *
  * <p>The static body reduces complete output cells only. It traverses every selected domain in
  * logical input row-major order. Numerical floating rows update an exact primitive-limb state and
- * round once; extrema retain first-NaN and signed-zero selection. Extrema and Boolean combination
+ * finalize at working and storage boundaries; extrema retain first-NaN and signed-zero
+ * selection, with a distinct unseen
+ * E4M3 seed because that format has no represented infinity. Extrema and Boolean combination
  * are emitted directly, so the generated per-element body calls no Synaptik runtime helper. The
  * body allocates no per-cell or per-element object. Dense heap-array
  * reductions use one typed integer-address fold; other forms embed a typed long-address fallback
@@ -29,7 +31,7 @@ import java.lang.foreign.ValueLayout;
  * {@code 2048} and BFLOAT16 axes-zero-and-two PROD geometries. The MEAN form keeps its exact
  * five-limb state in primitive locals, writes the identical final state to the assigned run-owned
  * workspace slice, and implements division by {@code 2048 == 2^11} through equivalent exact
- * extraction and ties-to-even rounding. The PROD form preserves the existing exact-product state
+ * extraction and ties-to-even rounding. The PROD form preserves the exact-product working state
  * transitions while replacing general coordinate reconstruction with primitive geometry cursors.
  * Both forms preserve logical factor order and arbitrary legal output-cell subranges; every
  * unproved geometry retains the typed long-address body. A third completely guarded form covers
@@ -253,7 +255,7 @@ public final class CpuAggregateEmitter {
         boolean sumToShapeCopy = !specialization.ordinaryBatch() && identity.contains(":SUM_TO_SHAPE:axes=[]:");
         boolean exactFloating = !sumToShapeCopy && kind >= 4 && (type == DataType.FLOAT64
                 || type == DataType.FLOAT32 || type == DataType.BFLOAT16
-                || type == DataType.FLOAT16);
+                || type == DataType.FLOAT16 || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2);
         int exactLimbs = exactFloating ? identityNumber(identity, ":limbs=") : 0;
         if (specialization.scratchParameter() != exactFloating)
             throw new IllegalArgumentException("aggregate scratch shape disagrees with numerical kind");
@@ -299,9 +301,9 @@ public final class CpuAggregateEmitter {
                 && specialization.carrierPattern().getLast()
                         == CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY;
         boolean boundedProduct = kind == 6 && type == DataType.BFLOAT16
-                && inRank == 3 && outRank == 3 && exactLimbs == 2
+                && inRank == 3 && outRank == 3 && exactLimbs == 6
                 && identity.contains(":MULTI_AXIS:axes=[0, 2]:keep=true:")
-                && identity.contains(":domain=16:limbs=2:slice=40:")
+                && identity.contains(":domain=16:limbs=6:slice=72:")
                 && specialization.carrierPattern().getFirst()
                         == CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY
                 && specialization.carrierPattern().getLast()
@@ -365,7 +367,7 @@ public final class CpuAggregateEmitter {
             return;
         }
         DataType type = specialization.boundaryDataTypes().getFirst();
-        TypeKind numeric = type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT;
+        TypeKind numeric = localKind(type);
         boolean scalar = ir.values().getFirst().accessPlan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO;
         if (!scalar && ir.values().getFirst().accessPlan().regime() != CpuAccessPlan.Regime.DENSE_LINEAR
                 || limbs != (type == DataType.FLOAT64 ? 34 : 5) || kind != 4 && kind != 5) throw new IllegalArgumentException("unsupported batch aggregate loop");
@@ -442,7 +444,7 @@ public final class CpuAggregateEmitter {
     private static void emitRankThreeBatch(CodeBuilder code,CpuKernelSpecialization specialization,
             CpuKernelIr ir,int kind,int limbs,int outRank,int geometrySlot,int startSlot,int endSlot) {
         DataType type = specialization.boundaryDataTypes().getFirst();
-        TypeKind numeric = type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT;
+        TypeKind numeric = localKind(type);
         boolean scalar = ir.values().getFirst().accessPlan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO;
         if (!scalar && ir.values().getFirst().accessPlan().regime() != CpuAccessPlan.Regime.DENSE_LINEAR
                 || limbs != (type == DataType.FLOAT64 ? 34 : 5) || kind != 4 && kind != 5) throw new IllegalArgumentException("unsupported rank-three batch aggregate");
@@ -635,6 +637,7 @@ public final class CpuAggregateEmitter {
             case FLOAT64 -> code.daload().dstore(value);
             case FLOAT32 -> code.faload().fstore(value);
             case BFLOAT16, FLOAT16 -> code.saload().istore(value);
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> code.baload().istore(value);
             case INT32 -> code.iaload().istore(value);
             case INT64 -> code.laload().lstore(value);
             default -> throw new IllegalArgumentException("unsupported SUM-to-Shape data type");
@@ -1233,7 +1236,7 @@ public final class CpuAggregateEmitter {
         var fallback = code.newLabel(); var complete = code.newLabel();
         requireRange(code, startSlot, endSlot, 16_384, fallback);
         requireGeometrySequence(code, geometrySlot, 3,
-                new long[]{1, 3, 3, 16_384, 16, 2, 40}, fallback);
+                new long[]{1, 3, 3, 16_384, 16, 6, 72}, fallback);
         requireGeometrySequence(code, geometrySlot, 11, new long[]{1, 0, 1}, fallback);
         requireGeometry(code, geometrySlot, inputLayout, 3, fallback);
         requireGeometrySequence(code, geometrySlot, inputLayout + 2,
@@ -1243,12 +1246,12 @@ public final class CpuAggregateEmitter {
                 new long[]{1, 16_384, 1, 32_768, 2, 2}, fallback);
         requireBoundedBase(code, geometrySlot, inputLayout + 1, 262_143, fallback);
         requireBoundedBase(code, geometrySlot, outputLayout + 1, 32_766, fallback);
-        requireWorkspaceOffset(code, geometrySlot, 40, fallback);
+        requireWorkspaceOffset(code, geometrySlot, 72, fallback);
         emitBoundedProduct(code, specialization, geometrySlot, startSlot, endSlot,
                 inputLayout, outputLayout);
         code.branch(Opcode.GOTO, complete).labelBinding(fallback);
         emitGeneral(code, specialization, DataType.BFLOAT16, 6, identity, 3, 3,
-                true, 2, geometrySlot, startSlot, endSlot);
+                true, 6, geometrySlot, startSlot, endSlot);
         code.labelBinding(complete);
     }
 
@@ -1751,26 +1754,28 @@ public final class CpuAggregateEmitter {
 
     private static TypeKind localKind(DataType type) { return switch (type) {
         case FLOAT64 -> TypeKind.DOUBLE; case FLOAT32 -> TypeKind.FLOAT;
-        case INT64 -> TypeKind.LONG; case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+        case INT64 -> TypeKind.LONG; case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> TypeKind.INT;
     }; }
     private static void emitFloatingZero(CodeBuilder code, DataType type) { switch (type) {
         case FLOAT64 -> code.loadConstant(0.0d); case FLOAT32 -> code.loadConstant(0.0f);
-        case BFLOAT16, FLOAT16 -> code.loadConstant(0);
+        case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> code.loadConstant(0);
         default -> throw new IllegalArgumentException();
     } }
     private static void store(CodeBuilder code, DataType type, int local) { switch (type) {
         case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
-        case INT64 -> code.lstore(local); case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
+        case INT64 -> code.lstore(local); case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.istore(local);
     } }
     private static void load(CodeBuilder code, DataType type, int local) { switch (type) {
         case FLOAT64 -> code.dload(local); case FLOAT32 -> code.fload(local);
-        case INT64 -> code.lload(local); case BFLOAT16, FLOAT16, INT32, BOOL -> code.iload(local);
+        case INT64 -> code.lload(local); case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.iload(local);
     } }
     private static void emitIdentity(CodeBuilder code, DataType type, int kind) { switch (type) {
         case FLOAT64 -> code.loadConstant(kind == 0 ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY);
         case FLOAT32 -> code.loadConstant(kind == 0 ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY);
         case BFLOAT16 -> code.loadConstant(kind == 0 ? 0x7f80 : 0xff80);
         case FLOAT16 -> code.loadConstant(kind == 0 ? 0x7c00 : 0xfc00);
+        case FLOAT8_E4M3 -> code.loadConstant(0x17f); // Unseen sentinel; empty output narrows to NaN.
+        case FLOAT8_E5M2 -> code.loadConstant(kind == 0 ? 0x7c : 0xfc);
         case INT32 -> code.loadConstant(kind == 4 ? 0 : kind == 6 ? 1
                 : kind == 0 ? Integer.MAX_VALUE : Integer.MIN_VALUE);
         case INT64 -> code.loadConstant(kind == 4 ? 0L : kind == 6 ? 1L
@@ -1790,7 +1795,7 @@ public final class CpuAggregateEmitter {
         switch (type) {
             case FLOAT64 -> emitFloatingSelection(code, true, kind == 0, accumulator, value);
             case FLOAT32 -> emitFloatingSelection(code, false, kind == 0, accumulator, value);
-            case BFLOAT16, FLOAT16 -> emitShortFloatSelection(code, type, kind == 0,
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> emitShortFloatSelection(code, type, kind == 0,
                     accumulator, value);
             case INT32 -> emitIntSelection(code, kind == 0, accumulator, value);
             case INT64 -> emitLongSelection(code, kind == 0, accumulator, value);
@@ -1878,8 +1883,41 @@ public final class CpuAggregateEmitter {
         }
     }
 
-    private static void emitShortFloatSelection(CodeBuilder code, DataType type,
+    /** Emits exact represented FP8 winner selection without an encoded E4M3 infinity seed. */
+    private static void emitFp8Selection(CodeBuilder code, DataType type,
             boolean minimum, int left, int right) {
+        int leftValue = code.allocateLocal(TypeKind.FLOAT), rightValue = code.allocateLocal(TypeKind.FLOAT);
+        var chooseRight = code.newLabel(); var done = code.newLabel(); var ordinary = code.newLabel();
+        if (type == DataType.FLOAT8_E4M3)
+            code.iload(left).loadConstant(0x17f).branch(Opcode.IF_ICMPEQ, chooseRight);
+        CpuCastEmitter.emitLowToFloat(code, type, left); code.fstore(leftValue);
+        CpuCastEmitter.emitLowToFloat(code, type, right); code.fstore(rightValue);
+        code.fload(leftValue).fload(leftValue).fcmpl().branch(Opcode.IFNE, done);
+        code.fload(rightValue).fload(rightValue).fcmpl().branch(Opcode.IFNE, chooseRight);
+        code.iload(left).loadConstant(0x7f).iand().branch(Opcode.IFNE, ordinary);
+        code.iload(right).loadConstant(0x7f).iand().branch(Opcode.IFNE, ordinary);
+        code.iload(left).loadConstant(0x80).iand().branch(minimum ? Opcode.IFNE : Opcode.IFEQ, done);
+        code.branch(Opcode.GOTO, chooseRight).labelBinding(ordinary);
+        code.fload(rightValue).fload(leftValue).fcmpg()
+                .branch(minimum ? Opcode.IFLT : Opcode.IFGT, chooseRight);
+        code.branch(Opcode.GOTO, done).labelBinding(chooseRight);
+        code.iload(right).istore(left).labelBinding(done);
+    }
+
+    /**
+     * Selects one exact raw low-format winner, retaining first NaN and signed-zero preferences.
+     * @param code nonnull method builder
+     * @param type one of the four low storage formats
+     * @param minimum whether to select the smaller represented value
+     * @param left int raw-bit accumulator local, replaced only when the right operand wins
+     * @param right int raw-bit contributor local
+     */
+    static void emitShortFloatSelection(CodeBuilder code, DataType type,
+            boolean minimum, int left, int right) {
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            emitFp8Selection(code, type, minimum, left, right);
+            return;
+        }
         int exponentMask = type == DataType.FLOAT16 ? 0x7c00 : 0x7f80;
         int fractionMask = type == DataType.FLOAT16 ? 0x03ff : 0x007f;
         var leftNumber = code.newLabel(); var rightNumber = code.newLabel();
@@ -2129,6 +2167,8 @@ public final class CpuAggregateEmitter {
                     ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY));
             case BFLOAT16 -> kind == 0 ? 0x7f80L : 0xff80L;
             case FLOAT16 -> kind == 0 ? 0x7c00L : 0xfc00L;
+            case FLOAT8_E4M3 -> 0x17fL;
+            case FLOAT8_E5M2 -> kind == 0 ? 0x7cL : 0xfcL;
             case INT32 -> kind == 0 ? Integer.MAX_VALUE : Integer.MIN_VALUE;
             case INT64 -> kind == 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
             case BOOL -> kind == 2 ? 1 : 0;
@@ -2140,6 +2180,7 @@ public final class CpuAggregateEmitter {
         if (type == DataType.INT32) return kind == 0
                 ? Math.min((int) left, (int) right) : Math.max((int) left, (int) right);
         if (type == DataType.INT64) return kind == 0 ? Math.min(left, right) : Math.max(left, right);
+        if (type == DataType.FLOAT8_E4M3 && left == 0x17fL) return right;
         if (isNaN(left, type)) return left;
         if (isNaN(right, type)) return right;
         double l = floatingValue(left, type), r = floatingValue(right, type);
@@ -2156,6 +2197,8 @@ public final class CpuAggregateEmitter {
             case FLOAT32 -> Float.isNaN(Float.intBitsToFloat((int) bits));
             case BFLOAT16 -> ((bits & 0x7f80L) == 0x7f80L) && (bits & 0x7fL) != 0;
             case FLOAT16 -> ((bits & 0x7c00L) == 0x7c00L) && (bits & 0x3ffL) != 0;
+            case FLOAT8_E4M3 -> (bits & 0x7fL) == 0x7fL;
+            case FLOAT8_E5M2 -> (bits & 0x7cL) == 0x7cL && (bits & 3L) != 0;
             default -> false;
         };
     }
@@ -2165,6 +2208,8 @@ public final class CpuAggregateEmitter {
             case FLOAT32 -> Float.intBitsToFloat((int) bits);
             case BFLOAT16 -> Float.intBitsToFloat((int) bits << 16);
             case FLOAT16 -> Float.float16ToFloat((short) bits);
+            case FLOAT8_E4M3 -> io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat((byte) bits);
+            case FLOAT8_E5M2 -> io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat((byte) bits);
             default -> throw new AssertionError("non-floating aggregate type");
         };
     }
@@ -2173,6 +2218,7 @@ public final class CpuAggregateEmitter {
             case FLOAT64 -> bits < 0;
             case FLOAT32 -> ((int) bits) < 0;
             case BFLOAT16, FLOAT16 -> ((short) bits) < 0;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> ((byte) bits) < 0;
             default -> false;
         };
     }
@@ -2189,7 +2235,7 @@ public final class CpuAggregateEmitter {
             case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(carrier instanceof short[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_SHORT, address * 2));
             case INT32 -> carrier instanceof int[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_INT, address * 4);
             case INT64 -> carrier instanceof long[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_LONG, address * 8);
-            case BOOL -> carrier instanceof byte[] a ? Byte.toUnsignedLong(a[Math.toIntExact(address)]) : Byte.toUnsignedLong(((MemorySegment) carrier).get(ValueLayout.JAVA_BYTE, address));
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> carrier instanceof byte[] a ? Byte.toUnsignedLong(a[Math.toIntExact(address)]) : Byte.toUnsignedLong(((MemorySegment) carrier).get(ValueLayout.JAVA_BYTE, address));
         };
     }
     private static void writeBits(Object carrier, long address, DataType type, long bits) {
@@ -2199,6 +2245,7 @@ public final class CpuAggregateEmitter {
             case BFLOAT16, FLOAT16 -> { short v = (short) bits; if (carrier instanceof short[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_SHORT, address * 2, v); }
             case INT32 -> { int v = (int) bits; if (carrier instanceof int[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_INT, address * 4, v); }
             case INT64 -> { if (carrier instanceof long[] a) a[Math.toIntExact(address)] = bits; else ((MemorySegment) carrier).set(ValueLayout.JAVA_LONG, address * 8, bits); }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> { byte v = (byte) bits; if (carrier instanceof byte[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_BYTE, address, v); }
             case BOOL -> { byte v = (byte) (bits == 0 ? 0 : 1); if (carrier instanceof byte[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_BYTE, address, v); }
         }
     }

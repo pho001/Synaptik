@@ -39,6 +39,9 @@ import java.lang.foreign.ValueLayout;
  * complete factor group, and rounds the exact abstract product once. This safe split avoids either
  * intermediate rounding or output-proportional exact state while preserving the established
  * resource shape.</p>
+ * <p>Low-format ADD instead uses a cold-charged linear binary32 working plane and a touched-byte
+ * plane. Base copy, one ordered update traversal, and one final publication traversal preserve
+ * every untouched raw value and perform only one low narrowing per addressed output.</p>
  */
 public final class CpuScatterEmitter {
     private static final ClassDesc SEGMENT = ClassDesc.of(MemorySegment.class.getName());
@@ -89,6 +92,10 @@ public final class CpuScatterEmitter {
         boolean ints =
                 specialization.loopAddressing(ir)
                         == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT;
+        if (CpuNormEmitter.low(p.dataType) && p.reduction == ScatterReduction.ADD) {
+            emitTypedCopyThenUpdate(code, specialization, p, ints, geometrySlot);
+            return;
+        }
         if (!specialization.scratchParameter()
                 && ints
                 && p.outputRank == 1
@@ -854,7 +861,7 @@ public final class CpuScatterEmitter {
                     case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
                     case INT32 -> "JAVA_INT_UNALIGNED";
                     case INT64 -> "JAVA_LONG_UNALIGNED";
-                    case BOOL -> "JAVA_BYTE";
+                    case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "JAVA_BYTE";
                 };
         ClassDesc layout = scatterLayoutClass(type);
         code.getstatic(VALUE_LAYOUT, field, layout);
@@ -923,7 +930,7 @@ public final class CpuScatterEmitter {
             case BFLOAT16, FLOAT16 -> SHORT_LAYOUT;
             case INT32 -> INT_LAYOUT;
             case INT64 -> LONG_LAYOUT;
-            case BOOL -> BYTE_LAYOUT;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> BYTE_LAYOUT;
         };
     }
 
@@ -934,8 +941,39 @@ public final class CpuScatterEmitter {
             case BFLOAT16, FLOAT16 -> ConstantDescs.CD_short;
             case INT32 -> ConstantDescs.CD_int;
             case INT64 -> ConstantDescs.CD_long;
-            case BOOL -> ConstantDescs.CD_byte;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> ConstantDescs.CD_byte;
         };
+    }
+
+    /** Emits two checked run-owned addresses in the charged scatter ADD slice. */
+    private static void emitLowAddAddresses(CodeBuilder code, int geometry, int logical,
+            boolean ints, int flagsBase, int workAddress, int flagAddress) {
+        geometry(code, geometry, 13);
+        loadAddress(code, logical, ints); if (ints) code.i2l();
+        code.loadConstant(4L).lmul().ladd().lstore(workAddress);
+        code.lload(flagsBase); loadAddress(code, logical, ints); if (ints) code.i2l();
+        code.ladd().lstore(flagAddress);
+    }
+
+    /** Emits an unaligned primitive working-state load without runtime helper dispatch. */
+    private static void emitScratchLoad(CodeBuilder code, int scratch, int address, boolean floating) {
+        code.aload(scratch).getstatic(VALUE_LAYOUT,
+                floating ? "JAVA_FLOAT_UNALIGNED" : "JAVA_BYTE", floating ? FLOAT_LAYOUT : BYTE_LAYOUT)
+                .lload(address).invokeinterface(SEGMENT, "get", MethodTypeDesc.of(
+                        floating ? ConstantDescs.CD_float : ConstantDescs.CD_byte,
+                        floating ? FLOAT_LAYOUT : BYTE_LAYOUT, ConstantDescs.CD_long));
+    }
+
+    /** Emits an unaligned primitive working-state store without runtime helper dispatch. */
+    private static void emitScratchStore(CodeBuilder code, int scratch, int address, int value,
+            boolean floating) {
+        code.aload(scratch).getstatic(VALUE_LAYOUT,
+                floating ? "JAVA_FLOAT_UNALIGNED" : "JAVA_BYTE", floating ? FLOAT_LAYOUT : BYTE_LAYOUT)
+                .lload(address);
+        if (floating) code.fload(value); else code.iload(value).i2b();
+        code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(ConstantDescs.CD_void,
+                floating ? FLOAT_LAYOUT : BYTE_LAYOUT, ConstantDescs.CD_long,
+                floating ? ConstantDescs.CD_float : ConstantDescs.CD_byte));
     }
 
     private static void emitTypedCopyThenUpdate(
@@ -960,6 +998,14 @@ public final class CpuScatterEmitter {
         int selected = code.allocateLocal(ints ? TypeKind.INT : TypeKind.LONG);
         int value = code.allocateLocal(localKind(p.dataType));
         int right = code.allocateLocal(localKind(p.dataType));
+        boolean lowNumericAdd = CpuNormEmitter.low(p.dataType) && p.reduction == ScatterReduction.ADD;
+        boolean lowAdd = lowNumericAdd && s.scratchParameter();
+        int flagsBase = lowAdd ? code.allocateLocal(TypeKind.LONG) : -1;
+        int flagAddress = lowAdd ? code.allocateLocal(TypeKind.LONG) : -1;
+        int workAddress = lowAdd ? code.allocateLocal(TypeKind.LONG) : -1;
+        int accumulator = lowAdd ? code.allocateLocal(TypeKind.FLOAT) : -1;
+        int contributor = lowAdd ? code.allocateLocal(TypeKind.FLOAT) : -1;
+        int touched = lowAdd ? code.allocateLocal(TypeKind.INT) : -1;
         if (ints) {
             code.lload(g + 1).l2i().istore(start);
             code.iload(start).istore(logical);
@@ -977,6 +1023,15 @@ public final class CpuScatterEmitter {
             if (ints) code.l2i();
             multiply(code, ints);
             storeAddress(code, updateCount, ints);
+        }
+        if (lowAdd) {
+            code.loadConstant(1L).lstore(flagsBase);
+            for (int axis = 0; axis < p.outputRank; axis++) {
+                code.lload(flagsBase);
+                geometry(code, g, p.layouts[p.outputBoundary] + 2 + axis).lmul().lstore(flagsBase);
+            }
+            code.lload(flagsBase).loadConstant(4L).lmul();
+            geometry(code, g, 13).ladd().lstore(flagsBase);
         }
         var carriers = new CpuCarrierEmitter(code);
         var copy = code.newLabel();
@@ -1016,10 +1071,22 @@ public final class CpuScatterEmitter {
                 outputAddress,
                 value,
                 ints);
+        if (lowAdd) {
+            var noUpdates = code.newLabel();
+            loadAddress(code, updateCount, ints);
+            if (ints) code.branch(Opcode.IFEQ, noUpdates);
+            else code.loadConstant(0L).lcmp().branch(Opcode.IFEQ, noUpdates);
+            emitLowAddAddresses(code, g, logical, ints, flagsBase, workAddress, flagAddress);
+            code.loadConstant(0).istore(touched);
+            emitScratchStore(code, g - 1, flagAddress, touched, false);
+            code.labelBinding(noUpdates);
+        }
         code.labelBinding(nextCopy);
         advancePacked(code, g, copyCoordinate, p.layouts[p.outputBoundary], p.outputRank);
         increment(code, logical, ints);
         code.branch(Opcode.GOTO, copy).labelBinding(copied);
+        // Signature zero for low ADD is cold-proved to have no update contributors.
+        if (lowNumericAdd && !s.scratchParameter()) return;
         for (int axis = 0; axis < p.ranks[p.updateBoundary]; axis++) {
             code.aload(g).loadConstant(updateCoordinate + axis).loadConstant(0L).lastore();
         }
@@ -1078,6 +1145,7 @@ public final class CpuScatterEmitter {
                 p.ranks[p.updateBoundary],
                 updateAddress,
                 ints);
+        if (!lowAdd) {
         carriers.load(
                 p.dataType,
                 s.carrierPattern().get(p.outputBoundary),
@@ -1085,6 +1153,7 @@ public final class CpuScatterEmitter {
                 outputAddress,
                 ints);
         storeValue(code, p.dataType, value);
+        }
         carriers.load(
                 p.dataType,
                 s.carrierPattern().get(p.updateBoundary),
@@ -1092,6 +1161,25 @@ public final class CpuScatterEmitter {
                 updateAddress,
                 ints);
         storeValue(code, p.dataType, right);
+        if (lowAdd) {
+            emitLowAddAddresses(code, g, targetOrdinal, ints, flagsBase, workAddress, flagAddress);
+            emitScratchLoad(code, g - 1, flagAddress, false);
+            var initial = code.newLabel(); var ready = code.newLabel();
+            code.branch(Opcode.IFEQ, initial);
+            emitScratchLoad(code, g - 1, workAddress, true);
+            code.fstore(accumulator).branch(Opcode.GOTO, ready).labelBinding(initial);
+            carriers.load(p.dataType, s.carrierPattern().get(p.outputBoundary), p.outputBoundary,
+                    outputAddress, ints);
+            storeValue(code, p.dataType, value);
+            CpuCastEmitter.emitLowToFloat(code, p.dataType, value);
+            code.fstore(accumulator).labelBinding(ready);
+            CpuCastEmitter.emitLowToFloat(code, p.dataType, right);
+            code.fstore(contributor);
+            code.fload(accumulator).fload(contributor).fadd().fstore(accumulator);
+            emitScratchStore(code, g - 1, workAddress, accumulator, true);
+            code.loadConstant(1).istore(touched);
+            emitScratchStore(code, g - 1, flagAddress, touched, false);
+        } else {
         emitReduction(code, p.dataType, p.reduction, value, right);
         carriers.store(
                 p.dataType,
@@ -1100,11 +1188,46 @@ public final class CpuScatterEmitter {
                 outputAddress,
                 value,
                 ints);
+        }
         code.labelBinding(skip);
         advancePacked(
                 code, g, updateCoordinate, p.layouts[p.updateBoundary], p.ranks[p.updateBoundary]);
         increment(code, updateOrdinal, ints);
         code.branch(Opcode.GOTO, updates).labelBinding(done);
+        if (lowAdd) {
+            var published = code.newLabel();
+            loadAddress(code, updateCount, ints);
+            if (ints) code.branch(Opcode.IFEQ, published);
+            else code.loadConstant(0L).lcmp().branch(Opcode.IFEQ, published);
+            loadAddress(code, start, ints); storeAddress(code, logical, ints);
+            compareEnd(code, logical, end, ints, published);
+            int remaining = code.allocateLocal(TypeKind.LONG);
+            loadAddress(code, start, ints); if (ints) code.i2l(); code.lstore(remaining);
+            for (int axis = p.outputRank - 1; axis >= 0; axis--) {
+                code.aload(g).loadConstant(copyCoordinate + axis).lload(remaining);
+                geometry(code, g, p.layouts[p.outputBoundary] + 2 + axis).lrem().lastore();
+                code.lload(remaining);
+                geometry(code, g, p.layouts[p.outputBoundary] + 2 + axis).ldiv().lstore(remaining);
+            }
+            var cells = code.newLabel(); var next = code.newLabel();
+            code.labelBinding(cells);
+            compareEnd(code, logical, end, ints, published);
+            CpuLoopEmitter.emitActiveOrdinalGuard(code, p.outputBoundary, logical,
+                    ints ? TypeKind.INT : TypeKind.LONG, next);
+            emitLowAddAddresses(code, g, logical, ints, flagsBase, workAddress, flagAddress);
+            emitScratchLoad(code, g - 1, flagAddress, false);
+            code.branch(Opcode.IFEQ, next);
+            emitScratchLoad(code, g - 1, workAddress, true); code.fstore(accumulator);
+            CpuCastEmitter.emitFloatToLow(code, p.dataType, accumulator); code.istore(value);
+            address(code, g, p.layouts[p.outputBoundary], copyCoordinate, p.outputRank,
+                    outputAddress, ints);
+            carriers.store(p.dataType, s.carrierPattern().get(p.outputBoundary), p.outputBoundary,
+                    outputAddress, value, ints);
+            code.labelBinding(next);
+            advancePacked(code, g, copyCoordinate, p.layouts[p.outputBoundary], p.outputRank);
+            increment(code, logical, ints);
+            code.branch(Opcode.GOTO, cells).labelBinding(published);
+        }
     }
 
     /**
@@ -1642,14 +1765,11 @@ public final class CpuScatterEmitter {
             storeValue(code, type, left);
             return;
         }
-        if (type == DataType.BFLOAT16) {
-            emitBfloatReduction(code, reduction, left, right);
-            code.istore(left);
-            return;
-        }
-        if (type == DataType.FLOAT16) {
-            emitFloat16Reduction(code, reduction, left, right);
-            code.istore(left);
+        if (CpuNormEmitter.low(type)) {
+            if (reduction != ScatterReduction.MIN && reduction != ScatterReduction.MAX)
+                throw new IllegalArgumentException("low numeric scatter requires its working-state body");
+            CpuAggregateEmitter.emitShortFloatSelection(code, type, reduction == ScatterReduction.MIN,
+                    left, right);
             return;
         }
         loadValue(code, type, left);
@@ -1703,127 +1823,12 @@ public final class CpuScatterEmitter {
                                     ConstantDescs.CD_long,
                                     ConstantDescs.CD_long));
             }
-            case BFLOAT16, FLOAT16 -> throw new AssertionError("handled above");
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> throw new AssertionError("handled above");
             case BOOL -> throw new IllegalArgumentException("BOOL reduction is unsupported");
         }
         storeValue(code, type, left);
     }
 
-    private static void emitBfloatReduction(
-            CodeBuilder code, ScatterReduction reduction, int left, int right) {
-        int leftFloat = code.allocateLocal(TypeKind.FLOAT);
-        int rightFloat = code.allocateLocal(TypeKind.FLOAT);
-        int resultFloat = code.allocateLocal(TypeKind.FLOAT);
-        int resultBits = code.allocateLocal(TypeKind.INT);
-        int upperBits = code.allocateLocal(TypeKind.INT);
-        int lowerBits = code.allocateLocal(TypeKind.INT);
-
-        emitBfloatToFloat(code, left, leftFloat);
-        emitBfloatToFloat(code, right, rightFloat);
-        if (reduction == ScatterReduction.ADD || reduction == ScatterReduction.MUL) {
-            code.fload(leftFloat).fload(rightFloat);
-            if (reduction == ScatterReduction.ADD) {
-                code.fadd();
-            } else {
-                code.fmul();
-            }
-            code.fstore(resultFloat);
-        } else {
-            var useCanonicalNan = code.newLabel();
-            var reduceFiniteValues = code.newLabel();
-            var reductionComplete = code.newLabel();
-            code.fload(leftFloat)
-                    .invokestatic(
-                            FLOAT_CLASS,
-                            "isNaN",
-                            MethodTypeDesc.of(ConstantDescs.CD_boolean, ConstantDescs.CD_float))
-                    .branch(Opcode.IFNE, useCanonicalNan);
-            code.fload(rightFloat)
-                    .invokestatic(
-                            FLOAT_CLASS,
-                            "isNaN",
-                            MethodTypeDesc.of(ConstantDescs.CD_boolean, ConstantDescs.CD_float))
-                    .branch(Opcode.IFEQ, reduceFiniteValues);
-            code.labelBinding(useCanonicalNan)
-                    .loadConstant(Float.NaN)
-                    .fstore(resultFloat)
-                    .branch(Opcode.GOTO, reductionComplete)
-                    .labelBinding(reduceFiniteValues)
-                    .fload(leftFloat)
-                    .fload(rightFloat)
-                    .invokestatic(
-                            ClassDesc.of(Math.class.getName()),
-                            reduction == ScatterReduction.MIN ? "min" : "max",
-                            MethodTypeDesc.of(
-                                    ConstantDescs.CD_float,
-                                    ConstantDescs.CD_float,
-                                    ConstantDescs.CD_float))
-                    .fstore(resultFloat)
-                    .labelBinding(reductionComplete);
-        }
-
-        code.fload(resultFloat)
-                .invokestatic(
-                        FLOAT_CLASS,
-                        "floatToRawIntBits",
-                        MethodTypeDesc.of(ConstantDescs.CD_int, ConstantDescs.CD_float))
-                .istore(resultBits);
-        var finite = code.newLabel();
-        var round = code.newLabel();
-        var complete = code.newLabel();
-        code.iload(resultBits)
-                .loadConstant(0x7f800000)
-                .iand()
-                .loadConstant(0x7f800000)
-                .branch(Opcode.IF_ICMPNE, finite);
-        code.iload(resultBits).loadConstant(0x007fffff).iand().branch(Opcode.IFEQ, finite);
-        code.iload(resultBits)
-                .loadConstant(16)
-                .iushr()
-                .loadConstant(0x40)
-                .ior()
-                .branch(Opcode.GOTO, complete);
-        code.labelBinding(finite).iload(resultBits).loadConstant(16).iushr().istore(upperBits);
-        code.iload(resultBits).loadConstant(0xffff).iand().istore(lowerBits);
-        code.iload(lowerBits).loadConstant(0x8000).branch(Opcode.IF_ICMPGT, round);
-        var exactTie = code.newLabel();
-        code.iload(lowerBits).loadConstant(0x8000).branch(Opcode.IF_ICMPEQ, exactTie);
-        code.iload(upperBits).branch(Opcode.GOTO, complete);
-        code.labelBinding(exactTie)
-                .iload(upperBits)
-                .loadConstant(1)
-                .iand()
-                .branch(Opcode.IFNE, round);
-        code.iload(upperBits).branch(Opcode.GOTO, complete);
-        code.labelBinding(round).iinc(upperBits, 1).iload(upperBits).labelBinding(complete);
-    }
-
-    private static void emitFloat16Reduction(
-            CodeBuilder code, ScatterReduction reduction, int left, int right) {
-        code.iload(left).i2s().invokestatic(FLOAT_CLASS, "float16ToFloat",
-                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
-        code.iload(right).i2s().invokestatic(FLOAT_CLASS, "float16ToFloat",
-                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
-        if (reduction == ScatterReduction.ADD) code.fadd();
-        else if (reduction == ScatterReduction.MUL) code.fmul();
-        else code.invokestatic(ClassDesc.of(Math.class.getName()),
-                reduction == ScatterReduction.MIN ? "min" : "max",
-                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_float,
-                        ConstantDescs.CD_float));
-        code.invokestatic(FLOAT_CLASS, "floatToFloat16",
-                MethodTypeDesc.of(ConstantDescs.CD_short, ConstantDescs.CD_float));
-    }
-
-    private static void emitBfloatToFloat(CodeBuilder code, int representedBits, int target) {
-        code.iload(representedBits)
-                .loadConstant(16)
-                .ishl()
-                .invokestatic(
-                        FLOAT_CLASS,
-                        "intBitsToFloat",
-                        MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int))
-                .fstore(target);
-    }
 
     private static void address(
             CodeBuilder code,
@@ -1939,7 +1944,7 @@ public final class CpuScatterEmitter {
             case FLOAT64 -> code.dload(local);
             case FLOAT32 -> code.fload(local);
             case INT64 -> code.lload(local);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.iload(local);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.iload(local);
         }
     }
 
@@ -1948,7 +1953,7 @@ public final class CpuScatterEmitter {
             case FLOAT64 -> code.dstore(local);
             case FLOAT32 -> code.fstore(local);
             case INT64 -> code.lstore(local);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.istore(local);
         }
     }
 
@@ -1957,7 +1962,7 @@ public final class CpuScatterEmitter {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
             case INT64 -> TypeKind.LONG;
-            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> TypeKind.INT;
         };
     }
 

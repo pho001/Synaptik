@@ -42,7 +42,7 @@ class CpuAttentionSemanticClosureTest {
     private static void invokeAndCompare(Fixture f) throws Throwable {
         var context = configure(CpuSpecializedGeneratedMatrixTest.attentionContext(f.q, f.k, f.v, f.mask,
                 f.causal, f.weights, f.explicitScale, f.roles), f.request());
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var unit = plan.units().getFirst(); var route = unit.portablePlan();
         assertEquals(io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR,

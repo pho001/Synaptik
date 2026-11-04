@@ -113,14 +113,24 @@ public final class CpuLogSumExpEmitter {
         CpuNormEmitter.emitPass(code, carriers, specialization, type, selected, inputRank, geometry,
                 inputExtents, inputStrides, inputBase, domain, remaining, coordinate, address,
                 selectedCoordinates, contiguous, represented, value, () -> {
-                    code.dload(value).dload(maximum).dsub()
-                            .invokestatic(MATH, "exp", MethodTypeDesc.of(
-                                    TypeKind.DOUBLE.upperBound(), TypeKind.DOUBLE.upperBound()))
-                            .dstore(value);
-                    CpuNormEmitter.kahan(code, value, sum, compensation, temporary);
+                    if (CpuNormEmitter.low(type)) {
+                        CpuNormEmitter.arithmetic(code, type, value, maximum, Opcode.DSUB, value);
+                        CpuNormEmitter.unary(code, type, "exp", value, value);
+                    } else {
+                        code.dload(value).dload(maximum).dsub()
+                                .invokestatic(MATH, "exp", MethodTypeDesc.of(
+                                        TypeKind.DOUBLE.upperBound(), TypeKind.DOUBLE.upperBound()))
+                                .dstore(value);
+                    }
+                    CpuNormEmitter.kahan(code, type, value, sum, compensation, temporary);
                 });
+        if (CpuNormEmitter.low(type)) {
+            CpuNormEmitter.unary(code, type, "log", sum, result);
+            CpuNormEmitter.arithmetic(code, type, maximum, result, Opcode.DADD, result);
+        } else {
         code.dload(maximum).dload(sum).invokestatic(MATH, "log", MethodTypeDesc.of(
                 TypeKind.DOUBLE.upperBound(), TypeKind.DOUBLE.upperBound())).dadd().dstore(result);
+        }
         var notSingleton = code.newLabel();
         CpuNormEmitter.geometry(code, geometry, 2).loadConstant(1L).lcmp()
                 .branch(Opcode.IFNE, notSingleton).dload(maximum).dstore(result)

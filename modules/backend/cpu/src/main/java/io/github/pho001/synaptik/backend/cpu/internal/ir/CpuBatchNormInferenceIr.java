@@ -15,7 +15,7 @@ import java.util.Objects;
  *
  * @param inputTypes five floating semantic input types in occurrence order
  * @param resultType exact ordered-promotion result and epsilon type
- * @param epsilonBits exact raw result-type epsilon bits
+ * @param epsilonBits exact raw epsilon bits; FLOAT16/FP8 results use FLOAT32 metadata
  * @param inputRank input rank, at least two
  * @param channelAxis normalized channel axis
  * @param algorithmVersion arithmetic and traversal version, currently {@code 1}
@@ -120,7 +120,7 @@ public record CpuBatchNormInferenceIr(List<DataType> inputTypes, DataType result
     @Override public String structuralKey() { return encodedKernelIr().structuralKey(); }
 
     private static boolean supported(DataType type) {
-        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
+        return type == DataType.BFLOAT16 || type == DataType.FLOAT16 || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
                 || type == DataType.FLOAT32 || type == DataType.FLOAT64;
     }
 
@@ -128,15 +128,12 @@ public record CpuBatchNormInferenceIr(List<DataType> inputTypes, DataType result
         return switch (type) {
             case FLOAT64 -> Double.isFinite(Double.longBitsToDouble(bits))
                     && Double.longBitsToDouble(bits) > 0.0;
-            case FLOAT32 -> (bits & ~0xffff_ffffL) == 0
+            case FLOAT32, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> (bits & ~0xffff_ffffL) == 0
                     && Float.isFinite(Float.intBitsToFloat((int) bits))
                     && Float.intBitsToFloat((int) bits) > 0.0f;
             case BFLOAT16 -> (bits & ~0xffffL) == 0
                     && Float.isFinite(Float.intBitsToFloat((int) bits << 16))
                     && Float.intBitsToFloat((int) bits << 16) > 0.0f;
-            case FLOAT16 -> (bits & ~0xffffL) == 0
-                    && Float.isFinite(Float.float16ToFloat((short) bits))
-                    && Float.float16ToFloat((short) bits) > 0.0f;
             default -> false;
         };
     }

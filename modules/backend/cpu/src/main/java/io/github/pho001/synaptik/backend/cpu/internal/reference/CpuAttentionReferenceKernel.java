@@ -264,6 +264,8 @@ public final class CpuAttentionReferenceKernel {
             BFloat16Bits.toFloat(s.segment().get(ValueLayout.JAVA_SHORT_UNALIGNED, byteAddress));
         case FLOAT16 ->
             Float.float16ToFloat(s.segment().get(ValueLayout.JAVA_SHORT_UNALIGNED, byteAddress));
+        case FLOAT8_E4M3 -> io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(s.segment().get(ValueLayout.JAVA_BYTE, byteAddress));
+        case FLOAT8_E5M2 -> io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(s.segment().get(ValueLayout.JAVA_BYTE, byteAddress));
         case BOOL -> s.segment().get(ValueLayout.JAVA_BYTE, byteAddress);
         default -> throw new AssertionError(t);
       };
@@ -274,6 +276,8 @@ public final class CpuAttentionReferenceKernel {
       case FLOAT32 -> ((CpuBufferArgument.Floats) a).carrier()[i];
       case BFLOAT16 -> BFloat16Bits.toFloat(((CpuBufferArgument.Shorts) a).carrier()[i]);
       case FLOAT16 -> Float.float16ToFloat(((CpuBufferArgument.Shorts) a).carrier()[i]);
+      case FLOAT8_E4M3 -> io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(((CpuBufferArgument.Bytes) a).carrier()[i]);
+      case FLOAT8_E5M2 -> io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(((CpuBufferArgument.Bytes) a).carrier()[i]);
       case BOOL -> ((CpuBufferArgument.Bytes) a).carrier()[i];
       default -> throw new AssertionError(t);
     };
@@ -296,6 +300,10 @@ public final class CpuAttentionReferenceKernel {
             s.segment()
                 .set(ValueLayout.JAVA_SHORT_UNALIGNED, byteAddress,
                     Float.floatToFloat16((float) value));
+        case FLOAT8_E4M3 -> s.segment().set(ValueLayout.JAVA_BYTE, byteAddress,
+            io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat((float) value));
+        case FLOAT8_E5M2 -> s.segment().set(ValueLayout.JAVA_BYTE, byteAddress,
+            io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat((float) value));
         default -> throw new AssertionError(t);
       }
       return;
@@ -308,6 +316,10 @@ public final class CpuAttentionReferenceKernel {
           ((CpuBufferArgument.Shorts) a).carrier()[i] = BFloat16Bits.fromFloat((float) value);
       case FLOAT16 ->
           ((CpuBufferArgument.Shorts) a).carrier()[i] = Float.floatToFloat16((float) value);
+      case FLOAT8_E4M3 -> ((CpuBufferArgument.Bytes) a).carrier()[i] =
+          io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat((float) value);
+      case FLOAT8_E5M2 -> ((CpuBufferArgument.Bytes) a).carrier()[i] =
+          io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat((float) value);
       default -> throw new AssertionError(t);
     }
   }

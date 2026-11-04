@@ -38,7 +38,7 @@ public final class CpuSoftmaxReferenceKernel {
         Objects.requireNonNull(input, "input"); Objects.requireNonNull(extents, "extents");
         Objects.requireNonNull(inputStrides, "inputStrides");
         if ((type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
+                && type != DataType.BFLOAT16 && type != DataType.FLOAT16 && type != DataType.FLOAT8_E4M3 && type != DataType.FLOAT8_E5M2)
                 || extents.length == 0 || extents.length != inputStrides.length
                 || axis < 0 || axis >= extents.length || inputOffset < 0
                 || Arrays.stream(extents).anyMatch(v -> v < 0)
@@ -179,6 +179,8 @@ public final class CpuSoftmaxReferenceKernel {
         if (type == DataType.FLOAT64) return value;
         float narrowed = (float) value;
         if (type == DataType.FLOAT32) return narrowed;
+        if (type == DataType.FLOAT8_E4M3) return io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(narrowed));
+        if (type == DataType.FLOAT8_E5M2) return io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(narrowed));
         if (Float.isNaN(narrowed)) return Double.NaN;
         if (type == DataType.FLOAT16)
             return Float.float16ToFloat(Float.floatToFloat16(narrowed));

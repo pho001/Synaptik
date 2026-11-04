@@ -18,8 +18,8 @@ import java.util.Objects;
  * @param inputTypes five semantic input data types in input, scale, bias, running-mean, and
  *     running-variance order; snapshotted and never {@code null}
  * @param resultType promoted output and computation data type; never {@code null}
- * @param momentumBits raw result-type bits for momentum, interpreted as the new-batch weight
- * @param epsilonBits raw result-type bits for the finite positive epsilon
+ * @param momentumBits raw metadata bits (FLOAT32 for FLOAT16/FP8 results) for momentum, interpreted as the new-batch weight
+ * @param epsilonBits raw metadata bits (FLOAT32 for FLOAT16/FP8 results) for the finite positive epsilon
  * @param inputRank static input rank, at least two
  * @param channelAxis normalized channel axis in {@code [0, inputRank)}
  * @param algorithmVersion {@code 1} for a fixed domain; {@code 2} for an invocation-bound
@@ -124,17 +124,16 @@ public record CpuBatchNormTrainingIr(List<DataType> inputTypes, DataType resultT
     @Override public String structuralKey() { return encodedKernelIr().structuralKey(); }
 
     private static boolean supported(DataType t) {
-        return t == DataType.BFLOAT16 || t == DataType.FLOAT16
+        return t == DataType.BFLOAT16 || t == DataType.FLOAT16 || t == DataType.FLOAT8_E4M3 || t == DataType.FLOAT8_E5M2
                 || t == DataType.FLOAT32 || t == DataType.FLOAT64;
     }
     private static double value(DataType t, long bits) { return switch (t) {
-        case FLOAT64 -> Double.longBitsToDouble(bits); case FLOAT32 -> Float.intBitsToFloat((int) bits);
+        case FLOAT64 -> Double.longBitsToDouble(bits); case FLOAT32, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> Float.intBitsToFloat((int) bits);
         case BFLOAT16 -> Float.intBitsToFloat((int) bits << 16);
-        case FLOAT16 -> Float.float16ToFloat((short) bits);
         default -> Double.NaN; }; }
     private static boolean bitsFit(DataType t, long bits) { return t == DataType.FLOAT64
-            || t == DataType.FLOAT32 && (bits & ~0xffff_ffffL) == 0
-            || (t == DataType.BFLOAT16 || t == DataType.FLOAT16) && (bits & ~0xffffL) == 0; }
+            || (t == DataType.FLOAT32 || t == DataType.FLOAT16 || t == DataType.FLOAT8_E4M3 || t == DataType.FLOAT8_E5M2) && (bits & ~0xffff_ffffL) == 0
+            || t == DataType.BFLOAT16 && (bits & ~0xffffL) == 0; }
     private static boolean unitInterval(DataType t, long bits) { double v = value(t, bits);
         return bitsFit(t, bits) && Double.isFinite(v) && v >= 0 && v <= 1; }
     private static boolean positiveFinite(DataType t, long bits) { double v = value(t, bits);

@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalys
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.reference.CpuScalarReferenceKernel;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -237,7 +238,7 @@ class CpuAggregateGeneratedKernelTest {
                 List.of(inputDescriptor), outputDescriptor);
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.SHORT_ARRAY)));
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -301,7 +302,7 @@ class CpuAggregateGeneratedKernelTest {
     }
 
 
-    @Test void sumToShapeEvidenceMatrixHasTypedDeterministicSelfContainedClassFiles() {
+    @Test void sumToShapeEvidenceMatrixHasTypedDeterministicSelfContainedClassFiles() throws Throwable {
         var f64 = sumToShapeRoute(DataType.FLOAT64, Shape.of(64,128,256), Shape.of(128,1),
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY));
         assertThrows(IllegalArgumentException.class, () -> sumToShapeRoute(DataType.BFLOAT16,
@@ -372,7 +373,7 @@ class CpuAggregateGeneratedKernelTest {
                 List.of(inputDescriptor), outputDescriptor);
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.SHORT_ARRAY)));
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -428,7 +429,7 @@ class CpuAggregateGeneratedKernelTest {
                 () -> assertEquals((short) 0xbf80, full[7]));
     }
 
-    @Test void frozenMultiAxisMinimumArtifactHasDirectPrimitiveLoopsAndTypedFallback() {
+    @Test void frozenMultiAxisMinimumArtifactHasDirectPrimitiveLoopsAndTypedFallback() throws Throwable {
         Shape inputShape = Shape.of(64, 64, 64), outputShape = Shape.of(1, 64, 1);
         var inputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16, inputShape,
                 LayoutDescriptor.contiguous(inputShape));
@@ -439,7 +440,7 @@ class CpuAggregateGeneratedKernelTest {
                 List.of(inputDescriptor), outputDescriptor);
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.SHORT_ARRAY)));
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan();
         var model = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
@@ -500,20 +501,6 @@ class CpuAggregateGeneratedKernelTest {
         var generator = new CpuClassFileKernelGenerator();
         var meanArtifact = generator.defineClassBytes(meanRoute.specialization(), meanRoute.kernelIr(), generator.generateClassBytes(meanRoute.specialization(), meanRoute.kernelIr()));
 
-        Shape productInputShape = Shape.of(4, 16_384, 4);
-        Shape productOutputShape = Shape.of(1, 16_384, 1);
-        var productInputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16,
-                productInputShape, LayoutDescriptor.contiguous(productInputShape));
-        var productOutputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16,
-                productOutputShape, LayoutDescriptor.of(productOutputShape,
-                        new long[]{32_768, 2, 2}, 3, true));
-        var productBase = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.PROD,
-                new MultiAxisReductionAttrs(List.of(0, 2), true)), List.of(0),
-                List.of(productInputDescriptor), productOutputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> productContext = new PrepareContext<>(productBase.partition(), productBase.nodes(), productBase.values(), productBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
-        assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                .assertLowUnsupported(productContext));
 
         try (var arena = Arena.ofConfined()) {
             int meanPhysicalCount = 3 + 2 * 128 * 2048;
@@ -568,7 +555,7 @@ class CpuAggregateGeneratedKernelTest {
         }
     }
 
-    @Test void frozenNumericalResidualArtifactsHaveProvedPrimitiveLoopsAndTypedFallbacks() {
+    @Test void frozenNumericalResidualArtifactsHaveProvedPrimitiveLoopsAndTypedFallbacks() throws Throwable {
         Shape meanInputShape = Shape.of(128, 2048), meanOutputShape = Shape.of(128);
         var meanInputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.FLOAT32,
                 meanInputShape, LayoutDescriptor.of(meanInputShape,
@@ -583,20 +570,6 @@ class CpuAggregateGeneratedKernelTest {
         var meanRoute = new CpuPartitionPreparer().analyze(meanContext).plan().units().getFirst()
                 .portablePlan();
 
-        Shape productInputShape = Shape.of(4, 16_384, 4);
-        Shape productOutputShape = Shape.of(1, 16_384, 1);
-        var productInputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16,
-                productInputShape, LayoutDescriptor.contiguous(productInputShape));
-        var productOutputDescriptor = CpuIndexingLoweringTest.descriptor(DataType.BFLOAT16,
-                productOutputShape, LayoutDescriptor.of(productOutputShape,
-                        new long[]{32_768, 2, 2}, 3, true));
-        var productBase = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.PROD,
-                new MultiAxisReductionAttrs(List.of(0, 2), true)), List.of(0),
-                List.of(productInputDescriptor), productOutputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> productContext = new PrepareContext<>(productBase.partition(), productBase.nodes(), productBase.values(), productBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
-        assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                .assertLowUnsupported(productContext));
 
         var generator = new CpuClassFileKernelGenerator();
         var meanModel = ClassFile.of().parse(generator.generateClassBytes(
@@ -650,7 +623,7 @@ class CpuAggregateGeneratedKernelTest {
                 () -> assertEquals(1, model.methods().size()));
     }
 
-    @Test void extremaAndBooleanArtifactsAreSelfContainedTypedAndFreeOfDynamicConstructs() {
+    @Test void extremaAndBooleanArtifactsAreSelfContainedTypedAndFreeOfDynamicConstructs() throws Throwable {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.INT32, DataType.INT64)) {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.MIN,
@@ -660,7 +633,7 @@ class CpuAggregateGeneratedKernelTest {
         assertStrictArtifact(AggregateReductionKind.ANY, DataType.BOOL);
     }
 
-    @Test void numericalArtifactsHaveTypedScratchDescriptorsAndDirectAllowedMembers() {
+    @Test void numericalArtifactsHaveTypedScratchDescriptorsAndDirectAllowedMembers() throws Throwable {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT64,
                 Shape.of(3), NoOperationAttrs.INSTANCE, Shape.scalar());
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
@@ -683,7 +656,7 @@ class CpuAggregateGeneratedKernelTest {
                             || owner.equals("java/lang/foreign/MemorySegment");
                 })));
     }
-    @Test void generatedClassContainsTypedAggregateFoldWithoutGenericDispatchBridge() {
+    @Test void generatedClassContainsTypedAggregateFoldWithoutGenericDispatchBridge() throws Throwable {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.MIN, DataType.FLOAT64,
                 Shape.of(1024), NoOperationAttrs.INSTANCE, Shape.scalar());
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
@@ -1066,10 +1039,70 @@ class CpuAggregateGeneratedKernelTest {
                 .map(i->Float.floatToRawIntBits(ranged[i])).toArray());
     }
 
+    @Test void everyLowFormatUsesItsOwnRawNumericAggregateBoundary() throws Throwable {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            Object values = lowValues(type, 2, 4);
+            for (AggregateReductionKind kind : List.of(AggregateReductionKind.SUM,
+                    AggregateReductionKind.MEAN, AggregateReductionKind.PROD)) {
+                Object result = invoke(kind, type, Shape.of(2), NoOperationAttrs.INSTANCE,
+                        Shape.scalar(), values);
+                Object expected = lowValues(type, kind == AggregateReductionKind.SUM ? 6
+                        : kind == AggregateReductionKind.MEAN ? 3 : 8);
+                if (result instanceof byte[] bytes) assertArrayEquals((byte[]) expected, bytes);
+                else assertArrayEquals((short[]) expected, (short[]) result);
+            }
+        }
+    }
+
+    @Test void e4m3ExtremaDoNotUseNanAsAnInfinityWinnerAndKeepRawSelections() throws Throwable {
+        for (AggregateReductionKind kind : List.of(AggregateReductionKind.MIN, AggregateReductionKind.MAX)) {
+            byte[] result = (byte[]) invoke(kind, DataType.FLOAT8_E4M3, Shape.of(3),
+                    NoOperationAttrs.INSTANCE, Shape.scalar(), new byte[] {0x7e, (byte) 0xfe, 0x38});
+            assertArrayEquals(new byte[] {kind == AggregateReductionKind.MIN ? (byte) 0xfe : (byte) 0x7e}, result);
+            assertArrayEquals(new byte[] {(byte) 0xff}, (byte[]) invoke(kind, DataType.FLOAT8_E4M3,
+                    Shape.of(3), NoOperationAttrs.INSTANCE, Shape.scalar(),
+                    new byte[] {0x38, (byte) 0xff, 0x7f}));
+            assertArrayEquals(new byte[] {0x7f}, (byte[]) invoke(kind, DataType.FLOAT8_E4M3,
+                    Shape.of(0), NoOperationAttrs.INSTANCE, Shape.scalar(), new byte[0]));
+            assertArrayEquals(new byte[] {kind == AggregateReductionKind.MIN ? (byte) 0x80 : 0},
+                    (byte[]) invoke(kind, DataType.FLOAT8_E4M3, Shape.of(2),
+                            NoOperationAttrs.INSTANCE, Shape.scalar(), new byte[] {0, (byte) 0x80}));
+        }
+    }
+
+    @Test void fp8ExactSumsAndProductsClassifyTopFiniteBinsAndOverflowAtFinalRounding() throws Throwable {
+        assertArrayEquals(new byte[] {0x7e}, (byte[]) invoke(AggregateReductionKind.SUM,
+                DataType.FLOAT8_E4M3, Shape.of(2), NoOperationAttrs.INSTANCE, Shape.scalar(),
+                lowValues(DataType.FLOAT8_E4M3, 448, 16)));
+        assertArrayEquals(new byte[] {0x7f}, (byte[]) invoke(AggregateReductionKind.SUM,
+                DataType.FLOAT8_E4M3, Shape.of(2), NoOperationAttrs.INSTANCE, Shape.scalar(),
+                lowValues(DataType.FLOAT8_E4M3, 448, 32)));
+        assertArrayEquals(new byte[] {0x7e}, (byte[]) invoke(AggregateReductionKind.PROD,
+                DataType.FLOAT8_E4M3, Shape.of(2), NoOperationAttrs.INSTANCE, Shape.scalar(),
+                lowValues(DataType.FLOAT8_E4M3, 448, 1)));
+        assertArrayEquals(new byte[] {0x7c}, (byte[]) invoke(AggregateReductionKind.PROD,
+                DataType.FLOAT8_E5M2, Shape.of(2), NoOperationAttrs.INSTANCE, Shape.scalar(),
+                lowValues(DataType.FLOAT8_E5M2, 57344, 2)));
+    }
+
+    private static Object lowValues(DataType type, float... values) {
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            byte[] result = new byte[values.length];
+            for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT8_E4M3
+                    ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(values[i])
+                    : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(values[i]);
+            return result;
+        }
+        short[] result = new short[values.length];
+        for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT16
+                ? Float.floatToFloat16(values[i]) : ScalarValue.bfloat16(values[i]).bfloat16Bits();
+        return result;
+    }
+
     private static void compare(AggregateReductionKind kind, DataType type, Shape inputShape,
             OperationAttrs attrs, Shape outputShape, Object input) throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(kind == AggregateReductionKind.SUM || kind == AggregateReductionKind.MEAN || kind == AggregateReductionKind.PROD ? type : DataType.FLOAT32, () -> {
-        Object actual = invoke(kind, type, inputShape, attrs, outputShape, input);
+        { Object actual = invoke(kind, type, inputShape, attrs, outputShape, input);
         Object expected = java.lang.reflect.Array.newInstance(input.getClass().componentType(),
                 Math.toIntExact(outputShape.knownElementCount().orElseThrow()));
         var lowered = CpuAggregateLoweringTest.lower(kind, type, inputShape, attrs, outputShape);
@@ -1091,8 +1124,7 @@ class CpuAggregateGeneratedKernelTest {
         else if (expected instanceof short[] a) assertArrayEquals(a,(short[])actual);
         else if (expected instanceof int[] a) assertArrayEquals(a,(int[])actual);
         else if (expected instanceof long[] a) assertArrayEquals(a,(long[])actual);
-        else assertArrayEquals((byte[])expected,(byte[])actual);
-        });
+        else assertArrayEquals((byte[])expected,(byte[])actual); }
     }
 
     private static Object invoke(AggregateReductionKind kind, DataType type, Shape inputShape,
@@ -1118,18 +1150,17 @@ class CpuAggregateGeneratedKernelTest {
 
     private static CarrierAccess carrier(DataType type) { return switch(type) {
         case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
-        case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
-        case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> CarrierAccess.BYTE_ARRAY;
-        case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU aggregate unsupported"); }; }
+        case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
+        case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
+        }; }
     private static CpuBufferArgument argument(DataType type,Object value,boolean readOnly) {
         return switch(type) {
             case FLOAT64 -> new CpuBufferArgument.Doubles((double[])value,0,((double[])value).length*8L,readOnly);
             case FLOAT32 -> new CpuBufferArgument.Floats((float[])value,0,((float[])value).length*4L,readOnly);
-            case BFLOAT16 -> new CpuBufferArgument.Shorts((short[])value,0,((short[])value).length*2L,readOnly);
+            case BFLOAT16, FLOAT16 -> new CpuBufferArgument.Shorts((short[])value,0,((short[])value).length*2L,readOnly);
             case INT32 -> new CpuBufferArgument.Ints((int[])value,0,((int[])value).length*4L,readOnly);
             case INT64 -> new CpuBufferArgument.Longs((long[])value,0,((long[])value).length*8L,readOnly);
-            case BOOL -> new CpuBufferArgument.Bytes((byte[])value,0,((byte[])value).length,readOnly);
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU aggregate unsupported");
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> new CpuBufferArgument.Bytes((byte[])value,0,((byte[])value).length,readOnly);
         };
     }
 
@@ -1169,10 +1200,17 @@ class CpuAggregateGeneratedKernelTest {
                 values[index] = Float.intBitsToFloat(floatBits[index % floatBits.length]);
             return values;
         }
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            byte[] values = new byte[count];
+            for (int index = 0; index < count; index++) values[index] = (byte) index;
+            return values;
+        }
+        int[] halfBits = {0x0001, 0x8001, 0x0400, 0x8400, 0x3c00, 0xbc00,
+                0x1000, 0x7bff, 0xfbff, 0x0000, 0x8000, 0x7c00, 0xfc00, 0x7c01, 0xfe42};
+        int[] selectedBits = type == DataType.FLOAT16 ? halfBits : bfloatBits;
         short[] values = new short[count];
         for (int index = 0; index < count; index++)
-            values[index] = (short) bfloatBits[index % bfloatBits.length];
-        if (type == DataType.FLOAT16) throw new IllegalArgumentException("FLOAT16 CPU aggregate unsupported");
+            values[index] = (short) selectedBits[index % selectedBits.length];
         return values;
     }
 
@@ -1181,7 +1219,7 @@ class CpuAggregateGeneratedKernelTest {
                 NoOperationAttrs.INSTANCE, Shape.scalar());
         CarrierAccess carrier = carrier(type);
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(carrier, carrier)));
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
         var model = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr()));
@@ -1189,9 +1227,8 @@ class CpuAggregateGeneratedKernelTest {
                 model.constantPool().spliterator(), false).filter(MemberRefEntry.class::isInstance)
                 .map(MemberRefEntry.class::cast).toList();
         String carrierDescriptor = switch (type) {
-            case FLOAT64 -> "[D"; case FLOAT32 -> "[F"; case BFLOAT16 -> "[S";
-            case INT32 -> "[I"; case INT64 -> "[J"; case BOOL -> "[B";
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU aggregate unsupported");
+            case FLOAT64 -> "[D"; case FLOAT32 -> "[F"; case BFLOAT16, FLOAT16 -> "[S";
+            case INT32 -> "[I"; case INT64 -> "[J"; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "[B";
         };
         assertAll(kind + " " + type,
                 () -> assertEquals("(" + carrierDescriptor + carrierDescriptor + "[JJJ)V",

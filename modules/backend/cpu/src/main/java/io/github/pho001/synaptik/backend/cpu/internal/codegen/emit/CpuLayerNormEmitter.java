@@ -135,21 +135,38 @@ public final class CpuLayerNormEmitter {
         emitLoop(code, geometry, normalizedRank, rank[inputBoundary], normalizedExtents, hotStride[inputBoundary],
                 bases[inputBoundary], ordinal, remaining, coordinate, address, () -> {
                     load(code, carriers, specialization, inputBoundary, representedInput, value, address);
-                    code.dload(value).dload(mean).dsub().dstore(deviation);
+                    CpuNormEmitter.arithmetic(code, resultType, value, mean, Opcode.DSUB, deviation);
                     code.dload(deviation).dstore(temporary);
-                    CpuNormEmitter.kahan(code, temporary, deviationSum, deviationCompensation, square);
-                    code.dload(deviation).dload(deviation).dmul().dstore(square);
-                    CpuNormEmitter.kahan(code, square, squareSum, squareCompensation, temporary);
+                    CpuNormEmitter.kahan(code, resultType, temporary, deviationSum, deviationCompensation, square);
+                    CpuNormEmitter.arithmetic(code, resultType, deviation, deviation, Opcode.DMUL, square);
+                    CpuNormEmitter.kahanSquares(code, resultType, square, squareSum, squareCompensation, temporary);
                 });
         code.labelBinding(skipSecondPass);
+        int count = CpuNormEmitter.low(resultType) ? code.allocateLocal(TypeKind.LONG) : -1;
+        if (CpuNormEmitter.low(resultType)) {
+            code.loadConstant(domain).lstore(count);
+            CpuNormEmitter.arithmetic(code, resultType, deviationSum, deviationSum, Opcode.DMUL, temporary);
+            CpuNormEmitter.divideByCount(code, resultType, temporary, count);
+            CpuNormEmitter.arithmetic(code, resultType, squareSum, temporary, Opcode.DSUB, variance);
+        } else {
         code.dload(squareSum).dload(deviationSum).dload(deviationSum).dmul()
                 .loadConstant((double) domain).ddiv().dsub().dstore(variance);
+        }
         var nonnegative = code.newLabel();
-        code.dload(variance).loadConstant(0.0).dcmpl().branch(Opcode.IFGE, nonnegative)
+        code.dload(variance).loadConstant(0.0);
+        if (CpuNormEmitter.low(resultType)) code.dcmpg(); else code.dcmpl();
+        code.branch(Opcode.IFGE, nonnegative)
                 .loadConstant(0.0).dstore(variance).labelBinding(nonnegative);
+        if (CpuNormEmitter.low(resultType)) {
+            CpuNormEmitter.divideByCount(code, resultType, variance, count);
+            code.loadConstant(epsilon(identity, resultType)).dstore(temporary);
+            CpuNormEmitter.arithmetic(code, resultType, variance, temporary, Opcode.DADD, root);
+            CpuNormEmitter.unary(code, resultType, "sqrt", root, root);
+        } else {
         code.dload(variance).loadConstant((double) domain).ddiv()
                 .loadConstant(epsilon(identity, resultType)).dadd().invokestatic(MATH, "sqrt",
                         CpuNormEmitter.doubleUnary()).dstore(root);
+        }
 
         int scaleRepresented = affine ? represented(code,
                 specialization.boundaryDataTypes().get(map[1])) : -1;
@@ -317,7 +334,7 @@ public final class CpuLayerNormEmitter {
      * Allocates a local matching one represented floating boundary type.
      *
      * @param code non-null method builder to mutate
-     * @param type BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 represented type
+     * @param type any supported floating represented type
      * @return allocated local index
      */
     static int represented(CodeBuilder code, DataType type) {
@@ -368,24 +385,6 @@ public final class CpuLayerNormEmitter {
                 default -> throw new IllegalArgumentException("operation"); }
             code.dstore(target); return;
         }
-        if (type == DataType.FLOAT16) {
-            Opcode floatOperation = switch (operation) {
-                case DADD -> Opcode.FADD; case DSUB -> Opcode.FSUB; case DMUL -> Opcode.FMUL;
-                case DDIV -> Opcode.FDIV; default -> throw new IllegalArgumentException("operation");
-            };
-            code.dload(left).d2f().dload(right).d2f();
-            switch (floatOperation) { case FADD -> code.fadd(); case FSUB -> code.fsub();
-                case FMUL -> code.fmul(); case FDIV -> code.fdiv();
-                default -> throw new IllegalArgumentException("operation"); }
-            code.invokestatic(java.lang.constant.ClassDesc.of(Float.class.getName()),
-                    "floatToFloat16", java.lang.constant.MethodTypeDesc.of(
-                            TypeKind.SHORT.upperBound(), TypeKind.FLOAT.upperBound()))
-                    .invokestatic(java.lang.constant.ClassDesc.of(Float.class.getName()),
-                            "float16ToFloat", java.lang.constant.MethodTypeDesc.of(
-                                    TypeKind.FLOAT.upperBound(), TypeKind.SHORT.upperBound()))
-                    .f2d().dstore(target);
-            return;
-        }
         Opcode floatOperation = switch (operation) {
             case DADD -> Opcode.FADD; case DSUB -> Opcode.FSUB; case DMUL -> Opcode.FMUL;
             case DDIV -> Opcode.FDIV; default -> throw new IllegalArgumentException("operation");
@@ -427,7 +426,7 @@ public final class CpuLayerNormEmitter {
      * Decodes exact typed epsilon bits from structural identity.
      *
      * @param identity non-null canonical trailing-normalization identity
-     * @param type exact BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 result type
+     * @param type exact any supported floating result type
      * @return positive finite epsilon widened exactly to binary64
      * @throws IllegalArgumentException if {@code type} is not a supported floating type
      */
@@ -435,9 +434,8 @@ public final class CpuLayerNormEmitter {
         long bits = Long.parseUnsignedLong(field(identity, ":epsilon="));
         return switch (type) {
             case FLOAT64 -> Double.longBitsToDouble(bits);
-            case FLOAT32 -> Float.intBitsToFloat((int) bits);
+            case FLOAT32, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> Float.intBitsToFloat((int) bits);
             case BFLOAT16 -> Float.intBitsToFloat((int) bits << 16);
-            case FLOAT16 -> Float.float16ToFloat((short) bits);
             default -> throw new IllegalArgumentException("normalization result must be floating");
         };
     }

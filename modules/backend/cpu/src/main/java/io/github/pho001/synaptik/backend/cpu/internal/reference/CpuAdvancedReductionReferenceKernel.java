@@ -114,10 +114,10 @@ public final class CpuAdvancedReductionReferenceKernel {
                 else if (kind == CpuAdvancedReductionIr.Kind.L2_NORM) {
                     double absolute = Math.abs(value);
                     if (absolute != 0.0 && scale < absolute) {
-                        double ratio = scale / absolute;
-                        scaledSquares = 1.0 + scaledSquares * ratio * ratio; scale = absolute;
+                        double ratio = arithmetic(type, scale, absolute, '/');
+                        scaledSquares = arithmetic(type, 1.0, arithmetic(type, arithmetic(type, scaledSquares, ratio, '*'), ratio, '*'), '+'); scale = absolute;
                     } else if (absolute != 0.0) {
-                        double ratio = absolute / scale; scaledSquares += ratio * ratio;
+                        double ratio = arithmetic(type, absolute, scale, '/'); scaledSquares = arithmetic(type, scaledSquares, arithmetic(type, ratio, ratio, '*'), '+');
                     }
                 } else exact = exact.add(new BigDecimal(value));
             }
@@ -131,43 +131,64 @@ public final class CpuAdvancedReductionReferenceKernel {
             for (int axis = 0; axis < selected.length; axis++) if (!selected[axis])
                 domainCoordinates[axis] = coordinates[axis];
             for (long index = 0; index < domain; index++) {
-                double term = StrictMath.exp(value(input, offset, strides, domainCoordinates) - maximum);
-                double adjusted = term - compensation, next = sum + adjusted;
-                compensation = (next - sum) - adjusted; sum = next;
+                double term = working(type, StrictMath.exp(arithmetic(type, value(input, offset, strides, domainCoordinates), maximum, '-')));
+                double adjusted = arithmetic(type, term, compensation, '-'), next = arithmetic(type, sum, adjusted, '+');
+                compensation = arithmetic(type, arithmetic(type, next, sum, '-'), adjusted, '-'); sum = next;
                 incrementSelected(domainCoordinates, extents, selected);
             }
-            return maximum + StrictMath.log(sum);
+            return arithmetic(type, maximum, working(type, StrictMath.log(sum)), '+');
         }
         if (infinity) return kind == CpuAdvancedReductionIr.Kind.VARIANCE
                 || kind == CpuAdvancedReductionIr.Kind.STANDARD_DEVIATION
                 ? canonicalNaN() : Double.POSITIVE_INFINITY;
         if (kind == CpuAdvancedReductionIr.Kind.L1_NORM) return exact.doubleValue();
         if (kind == CpuAdvancedReductionIr.Kind.L2_NORM)
-            return scale == 0.0 ? 0.0 : scale * StrictMath.sqrt(scaledSquares);
-        double mean = represented(type, exact.divide(BigDecimal.valueOf(domain), DIVISION).doubleValue());
+            return scale == 0.0 ? 0.0 : arithmetic(type, scale, working(type, StrictMath.sqrt(scaledSquares)), '*');
+        double mean = represented(low(type) ? DataType.FLOAT32 : type, exact.divide(BigDecimal.valueOf(domain), DIVISION).doubleValue());
         double deviations = 0.0, deviationCompensation = 0.0;
         double squares = 0.0, squareCompensation = 0.0; Arrays.fill(domainCoordinates, 0);
         for (int axis = 0; axis < selected.length; axis++) if (!selected[axis])
             domainCoordinates[axis] = coordinates[axis];
         for (long index = 0; index < domain; index++) {
-            double deviation = value(input, offset, strides, domainCoordinates) - mean;
-            double adjusted = deviation - deviationCompensation, next = deviations + adjusted;
-            deviationCompensation = (next - deviations) - adjusted; deviations = next;
-            double square = deviation * deviation;
+            double deviation = arithmetic(type, value(input, offset, strides, domainCoordinates), mean, '-');
+            double adjusted = arithmetic(type, deviation, deviationCompensation, '-'), next = arithmetic(type, deviations, adjusted, '+');
+            deviationCompensation = arithmetic(type, arithmetic(type, next, deviations, '-'), adjusted, '-'); deviations = next;
+            double square = arithmetic(type, deviation, deviation, '*');
             if (square == Double.POSITIVE_INFINITY) {
                 squares = Double.POSITIVE_INFINITY; squareCompensation = 0.0;
             } else if (squares != Double.POSITIVE_INFINITY) {
-                adjusted = square - squareCompensation; next = squares + adjusted;
-                squareCompensation = (next - squares) - adjusted; squares = next;
+                adjusted = arithmetic(type, square, squareCompensation, '-'); next = arithmetic(type, squares, adjusted, '+');
+                squareCompensation = arithmetic(type, arithmetic(type, next, squares, '-'), adjusted, '-'); squares = next;
             }
             incrementSelected(domainCoordinates, extents, selected);
         }
         double numerator = squares == Double.POSITIVE_INFINITY ? Double.POSITIVE_INFINITY
-                : squares - deviations * deviations / domain;
+                : arithmetic(type, squares, divide(type, arithmetic(type, deviations, deviations, '*'), domain), '-');
         if (numerator < 0.0) numerator = 0.0;
-        double result = numerator / (domain - correction);
+        double result = divide(type, numerator, domain - correction);
         return kind == CpuAdvancedReductionIr.Kind.STANDARD_DEVIATION
-                ? StrictMath.sqrt(result) : result;
+                ? working(type, StrictMath.sqrt(result)) : result;
+    }
+
+    private static boolean low(DataType type) {
+        return type != DataType.FLOAT64 && type != DataType.FLOAT32;
+    }
+    private static double working(DataType type, double value) {
+        return low(type) ? (float) value : value;
+    }
+    private static double arithmetic(DataType type, double a, double b, char operation) {
+        if (low(type)) {
+            float x = (float) a, y = (float) b;
+            return switch (operation) { case '+' -> x + y; case '-' -> x - y;
+                case '*' -> x * y; default -> x / y; };
+        }
+        return switch (operation) { case '+' -> a + b; case '-' -> a - b;
+            case '*' -> a * b; default -> a / b; };
+    }
+    private static double divide(DataType type, double value, long count) {
+        if (!low(type) || !Double.isFinite(value) || count == 0) return value / count;
+        if (value == 0) return value;
+        return new BigDecimal(value).divide(BigDecimal.valueOf(count), DIVISION).floatValue();
     }
 
     private static double value(double[] input, long offset, long[] strides, long[] coordinates) {
@@ -214,13 +235,17 @@ public final class CpuAdvancedReductionReferenceKernel {
     }
 
     private static boolean floating(DataType type) { return type == DataType.FLOAT64
-            || type == DataType.FLOAT32 || type == DataType.BFLOAT16; }
+            || type == DataType.FLOAT32 || type == DataType.BFLOAT16 || type == DataType.FLOAT16
+            || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2; }
 
     private static double represented(DataType type, double value) {
         if (Double.isNaN(value)) return canonicalNaN();
         if (type == DataType.FLOAT64) return value;
         float narrowed = (float) value;
         if (type == DataType.FLOAT32) return narrowed;
+        if (type == DataType.FLOAT16) return Float.float16ToFloat(Float.floatToFloat16(narrowed));
+        if (type == DataType.FLOAT8_E4M3) return io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(narrowed));
+        if (type == DataType.FLOAT8_E5M2) return io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(narrowed));
         int bits = Float.floatToRawIntBits(narrowed);
         if ((bits & 0x7fffffff) > 0x7f800000) return Float.intBitsToFloat(0x7fc00000);
         bits += 0x7fff + (bits >>> 16 & 1);

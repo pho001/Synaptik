@@ -94,6 +94,9 @@ public final class CpuRmsNormEmitter {
                     CpuLayerNormEmitter.load(code, carriers, specialization, inputBoundary,
                             representedInput, value, address);
                     CpuNormEmitter.classify(code, value, nan, -1, infinity);
+                    if (CpuNormEmitter.low(resultType)) {
+                        CpuNormEmitter.emitScaledSquares(code, resultType, value, scale, squares, ratio);
+                    } else {
                     code.dload(value).invokestatic(MATH, "abs", CpuNormEmitter.doubleUnary())
                             .dstore(absolute);
                     var zero = code.newLabel(); var smaller = code.newLabel(); var complete = code.newLabel();
@@ -106,12 +109,23 @@ public final class CpuRmsNormEmitter {
                     code.dload(absolute).dload(scale).ddiv().dstore(ratio);
                     code.dload(squares).dload(ratio).dload(ratio).dmul().dadd().dstore(squares)
                             .branch(Opcode.GOTO, complete).labelBinding(zero).labelBinding(complete);
+                    }
                 });
+        if (CpuNormEmitter.low(resultType)) {
+            int count = code.allocateLocal(TypeKind.LONG);
+            code.loadConstant(domain).lstore(count);
+            CpuNormEmitter.divideByCount(code, resultType, squares, count);
+            CpuNormEmitter.unary(code, resultType, "sqrt", squares, rms);
+            CpuNormEmitter.arithmetic(code, resultType, rms, scale, Opcode.DMUL, rms);
+            code.loadConstant(CpuLayerNormEmitter.epsilon(identity, resultType)).dstore(ratio);
+            CpuNormEmitter.unary(code, resultType, "sqrt", ratio, ratio);
+        } else {
         code.dload(squares).loadConstant((double) domain).ddiv()
                 .invokestatic(MATH, "sqrt", CpuNormEmitter.doubleUnary())
                 .dload(scale).dmul().dstore(rms);
         code.loadConstant(CpuLayerNormEmitter.epsilon(identity, resultType))
                 .invokestatic(MATH, "sqrt", CpuNormEmitter.doubleUnary()).dstore(ratio);
+        }
         code.dload(rms).dload(ratio).invokestatic(MATH, "hypot",
                 java.lang.constant.MethodTypeDesc.of(TypeKind.DOUBLE.upperBound(),
                         TypeKind.DOUBLE.upperBound(), TypeKind.DOUBLE.upperBound())).dstore(root);

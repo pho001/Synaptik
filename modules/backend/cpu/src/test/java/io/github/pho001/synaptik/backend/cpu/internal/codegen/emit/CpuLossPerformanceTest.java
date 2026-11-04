@@ -160,8 +160,7 @@ class CpuLossPerformanceTest {
             assertEquals(1, row.key().split(",", -1).length,
                     "CSV key must remain one column: " + row.key());
             var context = context(row);
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                    .assertLowUnsupported(context)) continue;
+            
             try {
                 Case value = create(row, context);
                 assertEquals(carriers(List.of(row.result()), row.bits() >> (row.roles().equals(List.of(0, 0)) ? 1 : 2)).getFirst()
@@ -178,7 +177,7 @@ class CpuLossPerformanceTest {
     }
 
     @Test
-    void compiledOracleSourceHasOnlyTypedCarrierLoops() {
+    void compiledOracleSourceHasOnlyTypedCarrierLoops() throws Throwable {
         String source = oracle().source();
         assertTrue(source.contains("MemorySegment"));
         assertTrue(source.contains("StrictMath.exp"));
@@ -226,8 +225,7 @@ class CpuLossPerformanceTest {
     void compiledOracleMatchesGeneratedRepresentativeOutputs() throws Exception {
         for (Row row : representativeRows()) {
             var context = context(row);
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                    .assertLowUnsupported(context)) continue;
+            
             Case value = create(row, context);
             invoke(value.generated().entry());
             long generatedResult = checksum(value.generated().carrier(), row.result()).read();
@@ -263,7 +261,7 @@ class CpuLossPerformanceTest {
 
     /** Keeps every retained full-matrix failure represented exactly once before timed preflight. */
     @Test
-    void retainedOutlierPreflightContainsEveryRetainedFailureExactlyOnce() {
+    void retainedOutlierPreflightContainsEveryRetainedFailureExactlyOnce() throws Throwable {
         List<String> keys = retainedOutlierPreflightRows().stream().map(Row::key).toList();
         assertTrue(keys.contains("MEAN_SQUARED_ERROR-FLOAT64-FLOAT32-NONE-false-roles0_1-0"));
         assertEquals(keys.size(), keys.stream().distinct().count(),
@@ -271,7 +269,7 @@ class CpuLossPerformanceTest {
     }
 
     @Test
-    void timingProtocolRetainsItsRequiredConstantsAndExactInventory() {
+    void timingProtocolRetainsItsRequiredConstantsAndExactInventory() throws Throwable {
         assertAll(
                 () -> assertEquals(5, FORKS),
                 () -> assertEquals(5, WARMUP_ROUNDS),
@@ -455,11 +453,7 @@ class CpuLossPerformanceTest {
         int ordinal = 0;
         for (Row row : selectedRows) {
             var context = context(row);
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                    .assertLowUnsupported(context)) {
-                raw.append(ordinal++).append(',').append(row.key()).append(",UNSUPPORTED,,,,\n");
-                continue;
-            }
+            
             Case value = create(row, context);
             for (int warmup = 0; warmup < WARMUP_ROUNDS; warmup++) {
                 if (random.nextBoolean()) { warmup(value.generated()); warmup(value.direct()); }
@@ -511,11 +505,7 @@ class CpuLossPerformanceTest {
         StringBuilder report = new StringBuilder("key,generated_median_ns,direct_median_ns,median_ratio,outcome\n");
         for (Row row : representativeRows()) {
             var context = context(row);
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                    .assertLowUnsupported(context)) {
-                report.append(row.key()).append(",,,,UNSUPPORTED\n");
-                continue;
-            }
+            
             Case value = create(row, context);
             Files.write(root.resolve(row.key() + ".class"), value.generatedClassBytes());
             for (int warmup = 0; warmup < WARMUP_ROUNDS; warmup++) {

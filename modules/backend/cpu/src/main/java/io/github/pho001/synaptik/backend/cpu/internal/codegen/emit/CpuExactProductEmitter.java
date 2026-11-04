@@ -12,6 +12,7 @@ import java.lang.foreign.ValueLayout;
 
 /**
  * Emits a complete type-specialized exact floating product into a generated CPU entry.
+ * Low factors decode into binary32 working state; only the completed result narrows to storage.
  *
  * <p>This generation-time owner is shared by scatter multiplication and ordinary aggregate
  * products. Generated execution uses a prevalidated primitive-limb {@link MemorySegment} state;
@@ -31,6 +32,7 @@ final class CpuExactProductEmitter {
     private static final long NAN = 1, ZERO = 2, INFINITY = 4, SIGN = 8;
     private final CodeBuilder code;
     private final DataType type;
+    private final DataType representedType;
     private final int scratch;
     private final int geometry;
     private final boolean localState;
@@ -69,7 +71,7 @@ final class CpuExactProductEmitter {
      * Creates scatter-product emission using the established scatter geometry indices.
      *
      * @param code Class-File method builder mutated by subsequent emission; not {@code null}
-     * @param type exact floating represented type
+     * @param type represented source/result type; low formats use binary32 working state
      * @param scratch local-variable slot containing the exact-product state segment
      * @param geometry local-variable slot containing packed scatter geometry
      * @throws NullPointerException if {@code code} is {@code null}
@@ -83,7 +85,7 @@ final class CpuExactProductEmitter {
      * Creates exact-product emission using explicit packed state-location indices.
      *
      * @param code Class-File method builder mutated by subsequent emission; not {@code null}
-     * @param type exact floating represented type
+     * @param type represented source/result type; low formats use binary32 working state
      * @param scratch local-variable slot containing the exact-product state segment
      * @param geometry local-variable slot containing packed family geometry
      * @param offsetIndex packed geometry index of the state-slice byte offset
@@ -100,7 +102,7 @@ final class CpuExactProductEmitter {
      * Creates exact-product emission with explicit state layout and header-locality policy.
      *
      * @param code Class-File method builder mutated by subsequent emission; not {@code null}
-     * @param type exact floating represented type
+     * @param type represented source/result type; low formats use binary32 working state
      * @param scratch local-variable slot containing the exact-product state segment
      * @param geometry local-variable slot containing packed family geometry
      * @param offsetIndex packed geometry index of the state-slice byte offset
@@ -114,10 +116,11 @@ final class CpuExactProductEmitter {
     CpuExactProductEmitter(CodeBuilder code, DataType type, int scratch, int geometry,
             int offsetIndex, int bytesIndex, boolean localState) {
         if (type != DataType.FLOAT64 && type != DataType.FLOAT32
-                && type != DataType.BFLOAT16 && type != DataType.FLOAT16)
+                && type != DataType.BFLOAT16 && type != DataType.FLOAT16 && type != DataType.FLOAT8_E4M3 && type != DataType.FLOAT8_E5M2)
             throw new IllegalArgumentException("exact product requires a floating type");
         this.code = code;
-        this.type = type;
+        this.representedType = type;
+        this.type = CpuNormEmitter.low(type) ? DataType.FLOAT32 : type;
         this.scratch = scratch;
         this.geometry = geometry;
         this.localState = localState;
@@ -607,6 +610,14 @@ final class CpuExactProductEmitter {
     }
 
     private void loadBits(int value) {
+        if (CpuNormEmitter.low(representedType)) {
+            CpuCastEmitter.emitLowToFloat(code, representedType, value);
+            code.invokestatic(FLOAT_CLASS, "floatToRawIntBits",
+                    MethodTypeDesc.of(ConstantDescs.CD_int, ConstantDescs.CD_float))
+                    .i2l().loadConstant(0xffffffffL).land();
+            return;
+        }
+        
         switch (type) {
             case FLOAT64 ->
                     code.dload(value)
@@ -625,12 +636,21 @@ final class CpuExactProductEmitter {
                             .i2l()
                             .loadConstant(0xffffffffL)
                             .land();
-            case BFLOAT16, FLOAT16 -> code.iload(value).i2l().loadConstant(0xffffL).land();
             default -> throw new IllegalArgumentException("not a floating product");
         }
     }
 
     private void storeResult(int value) {
+        if (CpuNormEmitter.low(representedType)) {
+            int working = code.allocateLocal(TypeKind.FLOAT);
+            code.lload(result).l2i().invokestatic(FLOAT_CLASS, "intBitsToFloat",
+                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int)).fstore(working);
+            CpuCastEmitter.emitFloatToLow(code, representedType, working);
+            code.istore(value);
+            return;
+        }
+        
+        
         switch (type) {
             case FLOAT64 ->
                     code.lload(result)
@@ -649,7 +669,6 @@ final class CpuExactProductEmitter {
                                     MethodTypeDesc.of(
                                             ConstantDescs.CD_float, ConstantDescs.CD_int))
                             .fstore(value);
-            case BFLOAT16, FLOAT16 -> code.lload(result).l2i().istore(value);
             default -> throw new IllegalArgumentException("not a floating product");
         }
     }
@@ -731,16 +750,16 @@ final class CpuExactProductEmitter {
     private long signMask() {
         return type == DataType.FLOAT64
                 ? 1L << 63
-                : type == DataType.FLOAT32 ? 1L << 31 : 1L << 15;
+                : 1L << 31;
     }
 
     private int fractionBits() {
         return type == DataType.FLOAT64 ? 52
-                : type == DataType.FLOAT32 ? 23 : type == DataType.FLOAT16 ? 10 : 7;
+                : 23;
     }
 
     private int bias() {
-        return type == DataType.FLOAT64 ? 1023 : type == DataType.FLOAT16 ? 15 : 127;
+        return type == DataType.FLOAT64 ? 1023 : 127;
     }
 
     private int precision() {
@@ -748,7 +767,7 @@ final class CpuExactProductEmitter {
     }
 
     private int maxExponent() {
-        return type == DataType.FLOAT64 ? 1023 : type == DataType.FLOAT16 ? 15 : 127;
+        return type == DataType.FLOAT64 ? 1023 : 127;
     }
 
     private int minimumNormal() {
@@ -760,27 +779,25 @@ final class CpuExactProductEmitter {
     }
 
     private long exponentMask() {
-        return type == DataType.FLOAT64 ? 0x7ffL : type == DataType.FLOAT16 ? 0x1fL : 0xffL;
+        return type == DataType.FLOAT64 ? 0x7ffL : 0xffL;
     }
 
     private long signBit() {
         return type == DataType.FLOAT64
                 ? 1L << 63
-                : type == DataType.FLOAT32 ? 1L << 31 : 1L << 15;
+                : 1L << 31;
     }
 
     private long canonicalNan() {
         return type == DataType.FLOAT64
                 ? 0x7ff8000000000000L
-                : type == DataType.FLOAT32 ? 0x7fc00000L
-                : type == DataType.FLOAT16 ? 0x7e00L : 0x7fc0L;
+                : 0x7fc00000L;
     }
 
     private long positiveInfinity() {
         return type == DataType.FLOAT64
                 ? 0x7ff0000000000000L
-                : type == DataType.FLOAT32 ? 0x7f800000L
-                : type == DataType.FLOAT16 ? 0x7c00L : 0x7f80L;
+                : 0x7f800000L;
     }
 
     private static CodeBuilder geometry(CodeBuilder code, int slot, int index) {

@@ -109,18 +109,32 @@ public final class CpuBatchNormTrainingEmitter {
         loop(code,geometry,rank,axis,extents[map[0]],strides[map[0]],11+map[0],channel,ordinal,remaining,coordinate,address,()->{
             CpuLayerNormEmitter.load(code,carriers,specialization,map[0],inputRep,input,address);
             CpuLayerNormEmitter.arithmetic(code,resultType,input,mean,Opcode.DSUB,deviation);
-            code.dload(deviation).dstore(temporary);CpuNormEmitter.kahan(code,temporary,devSum,devComp,square);
-            code.dload(deviation).dload(deviation).dmul().dstore(square);CpuNormEmitter.kahan(code,square,sqSum,sqComp,temporary);
+            code.dload(deviation).dstore(temporary);CpuNormEmitter.kahan(code,resultType,temporary,devSum,devComp,square);
+            CpuNormEmitter.arithmetic(code,resultType,deviation,deviation,Opcode.DMUL,square);CpuNormEmitter.kahanSquares(code,resultType,square,sqSum,sqComp,temporary);
         });
+        int exactCount = CpuNormEmitter.low(resultType) ? code.allocateLocal(TypeKind.LONG) : -1;
+        if (CpuNormEmitter.low(resultType)) {
+            code.aload(geometry).loadConstant(7).laload().lstore(exactCount);
+            CpuNormEmitter.arithmetic(code,resultType,devSum,devSum,Opcode.DMUL,temporary);
+            CpuNormEmitter.divideByCount(code,resultType,temporary,exactCount);
+            CpuNormEmitter.arithmetic(code,resultType,sqSum,temporary,Opcode.DSUB,numerator);
+        } else {
         code.dload(devSum).dload(devSum).dmul().dload(n).ddiv().dstore(temporary);
         code.dload(sqSum).dload(temporary).dsub().dstore(numerator);
+        }
         var nonnegative=code.newLabel();code.dload(numerator).loadConstant(0.0).dcmpg().branch(Opcode.IFGE,nonnegative)
                 .loadConstant(0.0).dstore(numerator).labelBinding(nonnegative);
+        if (CpuNormEmitter.low(resultType)) {
+            code.dload(numerator).dstore(biased).dload(numerator).dstore(unbiased);
+            CpuNormEmitter.divideByCount(code,resultType,biased,exactCount);
+            code.lload(exactCount).loadConstant(1L).lsub().lstore(exactCount);
+            CpuNormEmitter.divideByCount(code,resultType,unbiased,exactCount);
+        } else {
         CpuLayerNormEmitter.arithmetic(code,resultType,numerator,n,Opcode.DDIV,biased);
         CpuLayerNormEmitter.arithmetic(code,resultType,numerator,nm1,Opcode.DDIV,unbiased);
+        }
         CpuLayerNormEmitter.arithmetic(code,resultType,biased,epsilon,Opcode.DADD,radicand);
-        code.dload(radicand).invokestatic(MATH,"sqrt",CpuNormEmitter.doubleUnary()).dstore(root);
-        if(resultType==DataType.FLOAT16)roundFloat16(code,root);
+        CpuNormEmitter.unary(code,resultType,"sqrt",radicand,root);
         CpuLayerNormEmitter.arithmetic(code,resultType,one,root,Opcode.DDIV,saved);
         loadVector(code,carriers,specialization,map[1],vectorRep[0],scale,geometry,strides[map[1]],channel,address);
         loadVector(code,carriers,specialization,map[2],vectorRep[1],bias,geometry,strides[map[2]],channel,address);
@@ -167,6 +181,5 @@ public final class CpuBatchNormTrainingEmitter {
     private static void tensorAddress(CodeBuilder c,int g,int rank,int axis,int ext,int stride,int base,int channel,int ordinal,int remaining,int coordinate,int address){
         CpuNormEmitter.geometry(c,g,base).lload(channel);CpuNormEmitter.geometry(c,g,stride+axis).lmul().ladd().lstore(address);c.lload(ordinal).lstore(remaining);
         for(int a=rank-1;a>=0;a--){if(a==axis)continue;c.lload(remaining);CpuNormEmitter.geometry(c,g,ext+a).lrem().lstore(coordinate);c.lload(remaining);CpuNormEmitter.geometry(c,g,ext+a).ldiv().lstore(remaining);c.lload(address).lload(coordinate);CpuNormEmitter.geometry(c,g,stride+a).lmul().ladd().lstore(address);}}
-    private static double scalar(String identity,String marker,DataType type){long bits=Long.parseUnsignedLong(CpuLayerNormEmitter.field(identity,marker));return switch(type){case FLOAT64->Double.longBitsToDouble(bits);case FLOAT32->Float.intBitsToFloat((int)bits);case BFLOAT16->Float.intBitsToFloat((int)bits<<16);case FLOAT16->Float.float16ToFloat((short)bits);default->throw new IllegalArgumentException("type");};}
-    private static void roundFloat16(CodeBuilder c,int value){CpuCastEmitter.emitDoubleToHalf(c,value);c.invokestatic(ClassDesc.of(Float.class.getName()),"float16ToFloat",java.lang.constant.MethodTypeDesc.of(TypeKind.FLOAT.upperBound(),TypeKind.SHORT.upperBound())).f2d().dstore(value);}
+    private static double scalar(String identity,String marker,DataType type){long bits=Long.parseUnsignedLong(CpuLayerNormEmitter.field(identity,marker));return switch(type){case FLOAT64->Double.longBitsToDouble(bits);case FLOAT32,FLOAT16,FLOAT8_E4M3,FLOAT8_E5M2->Float.intBitsToFloat((int)bits);case BFLOAT16->Float.intBitsToFloat((int)bits<<16);default->throw new IllegalArgumentException("type");};}
 }

@@ -67,7 +67,7 @@ class CpuMaskedAdvancedReductionSemanticClosureTest {
     private static void invokeMasked(AggregateReductionKind kind, DataType type, Shape maskShape, int axis,
             Request request, String owner) throws Throwable {
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(CpuMaskedReductionLoweringTest.context(kind, type, INPUT, maskShape, axis), request);
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         byte[] bytes = bytes(route.specialization(), route.kernelIr(), owner);
@@ -97,7 +97,7 @@ class CpuMaskedAdvancedReductionSemanticClosureTest {
                 ? new StatisticalReductionAttrs(axes, keep, axes.size() == 2 ? 1 : 0) : new MultiAxisReductionAttrs(axes, keep);
         Shape outputShape = outputShape(axes, keep);
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(CpuAggregateLoweringTest.context(kind, type, INPUT, attrs, outputShape), request);
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         var plan = new CpuPartitionPreparer().analyze(context).plan(); var route = plan.units().getFirst().portablePlan();
         byte[] bytes = bytes(route.specialization(), route.kernelIr(), owner);
         Object input = array(type, capacity(context.values().getFirst().descriptor())), output = array(type, capacity(context.values().getLast().descriptor())), expected = array(type, capacity(context.values().getLast().descriptor()));

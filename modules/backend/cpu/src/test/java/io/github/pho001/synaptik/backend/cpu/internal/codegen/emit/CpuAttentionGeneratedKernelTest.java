@@ -21,6 +21,43 @@ import org.junit.jupiter.api.Test;
 
 class CpuAttentionGeneratedKernelTest {
   @Test
+  void everyLowFormatStoresAttentionOutputsAndWeightsAtItsDeclaredBoundary() throws Throwable {
+    for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+        DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+      var read = plan(CpuAccessPlan.AccessKind.READ);
+      var write = plan(CpuAccessPlan.AccessKind.WRITE);
+      var types = java.util.Collections.nCopies(5, type);
+      var attention = new CpuAttentionIr(type, type, type, type, false, false, 2,
+          List.of(0, 1, 2), types, List.of(read, read, read, write, write));
+      var ir = attention.encodedKernelIr();
+      var carrier = type.byteWidth() == 1 ? CarrierAccess.BYTE_ARRAY : CarrierAccess.SHORT_ARRAY;
+      var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+          CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types,
+          java.util.Collections.nCopies(5, carrier), 0, -1, List.of(), true,
+          CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA);
+      var generator = new CpuClassFileKernelGenerator();
+      var handle = generator.defineClassBytes(specialization, ir,
+          generator.generateClassBytes(specialization, ir)).entryPoint();
+      Object q = CpuLayerNormGeneratedKernelTest.represented(type, new double[4]);
+      Object k = CpuLayerNormGeneratedKernelTest.represented(type, new double[4]);
+      Object v = CpuLayerNormGeneratedKernelTest.represented(type, new double[] {2, 4, 6, 8});
+      Object output = CpuLayerNormGeneratedKernelTest.represented(type, new double[4]);
+      Object weights = CpuLayerNormGeneratedKernelTest.represented(type, new double[4]);
+      var geometry = new CpuAttentionLowering.Geometry(new long[0], 2, 2, 2, 2, 2, 8,
+          type, type, type, type, (double) 0.1f, List.of(0, 1, 2), 3, 2,
+          Optional.of(layout(2, 1)), Optional.of(layout(2, 1)), Optional.of(layout(2, 1)),
+          Optional.empty(), layout(2, 1), Optional.of(layout(2, 1)));
+      try (Arena arena = Arena.ofConfined()) {
+        handle.invokeWithArguments(q, k, v, output, weights, arena.allocate(8, 8),
+            geometry.pack(new long[5]), 0L, 2L);
+      }
+      assertArrayEquals(new double[] {4, 6, 4, 6}, CpuLayerNormGeneratedKernelTest.decoded(type, output));
+      assertArrayEquals(new double[] {.5, .5, .5, .5}, CpuLayerNormGeneratedKernelTest.decoded(type, weights));
+    }
+  }
+
+
+  @Test
   void executesDirectFiniteFloatAttention() throws Throwable {
     CpuAccessPlan read = plan(CpuAccessPlan.AccessKind.READ);
     CpuAccessPlan write = plan(CpuAccessPlan.AccessKind.WRITE);

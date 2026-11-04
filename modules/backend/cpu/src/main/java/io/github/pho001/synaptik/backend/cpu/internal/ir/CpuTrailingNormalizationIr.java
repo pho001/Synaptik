@@ -17,8 +17,8 @@ import java.util.Objects;
  * @param kind exact first-class Layer or RMS family
  * @param form exact one-, two-, or three-input semantic form
  * @param inputTypes non-null semantic input types in occurrence order; copied defensively
- * @param resultType exact promoted output and epsilon type
- * @param epsilonBits exact raw result-type epsilon bits
+ * @param resultType exact promoted output type
+ * @param epsilonBits exact raw epsilon bits; FLOAT16/FP8 results use FLOAT32 metadata
  * @param normalizedRank positive number of trailing normalized axes
  * @param algorithmVersion emitted numerical algorithm identity; currently {@code 1}
  * @param passCount direct pass count; three for Layer and two for RMS
@@ -125,7 +125,7 @@ public record CpuTrailingNormalizationIr(Kind kind, Form form, List<DataType> in
     @Override public String structuralKey() { return encodedKernelIr().structuralKey(); }
 
     private static boolean supported(DataType type) {
-        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
+        return type == DataType.BFLOAT16 || type == DataType.FLOAT16 || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
                 || type == DataType.FLOAT32 || type == DataType.FLOAT64;
     }
 
@@ -133,15 +133,12 @@ public record CpuTrailingNormalizationIr(Kind kind, Form form, List<DataType> in
         return switch (type) {
             case FLOAT64 -> Double.isFinite(Double.longBitsToDouble(bits))
                     && Double.longBitsToDouble(bits) > 0.0;
-            case FLOAT32 -> (bits & ~0xffff_ffffL) == 0
+            case FLOAT32, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> (bits & ~0xffff_ffffL) == 0
                     && Float.isFinite(Float.intBitsToFloat((int) bits))
                     && Float.intBitsToFloat((int) bits) > 0.0f;
             case BFLOAT16 -> (bits & ~0xffffL) == 0
                     && Float.isFinite(Float.intBitsToFloat((int) bits << 16))
                     && Float.intBitsToFloat((int) bits << 16) > 0.0f;
-            case FLOAT16 -> (bits & ~0xffffL) == 0
-                    && Float.isFinite(Float.float16ToFloat((short) bits))
-                    && Float.float16ToFloat((short) bits) > 0.0f;
             default -> false;
         };
     }

@@ -77,7 +77,7 @@ class CpuLossSemanticClosureTest {
 
     private static void invokeAndCompare(Fixture fixture) throws Throwable {
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(base(fixture), fixture.request());
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         CpuPartitionPreparationPlan plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         assertEquals(0, plan.materializations().size(), fixture + " materialization remains unselected");

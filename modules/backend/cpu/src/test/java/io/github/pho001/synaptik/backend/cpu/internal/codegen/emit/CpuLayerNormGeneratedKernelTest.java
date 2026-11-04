@@ -54,69 +54,67 @@ class CpuLayerNormGeneratedKernelTest {
 
     @Test void allFormsAndResultTypesGenerateDirectTypedArtifacts() throws Throwable {
         for (boolean affine : List.of(false, true)) for (DataType type : List.of(
-                DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
-                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
-                        int inputs = affine ? 3 : 1;
-                        var base = CpuTrailingNormalizationLoweringTest.context(true, affine, type,
-                                Shape.of(2, 3), Shape.of(3), affine ? List.of(0, 1, 2) : List.of(0));
-                        var carriers = new java.util.ArrayList<CarrierAccess>();
-                        for (int i = 0; i <= inputs; i++) carriers.add(array(type));
-                        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
-                        var plan = new CpuPartitionPreparer().analyze(context).plan();
-                        var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
-                        byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-                        var model = ClassFile.of().parse(bytes);
-                        assertAll(() -> assertEquals(inputs + 5,
-                                        generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint()
-                                                .type().parameterCount()),
-                                () -> assertTrue(model.flags().has(AccessFlag.FINAL)),
-                                () -> assertTrue(model.fields().isEmpty()),
-                                () -> assertEquals(1, model.methods().size()),
-                                () -> assertTrue(java.util.stream.StreamSupport.stream(
-                                        model.constantPool().spliterator(), false)
-                                        .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast)
-                                        .noneMatch(member -> member.owner().asInternalName()
-                                                .startsWith("io/github/pho001/synaptik"))));
-                        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
-                        Object input = represented(type, new double[] {1, 2, 3, -3, -2, -1});
-                        Object output = represented(type, new double[6]);
-                        Object scale = represented(type, new double[] {2, -1, .5});
-                        Object bias = represented(type, new double[] {1, 2, 3});
-                        var geometry = plan.trailingNormalizationGeometry().orElseThrow();
-                        try (Arena arena = Arena.ofConfined()) {
-                            if (affine) artifact.entryPoint().invokeWithArguments(input, scale, bias, output,
-                                    arena.allocate(geometry.scratchSliceBytes(), 8),
-                                    geometry.pack(new long[4]), 0L, 2L);
-                            else artifact.entryPoint().invokeWithArguments(input, output,
-                                    arena.allocate(geometry.scratchSliceBytes(), 8),
-                                    geometry.pack(new long[2]), 0L, 2L);
-                        }
-                        double[][] semanticInputs = affine
-                                ? new double[][] {{1, 2, 3, -3, -2, -1}, {2, -1, .5}, {1, 2, 3}}
-                                : new double[][] {{1, 2, 3, -3, -2, -1}};
-                        long[][] extents = affine ? new long[][] {{2, 3}, {3}, {3}}
-                                : new long[][] {{2, 3}};
-                        long[][] strides = affine ? new long[][] {{3, 1}, {1}, {1}}
-                                : new long[][] {{3, 1}};
-                        double[] expected = CpuTrailingNormalizationReferenceKernel.evaluate(
-                                CpuTrailingNormalizationIr.Kind.LAYER, affine
-                                        ? CpuTrailingNormalizationIr.Form.LAYER_AFFINE
-                                        : CpuTrailingNormalizationIr.Form.LAYER,
-                                java.util.Collections.nCopies(inputs, type), type, epsilon(type), semanticInputs,
-                                extents, new long[inputs], strides, 1);
-                        double[] actual = decoded(type, output);
-                        for (int index = 0; index < actual.length; index++) assertEquals(raw(type, expected[index]),
-                                raw(type, actual[index]), type + "/" + affine + "/" + index
-                                        + " expectedValue=" + expected[index] + " actualValue=" + actual[index]);
-                        retain("layer-" + (affine ? "affine-" : "plain-") + type.name().toLowerCase(),
-                                bytes, route.specialization().compatibilityBytes(), route.specialization().toString());
-                    });
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2,
+                DataType.FLOAT32, DataType.FLOAT64)) {
+                    { int inputs = affine ? 3 : 1;
+                    var base = CpuTrailingNormalizationLoweringTest.context(true, affine, type,
+                            Shape.of(2, 3), Shape.of(3), affine ? List.of(0, 1, 2) : List.of(0));
+                    var carriers = new java.util.ArrayList<CarrierAccess>();
+                    for (int i = 0; i <= inputs; i++) carriers.add(array(type));
+                    var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+                    var plan = new CpuPartitionPreparer().analyze(context).plan();
+                    var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
+                    byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+                    var model = ClassFile.of().parse(bytes);
+                    assertAll(() -> assertEquals(inputs + 5,
+                                    generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint()
+                                            .type().parameterCount()),
+                            () -> assertTrue(model.flags().has(AccessFlag.FINAL)),
+                            () -> assertTrue(model.fields().isEmpty()),
+                            () -> assertEquals(1, model.methods().size()),
+                            () -> assertTrue(java.util.stream.StreamSupport.stream(
+                                    model.constantPool().spliterator(), false)
+                                    .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast)
+                                    .noneMatch(member -> member.owner().asInternalName()
+                                            .startsWith("io/github/pho001/synaptik"))));
+                    var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
+                    Object input = represented(type, new double[] {1, 2, 3, -3, -2, -1});
+                    Object output = represented(type, new double[6]);
+                    Object scale = represented(type, new double[] {2, -1, .5});
+                    Object bias = represented(type, new double[] {1, 2, 3});
+                    var geometry = plan.trailingNormalizationGeometry().orElseThrow();
+                    try (Arena arena = Arena.ofConfined()) {
+                        if (affine) artifact.entryPoint().invokeWithArguments(input, scale, bias, output,
+                                arena.allocate(geometry.scratchSliceBytes(), 8),
+                                geometry.pack(new long[4]), 0L, 2L);
+                        else artifact.entryPoint().invokeWithArguments(input, output,
+                                arena.allocate(geometry.scratchSliceBytes(), 8),
+                                geometry.pack(new long[2]), 0L, 2L);
+                    }
+                    double[][] semanticInputs = affine
+                            ? new double[][] {{1, 2, 3, -3, -2, -1}, {2, -1, .5}, {1, 2, 3}}
+                            : new double[][] {{1, 2, 3, -3, -2, -1}};
+                    long[][] extents = affine ? new long[][] {{2, 3}, {3}, {3}}
+                            : new long[][] {{2, 3}};
+                    long[][] strides = affine ? new long[][] {{3, 1}, {1}, {1}}
+                            : new long[][] {{3, 1}};
+                    double[] expected = CpuTrailingNormalizationReferenceKernel.evaluate(
+                            CpuTrailingNormalizationIr.Kind.LAYER, affine
+                                    ? CpuTrailingNormalizationIr.Form.LAYER_AFFINE
+                                    : CpuTrailingNormalizationIr.Form.LAYER,
+                            java.util.Collections.nCopies(inputs, type), type, epsilon(type), semanticInputs,
+                            extents, new long[inputs], strides, 1);
+                    double[] actual = decoded(type, output);
+                    for (int index = 0; index < actual.length; index++) assertEquals(raw(type, expected[index]),
+                            raw(type, actual[index]), type + "/" + affine + "/" + index
+                                    + " expectedValue=" + expected[index] + " actualValue=" + actual[index]);
+                    retain("layer-" + (affine ? "affine-" : "plain-") + type.name().toLowerCase(),
+                            bytes, route.specialization().compatibilityBytes(), route.specialization().toString()); }
                 }
     }
 
     @Test void mixedTypesCarriersOffsetsAndGeneralLayoutsMatchIndependentOracle() throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        Shape inputShape = Shape.of(2, 3), normalized = Shape.of(3);
+        { Shape inputShape = Shape.of(2, 3), normalized = Shape.of(3);
         var inputDescriptor = new io.github.pho001.synaptik.model.tensor.TensorDescriptor(
                 DataType.BFLOAT16, inputShape,
                 java.util.Optional.of(LayoutDescriptor.of(inputShape, new long[] {4, 1}, 1, true)),
@@ -156,13 +154,11 @@ class CpuLayerNormGeneratedKernelTest {
                 () -> assertEquals(2, output[3], 0),
                 () -> assertEquals((1 / root) * 2 + 3, output[4], 2e-15),
                 () -> assertEquals((-1 / root) * 2 + 1, output[7], 2e-15),
-                () -> assertEquals(-77, output[0]), () -> assertEquals(-77, output[11]));
-        });
+                () -> assertEquals(-77, output[0]), () -> assertEquals(-77, output[11])); }
     }
 
     @Test void bfloatBodyUsesFloatMeanAndOneFinalEncoding() throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        var base = CpuTrailingNormalizationLoweringTest.context(true, false, DataType.BFLOAT16,
+        { var base = CpuTrailingNormalizationLoweringTest.context(true, false, DataType.BFLOAT16,
                 Shape.of(1, 3), Shape.of(3), List.of(0));
         var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
         List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY)));
@@ -177,8 +173,7 @@ class CpuLayerNormGeneratedKernelTest {
         }
         assertAll(() -> assertTrue(Float.intBitsToFloat(Short.toUnsignedInt(output[0]) << 16) < 0),
                 () -> assertEquals(0, output[1]),
-                () -> assertTrue(Float.intBitsToFloat(Short.toUnsignedInt(output[2]) << 16) > 0));
-        });
+                () -> assertTrue(Float.intBitsToFloat(Short.toUnsignedInt(output[2]) << 16) > 0)); }
     }
 
     @Test void affineFloatBodyReusesTrailingScaleAndBias() throws Throwable {
@@ -245,6 +240,27 @@ class CpuLayerNormGeneratedKernelTest {
                 () -> assertTrue(Double.isNaN(output[4])), () -> assertTrue(Double.isNaN(output[5])));
     }
 
+    @Test void bfloatWorkingSquareOverflowKeepsAnInfiniteNormalizationDenominator() throws Throwable {
+        var base = CpuTrailingNormalizationLoweringTest.context(true, false, DataType.BFLOAT16,
+                Shape.of(1, 4), Shape.of(4), List.of(0));
+        var selected = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY)));
+        var plan = new CpuPartitionPreparer().analyze(selected).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator();
+        var handle = generator.defineClassBytes(route.specialization(), route.kernelIr(),
+                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        short[] output = new short[4];
+        var geometry = plan.trailingNormalizationGeometry().orElseThrow();
+        try (Arena arena = Arena.ofConfined()) {
+            handle.invokeWithArguments(represented(DataType.BFLOAT16,
+                    new double[] {0x1p64, -0x1p64, 0, 0}), output,
+                    arena.allocate(geometry.scratchSliceBytes(), 8), geometry.pack(new long[2]), 0L, 1L);
+        }
+        assertArrayEquals(new short[] {0, (short) 0x8000, 0, 0}, output);
+    }
+
     private static short bits(float value) {
         int bits = Float.floatToRawIntBits(value);
         return (short) ((bits + 0x7fff + (bits >>> 16 & 1)) >>> 16);
@@ -252,7 +268,8 @@ class CpuLayerNormGeneratedKernelTest {
 
     private static CarrierAccess array(DataType type) { return type == DataType.FLOAT64
             ? CarrierAccess.DOUBLE_ARRAY : type == DataType.FLOAT32
-                ? CarrierAccess.FLOAT_ARRAY : CarrierAccess.SHORT_ARRAY; }
+                ? CarrierAccess.FLOAT_ARRAY : type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
+                    ? CarrierAccess.BYTE_ARRAY : CarrierAccess.SHORT_ARRAY; }
     static Object represented(DataType type, double[] values) {
         if (type == DataType.FLOAT64) return values.clone();
         if (type == DataType.FLOAT32) {
@@ -260,27 +277,45 @@ class CpuLayerNormGeneratedKernelTest {
             for (int i = 0; i < values.length; i++) result[i] = (float) values[i];
             return result;
         }
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            byte[] result = new byte[values.length];
+            for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT8_E4M3
+                    ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromDouble(values[i])
+                    : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromDouble(values[i]);
+            return result;
+        }
         short[] result = new short[values.length];
-        for (int i = 0; i < values.length; i++) result[i] = bits((float) values[i]);
+        for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT16 ? Float.floatToFloat16((float) values[i]) : bits((float) values[i]);
         return result;
     }
     static double[] decoded(DataType type, Object values) {
+        if (values instanceof byte[] bytes) {
+            double[] result = new double[bytes.length];
+            for (int i = 0; i < bytes.length; i++) result[i] = type == DataType.FLOAT8_E4M3
+                    ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(bytes[i])
+                    : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(bytes[i]);
+            return result;
+        }
         int length = type == DataType.FLOAT64 ? ((double[]) values).length
                 : type == DataType.FLOAT32 ? ((float[]) values).length : ((short[]) values).length;
         double[] result = new double[length];
         for (int i = 0; i < length; i++) result[i] = type == DataType.FLOAT64
                 ? ((double[]) values)[i] : type == DataType.FLOAT32 ? ((float[]) values)[i]
+                : type == DataType.FLOAT16 ? Float.float16ToFloat(((short[]) values)[i])
                 : Float.intBitsToFloat(Short.toUnsignedInt(((short[]) values)[i]) << 16);
         return result;
     }
     static long raw(DataType type, double value) {
+        if (type == DataType.FLOAT8_E4M3) return Byte.toUnsignedLong(io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromDouble(value));
+        if (type == DataType.FLOAT8_E5M2) return Byte.toUnsignedLong(io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromDouble(value));
+        if (type == DataType.FLOAT16) return Short.toUnsignedLong(Float.floatToFloat16((float) value));
         return type == DataType.FLOAT64 ? Double.doubleToRawLongBits(value)
                 : type == DataType.FLOAT32
                     ? Integer.toUnsignedLong(Float.floatToRawIntBits((float) value))
                     : Integer.toUnsignedLong(Float.floatToRawIntBits((float) value) >>> 16);
     }
     static double epsilon(DataType type) { return type == DataType.FLOAT64 ? 1e-5
-            : type == DataType.FLOAT32 ? (double) 1e-5f
+            : type != DataType.BFLOAT16 ? (double) 1e-5f
             : Float.intBitsToFloat(0x3728 << 16); }
     static void retain(String name, byte[] bytes, byte[] compatibility, String specialization)
             throws Exception {

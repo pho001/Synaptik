@@ -87,20 +87,20 @@ public final class CpuTrailingNormalizationReferenceKernel {
         Arrays.fill(parameterCoordinates, 0);
         if (!nan && !infinity && !constant) for (long i = 0; i < domain; i++) {
             applySuffix(coordinates, parameterCoordinates);
-            double deviation = promoted(types.get(0), resultType,
-                    read(inputs[0], offsets[0], strides[0], coordinates)) - mean;
-            double adjusted = deviation - dc, next = deviations + adjusted;
-            dc = (next - deviations) - adjusted; deviations = next;
-            double square = deviation * deviation;
+            double deviation = workingArithmetic(resultType, promoted(types.get(0), resultType,
+                    read(inputs[0], offsets[0], strides[0], coordinates)), mean, '-');
+            double adjusted = workingArithmetic(resultType, deviation, dc, '-'), next = workingArithmetic(resultType, deviations, adjusted, '+');
+            dc = workingArithmetic(resultType, workingArithmetic(resultType, next, deviations, '-'), adjusted, '-'); deviations = next;
+            double square = workingArithmetic(resultType, deviation, deviation, '*');
             if (Double.isInfinite(square)) { squares = Double.POSITIVE_INFINITY; sc = 0; }
-            else if (!Double.isInfinite(squares)) { adjusted = square - sc; next = squares + adjusted;
-                sc = (next - squares) - adjusted; squares = next; }
+            else if (!Double.isInfinite(squares)) { adjusted = workingArithmetic(resultType, square, sc, '-'); next = workingArithmetic(resultType, squares, adjusted, '+');
+                sc = workingArithmetic(resultType, workingArithmetic(resultType, next, squares, '-'), adjusted, '-'); squares = next; }
             increment(parameterCoordinates, trailing(shape, parameterCoordinates.length));
         }
         double numerator = squares == Double.POSITIVE_INFINITY ? squares
-                : squares - deviations * deviations / domain;
+                : workingArithmetic(resultType, squares, divideCount(resultType, workingArithmetic(resultType, deviations, deviations, '*'), domain), '-');
         if (numerator < 0) numerator = 0;
-        double denominator = StrictMath.sqrt(numerator / domain + epsilon);
+        double denominator = working(resultType, StrictMath.sqrt(workingArithmetic(resultType, divideCount(resultType, numerator, domain), epsilon, '+')));
         Arrays.fill(parameterCoordinates, 0);
         for (long i = 0; i < domain; i++) {
             applySuffix(coordinates, parameterCoordinates);
@@ -134,10 +134,10 @@ public final class CpuTrailingNormalizationReferenceKernel {
             nan |= Double.isNaN(value); infinity |= Double.isInfinite(value);
             double absolute = Math.abs(value);
             if (Double.isFinite(absolute) && absolute != 0 && scaleState < absolute) {
-                double ratio = scaleState / absolute;
-                scaledSquares = 1 + scaledSquares * ratio * ratio; scaleState = absolute;
+                double ratio = workingArithmetic(resultType, scaleState, absolute, '/');
+                scaledSquares = workingArithmetic(resultType, 1, workingArithmetic(resultType, workingArithmetic(resultType, scaledSquares, ratio, '*'), ratio, '*'), '+'); scaleState = absolute;
             } else if (Double.isFinite(absolute) && absolute != 0) {
-                double ratio = absolute / scaleState; scaledSquares += ratio * ratio;
+                double ratio = workingArithmetic(resultType, absolute, scaleState, '/'); scaledSquares = workingArithmetic(resultType, scaledSquares, workingArithmetic(resultType, ratio, ratio, '*'), '+');
             }
             increment(parameterCoordinates, trailing(shape, parameterCoordinates.length));
         }
@@ -145,8 +145,9 @@ public final class CpuTrailingNormalizationReferenceKernel {
                 ? DataType.FLOAT64 : DataType.FLOAT32;
         double root = nan ? Double.NaN : infinity ? Double.POSITIVE_INFINITY
                 : represented(computationType, StrictMath.hypot(
-                        scaleState * StrictMath.sqrt(scaledSquares / domain),
-                        StrictMath.sqrt(epsilon)));
+                        workingArithmetic(resultType, working(resultType,
+                                StrictMath.sqrt(divideCount(resultType, scaledSquares, domain))), scaleState, '*'),
+                        working(resultType, StrictMath.sqrt(epsilon))));
         Arrays.fill(parameterCoordinates, 0);
         for (long i = 0; i < domain; i++) {
             applySuffix(coordinates, parameterCoordinates);
@@ -161,14 +162,26 @@ public final class CpuTrailingNormalizationReferenceKernel {
         }
     }
 
+    private static boolean low(DataType type) { return type != DataType.FLOAT32 && type != DataType.FLOAT64; }
+    private static double working(DataType type, double value) { return low(type) ? (float) value : value; }
+    private static double workingArithmetic(DataType type, double a, double b, char operation) {
+        if (low(type)) return arithmetic(type, a, b, operation);
+        return switch (operation) { case '+' -> a + b; case '-' -> a - b;
+            case '*' -> a * b; default -> a / b; };
+    }
+    private static double divideCount(DataType type, double value, long count) {
+        if (!low(type) || !Double.isFinite(value) || count == 0) return value / count;
+        if (value == 0) return value;
+        return new BigDecimal(value).divide(BigDecimal.valueOf(count), DIVISION).floatValue();
+    }
+
     private static double arithmetic(DataType type, double a, double b, char operation) {
         if (type == DataType.FLOAT64) return switch (operation) { case '+' -> a + b;
             case '-' -> a - b; case '*' -> a * b; default -> a / b; };
         float x = (float) a, y = (float) b;
         float result = switch (operation) { case '+' -> x + y; case '-' -> x - y;
             case '*' -> x * y; default -> x / y; };
-        return type == DataType.FLOAT16
-                ? Float.float16ToFloat(Float.floatToFloat16(result)) : result;
+        return result;
     }
     private static double read(double[] values, long offset, long[] strides, long[] coordinates) {
         long address = offset;
@@ -214,6 +227,8 @@ public final class CpuTrailingNormalizationReferenceKernel {
     private static double represented(DataType type, double value) {
         if (type == DataType.FLOAT64) return value; float narrowed = (float) value;
         if (type == DataType.FLOAT32) return narrowed;
+        if (type == DataType.FLOAT8_E4M3) return io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(narrowed));
+        if (type == DataType.FLOAT8_E5M2) return io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(narrowed));
         if (type == DataType.FLOAT16)
             return Float.float16ToFloat(Float.floatToFloat16(narrowed));
         int bits = Float.floatToRawIntBits(narrowed);

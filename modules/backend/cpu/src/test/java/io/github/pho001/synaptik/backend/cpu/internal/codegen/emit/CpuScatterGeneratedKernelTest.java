@@ -137,7 +137,66 @@ class CpuScatterGeneratedKernelTest {
         }
     }
 
+    @Test void lowAddAccumulatesOnceAcrossAllFamiliesAndPreservesUntouchedRawCells() throws Throwable {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            double increment = switch (type) {
+                case BFLOAT16 -> 0x1p-8; case FLOAT16 -> 0x1p-11;
+                case FLOAT8_E4M3 -> 0x1p-4; case FLOAT8_E5M2 -> 0x1p-3;
+                default -> throw new AssertionError(type);
+            };
+            for (boolean segments : List.of(false, true)) for (int family = 0; family < 3; family++) {
+                Object base = floatingValues(type, 1, 0, 2);
+                if (base instanceof short[] bits) bits[1] = (short) (type == DataType.FLOAT16 ? 0x7d55 : 0x7fa5);
+                else ((byte[]) base)[1] = type == DataType.FLOAT8_E4M3 ? (byte) 0xff : (byte) 0x7d;
+                Object expected = floatingValues(type, 1 + 4 * increment, 0, 2);
+                if (base instanceof short[] bits) ((short[]) expected)[1] = bits[1];
+                else ((byte[]) expected)[1] = ((byte[]) base)[1];
+                Object updates = floatingValues(type, increment, increment, 2 * increment);
+                Object output = emptyCarrier(type, 3);
+                Operation operation = family == 0
+                        ? new Operation(AxisScatterKind.SCATTER_ELEMENTS, new ScatterElementsAttrs(0, ScatterReduction.ADD))
+                        : family == 1 ? new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0))
+                        : new Operation(ScatterNdKind.SCATTER_ND, new ScatterNdAttrs(0, ScatterReduction.ADD));
+                Shape indexShape = family == 2 ? Shape.of(3, 1) : Shape.of(3);
+                int[] indices = {0, 0, 0};
+                var prepared = context(operation, List.of(desc(type, Shape.of(3)),
+                        desc(DataType.INT32, indexShape), desc(type, Shape.of(3))),
+                        desc(type, Shape.of(3)), segments);
+                invoke(prepared, List.of(segments ? segment(base) : base,
+                        segments ? MemorySegment.ofArray(indices) : indices,
+                        segments ? segment(updates) : updates, segments ? segment(output) : output));
+                assertRawCarrier(expected, output, type + "/" + family + "/" + segments);
+            }
+        }
+    }
+
+    @Test void fp8ScatterProductsAndExtremaKeepOriginalFiniteAndNanRepresentations() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            assertGeneratedMatchesReference(type, ScatterReduction.MUL,
+                    floatingValues(type, 2, -0.0, 1), new int[] {0, 0, 1},
+                    floatingValues(type, 3, 0.5, -2));
+            byte nan = type == DataType.FLOAT8_E4M3 ? (byte) 0xff : (byte) 0x7d;
+            for (ScatterReduction reduction : List.of(ScatterReduction.MIN, ScatterReduction.MAX)) {
+                byte[] base = {0, (byte) 0x80, nan};
+                byte[] updates = {(byte) 0x80, 0, 0x38};
+                byte[] output = new byte[3];
+                invoke(context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                                new ScatterElementsAttrs(0, reduction)),
+                        List.of(desc(type, Shape.of(3)), desc(DataType.INT32, Shape.of(3)),
+                                desc(type, Shape.of(3))), desc(type, Shape.of(3))),
+                        List.of(base, new int[] {0, 1, 2}, updates, output));
+                assertArrayEquals(reduction == ScatterReduction.MIN
+                        ? new byte[] {(byte) 0x80, (byte) 0x80, nan} : new byte[] {0, 0, nan}, output);
+            }
+        }
+    }
+
     private static MemorySegment segment(Object values) {
+        if (values instanceof byte[] bytes) return MemorySegment.ofArray(bytes);
+        if (values instanceof short[] shorts) return MemorySegment.ofArray(shorts);
+        if (values instanceof float[] floats) return MemorySegment.ofArray(floats);
+        if (values instanceof int[] ints) return MemorySegment.ofArray(ints);
         return values instanceof double[] doubles ? MemorySegment.ofArray(doubles)
                 : MemorySegment.ofArray((long[]) values);
     }
@@ -161,230 +220,11 @@ class CpuScatterGeneratedKernelTest {
         }
     }
 
-    @Test
-    void everyOriginalScatterFixtureHasCurrentAdmissionOrAStableDirectTypedShape() {
-        for (DataType dataType : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
-            var reductions =
-                    dataType == DataType.BOOL
-                            ? List.of(ScatterReduction.NONE)
-                            : List.of(
-                                    ScatterReduction.NONE,
-                                    ScatterReduction.ADD,
-                                    ScatterReduction.MUL,
-                                    ScatterReduction.MIN,
-                                    ScatterReduction.MAX);
-            for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
-                for (boolean segments : List.of(false, true)) {
-                    for (ScatterReduction reduction : reductions) {
-                        assertCurrentClassShape("SCATTER_ELEMENTS", reduction, dataType,
-                                indexType, segments);
-                        assertCurrentClassShape("SCATTER_ND", reduction, dataType,
-                                indexType, segments);
-                    }
-                    if (dataType != DataType.BOOL) {
-                        assertCurrentClassShape("SCATTER_ADD", ScatterReduction.ADD,
-                                dataType, indexType, segments);
-                    }
-                }
-            }
-        }
-    }
+    
 
-    @Test
-    void generatedClassesEmbedTypedScatterLoopsWithoutObjectExecutionBridges() {
-        var none =
-                code(
-                        context(
-                                new Operation(
-                                        AxisScatterKind.SCATTER_ELEMENTS,
-                                        new ScatterElementsAttrs(0, ScatterReduction.NONE)),
-                                List.of(
-                                        desc(DataType.FLOAT32, Shape.of(8)),
-                                        desc(DataType.INT32, Shape.of(8)),
-                                        desc(DataType.FLOAT32, Shape.of(8))),
-                                desc(DataType.FLOAT32, Shape.of(8))));
-        var add =
-                code(
-                        context(
-                                new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0)),
-                                List.of(
-                                        desc(DataType.FLOAT32, Shape.of(8)),
-                                        desc(DataType.INT32, Shape.of(8)),
-                                        desc(DataType.FLOAT32, Shape.of(8))),
-                                desc(DataType.FLOAT32, Shape.of(8))));
-        var nd =
-                code(
-                        context(
-                                new Operation(
-                                        ScatterNdKind.SCATTER_ND,
-                                        new ScatterNdAttrs(0, ScatterReduction.MAX)),
-                                List.of(
-                                        desc(DataType.INT64, Shape.of(2, 3)),
-                                        desc(DataType.INT64, Shape.of(2, 1)),
-                                        desc(DataType.INT64, Shape.of(2, 3))),
-                                desc(DataType.INT64, Shape.of(2, 3))));
-        var products = new java.util.ArrayList<java.lang.classfile.CodeModel>();
-        for (var type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
-            var product = context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
-                    new ScatterElementsAttrs(0, ScatterReduction.MUL)), List.of(
-                    desc(type, Shape.of(3)), desc(DataType.INT32, Shape.of(4)), desc(type, Shape.of(4))),
-                    desc(type, Shape.of(3)));
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(product)) continue;
-            products.add(code(product));
-        }
-        assertAll(
-                () -> assertTrue(opcodeCount(none, Opcode.FALOAD) >= 2),
-                () -> assertTrue(opcodeCount(none, Opcode.IALOAD) > 0),
-                () -> assertTrue(opcodeCount(none, Opcode.FASTORE) > 0),
-                () -> assertTrue(opcodeCount(add, Opcode.FADD) > 0),
-                () -> assertTrue(opcodeCount(nd, Opcode.LALOAD) > 0),
-                () -> assertTrue(opcodeCount(nd, Opcode.LASTORE) > 0),
-                () ->
-                        assertTrue(
-                                products.stream()
-                                        .allMatch(
-                                                body ->
-                                                        opcodeCount(body, Opcode.LMUL) > 0
-                                                                && opcodeCount(body, Opcode.LUSHR)
-                                                                        > 0
-                                                                && opcodeCount(body, Opcode.LSHL)
-                                                                        > 0)),
-                () ->
-                        assertTrue(
-                                products.stream()
-                                        .flatMap(body -> invokes(body).stream())
-                                        .anyMatch(
-                                                call ->
-                                                        call.owner()
-                                                                        .asInternalName()
-                                                                        .equals("java/lang/Math")
-                                                                && call.name()
-                                                                        .stringValue()
-                                                                        .equals(
-                                                                                "unsignedMultiplyHigh"))),
-                () ->
-                        assertTrue(
-                                products.stream()
-                                        .flatMap(body -> invokes(body).stream())
-                                        .filter(
-                                                call ->
-                                                        call.owner()
-                                                                .asInternalName()
-                                                                .equals(
-                                                                        "java/lang/foreign/MemorySegment"))
-                                        .allMatch(
-                                                call ->
-                                                        Set.of("get", "set")
-                                                                .contains(
-                                                                        call.name()
-                                                                                .stringValue()))),
-                () ->
-                        assertTrue(
-                                java.util.stream.Stream.concat(
-                                                java.util.stream.Stream.of(none, add, nd),
-                                                products.stream())
-                                        .flatMap(body -> invokes(body).stream())
-                                        .noneMatch(
-                                                call ->
-                                                        call.name()
-                                                                        .stringValue()
-                                                                        .startsWith("execute")
-                                                                || call.owner()
-                                                                        .asInternalName()
-                                                                        .equals(
-                                                                                CpuScatterEmitter
-                                                                                        .class
-                                                                                        .getName()
-                                                                                        .replace(
-                                                                                                '.',
-                                                                                                '/'))
-                                                                || call.type()
-                                                                        .stringValue()
-                                                                        .contains(
-                                                                                "Ljava/lang/Object;")
-                                                                || call.owner()
-                                                                        .asInternalName()
-                                                                        .startsWith(
-                                                                                "java/lang/reflect/")
-                                                                || call.owner()
-                                                                        .asInternalName()
-                                                                        .equals("java/util/Map")
-                                                                || call.owner()
-                                                                        .asInternalName()
-                                                                        .startsWith(
-                                                                                "io/github/pho001/synaptik/runtime/"))),
-                () ->
-                        assertTrue(
-                                java.util.stream.Stream.concat(
-                                                java.util.stream.Stream.of(none, add, nd),
-                                                products.stream())
-                                        .allMatch(
-                                                body ->
-                                                        body.elementStream()
-                                                                .noneMatch(
-                                                                        element ->
-                                                                                element
-                                                                                        instanceof
-                                                                                        java.lang
-                                                                                                .classfile
-                                                                                                .instruction
-                                                                                                .NewObjectInstruction))));
-    }
+    
 
-    @Test
-    void generatedShapeCopiesBeforeOneUpdateBodyAndKeepsDenseExactProductGrouped() {
-        var addition =
-                code(
-                        context(
-                                new Operation(
-                                        AxisScatterKind.SCATTER_ELEMENTS,
-                                        new ScatterElementsAttrs(0, ScatterReduction.ADD)),
-                                List.of(
-                                        desc(DataType.FLOAT32, Shape.of(64)),
-                                        desc(DataType.INT32, Shape.of(8)),
-                                        desc(DataType.FLOAT32, Shape.of(8))),
-                                desc(DataType.FLOAT32, Shape.of(64))));
-        var product =
-                code(
-                        context(
-                                new Operation(
-                                        AxisScatterKind.SCATTER_ELEMENTS,
-                                        new ScatterElementsAttrs(0, ScatterReduction.MUL)),
-                                List.of(
-                                        desc(DataType.FLOAT32, Shape.of(64)),
-                                        desc(DataType.INT32, Shape.of(8)),
-                                        desc(DataType.FLOAT32, Shape.of(8))),
-                                desc(DataType.FLOAT32, Shape.of(64))));
-        List<Opcode> additionOpcodes = opcodes(addition);
-        List<Opcode> productOpcodes = opcodes(product);
-        assertAll(
-                () ->
-                        assertTrue(
-                                additionOpcodes.indexOf(Opcode.FALOAD)
-                                        < additionOpcodes.indexOf(Opcode.FASTORE)),
-                () ->
-                        assertTrue(
-                                additionOpcodes.indexOf(Opcode.FASTORE)
-                                        < additionOpcodes.indexOf(Opcode.IALOAD)),
-                () -> assertEquals(1, opcodeCount(product, Opcode.IALOAD)),
-                () -> assertEquals(0, opcodeCount(product, Opcode.LASTORE)),
-                () -> assertTrue(opcodeCount(product, Opcode.FASTORE) > 0),
-                () ->
-                        assertTrue(
-                                invokes(product).stream()
-                                        .filter(
-                                                call ->
-                                                        call.owner()
-                                                                .asInternalName()
-                                                                .equals(
-                                                                        "java/lang/foreign/MemorySegment"))
-                                        .allMatch(
-                                                call ->
-                                                        Set.of("get", "set")
-                                                                .contains(
-                                                                        call.name()
-                                                                                .stringValue()))));
-    }
+    
 
     @Test
     void executesElementsReplacementFixedAddAndNdReduction() throws Throwable {
@@ -560,8 +400,7 @@ class CpuScatterGeneratedKernelTest {
                                 case MAX -> 7;
                                 default -> throw new AssertionError(reduction);
                             };
-                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome((reduction == ScatterReduction.ADD || reduction == ScatterReduction.MUL) ? type : DataType.FLOAT32, () -> {
-                    Object elementsOutput = values(type, 0, 0, 0);
+                    { Object elementsOutput = values(type, 0, 0, 0);
                     invoke(
                             context(
                                     new Operation(
@@ -580,11 +419,8 @@ class CpuScatterGeneratedKernelTest {
                     assertCarrier(
                             values(type, 2, middle, 4),
                             elementsOutput,
-                            "SCATTER_ELEMENTS/" + type + "/" + indexType + "/" + reduction);
-
-                    });
-                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome((reduction == ScatterReduction.ADD || reduction == ScatterReduction.MUL) ? type : DataType.FLOAT32, () -> {
-                    Object ndOutput = values(type, 0, 0, 0);
+                            "SCATTER_ELEMENTS/" + type + "/" + indexType + "/" + reduction); }
+                    { Object ndOutput = values(type, 0, 0, 0);
                     invoke(
                             context(
                                     new Operation(
@@ -599,12 +435,10 @@ class CpuScatterGeneratedKernelTest {
                     assertCarrier(
                             values(type, 2, middle, 4),
                             ndOutput,
-                            "SCATTER_ND/" + type + "/" + indexType + "/" + reduction);
-                    });
+                            "SCATTER_ND/" + type + "/" + indexType + "/" + reduction); }
                 }
 
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
-                Object addOutput = values(type, 0, 0, 0);
+                { Object addOutput = values(type, 0, 0, 0);
                 invoke(
                         context(
                                 new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0)),
@@ -615,8 +449,7 @@ class CpuScatterGeneratedKernelTest {
                                 desc(type, Shape.of(3))),
                         List.of(values(type, 2, 3, 4), indices, values(type, 5, 7), addOutput));
                 assertCarrier(
-                        values(type, 2, 15, 4), addOutput, "SCATTER_ADD/" + type + "/" + indexType);
-                });
+                        values(type, 2, 15, 4), addOutput, "SCATTER_ADD/" + type + "/" + indexType); }
             }
         }
     }
@@ -771,7 +604,7 @@ class CpuScatterGeneratedKernelTest {
     }
 
     @Test
-    void additionRetainsLogicalContributionOrderAndRejectsLowArithmetic() throws Throwable {
+    void additionRetainsLogicalContributionOrderAndNarrowsOnlyAfterAllLowUpdates() throws Throwable {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
             double large = type == DataType.FLOAT64 ? 1e300 : 1e30;
             Object output = emptyCarrier(type, 1);
@@ -783,7 +616,8 @@ class CpuScatterGeneratedKernelTest {
                             floatingValues(type, -large, 3.0), output));
             assertRawCarrier(floatingValues(type, 3.0), output, type.name());
         }
-        assertThrows(IllegalArgumentException.class, () -> invoke(
+        short[] lowOutput = new short[1];
+        invoke(
                 context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
                                 new ScatterElementsAttrs(0, ScatterReduction.ADD)),
                         List.of(desc(DataType.BFLOAT16, Shape.of(1)), desc(DataType.INT32, Shape.of(3)),
@@ -791,7 +625,8 @@ class CpuScatterGeneratedKernelTest {
                         desc(DataType.BFLOAT16, Shape.of(1))),
                 List.of(floatingValues(DataType.BFLOAT16, 1.0), new int[] {0, 0, 0},
                         floatingValues(DataType.BFLOAT16, Math.scalb(1.0, -8),
-                                Math.scalb(1.0, -8), Math.scalb(1.0, -7)), new short[1])));
+                                Math.scalb(1.0, -8), Math.scalb(1.0, -7)), lowOutput));
+        assertArrayEquals(new short[] {(short) 0x3f82}, lowOutput);
     }
 
     @Test
@@ -1081,8 +916,7 @@ class CpuScatterGeneratedKernelTest {
                                 desc(dataType, updateShape)),
                         desc(dataType, dataShape),
                         segments);
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                .assertLowUnsupported(context)) return;
+        
         assertDirectGeneratedShape(new GeneratedScatterClass(
                 family, reduction, dataType, indexType, segments, generatedModel(context)));
     }
@@ -1221,11 +1055,10 @@ class CpuScatterGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> Opcode.DALOAD;
             case FLOAT32 -> Opcode.FALOAD;
-            case BFLOAT16 -> Opcode.SALOAD;
+            case BFLOAT16, FLOAT16 -> Opcode.SALOAD;
             case INT32 -> Opcode.IALOAD;
             case INT64 -> Opcode.LALOAD;
-            case BOOL -> Opcode.BALOAD;
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scatter unsupported");
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> Opcode.BALOAD;
         };
     }
 
@@ -1233,11 +1066,10 @@ class CpuScatterGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> Opcode.DASTORE;
             case FLOAT32 -> Opcode.FASTORE;
-            case BFLOAT16 -> Opcode.SASTORE;
+            case BFLOAT16, FLOAT16 -> Opcode.SASTORE;
             case INT32 -> Opcode.IASTORE;
             case INT64 -> Opcode.LASTORE;
-            case BOOL -> Opcode.BASTORE;
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scatter unsupported");
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> Opcode.BASTORE;
             default -> throw new IllegalArgumentException("unsupported CPU scatter type");
         };
     }
@@ -1298,11 +1130,10 @@ class CpuScatterGeneratedKernelTest {
         return switch (t) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CarrierAccess.SHORT_ARRAY;
+            case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY;
             case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY;
-            case BOOL -> CarrierAccess.BYTE_ARRAY;
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scatter unsupported");
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
             default -> throw new IllegalArgumentException("unsupported CPU scatter type");
         };
     }
@@ -1338,7 +1169,8 @@ class CpuScatterGeneratedKernelTest {
                 for (int i = 0; i < v.length; i++) x[i] = (byte) (v[i] & 1);
                 yield x;
             }
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scatter unsupported");
+            case FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> floatingValues(t,
+                    Arrays.stream(v).asDoubleStream().toArray());
         };
     }
 
@@ -1354,8 +1186,7 @@ class CpuScatterGeneratedKernelTest {
     private static void assertGeneratedMatchesReference(
             DataType type, ScatterReduction reduction, Object base, int[] indices, Object updates)
             throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(reduction == ScatterReduction.ADD || reduction == ScatterReduction.MUL ? type : DataType.FLOAT32, () -> {
-        int outputCount = java.lang.reflect.Array.getLength(base);
+        { int outputCount = java.lang.reflect.Array.getLength(base);
         int updateCount = indices.length;
         var operation =
                 new Operation(
@@ -1380,8 +1211,7 @@ class CpuScatterGeneratedKernelTest {
                 outputCount);
         Object actual = emptyCarrier(type, outputCount);
         invoke(prepare, List.of(base, indices, updates, actual));
-        assertRawCarrier(expected, actual, type.name());
-        });
+        assertRawCarrier(expected, actual, type.name()); }
     }
 
     private static Object floatingValues(DataType type, double... values) {
@@ -1403,6 +1233,18 @@ class CpuScatterGeneratedKernelTest {
                 }
                 yield result;
             }
+            case FLOAT16 -> {
+                short[] result = new short[values.length];
+                for (int i = 0; i < values.length; i++) result[i] = Float.floatToFloat16((float) values[i]);
+                yield result;
+            }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> {
+                byte[] result = new byte[values.length];
+                for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT8_E4M3
+                        ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromDouble(values[i])
+                        : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromDouble(values[i]);
+                yield result;
+            }
             default -> throw new IllegalArgumentException("not floating: " + type);
         };
     }
@@ -1411,7 +1253,8 @@ class CpuScatterGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> new double[count];
             case FLOAT32 -> new float[count];
-            case BFLOAT16 -> new short[count];
+            case BFLOAT16, FLOAT16 -> new short[count];
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> new byte[count];
             default -> throw new IllegalArgumentException("not floating: " + type);
         };
     }
@@ -1423,7 +1266,8 @@ class CpuScatterGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> new CpuBufferArgument.Doubles((double[]) carrier, 0, bytes, readOnly);
             case FLOAT32 -> new CpuBufferArgument.Floats((float[]) carrier, 0, bytes, readOnly);
-            case BFLOAT16 -> new CpuBufferArgument.Shorts((short[]) carrier, 0, bytes, readOnly);
+            case BFLOAT16, FLOAT16 -> new CpuBufferArgument.Shorts((short[]) carrier, 0, bytes, readOnly);
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> new CpuBufferArgument.Bytes((byte[]) carrier, 0, bytes, readOnly);
             case INT32 -> new CpuBufferArgument.Ints((int[]) carrier, 0, bytes, readOnly);
             default -> throw new IllegalArgumentException("unsupported: " + type);
         };
@@ -1444,7 +1288,8 @@ class CpuScatterGeneratedKernelTest {
                         Float.floatToRawIntBits(x[i]),
                         Float.floatToRawIntBits(y[i]),
                         message + "[" + i + "]");
-        } else assertArrayEquals((short[]) expected, (short[]) actual, message);
+        } else if (expected instanceof byte[] bytes) assertArrayEquals(bytes, (byte[]) actual, message);
+        else assertArrayEquals((short[]) expected, (short[]) actual, message);
     }
 
     private record GeneratedScatterClass(

@@ -12,7 +12,8 @@ import java.util.Objects;
  * fallback.  The binary64 overloads use binary64 accumulator operations.  The binary32 overloads
  * deliberately keep every accumulator, contribution, and stable-log-sum-exp narrowing in
  * {@code float}, while calling {@link StrictMath} through its available binary64 signatures;
- * that is the same typed clean-Java oracle shape used by FLOAT32, BFLOAT16, and FLOAT16 generated bodies.</p>
+ * that is the typed clean-Java oracle shape used by FLOAT32 and all four low generated bodies.
+ * Binary32 MSE MEAN finalization divides by the exact integer cardinality before its final RNE.</p>
  */
 public final class CpuLossReferenceKernel {
     /** Creates a stateless loss oracle. */
@@ -82,7 +83,7 @@ public final class CpuLossReferenceKernel {
             float difference = prediction[element] - target[element];
             sum += difference * difference;
         }
-        return new float[] {reduction == LossReduction.MEAN ? sum / prediction.length : sum};
+        return new float[] {reduction == LossReduction.MEAN ? exactCountQuotient(sum, prediction.length) : sum};
     }
 
     /**
@@ -214,6 +215,13 @@ public final class CpuLossReferenceKernel {
             count++;
         }
         return new float[] {reduction == LossReduction.MEAN ? sum / count : sum};
+    }
+
+    /** Independently rounds the exact rational final quotient, never the integer denominator. */
+    private static float exactCountQuotient(float value, long count) {
+        if (!Float.isFinite(value) || value == 0f || count == 0) return value / count;
+        return new java.math.BigDecimal((double) value).divide(java.math.BigDecimal.valueOf(count),
+                new java.math.MathContext(256, java.math.RoundingMode.HALF_EVEN)).floatValue();
     }
 
     private static void checkSlices(double[] logits, double[] target, int samples, int classes,

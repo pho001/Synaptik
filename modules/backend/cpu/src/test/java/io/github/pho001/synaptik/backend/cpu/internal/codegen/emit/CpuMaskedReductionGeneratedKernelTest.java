@@ -82,36 +82,34 @@ class CpuMaskedReductionGeneratedKernelTest {
 
     @Test void everyTypedHeapSegmentPatternProducesTheSameRepresentedResult() throws Throwable {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
-                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
-                        for (var kind : List.of(AggregateReductionKind.SUM, AggregateReductionKind.MEAN)) {
-                            for (int pattern = 0; pattern < 8; pattern++) {
-                                Object dataArray = type == DataType.FLOAT64 ? new double[] {1, 2}
-                                        : type == DataType.FLOAT32 ? new float[] {1, 2}
-                                        : new short[] {(short) 0x3f80, (short) 0x4000};
-                                byte[] maskArray = {1, 1}; Object outputArray = array(type, 1);
-                                Object data = (pattern & 1) == 0 ? dataArray : segment(dataArray);
-                                Object mask = (pattern & 2) == 0 ? maskArray : MemorySegment.ofArray(maskArray);
-                                Object output = (pattern & 4) == 0 ? outputArray : segment(outputArray);
-                                CarrierAccess numeric = (pattern & 1) == 0 ? arrayCarrier(type)
-                                        : CarrierAccess.MEMORY_SEGMENT;
-                                CarrierAccess maskCarrier = (pattern & 2) == 0 ? CarrierAccess.BYTE_ARRAY
-                                        : CarrierAccess.MEMORY_SEGMENT;
-                                CarrierAccess outputCarrier = (pattern & 4) == 0 ? arrayCarrier(type)
-                                        : CarrierAccess.MEMORY_SEGMENT;
-                                invoke(plan(kind, type, Shape.of(1, 2), Shape.of(2),
-                                        List.of(numeric, maskCarrier, outputCarrier)), data, mask, output);
-                                long expected = type == DataType.FLOAT64
-                                        ? Double.doubleToRawLongBits(kind == AggregateReductionKind.SUM
-                                                ? 3.0 : 1.5)
-                                        : type == DataType.FLOAT32
-                                        ? Integer.toUnsignedLong(Float.floatToRawIntBits(
-                                                kind == AggregateReductionKind.SUM ? 3.0f : 1.5f))
-                                        : kind == AggregateReductionKind.SUM ? 0x4040L : 0x3fc0L;
-                                assertEquals(expected, bits(type, outputArray), type + "/" + kind
-                                        + "/pattern=" + pattern);
-                            }
+                    { for (var kind : List.of(AggregateReductionKind.SUM, AggregateReductionKind.MEAN)) {
+                        for (int pattern = 0; pattern < 8; pattern++) {
+                            Object dataArray = type == DataType.FLOAT64 ? new double[] {1, 2}
+                                    : type == DataType.FLOAT32 ? new float[] {1, 2}
+                                    : new short[] {(short) 0x3f80, (short) 0x4000};
+                            byte[] maskArray = {1, 1}; Object outputArray = array(type, 1);
+                            Object data = (pattern & 1) == 0 ? dataArray : segment(dataArray);
+                            Object mask = (pattern & 2) == 0 ? maskArray : MemorySegment.ofArray(maskArray);
+                            Object output = (pattern & 4) == 0 ? outputArray : segment(outputArray);
+                            CarrierAccess numeric = (pattern & 1) == 0 ? arrayCarrier(type)
+                                    : CarrierAccess.MEMORY_SEGMENT;
+                            CarrierAccess maskCarrier = (pattern & 2) == 0 ? CarrierAccess.BYTE_ARRAY
+                                    : CarrierAccess.MEMORY_SEGMENT;
+                            CarrierAccess outputCarrier = (pattern & 4) == 0 ? arrayCarrier(type)
+                                    : CarrierAccess.MEMORY_SEGMENT;
+                            invoke(plan(kind, type, Shape.of(1, 2), Shape.of(2),
+                                    List.of(numeric, maskCarrier, outputCarrier)), data, mask, output);
+                            long expected = type == DataType.FLOAT64
+                                    ? Double.doubleToRawLongBits(kind == AggregateReductionKind.SUM
+                                            ? 3.0 : 1.5)
+                                    : type == DataType.FLOAT32
+                                    ? Integer.toUnsignedLong(Float.floatToRawIntBits(
+                                            kind == AggregateReductionKind.SUM ? 3.0f : 1.5f))
+                                    : kind == AggregateReductionKind.SUM ? 0x4040L : 0x3fc0L;
+                            assertEquals(expected, bits(type, outputArray), type + "/" + kind
+                                    + "/pattern=" + pattern);
                         }
-                    });
+                    } }
                 }
     }
 
@@ -140,20 +138,18 @@ class CpuMaskedReductionGeneratedKernelTest {
 
     @Test void allFalseAndEmptySelectionUseFrozenZeroCountResults() throws Throwable {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
-                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
-                        Object data = type == DataType.FLOAT64 ? new double[] {Double.NaN, 2}
-                                : type == DataType.FLOAT32 ? new float[] {Float.NaN, 2}
-                                : new short[] {(short) 0x7f81, (short) 0x4000};
-                        byte[] mask = {0, 0};
-                        Object sum = array(type, 1), mean = array(type, 1);
-                        invoke(plan(AggregateReductionKind.SUM, type, Shape.of(1, 2), Shape.of(2),
-                                carriers(type)), data, mask, sum);
-                        invoke(plan(AggregateReductionKind.MEAN, type, Shape.of(1, 2), Shape.of(2),
-                                carriers(type)), data, mask, mean);
-                        assertEquals(0L, bits(type, sum));
-                        assertEquals(type == DataType.FLOAT64 ? 0x7ff8000000000000L
-                                : type == DataType.FLOAT32 ? 0x7fc00000L : 0x7fc0L, bits(type, mean));
-                    });
+                    { Object data = type == DataType.FLOAT64 ? new double[] {Double.NaN, 2}
+                            : type == DataType.FLOAT32 ? new float[] {Float.NaN, 2}
+                            : new short[] {(short) 0x7f81, (short) 0x4000};
+                    byte[] mask = {0, 0};
+                    Object sum = array(type, 1), mean = array(type, 1);
+                    invoke(plan(AggregateReductionKind.SUM, type, Shape.of(1, 2), Shape.of(2),
+                            carriers(type)), data, mask, sum);
+                    invoke(plan(AggregateReductionKind.MEAN, type, Shape.of(1, 2), Shape.of(2),
+                            carriers(type)), data, mask, mean);
+                    assertEquals(0L, bits(type, sum));
+                    assertEquals(type == DataType.FLOAT64 ? 0x7ff8000000000000L
+                            : type == DataType.FLOAT32 ? 0x7fc00000L : 0x7fc0L, bits(type, mean)); }
                 }
     }
 
@@ -182,7 +178,7 @@ class CpuMaskedReductionGeneratedKernelTest {
                         Double.doubleToRawLongBits(output[5])));
     }
 
-    @Test void classIsDeterministicPublicFieldFreeAndMaskBranchPrecedesDataLoad() {
+    @Test void classIsDeterministicPublicFieldFreeAndMaskBranchPrecedesDataLoad() throws Throwable {
         var plan = plan(AggregateReductionKind.MEAN, DataType.FLOAT32, Shape.of(2, 4),
                 Shape.of(4), carriers(DataType.FLOAT32));
         var route = plan.units().getFirst().portablePlan();
@@ -223,6 +219,36 @@ class CpuMaskedReductionGeneratedKernelTest {
         return -1;
     }
 
+    @Test void everyLowFormatExcludesMaskedNanAndUsesTheExactSelectedCount() throws Throwable {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            for (boolean segments : List.of(false, true)) {
+                var numeric = segments ? CarrierAccess.MEMORY_SEGMENT : arrayCarrier(type);
+                var carriers = List.of(numeric,
+                        segments ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.BYTE_ARRAY, numeric);
+                Object data = CpuLayerNormGeneratedKernelTest.represented(type,
+                        new double[] {1, Double.NaN, 3, 8});
+                byte[] mask = {1, 0, 1, 0};
+                for (var kind : List.of(AggregateReductionKind.SUM, AggregateReductionKind.MEAN)) {
+                    Object output = array(type, 1);
+                    invoke(plan(kind, type, Shape.of(1, 4), Shape.of(4), carriers),
+                            segments ? segment(data) : data,
+                            segments ? MemorySegment.ofArray(mask) : mask,
+                            segments ? segment(output) : output);
+                    assertEquals(CpuLayerNormGeneratedKernelTest.raw(type,
+                            kind == AggregateReductionKind.SUM ? 4 : 2), bits(type, output));
+                    byte[] allFalse = {0, 0, 0, 0};
+                    invoke(plan(kind, type, Shape.of(1, 4), Shape.of(4), carriers),
+                            segments ? segment(data) : data,
+                            segments ? MemorySegment.ofArray(allFalse) : allFalse,
+                            segments ? segment(output) : output);
+                    assertEquals(CpuLayerNormGeneratedKernelTest.raw(type,
+                            kind == AggregateReductionKind.SUM ? 0 : Double.NaN), bits(type, output));
+                }
+            }
+        }
+    }
+
     private static void invoke(
             io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan plan,
             Object data, Object mask, Object output) throws Throwable {
@@ -260,7 +286,8 @@ class CpuMaskedReductionGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CarrierAccess.SHORT_ARRAY;
+            case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
             default -> throw new AssertionError();
         };
     }
@@ -268,18 +295,21 @@ class CpuMaskedReductionGeneratedKernelTest {
     private static MemorySegment segment(Object array) {
         if (array instanceof double[] value) return MemorySegment.ofArray(value);
         if (array instanceof float[] value) return MemorySegment.ofArray(value);
+        if (array instanceof byte[] value) return MemorySegment.ofArray(value);
         return MemorySegment.ofArray((short[]) array);
     }
 
     private static Object array(DataType type, int size) {
         return type == DataType.FLOAT64 ? new double[size]
-                : type == DataType.FLOAT32 ? new float[size] : new short[size];
+                : type == DataType.FLOAT32 ? new float[size]
+                    : type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2 ? new byte[size] : new short[size];
     }
 
     private static long bits(DataType type, Object values) {
         return type == DataType.FLOAT64 ? Double.doubleToRawLongBits(((double[]) values)[0])
                 : type == DataType.FLOAT32 ? Integer.toUnsignedLong(
                         Float.floatToRawIntBits(((float[]) values)[0]))
-                : Short.toUnsignedLong(((short[]) values)[0]);
+                : type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
+                    ? Byte.toUnsignedLong(((byte[]) values)[0]) : Short.toUnsignedLong(((short[]) values)[0]);
     }
 }

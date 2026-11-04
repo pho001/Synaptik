@@ -78,7 +78,7 @@ class CpuBatchNormInferenceGeneratedKernelTest {
         }
     }
 
-    @Test void parallelPreparationBakesLargerNonChannelDomainAndThresholdUnits() {
+    @Test void parallelPreparationBakesLargerNonChannelDomainAndThresholdUnits() throws Throwable {
         var base = CpuBatchNormInferenceLoweringTest.context(
                 java.util.Collections.nCopies(5, DataType.FLOAT32), Shape.of(32, 64, 256), 1,
                 List.of(0, 1, 2, 3, 4));
@@ -98,8 +98,7 @@ class CpuBatchNormInferenceGeneratedKernelTest {
     }
 
     @Test void mixedCarriersAndGeneralLayoutsPreserveExactTypedFormula() throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        Shape shape = Shape.of(2, 3, 4), vector = Shape.of(3);
+        { Shape shape = Shape.of(2, 3, 4), vector = Shape.of(3);
         var layouts = List.of(
                 LayoutDescriptor.of(shape, new long[] {20, 6, 1}, 2, true),
                 LayoutDescriptor.of(vector, new long[] {2}, 3, true),
@@ -159,8 +158,7 @@ class CpuBatchNormInferenceGeneratedKernelTest {
                 assertEquals(Double.doubleToRawLongBits(expected),
                         Double.doubleToRawLongBits(output.get(DOUBLE, outputAddress * 8L)));
             }
-        }
-        });
+        } }
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> withInputs(

@@ -78,7 +78,7 @@ class CpuAdvancedReductionGeneratedKernelTest {
         }
     }
 
-    @Test void focusedEmittersOwnNumericalBodiesWithoutSelectorDelegation() {
+    @Test void focusedEmittersOwnNumericalBodiesWithoutSelectorDelegation() throws Throwable {
         assertAll(
                 () -> assertTrue(java.util.Arrays.stream(CpuLogSumExpEmitter.class
                         .getDeclaredMethods()).noneMatch(method -> method.getName()
@@ -106,7 +106,7 @@ class CpuAdvancedReductionGeneratedKernelTest {
                 new double[] {Double.POSITIVE_INFINITY, Double.NaN}, 0)));
     }
 
-    @Test void generatedShapeIsDeterministicTypedFieldFreeAndRuntimeHelperFree() {
+    @Test void generatedShapeIsDeterministicTypedFieldFreeAndRuntimeHelperFree() throws Throwable {
         var plan = plan(AggregateReductionKind.L2_NORM, 3, 0);
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
@@ -125,58 +125,52 @@ class CpuAdvancedReductionGeneratedKernelTest {
     }
 
     @Test void everyFloatingTypeAndHeapSegmentPairUsesTheSameRepresentedResult() throws Throwable {
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
             for (int pattern = 0; pattern < 4; pattern++) {
                 int carrierPattern = pattern;
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                        .assertNumericalOutcome(type, () -> {
-                            Object input = represented(type, new double[] {-3, 4});
-                            Object output = represented(type, new double[] {0});
-                            Object inputCarrier = (carrierPattern & 1) == 0 ? input : segment(input);
-                            Object outputCarrier = (carrierPattern & 2) == 0 ? output : segment(output);
-                            var plan = plan(AggregateReductionKind.L2_NORM, type, 2, 0,
-                                    List.of((carrierPattern & 1) == 0 ? arrayCarrier(type)
-                                                    : CarrierAccess.MEMORY_SEGMENT,
-                                            (carrierPattern & 2) == 0 ? arrayCarrier(type)
-                                                    : CarrierAccess.MEMORY_SEGMENT));
-                            invoke(plan, inputCarrier, outputCarrier);
-                            assertEquals(type == DataType.FLOAT64 ? Double.doubleToRawLongBits(5.0)
-                                    : type == DataType.FLOAT32 ? Integer.toUnsignedLong(
-                                        Float.floatToRawIntBits(5.0f)) : 0x40a0L,
-                                    bits(type, output), type + "/pattern=" + carrierPattern);
-                        });
+                { Object input = represented(type, new double[] {-3, 4});
+                Object output = represented(type, new double[] {0});
+                Object inputCarrier = (carrierPattern & 1) == 0 ? input : segment(input);
+                Object outputCarrier = (carrierPattern & 2) == 0 ? output : segment(output);
+                var plan = plan(AggregateReductionKind.L2_NORM, type, 2, 0,
+                        List.of((carrierPattern & 1) == 0 ? arrayCarrier(type)
+                                        : CarrierAccess.MEMORY_SEGMENT,
+                                (carrierPattern & 2) == 0 ? arrayCarrier(type)
+                                        : CarrierAccess.MEMORY_SEGMENT));
+                invoke(plan, inputCarrier, outputCarrier);
+                assertEquals(bits(type, represented(type, new double[] {5.0})),
+                        bits(type, output), type + "/pattern=" + carrierPattern); }
             }
         }
     }
 
-    @Test void fifteenKindTypeTargetsNarrowOnceToTheExpectedRepresentation() throws Throwable {
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+    @Test void allFloatingKindTargetsNarrowOnceToTheExpectedRepresentation() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.LOG_SUM_EXP,
                     AggregateReductionKind.VARIANCE, AggregateReductionKind.STANDARD_DEVIATION,
                     AggregateReductionKind.L1_NORM, AggregateReductionKind.L2_NORM)) {
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                        .assertNumericalOutcome(type, () -> {
-                            boolean statistics = kind == AggregateReductionKind.VARIANCE
-                                    || kind == AggregateReductionKind.STANDARD_DEVIATION;
-                            double[] values = kind == AggregateReductionKind.L2_NORM
-                                    ? new double[] {3, 4} : kind == AggregateReductionKind.L1_NORM
-                                    ? new double[] {-1, 2} : new double[] {1, 3};
-                            double expected = switch (kind) {
-                                case LOG_SUM_EXP -> 3 + StrictMath.log1p(StrictMath.exp(-2));
-                                case VARIANCE -> 2;
-                                case STANDARD_DEVIATION -> StrictMath.sqrt(2);
-                                case L1_NORM -> 3;
-                                case L2_NORM -> 5;
-                                default -> throw new AssertionError();
-                            };
-                            Object input = represented(type, values);
-                            Object output = represented(type, new double[] {0});
-                            var plan = plan(kind, type, 2, statistics ? 1 : 0,
-                                    List.of(arrayCarrier(type), arrayCarrier(type)));
-                            invoke(plan, input, output);
-                            assertEquals(bits(type, represented(type, new double[] {expected})),
-                                    bits(type, output), type + "/" + kind);
-                        });
+                { boolean statistics = kind == AggregateReductionKind.VARIANCE
+                        || kind == AggregateReductionKind.STANDARD_DEVIATION;
+                double[] values = kind == AggregateReductionKind.L2_NORM
+                        ? new double[] {3, 4} : kind == AggregateReductionKind.L1_NORM
+                        ? new double[] {-1, 2} : new double[] {1, 3};
+                double expected = switch (kind) {
+                    case LOG_SUM_EXP -> 3 + StrictMath.log1p(StrictMath.exp(-2));
+                    case VARIANCE -> 2;
+                    case STANDARD_DEVIATION -> StrictMath.sqrt(2);
+                    case L1_NORM -> 3;
+                    case L2_NORM -> 5;
+                    default -> throw new AssertionError();
+                };
+                Object input = represented(type, values);
+                Object output = represented(type, new double[] {0});
+                var plan = plan(kind, type, 2, statistics ? 1 : 0,
+                        List.of(arrayCarrier(type), arrayCarrier(type)));
+                invoke(plan, input, output);
+                assertEquals(bits(type, represented(type, new double[] {expected})),
+                        bits(type, output), type + "/" + kind); }
             }
         }
     }
@@ -262,7 +256,7 @@ class CpuAdvancedReductionGeneratedKernelTest {
         }
     }
 
-    @Test void invalidStatisticalCorrectionsFailBeforeGeneration() {
+    @Test void invalidStatisticalCorrectionsFailBeforeGeneration() throws Throwable {
         for (long correction : new long[] {2, Long.MAX_VALUE}) assertThrows(
                 IllegalArgumentException.class, () -> plan(AggregateReductionKind.VARIANCE,
                         DataType.FLOAT64, Shape.of(2),
@@ -273,6 +267,18 @@ class CpuAdvancedReductionGeneratedKernelTest {
                 DataType.FLOAT64, Shape.of(2, 0),
                 new StatisticalReductionAttrs(List.of(1), false, 0), Shape.of(2),
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+    }
+
+    @Test void lowWorkingSquareOverflowRemainsInfinityAfterLaterZeroContributors() throws Throwable {
+        for (AggregateReductionKind kind : List.of(AggregateReductionKind.VARIANCE,
+                AggregateReductionKind.STANDARD_DEVIATION)) {
+            var selected = plan(kind, DataType.BFLOAT16, 4, 0,
+                    List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY));
+            Object output = represented(DataType.BFLOAT16, new double[] {0});
+            invoke(selected, represented(DataType.BFLOAT16,
+                    new double[] {0x1p64, -0x1p64, 0, 0}), output);
+            assertEquals(0x7f80L, bits(DataType.BFLOAT16, output), kind.name());
+        }
     }
 
     private static double invoke(AggregateReductionKind kind, double[] input, long correction)
@@ -330,7 +336,18 @@ class CpuAdvancedReductionGeneratedKernelTest {
             for (int i = 0; i < values.length; i++) result[i] = (float) values[i];
             return result;
         }
+        if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            byte[] result = new byte[values.length];
+            for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT8_E4M3
+                    ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromDouble(values[i])
+                    : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromDouble(values[i]);
+            return result;
+        }
         short[] result = new short[values.length];
+        if (type == DataType.FLOAT16) {
+            for (int i = 0; i < values.length; i++) result[i] = Float.floatToFloat16((float) values[i]);
+            return result;
+        }
         for (int i = 0; i < values.length; i++) result[i] = (short) (Float.floatToRawIntBits(
                 (float) values[i]) >>> 16);
         return result;
@@ -339,18 +356,22 @@ class CpuAdvancedReductionGeneratedKernelTest {
     private static MemorySegment segment(Object array) {
         if (array instanceof double[] value) return MemorySegment.ofArray(value);
         if (array instanceof float[] value) return MemorySegment.ofArray(value);
+        if (array instanceof byte[] value) return MemorySegment.ofArray(value);
         return MemorySegment.ofArray((short[]) array);
     }
 
     private static CarrierAccess arrayCarrier(DataType type) {
         return type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY
-                : type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY : CarrierAccess.SHORT_ARRAY;
+                : type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
+                : type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
+                    ? CarrierAccess.BYTE_ARRAY : CarrierAccess.SHORT_ARRAY;
     }
 
     private static long bits(DataType type, Object array) {
         return type == DataType.FLOAT64 ? Double.doubleToRawLongBits(((double[]) array)[0])
                 : type == DataType.FLOAT32 ? Integer.toUnsignedLong(
                     Float.floatToRawIntBits(((float[]) array)[0]))
-                : Short.toUnsignedLong(((short[]) array)[0]);
+                : type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
+                    ? Byte.toUnsignedLong(((byte[]) array)[0]) : Short.toUnsignedLong(((short[]) array)[0]);
     }
 }

@@ -18,7 +18,7 @@ import java.lang.constant.MethodTypeDesc;
  * retained for the remaining active coordinates; an inactive channel performs no operand loads.
  * Every coordinate then performs subtraction, division, multiplication, and
  * addition at the exact result computation boundary and stores directly. Entry coordinates are
- * decoded once and subsequent addresses advance incrementally; BFLOAT16, FLOAT16, and FLOAT32 use
+ * decoded once and subsequent addresses advance incrementally; all four low formats and FLOAT32 use
  * real FLOAT32 locals while FLOAT64 uses FLOAT64 locals.</p>
  */
 public final class CpuBatchNormInferenceEmitter {
@@ -86,7 +86,7 @@ public final class CpuBatchNormInferenceEmitter {
         int standardized = code.allocateLocal(computationKind);
         int scaled = code.allocateLocal(computationKind);
         int result = code.allocateLocal(computationKind);
-        int encodedStore = resultType == DataType.BFLOAT16 || resultType == DataType.FLOAT16
+        int encodedStore = resultType == DataType.BFLOAT16 || resultType == DataType.FLOAT16 || resultType == DataType.FLOAT8_E4M3 || resultType == DataType.FLOAT8_E5M2
                 ? code.allocateLocal(TypeKind.DOUBLE) : -1;
         if (floatComputation) code.loadConstant((float) CpuLayerNormEmitter.epsilon(identity,
                 resultType)).fstore(epsilon);
@@ -177,7 +177,6 @@ public final class CpuBatchNormInferenceEmitter {
             code.fload(radicand).f2d()
                     .invokestatic(MATH, "sqrt", CpuNormEmitter.doubleUnary()).d2f()
                     .fstore(denominator);
-            if (resultType == DataType.FLOAT16) roundFloat16(code, denominator);
         } else code.dload(radicand).invokestatic(MATH, "sqrt", CpuNormEmitter.doubleUnary())
                 .dstore(denominator);
     }
@@ -246,11 +245,11 @@ public final class CpuBatchNormInferenceEmitter {
                 specialization.carrierPattern().get(output), output, selectedOutputAddress,
                 result, false);
         else {
-            if (resultType == DataType.BFLOAT16 || resultType == DataType.FLOAT16)
+            if (resultType == DataType.BFLOAT16 || resultType == DataType.FLOAT16 || resultType == DataType.FLOAT8_E4M3 || resultType == DataType.FLOAT8_E5M2)
                 code.fload(result).f2d().dstore(encodedStore);
             CpuNormEmitter.emitStore(code, carriers, specialization, resultType, output,
                     selectedOutputAddress, resultType == DataType.BFLOAT16
-                            || resultType == DataType.FLOAT16 ? encodedStore : result,
+                            || resultType == DataType.FLOAT16 || resultType == DataType.FLOAT8_E4M3 || resultType == DataType.FLOAT8_E5M2 ? encodedStore : result,
                     false, true);
         }
         code.labelBinding(advance);
@@ -307,6 +306,12 @@ public final class CpuBatchNormInferenceEmitter {
         carriers.loadFrozen(type, specialization.carrierPattern().get(boundary), boundary,
                 address, false);
         if (type == DataType.FLOAT32) code.fstore(target);
+        else if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+            int raw = code.allocateLocal(TypeKind.INT);
+            code.istore(raw);
+            CpuCastEmitter.emitLowToFloat(code, type, raw);
+            code.fstore(target);
+        }
         else if (type == DataType.FLOAT16) code.i2s().invokestatic(FLOAT_CLASS,
                 "float16ToFloat", MethodTypeDesc.of(TypeKind.FLOAT.upperBound(),
                         TypeKind.SHORT.upperBound())).fstore(target);
@@ -327,16 +332,9 @@ public final class CpuBatchNormInferenceEmitter {
             case DDIV -> code.fdiv(); default -> throw new IllegalArgumentException("operation");
         }
         code.fstore(target);
-        if (resultType == DataType.FLOAT16) roundFloat16(code, target);
     }
 
-    private static void roundFloat16(CodeBuilder code, int local) {
-        code.fload(local).invokestatic(FLOAT_CLASS, "floatToFloat16",
-                MethodTypeDesc.of(TypeKind.SHORT.upperBound(), TypeKind.FLOAT.upperBound()))
-                .invokestatic(FLOAT_CLASS, "float16ToFloat",
-                        MethodTypeDesc.of(TypeKind.FLOAT.upperBound(), TypeKind.SHORT.upperBound()))
-                .fstore(local);
-    }
+
     private static void emitDenseAddress(CodeBuilder code, int geometry, int baseIndex,
             int channel, int prefixCoordinate, int suffixCoordinate, int address) {
         CpuNormEmitter.geometry(code, geometry, baseIndex).lload(prefixCoordinate);
