@@ -342,12 +342,16 @@ provider GEMM bindings and qualified K>1 behavior remain unchanged.
 The current oneDNN route requires explicit loading of an exact external 3.14.0 little-endian LP64
 library with sequential CPU runtime (SEQ, code 1). Required loading failures throw; no optional
 provider discovery or Runtime fallback may mask them. CPU backend identity, availability and
-Model semantics are unchanged. Production qualification is only bare homogeneous FLOAT32
-MATMUL with K > 1 over static positive dense/permuted-dense and normalized broadcast-batch
-layouts of rank at most 12. Empty/K=0/K=1, gapped or symbolic layouts, Scan bodies, row regions,
-convolution, bias, activation and post-operation native forms are not qualified. Wider diagnostic
-C bindings do not imply production eligibility. Existing ordinary CPU units preserve convolution
-signed zeros, activation special values and bias ordering/rounding.
+Model semantics are unchanged. Bare homogeneous FLOAT32 MATMUL with K > 1 over static positive
+dense/permuted-dense and normalized broadcast-batch layouts of rank at most 12 is the existing
+qualified baseline. The user-authorized F32 expansion may additionally realize common pointwise,
+reduction and movement units, and literal native substeps of an existing composite unit, only
+where the actual implementation preserves every Model arithmetic site, contributor domain,
+special value and saved/public boundary. Native descriptor availability alone is not qualification.
+Unsupported or unqualified units retain their already planned ordinary CPU realization; no
+value-based route choice, numerical repair, tolerance relaxation or runtime fallback is allowed.
+Empty/K=0/K=1 contractions, symbolic layouts, Scan orchestration and opaque native
+convolution/normalization/pooling/activation replacements are not thereby qualified.
 
 Both native APIs consume common CPU IR and canonical external buffers; saved/public stores
 remain ordinary memory obligations. Graph is not AD or a provider-owned replacement graph
@@ -363,10 +367,12 @@ Analysis retains descriptor facts, not native handles. Primitive metadata querie
 primitive; Graph's scratch query requires temporary compilation and closure. Finalization
 recompiles the exact recipe, verifies retained metadata and returns ordered persistent kernels
 as `PreparedResource` objects with transactional rollback. Native caches remain library-owned.
-Data spans, padding/alignment, ingress copies and user scratch are declared before shared
-assignment. Each run workspace factory creates streams, memory/tensor handles and ABI tables
-before binding; the issued workspace retains the kernel and library until close, independently
-of prepared-owner closure. Runtime's prepared-resource lease contract remains unchanged.
+Data spans, padding/alignment, ingress copies, literal native intermediates and user scratch are
+declared before shared assignment. A composite unit's native substeps remain one cold-fixed
+realization of the existing common unit, not a replacement semantic graph or interpreter.
+Each run workspace factory creates streams, memory/tensor handles and ABI tables before binding;
+the issued workspace retains the kernel and library until close, independently of prepared-owner
+closure. Runtime's prepared-resource lease contract remains unchanged.
 
 One RunState owns each shared ingress workspace. Copies share only matching logical value,
 origin and referenced span; the first native consumer refreshes that span every run and later
@@ -374,8 +380,10 @@ consumers reuse it within the run. No offset prefix or across-run weight snapsho
 Graph inputs are VARIABLE. Cold binding applies direct origins once, copied origins zero, and
 rejects output/input/scratch aliasing. Fixed copy/execute/wait runs synchronously under the
 shared CPU budget with demand one; there is no hot allocation, selection, retry or fallback.
-Existing CNN AD may realize eligible rank-four MATMULs natively while convolution, fold/unfold
-and reductions keep ordinary implementations. Metal and CPU low-arithmetic admission are unchanged.
+Existing Compiler AD uses these same qualified ordinary native units; there is no vendor backward
+or second differentiation path. F64 CPU/OpenBLAS support and Metal admission remain unchanged.
+The separately authorized CPU low-precision cutover follows F32 expansion and retains the same
+Model-owned arithmetic, resource and qualification obligations.
 
 ### General Scan CPU realization
 

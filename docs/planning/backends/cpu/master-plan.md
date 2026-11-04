@@ -58,6 +58,9 @@ acceleration, superseding the earlier first-release low-arithmetic lock. Both OF
 the ordinary CPU path when the native library lacks an implementation; no F32-input conversion
 is relabeled as native FP8. The root and owning numerical/backend contracts define this cutover.
 Implementation and independent review/consumer qualification are the current authorized frontier.
+The ordered user request first expands genuinely Model-compatible F32 oneDNN realizations, then
+completes CPU F16/BF16/OFP8 parity and available native acceleration. F64 oneDNN expansion is
+explicitly excluded; existing F64 CPU/OpenBLAS execution is preserved without narrowing.
 
 The production installation check also repaired unconditional Vector API species queries in
 scalar preparation and MATMUL discovery. A plain-JVM consumer now computes actual FLOAT32/
