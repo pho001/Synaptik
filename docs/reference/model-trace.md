@@ -2,8 +2,6 @@
 
 [Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 The implemented `modules:model` surface contains:
 
 - data type metadata, typed scalar values, and numeric promotion;

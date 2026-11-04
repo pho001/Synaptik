@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="current-cold-source-capture-and-reconstruction"></a>
 ### Current cold source capture and reconstruction
 
@@ -33,23 +31,25 @@ verifies promotion, broadcasting, MATMUL rank/batch
 semantics, attributes and exact output descriptors, with no deferred obligations. Model owns
 structural closure, signature/attribute checks and layout geometry. Unsupported families fail
 closed; there is no generic constructor or registry. The three activations retain Model's
-floating-only guards across FLOAT64, FLOAT32, BFLOAT16 and FLOAT16; admission is not an execution
+floating-only guards across all six floating types; admission is not an execution
 capability claim for every occurrence.
 
 General bodies reuse the flat constructors except scans. Their bounded additions are tensor DIV
 and integral SUB; exact typed scalar ADD/SUB/MUL/DIV; full, single-axis, ordered multi-axis and
 target-Shape SUM; static EXPAND; scalar/empty RESHAPE; any normalized EXPAND_DIMS/SQUEEZE axis;
-CONTIGUOUS; and identity CAST. Model family guards and applicable dtypes remain authoritative:
-FLOAT16/BFLOAT16 TANH round-trip cold while Java low-type computation remains locked. Other PURE
-operations, cross-dtype casts, arbitrary permutations and nested scans remain unsupported here.
+CONTIGUOUS; and floating-to-floating CAST (or nonfloating identity CAST). Model family guards
+and applicable dtypes remain authoritative. Low cold support is independent of the implemented
+CPU low-precision execution cutover. Other unlisted PURE operations, nonfloating cross-dtype
+casts, arbitrary permutations and nested scans remain outside this bounded cold inventory.
 See the [exact body inventory](../../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction)
 for attributes and constructor restrictions. This is not an all-PURE copier or a persistence promise.
 
 MAX_POOL3D and AVERAGE_POOL3D admit exact typed Model attributes with positive kernel/stride/dilation,
 nonnegative symmetric padding and literal floor/ceil geometry, not just builder defaults.
 They also enter otherwise-qualified all-valid bodies and add only these two constructors to
-the length whitelist. Static homogeneous FLOAT32/FLOAT64, ROW/SHARED, axis and terminal-SHARED
-restrictions remain. CONV2D/CONV3D still require biased defaults; MAX_POOL2D keeps its narrow
+the length whitelist. Fully static per-role floating descriptors, ROW/SHARED, axis and
+terminal-SHARED restrictions remain; actual/formal and next/initial pairs match exactly, but
+different roles may use different floating types with explicit casts retained. CONV2D/CONV3D still require biased defaults; MAX_POOL2D keeps its narrow
 kernel-stride, zero-padding, unit-dilation floor boundary.
 
 Complete preflight includes dead outer scans, unused declarations and T=0 bodies. Raw bodies must

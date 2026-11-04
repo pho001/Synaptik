@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="gather-nd-expressions"></a>
 ### Gather-ND expressions
 
@@ -282,25 +280,20 @@ whose index positions select `c`. Every updates position contributes exactly one
 targets remain distinct members even when their values are equal. A non-replacement reduction
 combines exactly one occurrence of `data[c]` with exactly one occurrence of every member of
 `U(c)`. If `U(c)` is empty, the result is the exact unchanged representation of `data[c]`; no
-identity operation or canonicalization is permitted. For `MUL`, `MIN`, and `MAX`, the abstract
-result is independent of encounter order, physical layout, strides, atomic scheduling, reduction
-tree, and backend traversal.
+identity operation or canonicalization is permitted. Target membership, duplicate multiplicity
+and untouched representations are exact regardless of traversal or scheduling.
 
-Data and updates already have the same exact type. Arithmetic scatter performs no promotion,
-widening, conversion, or saturation. Its portable represented-value rules are:
+Data and updates have the same declared type; no promotion or saturation changes that contract.
+Low arithmetic nevertheless uses the specified FLOAT32 working/accumulator domain, with one
+final narrowing at the declared low result. Its represented-value rules are:
 
-- When `U(c)` is non-empty, floating `MUL` treats all factors as one abstract product in the
-  unchanged result format. Any NaN produces NaN. Any zero together with any infinity produces NaN.
-  Otherwise, any infinity produces infinity and any zero produces zero, with sign determined by
-  the parity of all negative factors including negative zero and negative infinity. A finite
-  non-zero exact product is
-  rounded once to the result format with round-to-nearest, ties-to-even; overflow produces signed
-  infinity, and subnormal, underflow, and signed-zero results follow that rounding and exact sign.
-  BFLOAT16 uses the value represented by its exact current 16-bit storage and rounds the final
-  abstract product to BFLOAT16. No NaN payload, sign, signaling behavior, or source is promised.
-  Reassociation and equal-or-wider intermediates are permitted only when they conform to this
-  target and any future conformance tolerance; narrower accumulation, saturation, a fixed factor
-  sequence, payload preservation, and bitwise reproducibility are not promised.
+- When `U(c)` is non-empty, floating `MUL` includes the base and every addressed update exactly
+  once in a permitted rounded multiplication tree. It is **not** a once-rounded exact abstract
+  product: an overflow-first `maxFinite * 2 * +0` may produce NaN. A NaN factor or a zero/infinity
+  pair requires NaN. Named arithmetic sites obey their dtype's DAZ/FTZ and rounding rules;
+  no public or saved boundary may be crossed by fusion. Finite tolerances are test-only, not a
+  license to drop factors, widen arbitrary intermediates or change guards and value classes.
+  See the [current aggregate floor](../../architecture/contracts/foundational-modules.md#aggregate-floor).
 - When `U(c)` is non-empty, floating `MIN` and `MAX` propagate NaN without a payload, sign,
   signaling, source, or bitwise promise. Otherwise they use ordinary numeric order including
   infinities. If both zero signs occur, `MIN` produces negative zero and `MAX` positive zero,

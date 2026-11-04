@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 The public `modules:planning` surface contains these backend-neutral compile-time declarations:
 
 - `OperationCapabilityQuery`, an immutable operation occurrence consisting of one exact
@@ -174,8 +172,9 @@ residency. `graphOutput` is a logical preservation obligation, not a publication
 policy.
 
 Reusable or public capability matrices, public eligibility evaluation, a public graph-wide
-Planning workflow, numeric or cost scoring, profiles, physical memory, preparation, runtime, and
-execution remain planned. Compiler currently owns owner-map assembly and immutable artifact
+Planning workflow and numeric or cost scoring are not exposed here. Numerical profiles are
+not a current selector. Physical memory, preparation, Runtime and execution already have
+separate owners; these logical records do not implement them. Compiler currently owns owner-map assembly and immutable artifact
 construction.
 
 

@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="scalar-select-expressions"></a>
 ### Scalar select expressions
 
@@ -415,10 +413,12 @@ does not prove or calculate the conceptual BOOL values.
 - Valid eventual execution requires `0 <= i < depth` for every index value. Negative and
   out-of-range values are invalid; they do not wrap, clamp, select a default, or produce an
   all-false row. Model construction deliberately accepts stored invalid values because it never
-  reads storage. A later compiler may reject provably invalid constants, while future preparation
-  or prepared execution must safely enforce the bound for dynamically supplied values.
-- There is no configurable axis, Tensor-valued depth, on/off value, output type, ignore index,
-  sparse form, gradient rule, compiler support, backend lowering, or runtime implementation.
+  reads storage. Prepared execution validates accepted runtime index values against the depth
+  and rejects invalid values rather than wrapping, clamping or selecting an all-false row.
+- Compiler capture/inference and qualified CPU/Metal execution are implemented independently
+  of this metadata constructor. The BOOL result and index input remain non-differentiable.
+  There is no configurable axis, Tensor-valued depth, on/off value, output type, ignore index
+  or sparse form; backend admission retains its exact type/shape/layout bounds.
 
 
 ---

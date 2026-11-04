@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 The matching `MemorySegment.ofArray(...)` overload creates a writable heap segment with an
 automatic scope. That scope keeps the primitive array reachable and permits access from any
 thread. The attached `MemorySegmentStorage` remains a borrowed, non-closing wrapper; no arena,

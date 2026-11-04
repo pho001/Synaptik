@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="conditional-selection-expression"></a>
 ### Conditional-selection expression
 
@@ -36,10 +34,11 @@ convert values, simplify equal branches, create gradient-routing rules, capture 
 or execute backend code. Conditional `where` is also distinct from scalar-index `select`, which
 belongs to the later indexing family.
 
-Current package-private compiler autograd routes cotangents only to selected floating branches
-when both branches and the output have one exact equal type; the BOOL condition is
-non-differentiable. Mixed-floating branch promotion remains unsupported because no cross-floating
-cotangent-conversion policy is selected.
+Compiler autograd routes cotangents to selected floating branches, reverses their broadcasting
+with ordinary `sumToShape`, and casts a completed contribution back to its selected branch type
+when promotion changed that type. The BOOL condition is non-differentiable. This is the current
+branch-only policy in [ElementwiseGradientRules](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ElementwiseGradientRules.java),
+not a same-type-only restriction or a straight-through rule for discrete roles.
 
 <a id="complete-conditional-selection-example"></a>
 #### Complete conditional-selection example

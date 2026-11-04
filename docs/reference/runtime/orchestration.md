@@ -138,11 +138,12 @@ per-copy validity is explicit within `RunState`. Current publication leases the 
 Current cold checked binding creates backend-owned typed invocation and
 transfer objects with direct references. One exact prepared buffer transfer and its success-only
 destination-valid transition are current. Prepared publication, its suffix ordering, one-shot
-validity check, alias preservation, empty result, and whole-state lease are also current. Transfer
-route selection remains later work. The runner validates declared reads,
-invalidates every copy of each declared output buffer before backend work, validates exact writes
-only after success, and closes the state after any post-creation failure while preserving the
-original unchecked failure. It performs no Trace emission because no current run payload exists.
+validity check, alias preservation, empty result, and whole-state lease are also current.
+Cold preparation supplies the selected transfer recipes; the runner does not discover or
+select a transfer route during execution. It validates declared reads, invalidates every copy
+of each declared output buffer before backend work, validates exact writes only after success,
+and closes state after a post-creation failure while preserving the original unchecked failure.
+The runner itself performs no Trace emission.
 
 <a id="boundary-and-failure-model"></a>
 ## Boundary and failure model

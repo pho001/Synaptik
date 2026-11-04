@@ -35,4 +35,4 @@ These are exact teaching values, not a convergence or performance claim. The [co
 
 ## Existing links
 
-The former `docs/api/*.md` pages are migration portals. Every original heading anchor and explicit HTML ID has a direct link to its canonical topic; detailed explanations are maintained only here. Historical status and qualification context is retained under [Tensor history](tensor/historical-status.md), [Tensor qualification context](tensor/qualification-overview.md), and [Compiler qualification notes](compiler/operation-qualification.md), away from the first-program path.
+The former `docs/api/*.md` pages are migration portals. Every original heading anchor and explicit HTML ID has a direct link to its canonical topic. Superseded qualification inventories are archived rather than used as current task guidance; detailed current contracts remain in the topic families above.

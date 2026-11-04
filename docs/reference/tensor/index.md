@@ -36,4 +36,4 @@ Use these when reading a captured graph or implementing an inward collaboration,
 
 ## Qualification and history
 
-[Construction boundaries](model-overview.md), [historical backend context](qualification-overview.md), [Compiler qualification context](compiler-qualification.md), and [earlier implementation-status notes](historical-status.md) retain useful detail without making historical absence claims the beginner entry. Always use the [current production matrix](../../backend-guide/production-support.md) for executable occurrences and derivatives.
+Tensor metadata construction does not perform downstream stages. Compiler inference, selected differentiation and backend preparation/execution are implemented in their own owners; their occurrence guards remain independent. Use the [current production matrix](../../backend-guide/production-support.md), not earlier task-era absence lists, to determine executable occurrences and derivatives.

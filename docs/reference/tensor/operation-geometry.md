@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="contiguous-semantic-kind"></a>
 ### Contiguous semantic kind
 
@@ -83,8 +81,9 @@ construction as described under [Reshape expressions](reshape-expand.md#reshape-
 same-offset zero-stride view geometry when numeric layout facts are resolved, as described under
 [Expand expressions](reshape-expand.md#expand-expressions).
 
-Dynamic constraints, gradients, compiler and planning behavior, materialization, backend support,
-and execution remain planned.
+These attribute values do not bind dynamic extents, differentiate, plan memory or execute.
+Compiler verification and supported reshape/expand cotangents are implemented; qualified
+backend owners perform preparation and execution under their exact geometry guards.
 
 <a id="axis-transform-semantic-kinds-and-attributes"></a>
 ### Axis-transform semantic kinds and attributes
@@ -149,8 +148,9 @@ A parameterless rank-two `transpose()` method is now implemented as a convenienc
 permutation-versus-axis attributes variants. Public `Tensor.permute` and `transpose` now construct result descriptors, logical view
 layout when input geometry is resolved, and exact one-input provenance. Public `expandDims` and
 `squeeze` now construct the corresponding rank-edited result descriptors, conditional logical
-view layouts, and exact one-input provenance. Gradients, compiler behavior, materialization,
-backend support, and execution remain planned.
+view layouts, and exact one-input provenance. Compiler capture, verification and supported
+floating axis-transform cotangents are implemented. Qualified backend owners lower, prepare
+and execute the resulting occurrences; the attribute constructors themselves do none of these.
 
 <a id="slice-semantic-kind-and-normalized-attributes"></a>
 ### Slice semantic kind and normalized attributes

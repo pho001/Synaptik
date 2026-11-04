@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="graph-values-and-compiled-nodes"></a>
 ## Graph values and compiled nodes
 
@@ -217,10 +215,12 @@ storage or a backend, prepare execution, or run the operation.
 graph-wide existence, ID uniqueness, producer, boundary, topology, and phase-coverage validation.
 The selected operation signature validates local input and output counts. Descriptor agreement
 remains outside the model container and is current only through package-private compiler
-verification. The bounded compiler transformations described above are current; broader
-transformation and execution remain planned.
+verification. The bounded compiler transformations described above are current. This graph
+container does not execute them or run values; compilation, preparation and execution already
+have separate owners. Its structural validity grants neither an additional rewrite nor
+backend support for an arbitrary graph.
 
 
 ---
 
-[Previous topic](operation-elementwise.md) · [Next topic](historical-status.md)
+[Previous topic](operation-elementwise.md)

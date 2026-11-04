@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="unary-elementwise-semantic-kinds"></a>
 ### Unary elementwise semantic kinds
 
@@ -193,7 +191,9 @@ select a kernel, or execute computation. Production `BinaryArithmeticKind`,
 `FloatingClassificationKind` provide parameterless families, and
 `ScalarElementwiseKind` provides a parameterized family with `ScalarValueAttrs` and
 `ClampRangeAttrs`; `CastKind` provides the parameterized cast family with `CastAttrs`. Additional
-kind families, compiler behavior, and executable support remain later work in their owning layers.
+kind families are not implied by this example. Compiler behavior and executable support for
+existing kinds are implemented in their owners under the closed admission rules; neither is
+provided by constructing an operation-kind or attributes value.
 Binary arithmetic, binary comparison, unary elementwise, floating-classification, and scalar
 elementwise semantics have current public Tensor expression methods, as do boolean logical and
 conditional-selection semantics. Cast semantics also have current public Tensor expression

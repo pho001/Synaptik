@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="current-operation-capability-contracts"></a>
 ## Current operation-capability contracts
 
@@ -99,8 +97,10 @@ declaration order and composes these two internal steps exactly once for one occ
 eligibility result remains package-private and does not escape.
 
 Reusable or public capability matrices, a public eligibility result/evaluator, public graph-wide
-planning orchestration, numeric or cost scoring and profiles, device-level capability or
-selection, preparation, runtime, execution, and typed trace/rejection schemas remain planned.
+planning orchestration, numeric or cost scoring, device-level capability/selection, and a
+public eligibility diagnostic schema are not provided by this API. There is no numerical
+profile selector. Preparation, Runtime and execution are implemented in their separate owners,
+not inside these declarative Planning values.
 Compiler currently owns owner-map assembly and contextualizes only the terminal no-hard-eligible
 failure.
 

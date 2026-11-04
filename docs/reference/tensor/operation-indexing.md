@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="pad-and-tile-semantic-kinds-and-normalized-attributes"></a>
 ### Pad and tile semantic kinds and normalized attributes
 
@@ -171,8 +169,9 @@ position, and general `SLICE`, which selects half-open intervals without removin
 differs from gather operations whose indices are tensors rather than one intrinsic scalar
 coordinate. Public `Tensor.select` now supplies input-aware axis/index normalization,
 validation, result Shape and conditional logical-view layout, and exact one-input provenance as
-described under [scalar select expressions](gather.md#scalar-select-expressions). Gradients, graph/compiler
-capture and canonicalization, materialization, backend lowering, and execution remain planned.
+described under [scalar select expressions](gather.md#scalar-select-expressions). Compiler
+capture, verification and selected floating SELECT cotangents are implemented, as are
+qualified backend lowering, preparation and execution. No such stage runs inside `SelectAttrs`.
 
 <a id="gather-and-gather-elements-semantic-kinds-and-attributes"></a>
 ### Gather and Gather Elements semantic kinds and attributes

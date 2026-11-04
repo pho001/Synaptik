@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="grouped-ncw-conv1d-composition"></a>
 ### Grouped NCW Conv1d composition
 
@@ -243,9 +241,10 @@ ordered inputs `[input, weight]` or `[input, weight, bias]`. Current constructio
 and creates no gradient rule in the Model. Package-private compiler capture, descriptor-visible
 proof or retention of deferred constraints, and compiler-owned first-order input, weight, and
 optional bias cotangent construction are current. The compiler formula preserves group isolation
-through public unfold, matrix, reduction, and overlap-accumulating fold expressions. Legal
-decomposition, concrete binding, saved values, backend lowering, and execution remain future
-lifecycle work.
+through public unfold, matrix, reduction, and overlap-accumulating fold expressions.
+Qualified Conv2d occurrences and their generated derivative topology already have backend
+lowering, preparation and execution. Model construction itself performs none of those steps
+and grants no arbitrary dynamic convolution, rewrite or backend route.
 
 <a id="grouped-ncdhw-conv3d-expressions"></a>
 ### Grouped NCDHW Conv3d expressions

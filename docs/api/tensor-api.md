@@ -8,7 +8,7 @@ This reference now lives in topic-sized canonical pages. Start at [the reference
 - [Tensor API](../reference/tensor/index.md#tensor-api)
 
 <a id="purpose-and-mental-model"></a>
-- [Purpose and mental model](../reference/tensor/qualification-overview.md#purpose-and-mental-model)
+- [Purpose and mental model](../history/reference/tensor/qualification-overview.md#purpose-and-mental-model)
 
 <a id="data-types"></a>
 - [Data types](../reference/tensor/data-types.md#data-types)
@@ -1175,7 +1175,7 @@ This reference now lives in topic-sized canonical pages. Start at [the reference
 - [Failures and useful variations](../reference/tensor/compiled-graph.md#failures-and-useful-variations-37)
 
 <a id="planned-contracts"></a>
-- [Planned contracts](../reference/tensor/historical-status.md#planned-contracts)
+- [Planned contracts](../history/reference/tensor/historical-status.md#planned-contracts)
 
 <a id="failures-and-ownership-summary"></a>
 - [Failures and ownership summary](../reference/tensor/failures.md#failures-and-ownership-summary)

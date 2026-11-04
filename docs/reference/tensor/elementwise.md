@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="unary-numeric-transforms-and-floating-classifications"></a>
 ### Unary numeric transforms and floating classifications
 
@@ -237,10 +235,11 @@ produce that bound; bounds `[-0, +0]` select the corresponding directional zero;
 and special-value calls are not interned, folded, or simplified at this public expression-
 construction boundary.
 
-Current package-private compiler autograd supports exact same-floating-type scalar `ADD`, `SUB`,
-and `MUL`. Scalar `DIV`, `POW`, extrema, and clamp variants remain outside the closed first matrix
-until their singularity, tie, endpoint, discontinuity, and exceptional-value policies are
-selected.
+Compiler first-order AD implements the eight exact-type floating scalar kinds, including
+DIV, POW, MIN, MAX and CLAMP. Extrema split exact ties by one half; CLAMP applies that rule
+to ordered MIN(MAX(x,min),max), including one quarter when tied at both stages. Scalar
+attributes/bounds have no cotangent. The ordinary formula owner preserves the selected
+singularity, exceptional-value and endpoint behavior without a separate numerical policy.
 
 The current package-private compiler has one narrower, guarded internal rewrite after canonical
 validation. It may bypass scalar `MUL` by exact typed positive one for numeric types,

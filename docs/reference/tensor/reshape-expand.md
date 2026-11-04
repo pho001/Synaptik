@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="contiguous-expressions"></a>
 ### Contiguous expressions
 
@@ -282,12 +280,11 @@ value, and return an unlabeled, storage-free Tensor. Provenance contains exactly
 
 Current package-private compiler autograd reverses a compiler-admitted floating expand with
 `gradient.sumToShape(input.descriptor().shape())`, using the existing public binding-aware
-reduction. That compiler path currently admits only the locally established equal-dimension or
-static-source-singleton cases. It does not yet adopt the wider Model acceptance described below:
-an EXPAND occurrence with a non-equal unresolved aligned pair still fails current compiler
-inference. Compiler task 0005B is planned to translate that occurrence into the corresponding
-deferred proof and to make preflight and gradient construction consistent. This logical formula
-does not select storage aliasing or materialization.
+reduction. Compiler verification represents a non-equal unresolved aligned pair as the
+source-one-or-source-equal obligation, proves or retains it, and preflight/AD use the same
+binding-aware `sumToShape` semantics. Concrete binding must discharge retained obligations
+within its qualified slice. This does not promise general dynamic execution, select storage
+aliasing or choose materialization.
 
 Expansion is directional rather than symmetric broadcasting. Input and target axes align from
 the right, and extra leading target axes are valid because the missing input axes behave as

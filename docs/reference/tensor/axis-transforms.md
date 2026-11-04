@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="permute-and-transpose-expressions"></a>
 ### Permute and transpose expressions
 
@@ -27,10 +25,11 @@ unlabeled Tensor without host storage, and record exactly the receiver as their 
 Identity, inverse, repeated, and nested requests remain explicit expressions.
 
 Resolved view layout is logical metadata. It does not attach or inspect storage, prove a physical
-alias, promise zero-copy execution, or choose whether a backend must materialize a copy. Compiler
-permutation canonicalization, planning and prepare-time materialization, backend lowering,
-runtime residency, and execution remain planned in their owning layers. Current package-private
-compiler autograd reverses a supported floating `PERMUTE` with the exact inverse permutation.
+alias, promise zero-copy execution, or choose whether a backend must materialize a copy.
+Compiler autograd reverses a supported floating `PERMUTE` with the exact inverse permutation;
+qualified backend owners already lower, prepare and execute affine view occurrences.
+That support does not imply general permutation canonicalization, arbitrary dynamic admission,
+or a physical alias guarantee from the Model constructor.
 
 <a id="complete-expression-construction-example-4"></a>
 #### Complete expression-construction example

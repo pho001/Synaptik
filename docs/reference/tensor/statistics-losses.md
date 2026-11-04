@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="batch-normalization-training-and-statistic-transition-expressions"></a>
 ### Batch-normalization training and statistic-transition expressions
 
@@ -66,12 +64,12 @@ The one shared producer describes these exact ordered outputs:
 | 3 | saved batch mean | Shared rank-one `[C]` Shape | Not exposed | `input` |
 | 4 | saved inverse standard deviation | Shared rank-one `[C]` Shape | Not exposed | `input` |
 
-Slots three and four are hidden only at the public wrapper level. Their descriptors and indexed
-positions remain reachable through the exact producer retained by each public result. There is no
-public sibling-output lookup, and the result record contains exactly the first three outputs.
-Current package-private compiler capture creates graph values for all five reachable positions;
-saved-value lifetime remains future compiler work. The model does not retain the discarded Tensor
-wrappers or define backward formulas.
+Slots three and four are omitted from the ergonomic result record, not discarded. The producer
+retains their canonical Tensor wrappers, reachable through `producer.output(3)` and
+`producer.output(4)`. Compiler capture creates all five graph positions, and normalization AD
+consumes the same-occurrence saved mean and inverse standard deviation rather than recomputing
+statistics. Their physical liveness and storage belong to the compiled/prepared execution,
+not to Model-owned host storage.
 
 <a id="numerical-example"></a>
 #### Numerical example
@@ -138,14 +136,14 @@ five IDs in output order under one identity-distinct producer. Local validation 
 before factory delegation and consume no ID. Identifier exhaustion may leave IDs for earlier
 output positions consumed, returns no partial result, and does not mutate a running statistic.
 
-These are current model metadata facts only. Package-private compiler capture and proof or
-retention of deferred constraints are current. Saved-value materialization and lifetime,
-autograd/backward construction, publication, liveness, graph optimization, concrete binding, and
-public compilation remain planned compiler or lifecycle work. Cross-step statistic assignment,
-session and checkpoint ownership remain planned training-extension work. Runtime publication and
-execution remain planned runtime work, while lowering, algorithms, kernels, and tolerances remain
-backend work. No layer, buffer owner, training mode, in-place update, or state across calls is
-created.
+These are metadata-construction effects, not a denial of downstream support. Compiler capture,
+deferred proof, selected first-order derivatives and saved-output use are implemented.
+For output zero, normalization AD selects input/scale/bias; outputs one and two select
+input/running-mean and input/running-variance respectively. Qualified backend owners provide
+lowering, preparation, saved-value storage, execution and publication. The constructor itself
+creates no layer, mode, buffer owner, in-place statistic update or cross-call state.
+Callers must explicitly consume the next-statistic results; constructing a transition does
+not automatically assign it to an NN buffer or checkpoint an optimizer.
 
 <a id="mean-squared-error-loss-expressions"></a>
 ### Mean-squared-error loss expressions
@@ -193,10 +191,11 @@ while Synaptik deliberately has no default reduction, weights, or broadcasting.
 
 All four low types and FLOAT32 results use FLOAT32 subtraction, multiplication, accumulation, and
 division; FLOAT64 results use FLOAT64. Final values are rounded to the promoted result type.
-Implementations may use equal-or-wider intermediates, stable or compensated sums, vectorization, parallelization,
-fusion, and reassociation when later tolerances and the required special-value classes remain
-intact. No fixed traversal, bitwise cross-backend identity, finite rounding identity, or NaN
-payload/sign preservation is promised.
+The [primitive and aggregate floors](../../architecture/contracts/foundational-modules.md#floating-arithmetic-primitives)
+govern each arithmetic site, contributor, mandatory divisor and observable boundary.
+There is no blanket equal-or-wider-intermediate or arbitrary-fusion permission. Finite
+tolerances qualify routes in tests; they neither replace these rules nor define a production
+whole-output error envelope. Cross-backend bitwise identity and NaN payload/sign are not promised.
 
 NaN in either operand produces NaN squared error. Equal-sign infinities subtract to NaN;
 opposite-sign infinities or one finite and one infinite operand square to positive infinity.
@@ -340,9 +339,11 @@ descriptor-visible deferred proof are current. Compiler-owned first-order autogr
 logits and target roles for dense floating targets. For index targets it supports logits only,
 requires positive static class depth, clamps ignored targets before one-hot construction, and
 excludes ignored rows through a final selection; dynamic or zero class depth fails closed.
-Constant analysis, value-dependent bounds and target-content enforcement, concrete binding,
-decomposition, optimization, backend lowering, preparation, numerical execution, runtime
-publication, and training coordination remain planned in their owning lifecycle layers.
+Construction does not inspect index values or target contents. Value-dependent validation
+belongs to the accepted backend route, not to descriptor inference. Qualified occurrences
+already lower, prepare, execute and publish through Engine and can supply configured Training
+objectives; this adds no arbitrary dynamic class depth, implicit target normalization or
+general-purpose optimization/decomposition permission.
 
 
 ---

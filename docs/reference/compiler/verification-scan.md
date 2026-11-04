@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="current-package-private-verification-inference"></a>
 ### Current package-private verification inference
 
@@ -76,16 +74,12 @@ values at compile/bind time. Compiler0015 is Complete. Its metadata-only fixture
 Compiler admission, not runtime execution; Prepare/CPU/Engine qualify their actual combined
 execution domains independently. No new API, representation or execution owner is added.
 
-Cold capture/reconstruction additionally admits the fully static homogeneous FLOAT32/FLOAT64
-intersection of the existing constructor inventory and length row rules. Complete preflight
-checks every declaration/body value, role and exact descriptor, including late/dead/T=0 scans,
-before formal or producer allocation. Compatible repeated/opaque substitutions remain valid;
-new ROW/SHARED or differently mapped ties reject before IDs. Homogeneity and aliases are checked
-per occurrence. The final lengths actual is separate from c+s+i formals and invariant slicing;
-neither its storage nor values are read. Symbolic or wider per-value typed cold bodies remain
-unsupported. Checkpoint copy/rebind and inherited NN acquisition/cold forward use this same
-boundary. Checkpoint0014 implements separate static length-aware v5 encoding; NN0033 implements
-and qualifies the bounded public recurrent-composition workflow.
+Cold capture/reconstruction additionally admits the bounded fully static length-mode
+intersection, with per-role floating dtypes (including low types and explicit floating casts),
+exact positional actual/formal and next/initial matching, ROW/SHARED rules, and no deferred
+obligations. It does not admit arbitrary PURE bodies, symbolic cold geometry, or a backend
+route merely because reconstruction succeeds. See the
+[cold constructor contract](../../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction).
 
 Compiler0014 extends all-valid scoped inference to one named B, fixed T
 and fixed features, independently checking known PURE families and applicable dtypes. It retains
@@ -101,7 +95,9 @@ Primal-only paths may contain ordinary non-differentiable operations. Intentiona
 cotangent paths; a required unsupported derivative route fails closed rather than losing a
 contribution. Ordinary dtype, attribute, layout and derivative guards remain authoritative.
 Residual differentiation and every Scan higher-order/createGraph request remain unsupported;
-non-Scan higher-order and fixed-recurrent-scan rejection boundaries are unchanged.
+non-Scan higher-order limits remain separate. Fixed RNN/GRU/LSTM first-order BPTT is now
+implemented through RecurrentGradientRules and the shared length-aware Scan derivative owner;
+this does not authorize recurrence higher orders.
 
 Selected final-carry and emission seeds jointly produce one opposite-traversal reverse sibling
 per original occurrence before the single combined capture. Structural absence is distinct from
@@ -132,8 +128,10 @@ homogeneous FLOAT32 broadcast, SUM/sumToShape and bounded shape/layout closure u
 independent qualification. CPU0032 adds static homogeneous FLOAT32 rank-two MATMUL under the
 same independent actual-forward/reverse body and binder qualification. CPU0033 implements
 homogeneous FLOAT64 across the complete bounded declared algebra and actual first-order reverse
-closure, without changing Compiler derivative rules or exact saved-value bindings. Low-type scan
-AD remains unsupported; CPU0042 separately qualifies fixed-geometry F32/F64 length execution.
+closure, without changing Compiler derivative rules or exact saved-value bindings. Those task
+receipts are historical increments: low-type Scan execution and actual first-order AD now use
+the ordinary CPU/shared Compiler owners under the same occurrence and derivative guards.
+CPU0042 records the earlier fixed-geometry F32/F64 length qualification, not a current dtype ceiling.
 Static length cold support is distinct from symbolic cold and numerical qualification.
 
 The CPU0030–CPU0042 inventories above record the historical qualification layers, not a current

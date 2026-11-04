@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="binary-arithmetic-expressions"></a>
 ### Binary arithmetic expressions
 
@@ -55,10 +53,12 @@ The fresh result has a new factory identity, no label, and no host storage. Its 
 one `Operation` with the matching `BinaryArithmeticKind` and `NoOperationAttrs.INSTANCE`, followed
 by the exact ordered input references `[left, right]`. Repeated calls create distinct results, and
 even identities such as adding a stored zero or multiplying by a stored one are not simplified at
-this boundary. Current package-private compiler autograd supports only same-floating-type
-`ADD`, `SUB`, and `MUL`, with public `sumToShape` expressions reversing broadcast for selected
-roles. Binary `DIV`, `POW`, `MIN`, and `MAX`, mixed-floating cotangent conversion, public gradient
-requests/publication, and backend execution remain deferred.
+this boundary. Compiler first-order AD supports all seven promoted floating binary kinds.
+Selected contributions reverse broadcasting with `sumToShape`, then cast back to the selected
+input type when needed. MIN/MAX split exact numeric ties by one half; integral roles do not
+receive cotangents. [ElementwiseGradientRules](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ElementwiseGradientRules.java)
+owns these ordinary-expression formulas. Engine compilation/publication and qualified backend
+execution are implemented separately; none is performed by constructing this Tensor.
 
 <a id="complete-binary-expression-example"></a>
 #### Complete binary-expression example
@@ -279,7 +279,7 @@ fresh=true
 The output proves floating-domain validation, broadcasting, fixed `BOOL` descriptor facts, fresh
 identity, and ordered provenance. It does not evaluate any elementwise truth value or the fixed
 NaN, signed-zero, and exact numeric-equality semantics, nor does it prove gradient handling by a
-future compiler, backend support, or execution.
+Compiler, backend support, or execution.
 
 <a id="failures-and-useful-variations-12"></a>
 ##### Failures and useful variations

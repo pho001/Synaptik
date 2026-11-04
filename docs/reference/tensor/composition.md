@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="pad-and-tile-expressions"></a>
 ### Pad and tile expressions
 
@@ -26,7 +24,7 @@ The supplied padding value must exactly match the input data type and is retaine
 reference without conversion. All seven current data types are accepted, including exact INT64
 values above `2^53`, raw FLOAT16 and BFLOAT16 patterns, and canonical BOOL. The retained `double`
 constructs an exact FLOAT64 value, so it succeeds only for a FLOAT64 receiver. Neither overload
-decides whether a future backend can represent or execute the request.
+decides whether a selected backend can represent or execute the request.
 
 `Tensor.tile(long... repeats)` constructs a fresh complete-pattern tiling expression. Its array
 must contain exactly one strictly positive repeat count per input axis, is cloned before element

@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="owned-tensor-model-capability"></a>
 ### Owned tensor Model capability
 
@@ -63,10 +61,12 @@ construction and final role/demand queries; original-source AD requires every ca
 original sequence to be ROW(0), including unused/non-gradient positions. Generated reverse inputs
 may retain explicit mixed roles. Prepare0011 transports those exact bindings and demand through
 the existing staged resource handoff after static boundary validation; it reads no length values.
-This does not enable owned-Model acquisition, compute/train or save/load: cold capture/
-reconstruction and encoding still explicitly reject length mode. CPU0042 separately qualifies
-direct fixed-geometry FLOAT32/FLOAT64 Scan execution through Engine, not owned-Model acquisition
-or migration.
+Static length-aware owned Models are implemented: bounded cold acquisition and reconstruction
+feed the same cached compute and configured Training owners, and accepted sources save/load
+through v5 (or v6 for Pool3d, v7 for FP8). `ModelBuilder.buildWithLengths()` builds the two-input
+values/lengths workflow. This does not grant symbolic owned-Model acquisition or persistence,
+arbitrary PURE-body copying, or a new backend route. The [runtime-length workflow](recurrent.md)
+describes the independently qualified static composition.
 
 Unsupported generic/custom/declarative tensor methods throw `UnsupportedOperationException` before
 file/Engine work; their close is a no-op. Owned operations reject busy before inspecting arguments.
@@ -82,10 +82,14 @@ RNN_TANH/GRU_RESET_AFTER/LSTM scans. It is not all-family serialization. Advance
 may declare sequence, non-gradient INT64 runtime lengths and initial states as ordered external
 inputs for cold persistence/rebind. Prototypes are descriptor-only; their bytes are neither read
 nor saved. A scan remains one multi-output producer with canonical sibling identities, even when
-only a final-state port is a root. Cold persistence executes nothing; owned fixed-scan compute separately
-uses public Engine's qualified canonical FLOAT32 CPU forward route. Fixed-scan training and
-backpropagation through time (BPTT) remain unsupported. Persistence adds no execution capability
-or optimizer resume. Existing default biased Conv3d can train after reload in its
+only a final-state port is a root. Cold persistence executes nothing. Fixed-scan first-order
+backpropagation through time (BPTT) is implemented by Compiler's
+[RecurrentGradientRules](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/RecurrentGradientRules.java),
+which builds one transition recipe and uses the shared length-aware Scan derivative owner,
+not time unrolling or a separate cell derivative engine. Fixed and mixed stacks can configure
+training, consume fresh batches, save, reload, and configure a fresh session when their actual
+forward/reverse occurrences qualify. Persistence restores neither optimizer history nor an
+execution plan. Existing default biased Conv3d can train after reload in its
 [qualified backend domain](../../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)
 with a fresh training configuration. Single `load` still rejects multiple boundaries.
 

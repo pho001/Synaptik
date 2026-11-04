@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="cumulative-scan-expressions"></a>
 ### Cumulative-scan expressions
 
@@ -56,8 +54,10 @@ necessarily remain ineligible for gradients under the descriptor contract.
 Integral cumulative product retains exact INT32 or INT64 type and means fixed-width two's-
 complement modular multiplication. Floating cumulative product propagates NaN, makes zero times
 infinity NaN, and determines zero and infinity signs by multiplication parity. Positive one is the
-empty product used by a non-empty exclusive boundary. The model selects no accumulation precision,
-intermediate rounding, NaN payload, bitwise cross-backend result, algorithm, or backend route.
+empty product used by a non-empty exclusive boundary. Arithmetic follows the declared
+primitive/aggregate floors: FLOAT32 sites round to FLOAT32, low arithmetic works/accumulates
+in FLOAT32 with final declared-result narrowing, and FLOAT64 retains its own format.
+The constructor chooses no algorithm/backend route and promises no NaN payload or cross-backend bits.
 
 Provenance records the matching `CumulativeScanKind.CUM_SUM` or `CUM_PROD`, one
 `CumulativeScanAttrs(normalizedAxis, exclusive, reverse)`, and exact ordered inputs `[input]`.
@@ -65,7 +65,10 @@ Repeated equivalent requests remain distinct expressions with fresh identities. 
 defines no model-owned gradient rule, compiler capture or canonicalization, backend lowering,
 runtime behavior, or execution. Current package-private compiler autograd supports floating
 `CUM_SUM` for all four exclusive/reverse combinations by retaining exclusivity and reversing the
-scan direction. `CUM_PROD` differentiation remains deferred.
+scan direction. Floating `CUM_PROD` differentiation is also implemented by
+[ReductionGradientRules](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ReductionGradientRules.java):
+zero-safe products and zero-count prefix scans separate zero and nonzero input contributions,
+then reverse cumulative sums construct the cotangent. Integral scan roles remain non-differentiable.
 
 Failure behavior is local and deterministic:
 

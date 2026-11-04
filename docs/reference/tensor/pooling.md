@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="ncw-pool1d-composition"></a>
 ### NCW Pool1d composition
 
@@ -233,8 +231,9 @@ Model metadata, not a Model-owned gradient implementation. Package-private compi
 descriptor-visible proof or retention of deferred constraints, and compiler-owned first-order
 input-cotangent construction are current. The formula reconstructs the exact first eligible
 logical winner from the original input and same-occurrence public output, including padding,
-NaN, and signed-zero policy; it adds no saved-index output. Legal decomposition, concrete binding,
-backend lowering, and execution remain future work.
+NaN, and signed-zero policy; it adds no saved-index output. Qualified forward and generated
+backward occurrences already lower, prepare and execute through backend owners. Construction
+itself does not perform these stages or grant arbitrary dynamic pooling and decomposition.
 
 <a id="nchw-average-pooling-expressions"></a>
 ### NCHW average-pooling expressions
@@ -333,18 +332,21 @@ divided exactly once by `kernelHeight * kernelWidth`.
 - Empty batch or channel extents are valid and produce no values. Positive kernel counts mean
   there is no zero-divisor case.
 
-Implementations may reassociate finite summation, including tree reductions. No traversal order,
-bitwise result, NaN payload/sign preservation, or identical cross-backend rounding is promised;
-later backend conformance must select and validate tolerances.
+The aggregate floor permits rounded summation trees while retaining every mapped contributor
+and the fixed divisor. Arithmetic sites obey their declared working dtype, rounding and DAZ/FTZ
+rules; no finite tolerance changes membership, padding or special-value requirements.
+Backend/route finite tolerances are test-only, not a later production policy. Traversal order,
+NaN payload/sign preservation and cross-backend bitwise identity are not promised.
 
 Every success returns one fresh, unlabeled, storage-free Tensor with unresolved layout. It retains
 the exact input type, `N` and `C` Dimension references, and `requiresGrad` request. Its one-output
 provenance has index zero and ordered inputs `[input]`. The gradient request is metadata only.
 Package-private compiler capture and descriptor-visible proof or retention of deferred constraints
 are current, as is compiler-owned first-order input-cotangent construction through a logical typed
-fixed kernel count and public expansion/fold expressions. Concrete binding, any legal
-decomposition that preserves the fixed divisor and special-value policy, backend lowering, and
-execution remain future work.
+fixed kernel count and public expansion/fold expressions. Qualified occurrences already have
+backend lowering, preparation and execution. Their derivative topology must qualify in full,
+preserving the fixed divisor and special-value policy; construction adds no implicit route
+or permission for an arbitrary dynamic decomposition.
 
 <a id="ncdhw-pool3d-expressions"></a>
 ### NCDHW Pool3d expressions

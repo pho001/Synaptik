@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="purpose-and-implementation-status"></a>
 ## Purpose and implementation status
 
@@ -72,8 +70,6 @@ prepared executables.
 - [Canonicalization and whole-graph optimization](optimization.md)
 - [Pre-capture autograd and functional gradients](autograd.md)
 - [Complete artifact compilation and integration port](artifacts.md)
-- [Operation capture and numerical qualification notes](operation-qualification.md)
-- [Recurrent and geometry qualification notes](geometry-qualification.md)
 - [Compile-configuration inputs](configuration.md)
 - [Capability queries and planned partitions](planning.md)
 - [Logical memory and compile outputs](memory-output.md)

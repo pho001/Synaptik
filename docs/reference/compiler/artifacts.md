@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="current-complete-artifact-compilation-and-integration-port"></a>
 ### Current complete artifact compilation and integration port
 
@@ -163,4 +161,4 @@ or more than two reverse-mode stages.
 
 ---
 
-[Previous topic](autograd.md) · [Next topic](operation-qualification.md)
+[Previous topic](autograd.md)

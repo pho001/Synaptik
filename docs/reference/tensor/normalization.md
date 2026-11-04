@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="softmax-expressions"></a>
 ### Softmax expressions
 
@@ -200,7 +198,7 @@ layerNorm normalized dimension mismatch at normalized axis 0: input=StaticDimens
 
 Structurally equal symbolic dimensions pass immediately. If a trailing input dimension is `N`
 and its normalized dimension is a different unresolved symbol `M`, construction also succeeds
-because the exact result Shape is still the input Shape. Future compiler capture or concrete
+because the exact result Shape is still the input Shape. Compiler verification or concrete
 binding must prove `N == M`; model construction does not invent a replacement extent. Scale and
 bias are stricter: each complete Shape must structurally equal the normalized Shape, so ordinary
 broadcasting is insufficient.
@@ -229,12 +227,12 @@ and the logical OR of input, scale, and bias flags for affine construction. One 
 output at index zero and exact inputs `[input]` or `[input, scale, bias]`; no saved mean, variance,
 inverse standard deviation, sibling result, hidden affine constant, or extra output is created.
 
-These facts are current model API behavior. Package-private compiler capture, operand
-revalidation, and proof or retention of deferred equality are current. Saved values, gradients or
-adjoints, legal decomposition, concrete binding, and public compilation remain planned compiler
-or lifecycle responsibilities. Backend prepare will own algorithm selection, lowering,
-specialization, and tolerance satisfaction; runtime will execute prepared work. Calling
-`layerNorm` today performs none of those steps and does not read or normalize stored values.
+These facts describe what the Model constructor does, not the availability of downstream stages.
+Compiler capture and revalidation are implemented, as are selected first-order input/scale/bias
+cotangents through [NormalizationGradientRules](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/NormalizationGradientRules.java).
+That owner constructs ordinary expressions; LayerNorm has no hidden saved outputs to retrieve.
+Qualified occurrences lower, prepare and execute through the current backend owners.
+Calling `layerNorm` itself performs none of those steps and does not read stored values.
 
 <a id="rms-normalization-expressions"></a>
 ### RMS-normalization expressions
@@ -298,9 +296,11 @@ inputs then produce same-signed zero and infinite inputs produce NaN. Positive e
 the sign of finite positive or negative zero before scale. Finite square or sum overflow may also
 produce an infinite denominator and same-signed zero for finite numerators. In the scaled form,
 ordinary floating multiplication then applies, including NaN scale and infinity-times-zero
-behavior. Implementations may reassociate or use equal-or-wider intermediates while preserving
-these value classes and later conformance tolerances; fixed traversal, bitwise identity, NaN
-payload/sign retention, and cross-backend identical rounding are not promised.
+behavior. Arithmetic follows the [profile-free primitive-site contract](../../architecture/contracts/foundational-modules.md#profile-free-numerical-semantics),
+not a blanket equal-or-wider-intermediate permission. Low arithmetic uses FLOAT32 working and
+accumulator values with one final ties-to-even narrowing at each declared low output; exact
+guards, public/saved boundaries, and special-value classes remain intact. Finite tolerances are
+test-only qualification, not production permissions or a whole-output error envelope.
 
 Every successful call produces one fresh, unlabeled, storage-free Tensor with unresolved layout,
 the exact input Shape reference, combined operand gradient eligibility, one producer, output index
@@ -308,10 +308,11 @@ zero, and ordered provenance `[input]` or `[input, scale]`. Construction allocat
 result identity and does not mutate inputs or create a hidden scale, bias, parameter, saved
 statistic, sibling output, or gradient rule.
 
-This is current model metadata construction only. Compiler capture, revalidation and proof of
-deferred constraints, saved-value and gradient construction, legal decomposition, backend
-lowering, preparation, tolerance enforcement, runtime execution, and numerical evaluation remain
-planned in their owning lifecycle stages. See the [Compile API](../compiler/batch-binding.md) for that boundary.
+The call constructs metadata only. Compiler capture, revalidation, deferred-constraint proof
+and selected first-order input/scale cotangents are implemented; the shared normalization
+formula owner constructs ordinary Tensor expressions. Qualified occurrences have backend
+lowering, preparation and runtime execution. [Compiler boundaries](../compiler/index.md)
+and the [backend matrix](../../backend-guide/production-support.md) describe those separate gates.
 
 <a id="batch-normalization-inference-expressions"></a>
 ### Batch-normalization inference expressions
@@ -415,11 +416,12 @@ may later contain a negative value. Ordinary floating formula behavior applies:
 
 NaN in any participating value propagates through the coordinate. Infinite subtraction,
 division, multiplication, and addition follow ordinary floating value classes, including
-infinity divided by infinity and infinity multiplied by zero producing NaN. Finite overflow,
-underflow, and signed zero follow the selected computation format. A conforming future
-implementation may use equal-or-wider intermediates, reassociate finite operations, or use fused
-multiply-add when later tolerances and these special-value classes are preserved. Fixed grouping,
-NaN payload/sign preservation, bitwise cross-backend equality, and one algorithm are not promised.
+infinity divided by infinity and infinity multiplied by zero producing NaN. Arithmetic uses
+the declared primitive sites and their family-specific DAZ/FTZ, rounding and fusion permissions;
+FLOAT64 forbids arithmetic-site DAZ/FTZ. Low arithmetic uses FLOAT32 working/accumulator values
+and final declared-output narrowing, without crossing public or saved boundaries. Finite
+test tolerances do not authorize wider intermediates, arbitrary FMA, or whole-result errors.
+NaN payload/sign preservation and bitwise cross-backend equality are not promised.
 
 <a id="metadata-provenance-and-lifecycle-boundary"></a>
 #### Metadata, provenance, and lifecycle boundary
@@ -431,13 +433,13 @@ of all five inputs. One identity-distinct producer has exact ordered inputs
 zero. Repeated equal requests remain distinct. No input, statistic, parameter, descriptor, label,
 storage, or provenance is mutated.
 
-These facts are current model metadata behavior. There is no training/evaluation flag, batch-
+These facts describe the inference constructor: it has no training/evaluation flag, current-batch
 statistic calculation, running-statistic transition, momentum, saved statistic, auxiliary output,
-or hidden state. Package-private compiler capture, operand revalidation, and proof or retention of
-deferred constraints are current. Saved-value and gradient construction, legal decomposition,
-concrete binding, and public compilation remain planned compiler or lifecycle work. Backend
-prepare will own algorithms, lowering, specialization, fusion, and tolerance satisfaction;
-runtime will execute only prepared work. The [Compile API](../compiler/batch-binding.md) records that boundary, and the
+or hidden state. Compiler capture, operand revalidation and deferred-constraint proof are
+implemented. Its normalization derivative owner can select contributions for all five floating
+inputs and casts completed Shape-correct contributions back to the selected input types.
+Qualified occurrences lower, prepare and execute through their backend owners. Construction
+itself does not invoke those stages. [Compiler boundaries](../compiler/index.md) explain the handoff; the
 formula corresponds to official [ONNX
 BatchNormalization](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html) while retaining
 Synaptik's explicit channel axis and exact typed contracts.

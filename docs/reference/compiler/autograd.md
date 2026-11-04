@@ -2,8 +2,6 @@
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
-> **Scope:** Model construction, Compiler admission, backend execution, and checkpoint persistence are separate gates. Execution-status sentences retained in this detailed material record earlier qualification slices; they are not an exhaustive current support matrix. The [current backend matrix](../../backend-guide/production-support.md) and its incorporated contracts supersede narrower historical CPU/Metal lists. Package-private implementation sketches are not supported application API.
-
 <a id="current-package-private-pre-capture-autograd"></a>
 ### Current package-private pre-capture autograd
 
@@ -43,19 +41,16 @@ and 0006B2 adopt both signatures, together with the three Model-current
 CPU 0008G1 originally implemented the fully static resolved-layout non-gradient Pool3d subset.
 Current matching CPU FLOAT32/FLOAT64 gradient metadata and qualified lowering reuse ordinary
 PoolingGradientRules and UNFOLD3D/FOLD3D for Pool3d training; qualified Metal FLOAT32 supports
-overlap through the same derivative expressions. This grants neither CPU low arithmetic nor
-ordinary named-B convolution/pooling expansion, Metal FLOAT64/low overlap or Metal Scan.
-Compiler task 0005E closed that matrix against the production Model inventory at its checkpoint:
-37 operation-kind enum families, 107 constants, and 128 complete
-kind/attributes/input-range/output-range fingerprints. The checkpoint includes both
-`SLICE_UPDATE` attributes variants. Model 0025E subsequently added one recurrent family, three
-constants, and three exact signatures. Compiler forward verification now adopts those signatures,
-but the first-order gradient inventory intentionally does not. Before Model 0025J, the complete
-inventory was 39 families, 111 constants, and 132 signatures, all covered by Compiler forward
-verification. Complete 0006B1 expands current Compiler forward verification to the complete Model
-inventory of exactly 40 families, 115 constants, and 137 signatures. The current supported
-production first-order Compiler inventory contains exactly 39 families, 112 constants, and
-134 signatures. Its exact three-signature deferred partition is fixed RNN, GRU and LSTM.
+qualifying overlap through the same derivative expressions. Backend admission still requires
+every generated occurrence. CPU low-precision execution and actual first-order AD use the same
+ordinary owners under their current family/geometry guards, not an obsolete F32/F64 ceiling.
+Earlier task receipts counted the inventory at individual checkpoints. Those counts and their
+three-signature fixed-scan exclusion are not the current support contract. Fixed RNN, GRU and
+LSTM first-order BPTT is implemented by
+[RecurrentGradientRules](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/RecurrentGradientRules.java),
+which constructs a closed transition and differentiates it through the shared Scan owner.
+Actual selected roles, source validity, canonical output availability and generated-topology
+backend qualification still determine admission.
 
 Current Compiler forward inference independently derives the `UNFOLD3D` and `FOLD3D` descriptors
 as canonical columns
@@ -422,7 +417,7 @@ is intentionally explicit:
 | Classification | Current deferred or rejected families |
 |---|---|
 | Structured fail-closed boundaries | One-output attention lacks canonical same-occurrence weights and is rejected; index-target categorical cross-entropy rejects a dynamic or zero class depth; batch-training saved auxiliary cotangent paths are rejected, including beside connected sibling paths |
-| Current source-backed closure | The supported production first-order inventory contains exactly 39 families, 112 constants, and 134 signature fingerprints. Current Compiler forward verification covers the complete Model inventory of 40 families, 115 constants, and 137 signatures. Its exact three-signature deferred partition comprises fixed RNN, GRU and LSTM; both backward-capable modes reject those signatures before seed validation and derivative Tensor allocation. Conv3d, both Pool3d signatures, both `UNFOLD3D` attribute variants, and `FOLD3D` use ordinary public Tensor expressions. Every currently supported legal output/input role has a `D`, `ND`, or `FC` disposition, and generated formula edges remain inside the same classified Tensor algebra. Backend execution still requires complete generated-topology admission. |
+| Current source-backed closure | The shared ordinary formula owners cover admitted first-order roles, including fixed RNN/GRU/LSTM through RecurrentGradientRules and length-aware Scan. Conv3d, both Pool3d signatures, UNFOLD3D and FOLD3D use public Tensor expressions. Selected roles retain their differentiable, non-differentiable or fail-closed disposition; a Model-kind count alone is not an admission test. Every actual generated occurrence must independently qualify on the selected backend. |
 | Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, one-hot and other index roles, ordering indices, dropout masks, padding constants, select coordinates, and graph RNG state |
 
 Unknown/custom kinds, wrong attribute classes or cardinalities, missing canonical outputs, and
@@ -433,8 +428,9 @@ policy for them.
 This strategy adds no `Tensor.gradient`, `Tensor.backward`, mutable gradient field, ThreadLocal
 scope, model derivative rule, placeholder/`ValueId` conversion map, direct graph-node formula
 language, public gradient registry, runtime tape, physical saved buffer, backend autograd, or
-ordinary-user compile facade. It adds no publication delivery, optimizer update, training
-session, additional planning, backend lowering, preparation, execution, or runtime behavior. The
+ordinary-user compile facade inside this formula owner. Publication delivery, optimizer
+updates, TrainingSession, Planning, backend lowering, preparation and execution are implemented
+by their existing separate owners; formula construction neither invokes nor duplicates them. The
 functional request supports exactly one optional second reverse-mode stage; further orders remain
 future work.
 
