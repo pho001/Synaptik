@@ -11,6 +11,13 @@ layers one optimizer/session owner over that same Engine compile, prepare, run, 
 materialization path. CUDA execution remains planned.
 The [roadmap](../planning/roadmap.md) records delivery status.
 
+The short reading model is [compile versus prepare versus run](../glossary.md#compile-versus-prepare-versus-run):
+describe meaning and owners, realize reusable work, then supply this invocation's values.
+**Cold** work is setup/binding outside the repeated numerical loop; the **hot path** is the work
+repeated during execution. **Admission** is permission to enter an operation after lifecycle and
+input checks. A **preflight** checks the facts available before a later side effect; **fail-closed**
+means an unsupported or unproved case rejects rather than guessing a route or silently changing it.
+
 ## State across the lifecycle
 
 Synaptik deliberately separates three kinds of state:
@@ -51,6 +58,12 @@ ordinary forward Tensor expressions
 For example, capture `x.matmul(w.permute(1,0)).add(b)`, then reconstruct it with a fresh input and
 the same weight and bias. Reconstruction builds each stored occurrence once through its public
 Tensor constructor, so shared operands remain shared and later autograd sees ordinary provenance.
+
+An **occurrence** is one particular use, not just an operation name: two separate additions are
+two producer occurrences even if they use the same formula. **Provenance** records which producer
+and output position created a derived Tensor. Capture translates these source relationships into
+graph-local identities; it does not calculate the Tensor's values.
+
 A replacement can itself be a produced expression; its upstream computation remains attached and
 is checked by later ordinary compile/autograd, not widened source admission. Position associates
 inputs, so exchanging same-descriptor weights cannot be detected.
@@ -98,6 +111,13 @@ forward Tensor outputs
 ```
 
 `CompileArtifacts` packages the immutable graph, planned partitions, logical memory plan, publication plan, and compile diagnostics. Compile does not create prepared schedules, executable units, physical buffers, runtime workspaces, concrete kernel routes, or backend-specific executable graphs.
+
+The compiler vocabulary describes different structural jobs. A **topological order** places
+producers before their consumers. **Canonicalization** chooses a consistent representation,
+including graph-local numbering, without being numerical normalization. **Dead-code elimination**
+removes unneeded computation; **common subexpression elimination** shares eligible repeated
+expressions; **constant folding** evaluates admitted compile-time constants. Their exact guards,
+not the names alone, determine which changes preserve meaning.
 
 Before publication and planning, final static-result closure resolves proven materialized logical
 results, then propagates exact input-relative views in topological order. Scalar SELECT uses the

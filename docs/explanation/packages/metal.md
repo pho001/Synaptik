@@ -24,6 +24,12 @@ that compile, bind, and submit those kernels. Neither is an application-facing g
 Start with the lifecycle and teaching-example sections below. The native component tables are a
 second reading path for maintainers tracing a particular operation or failure.
 
+In this page, **host** is the CPU-side Java/native program and **device** is the GPU (graphics
+processing unit) executing Metal work. A **dispatch** submits a prepared kernel's work to that
+device; a **command queue** orders submitted commands. Apple shared storage can expose memory to
+both sides, but shared accessibility does not mean shared cleanup ownership or automatic
+completion. An explicit completion wait and a resource's eventual release are different events.
+
 ### Purpose, callers, and non-goals
 
 Applications enter through [MetalBackendConfiguration][configuration] and
@@ -88,6 +94,10 @@ numeric types), attributes, shapes, layouts, and gradient roles. Focused support
 [attention][attention-support], and [fixed recurrence][recurrent-support]. General Scan delegates
 to [MetalScanLowering][scan-lowering], which checks the containing body as well as its boundaries.
 An unsupported or unproved occurrence returns false; an available GPU does not change that answer.
+
+An **occurrence** includes these particular operands, attributes and result roles, not merely the
+name `ADD` or `SCAN`. **Admission** checks that exact case. **Fail-closed** rejection means an
+unproved case does not proceed by trying a different owner, type or implementation.
 
 For numerical FLOAT32, BFLOAT16, and FLOAT16 routes, admission retains the actual type at every
 role. The shared shaders use FLOAT32 working sites and publish in the declared output carrier;
@@ -157,6 +167,13 @@ UTF-8 length and SHA-256, assembles them in dependency order, then checks the co
 assembled generated suffix. The current fixed corpus has **23 components, 190,781 UTF-8 bytes**;
 its digest is recorded in `synaptik_authenticated_fixed_source`. Host-only headers are not shader
 components, and some headers contribute more than one component.
+
+A **wire** is a numbered field or tag in the encoded program. A **schema** defines that program's
+record format; an **ABI** (application binary interface) defines how Java and native code call
+one another. A **manifest** lists the expected components and their identifying facts.
+**SHA-256** is the digest algorithm used to detect byte changes; a matching digest alone does
+not establish who authorized the bytes. These checks concern compatibility and consistency,
+not whether an operation has been numerically qualified.
 
 These are different compatibility boundaries:
 

@@ -6,6 +6,13 @@ profiling, and persistent tuning artifacts remain separate.
 
 ## Purpose and mental model
 
+A **benchmark** records how supplied work performed; **autotuning** uses allowed measurements to
+choose a configuration. A **candidate** is one complete allowed alternative, not an arbitrary
+setting to try during a run. A tuning **objective** is a selection goal such as elapsed time,
+not the training loss. A **workload signature** identifies the computation and compatibility
+facts needed to reuse a local decision; it is not a saved output or a promise that two complete
+models will have identical costs.
+
 The user supplies one explicit set of inputs to one optional model-autotuning workflow:
 
 ```text
@@ -73,6 +80,11 @@ those exact facts when retained source owns every encoder dispatch and resource 
 hot invocation. MPSGraph and every other opaque route require supported observation of actual
 framework-internal dispatches and peak transient resources; graph nodes, command buffers, inferred
 fusion, estimates, and process memory are never substitutes.
+
+Here **structural dominance** compares known dispatch counts and temporary-storage bytes:
+one candidate is no worse on either count and better on at least one. **Nondominated** means
+neither candidate has established that advantage. These counts are not timings, and an opaque
+framework is one whose internal work is not directly visible through this boundary.
 
 When multiple nondominated survivors remain, selection waits for an explicitly authorized,
 controlled comparative environment and protocol. Timing collected on an uncontrolled local

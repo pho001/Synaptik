@@ -20,6 +20,13 @@ shared packages.
 
 ## The distinctions to keep while reading
 
+**Semantic** facts describe required results; **physical** facts describe the code and storage
+used to obtain them. An **occurrence** is a specific position or use: repeated input ports,
+repeated schedule steps and repeated publications retain separate roles even when they refer to
+the same object. **Admission** is the gate that checks whether work may start; **preflight**
+checks what can be established before a later side effect. **Fail-closed** means rejecting an
+unsupported or unproved case rather than making a speculative substitution.
+
 Read the flow top to bottom as stage handoffs, not module dependency arrows. Each stage names the
 information or owned resources that survive it.
 
@@ -282,6 +289,9 @@ validates every key, complete graph coverage and every owner before constructing
 Graph edges do not redefine adjacency: fan-out, a phase boundary or an output publication does
 not by itself split a same-owner run. A multi-output producer stays one indivisible node.
 
+A concrete owner sequence `CPU, CPU, Metal, CPU` therefore forms three partitions, not two.
+The final CPU node cannot join the earlier CPU run across the intervening Metal node.
+
 Each [`PlannedPartition`](../../../modules/planning/src/main/java/io/github/pho001/synaptik/planning/partition/PlannedPartition.java)
 retains an owner and immutable ordered node IDs. The result is not a fused kernel or a backend
 execution unit. Backend preparation may realize a partition with its own selected units, but
@@ -461,6 +471,11 @@ builds the complete schedule; shared Prepare checks exact memory-plan associatio
 coverage, execution order, representation coordinates and publication order against the compile
 recipe. Successful construction transfers persistent-resource ownership to Runtime's
 `PreparedExecution`.
+
+“Transaction” here means acquired resources either reach one completed owner or are cleaned up
+on failure. It does not mean executed tensor writes can be undone. The
+[resource-transaction diagram](../../architecture/runtime-prepare-backend-boundary.md#per-run-resources-and-cold-binding)
+shows the finalizer-to-Prepare-to-Runtime handoff.
 
 A finalizer owns rollback until it returns. Thereafter shared Prepare tracks the unique resource
 identities in acquisition order across partitions. A later finalizer, contribution, schedule,

@@ -24,6 +24,12 @@ Read the upper arrows as semantic relationships, not execution. A Tensor has sta
 
 The operation-family sections below share a specific boundary: kind and attributes are immutable semantic values consumed by Tensor construction and Compiler inspection. They do not own operand memory, gradients, kernels, runtime scratch, or backend capability. Family-specific guards and input/output relationships differ; those differences are the reason for separate packages. Public Tensor methods are the application composition surface. Package-private `Tensor*Expressions` helpers are implementation details, not supported application API. A source-valid expression is not proof of differentiation, serialization, or backend execution support.
 
+An **occurrence** is one particular producer or port position, not just a formula name.
+**Provenance** is the connection from a result to its producing occurrence and output position.
+**Semantic** facts describe what that calculation means; **physical** facts describe where bytes
+live and how executable code accesses them. **Canonical output wrappers** are the original Tensor
+objects retained for a producer's output positions, not freshly reconstructed equal objects.
+
 ## A concrete walk through LearningJourney
 
 This trace connects the canonical program's actual Tensor expression families. The [examples entry point](../../examples/README.md) supplies the complete source, commands and checked runtime output; the algebra below explains why that output follows.
@@ -51,6 +57,10 @@ A `ScalarValue` stores a dtype and exact primitive bits. It is operation metadat
 Important entry points: [Shape](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/shape/Shape.java), [Dimension](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/shape/Dimension.java), [DimensionExpressions](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/shape/DimensionExpressions.java), and [ShapeBroadcast](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/shape/ShapeBroadcast.java).
 
 A Shape is an immutable ordered list of static extents, named dynamic dimensions, or dimension expressions. Rank zero is a scalar with one logical element; a static zero extent makes an empty tensor. Static sizes cannot be negative. Numeric `-1` reshape syntax is normalized by the expression boundary and is not stored as a negative dimension.
+
+“Normalized” has several meanings in this atlas. Normalizing an axis turns a caller-facing
+negative index into the corresponding non-negative axis; normalizing reshape syntax resolves the
+special request before storing a Shape. Neither is numerical normalization such as softmax.
 
 Shape transformations consume dimensions and return dimensions; they do not bind runtime values or provide strides. Broadcasting aligns trailing axes, permitting equal dimensions or singleton expansion and retaining unresolved obligations where proof must wait. Expression dimensions describe derived geometry rather than inventing a sampled extent. Checked element-count arithmetic may overflow even though individual dimensions are valid. Compiler/Prepare owns later symbolic binding. In LearningJourney, `[2,1] @ [1,1]` yields `[2,1]`; the objective is scalar. See the [tensor guide](../../user-guide/tensors.md) for shape-facing operations.
 
@@ -109,6 +119,11 @@ Current source admits more PURE algebra/type combinations than every downstream 
 Important entry points: [CompiledGraphModel](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/graph/CompiledGraphModel.java), [CompiledNode](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/graph/CompiledNode.java), [GraphValue](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/graph/GraphValue.java), [CompiledScanBody](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/graph/CompiledScanBody.java), and [ForwardPublicationBinding](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/graph/ForwardPublicationBinding.java).
 
 Compiler emits immutable graph values (ValueId plus descriptor) and topologically ordered computation nodes (NodeId, operation, ordered ports, optional compiled Scan body). The graph snapshots values, nodes, ordered boundaries and per-node forward/backward phases. It validates structural closure: IDs are unique within their domain/scope; every reference resolves; inputs are producer-free; every non-input has one producer; node inputs are available before use; phases cover exactly the nodes. Cycles, later-node dependencies and duplicate producers reject. Repeated node inputs, unused inputs and a zero-node pass-through are legitimate.
+
+A **directed acyclic graph (DAG)** has arrows from producers to consumers and no path back to its
+starting node. **Topological order** lists each producer before nodes that use its outputs.
+**Closure** means all referenced identities exist in the intended graph scope; it is not resource
+closure via `close()`. **Arity** or signature cardinality means the number of input/output positions.
 
 Graph structural validation does not infer family descriptors, allocate IDs, capture public Tensors, select backends or build an executable. Forward publication bindings describe the public Tensor/graph-value relationship without embedding mutable public Tensors in graph structure. A compiled Scan body contains the one nested captured graph and ordered role/result bindings; graph outputs are unique even when role bindings intentionally repeat a value.
 

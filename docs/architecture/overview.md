@@ -8,6 +8,13 @@ The overview describes the intended complete system. Only the initial model valu
 
 Synaptik turns a public tensor expression into an immutable compile-time recipe, prepares that recipe for explicitly registered backends, and then executes a prepared schedule. The architecture keeps semantic graph work separate from backend implementation choices and per-run state.
 
+Here **semantic** means what a computation is required to calculate; **physical** means the code,
+storage and device used to calculate it. A graph records computations as **nodes** and the data
+between them as **values**. A backend is an execution owner such as CPU or Metal, not a particular
+kernel. A partition groups consecutive nodes assigned to one owner; it is not necessarily one
+fused executable. The [framework walkthrough](../explanation/framework.md) introduces these
+relationships with one small model before the detailed module inventory below.
+
 The main layers are:
 
 - **Model** owns tensors, operation semantics, shape, data type, layout, host storage abstractions, and the immutable graph model. It has no backend or runtime responsibility.
@@ -52,6 +59,10 @@ Tensor expression
 ```
 
 The central state distinction is:
+
+“Immutable” means the recipe's recorded decisions do not change. It does not mean that input
+values are frozen or that closeable resources live forever. A reusable recipe and one invocation's
+mutable memory have different lifetimes; see [ownership and lifetimes](../explanation/ownership.md).
 
 - `CompileArtifacts` are immutable compile-time output.
 - `PreparedExecution` is prepared runtime state reusable across runs.

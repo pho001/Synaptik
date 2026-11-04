@@ -11,7 +11,18 @@ rank-0..16 static canonical or positive-stride non-overlapping layouts. Other co
 conversion-based transfer, and most extensions remain planned or incomplete. The
 [roadmap](../planning/roadmap.md) records exact delivery status.
 
+Read **owns** in two distinct senses here. A module owns a *decision* when it is responsible for
+that part of the design, such as Compiler constructing derivatives. A closeable object owns a
+*resource* when it is responsible for releasing it. “Backend ownership” assigns computation to an
+execution domain; it does not give that backend ownership of the caller's input memory.
+The [execution atlas comparison](../explanation/packages/execution.md#the-distinctions-to-keep-while-reading)
+separates logical values, physical representations, recipes and leases.
+
 ## Accepted symbolic-batch ownership
+
+In this section, B is a named batch dimension whose numeric size is supplied for each run.
+A **binding** checks actual input descriptions against that declaration. A **recipe** retains
+how to calculate a size or access pattern without retaining the current run's buffers.
 
 The implemented bounded ordinary [dynamic-batch handoff](runtime-prepare-backend-boundary.md#accepted-symbolic-batch-handoff)
 and Prepare0014's bounded FLOAT32 symbolic Scan extension use existing modules and unchanged

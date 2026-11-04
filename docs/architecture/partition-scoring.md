@@ -2,6 +2,12 @@
 
 This document explains backend-neutral partition scoring as defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
+An **owner** here is the backend assigned to compute a node. **Hard eligibility** excludes a
+backend that cannot meet the request; a **soft preference** only chooses among eligible owners.
+“Scoring” names that ownership comparison, not necessarily a numeric score or a performance
+measurement. A capability answer applies to one exact **occurrence**: the operation together
+with its attributes and ordered input/output descriptions.
+
 The operation-capability question and provider collaboration used before scoring are implemented.
 Planning keeps hard eligibility and baseline comparison package-private, then composes them
 through the public one-method `BackendOwnerPlanning` collaboration. Hard eligibility validates
@@ -86,6 +92,26 @@ graph `NodeId` references in order. Its outer and inner lists are immutable. A v
 pass-through graph yields no partitions because inputs and outputs are values, not synthetic
 nodes. The operation is public because Compiler is its concrete cross-package consumer; Compiler,
 not Planning, still owns the graph-wide loop and owner-map assembly.
+
+This conceptual diagram makes “consecutive” explicit. Read the stored node order left to right;
+the last CPU node starts a new partition even though CPU already owned an earlier partition.
+The groups are ownership recipes, not a claim about fusion or selected kernels.
+
+```mermaid
+flowchart LR
+    accTitle: Consecutive owners form separate planned partitions
+    accDescr: Two consecutive CPU nodes form partition one, a following Metal node forms partition two, and a final CPU node forms partition three rather than rejoining partition one.
+    subgraph P1["Partition 1: CPU"]
+        A["First node"] --> B["Second node"]
+    end
+    subgraph P2["Partition 2: Metal"]
+        C["Third node"]
+    end
+    subgraph P3["Partition 3: CPU"]
+        D["Fourth node"]
+    end
+    B --> C --> D
+```
 
 The public stateless logical-memory operation accepts that closed `CompiledGraphModel` and the
 ordered partition recipes. Because `PlannedPartition` is publicly constructible, it first checks

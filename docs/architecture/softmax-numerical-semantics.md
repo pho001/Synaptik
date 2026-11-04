@@ -11,6 +11,13 @@ slice maximum before exponentiation avoids overflow that has nothing to do with 
 probability. Model owns that meaning. A backend owns whether it can execute a particular
 dtype, layout, and runtime value domain.
 
+A **normalization slice** is the group along the selected axis whose probabilities are computed
+together. **Finite** excludes infinity and NaN (“not a number”). **Overflow** exceeds the numeric
+format's finite range; **underflow** loses a very small result's representable magnitude.
+“Working” precision is the format used during calculation, which can differ from the format
+stored at the output. This numerical normalization is unrelated to compiler normalization of
+axes, identifiers or graph representation.
+
 ## Mental model
 
 ```text
@@ -30,6 +37,9 @@ and the NaN, infinity, and empty results. A compensated sum may correct roundoff
 change the contributor set. CPU validates its supported value domain after producers run and
 before any consumer write. Its generated body has no per-element semantic dispatch or allocation.
 Other composites do not gain softmax's finite shift permission by analogy.
+
+A **compensated sum** keeps an extra correction for rounding error; it is still summing the same
+selected terms. It does not permit dropping terms or treating a non-finite slice as finite.
 
 ## Scenario that follows the boundary
 

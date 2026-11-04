@@ -9,6 +9,12 @@ public Training extension now consumes the ordinary Engine's one-stage first-gra
 its reusable session; it does not own or alter the combined compile-time graph described here.
 This page is subordinate to the Compiler-owned contract.
 
+The **forward** computation calculates outputs; the **backward** computation carries
+sensitivities toward requested derivative targets. A **cotangent** is such a sensitivity supplied
+to an output; a **seed** is its starting value. A **primal** is an original forward value used by
+a derivative formula. Combining the graphs means the compiler can see both computations;
+it does not move optimizer updates or derivative-rule ownership into a backend.
+
 ## Owned Model consumer
 
 An owned NN `Model` configures one pure scalar objective on its fixed output expressions and
@@ -196,6 +202,11 @@ are implemented and accepted under Compiler0018. Checkpoint0014 adds v5 persiste
 generic Model numerical proof; NN0033 completes bounded recurrent composition. Prepare preserves
 the actual reverse's mixed roles and exact saved ports without applying the restricted
 original-source AD rule to that generated sibling or executing its body.
+
+Normalization here makes each sensitivity match the receiving value's shape and type before
+addition, including reversing broadcasts where needed. It does not standardize data values as
+LayerNorm does. ROW roles track a batch-row coordinate; SHARED values have no such row coordinate,
+even when one of their extents happens to equal the batch size.
 
 The user-approved [Model0044 source foundation](../planning/modules/model/tasks/0044-symbolic-length-scan-source-foundation.md)
 combines the existing length overload with one named B, retaining static T/features and true row

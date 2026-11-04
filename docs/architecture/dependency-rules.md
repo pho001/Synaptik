@@ -4,6 +4,17 @@ This document explains the dependency direction required by [`ARCHITECTURE.md`](
 
 The direction constrains both current and future code. Focused architecture-test coverage is planned and not yet complete; see the [architecture test guide](../developer-guide/architecture-tests.md).
 
+A **dependency** means one module needs another module's types or behavior. A dependency is not
+the direction in which tensor values flow during execution. In the layer sketches below, arrows
+lead toward the consuming outer layer: `model -> planning` means Planning consumes Model, not
+that Model imports Planning. Later explicit `modules/... -> modules/...` dependency examples name
+the dependent module first, as their surrounding prose states.
+
+An **API export** makes a dependency's public types available to a module's consumers.
+An **implementation-only** dependency is used internally. A **transitive** dependency is reached
+through another dependency; an explicit direct edge records that the module uses the types itself.
+These are build/module relationships, not permissions to take over the other module's decisions.
+
 ## Intended direction
 
 The compile-time side builds upward from small shared contracts into planning and compilation:
@@ -134,6 +145,9 @@ execution. The [graph API](../reference/checkpoint/graph.md) explains static sig
 ## Why the boundaries matter
 
 ### Trace is a dependency leaf
+
+A dependency **leaf** needs no higher layer. A **DTO** is a data-transfer object: a structured
+description of a fact, without the graph or execution owner that produced it.
 
 Every phase may emit diagnostics, so trace DTOs must be safe for every phase to reference. If trace imported graph, runtime, or backend types, diagnostic use would introduce reverse dependencies and make the trace schema inherit business logic. Trace-local identifiers and typed payloads let producers describe events without importing one another.
 

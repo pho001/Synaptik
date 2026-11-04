@@ -29,6 +29,13 @@ Read arrows as data or collaboration flow, not as permission for every module to
 * **Execution state** includes prepared resources, bindings and native memory lifetimes. It is not a checkpoint payload.
 * **Optimizer/session state** includes update slots, counters and pending gradient accumulation. In-memory snapshots exist, but the model files discussed here do not persist this state.
 
+A **cold** source describes computation without running it or preparing a device. A **codec**
+encodes/decodes a defined byte format; a **schema** defines its records and allowed fields.
+**Admission** checks whether a source or operation belongs to an allowed domain. These are
+separate from execution support: a file can reconstruct a valid expression without any selected
+backend being able to execute it. NN abbreviates neural network; its Module composition is
+different from a repository/build module.
+
 ### The example carried through this atlas
 
 The [tutorial](../../tutorials/index.md) and [LearningJourney example](../../examples/README.md) use FLOAT32 input `[2,1]` with values `[1,3]`, one supplied gradient-eligible weight `[1,1]` initially `0`, and no bias. Prediction is `input @ transpose(weight)`. Against target `[2,6]`, squared-error **SUM** starts at `40`; its weight gradient is `-40`. `Sgd(0.05)` changes the owned weight to `2`, giving prediction `[2,6]`; fresh input `[2,4]` then gives `[4,8]`.
@@ -94,6 +101,12 @@ The owned builder's automatic layers use their existing seed/policy rules, while
 Training has no NN dependency. NN's `trainingParameters()` adapter supplies ordered paths/tensors and a live `validateUnchanged` guard; other owners can implement the same boundary. `TrainingSession.open` admits the complete parameter set before private seed allocation/compilation, snapshots identities and host-storage associations, compiles the scalar objective and exact differentiation targets, and opens one reusable Engine preparation. `runValues` binds fresh stored external values in session input order, while the identity-oriented `run` uses compiled input identities. Neither executes a supplied expression instead of its stored bytes.
 
 ### Where an update becomes a transaction
+
+Here a **transaction** stages candidate values before committing the complete update. **Atomic**
+means the described change is exposed as one complete transition under its stated access rules,
+not that every surrounding operation is reversible or protected from a fatal process failure.
+A **precommit** check is the last validation before writes. The session's live-membership check
+observes current paths and exact objects rather than trusting an old copied list.
 
 The session first validates inputs and parameter views, executes, authenticates objective/gradient publications, detaches values, closes the execution result, decodes gradients and calculates candidates. Finiteness checks cover parameters, objective, gradients, accumulation, optimizer intermediates and candidates. A second complete parameter validation precedes writes. Ordinary precommit failure leaves parameter bytes, optimizer slots, counters and pending gradients unchanged. This prevents a bad gradient in a later parameter from partially updating earlier parameters. Fatal VM failure and caller violations of exclusive storage access are outside that guarantee.
 
@@ -166,6 +179,12 @@ For a conceptual host-only check, vocabulary `["red","blue"]` maps `"red unknown
 ## io.github.pho001.synaptik.tools.tuning
 
 **Purpose.** Explicit cold tuning transactions coordinate caller-provided candidate work and backend-owned decision codecs. Main entry points are [WorkloadTuning](../../../tools/tuning/src/main/java/io/github/pho001/synaptik/tools/tuning/WorkloadTuning.java), [WorkloadTuningRequest](../../../tools/tuning/src/main/java/io/github/pho001/synaptik/tools/tuning/WorkloadTuningRequest.java), [CompletePlanTuning](../../../tools/tuning/src/main/java/io/github/pho001/synaptik/tools/tuning/CompletePlanTuning.java), and [CompletePlanTuningRequest](../../../tools/tuning/src/main/java/io/github/pho001/synaptik/tools/tuning/CompletePlanTuningRequest.java). This is not automatic tuning hidden inside Model.compute/train.
+
+The **median** is the middle ordered timing sample; **warmups** precede measured samples.
+A **budget** bounds the candidate work allowed for this explicit search. A **fingerprint** labels
+specified identity facts; it is not automatically proof of authenticity. **Session-scoped**
+compatibility permits reuse only within the associated live session, unlike a persistently
+reusable decision. These measurements choose among already allowed candidates, not meanings.
 
 Workload tuning groups compatible occurrences while retaining context and weights, reuses compatible explicit-cache entries, preflights miss/candidate/execution budgets, and measures misses through a caller-supplied complete-candidate action. Integer median elapsed nanoseconds selects a winner; backend codecs authenticate the decision against each exact occurrence batch. Measurement deduplication does not erase occurrence weighting or permit reusing a decision against an unauthenticated batch.
 

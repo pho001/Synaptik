@@ -8,6 +8,12 @@ and backend-execution correlation identifiers, and neutral backend preparation/i
 payloads. CPU preparation and ordinary Engine tuning also expose bounded producer-specific
 payloads through the open marker. Generic serialization, storage and viewing remain unimplemented.
 
+A **trace** is a structured diagnostic record of selected facts, not another execution path.
+The **producer** supplies a fact; the **payload** is its typed data; the **envelope** adds
+identification and stage information. A **correlation identifier** lets a reader associate
+related records without retaining the live objects. These descriptions can outlive resources
+because a **detached** record does not borrow their storage.
+
 ## Mental model
 
 ```text
@@ -64,6 +70,9 @@ differences interpreted within the producer's documented clock domain are meanin
 envelope does not allocate IDs, read a clock, normalize timestamps, or establish ordering between
 different clock domains.
 
+A monotonic clock measures elapsed intervals in its own clock domain; it does not give a
+calendar date. Two different producers' readings are not automatically comparable timestamps.
+
 The record retains its component references without copying them. Its state is shallowly
 immutable; because `TracePayload` is open, payload implementations must honor the documented
 immutability contract themselves. The foundation defines no serialization, filtering, storage,
@@ -83,6 +92,9 @@ The table separates three identity domains that may share the same numeric value
 substituted for one another. Each type is a one-component record containing a non-negative
 `long`; zero through `Long.MAX_VALUE` are valid, and ordinary record equality applies only within
 the same nominal type.
+
+“Nominal” means the identifier's type is part of its meaning. A node ID and a value ID that both
+contain `0` are no more interchangeable than row number zero and column number zero.
 
 These identifiers are trace-local. The producer defines the trace stream or correlation domain
 in which a value is meaningful and owns allocation, uniqueness, lifetime, and translation from

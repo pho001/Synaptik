@@ -2,6 +2,13 @@
 
 This document explains the boundary defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The root contract remains authoritative.
 
+Start with [the execution atlas's distinctions](../explanation/packages/execution.md#the-distinctions-to-keep-while-reading)
+if slots, representations or leases are unfamiliar. A **slot** is a planned position, a
+**representation** is the physical storage bound there for a run, and a **workspace** is temporary
+backend scratch rather than a transferable graph value. A **projection** passes only the facts
+needed by the receiving boundary. **Opaque** means shared code can retain and transport a
+backend's plan without interpreting its private fields.
+
 Runtime currently implements the immutable `BufferSlot` and `WorkspaceSlot` identities,
 `PreparedMemoryPlan` final slot geometry, nominal buffer/workspace representation roles,
 borrowed/run-owned buffer bindings, immutable prepared representation origins and backend-owned
@@ -427,6 +434,11 @@ alignment only for repeated fixed-byte declarations. Run-bound declarations requ
 recipe equality and identical alignment; Prepare never evaluates them to invent a numeric maximum.
 There is one distinct workspace slot per declaration, with exact recipe/alignment agreement.
 No aliasing, lifetime, interference, or reuse model is inferred.
+
+“Assignment” gives requirements stable names and positions; it does not allocate bytes.
+For example, one logical value crossing CPU and Metal ownership can have one buffer slot with
+distinct owner-specific representations. A transfer copies between those representations; it
+does not create another semantic graph value or silently make every copy current.
 
 Backend finalization is also current as a shared contract. After assignment, the owning backend's
 `BackendPartitionFinalizer` receives one typed `BackendPartitionFinalization` containing its exact
@@ -928,6 +940,23 @@ failed return. After a successful return, shared Prepare tracks the unique resou
 order and closes them in reverse if another finalizer, schedule assembly, schedule validation, or
 final aggregate construction fails. Ownership transfers only when the complete
 `PreparedExecution` is constructed successfully.
+
+A **resource transaction** is an all-or-clean-up ownership handoff, not a database transaction
+and not rollback of arithmetic already executed. Read the successful path downward in this
+diagram; side arrows show who cleans acquired resources if preparation stops at that stage.
+“Rollback” releases those resources rather than publishing a partly prepared result.
+
+```mermaid
+flowchart TD
+    accTitle: Persistent prepared-resource ownership transaction
+    accDescr: A backend finalizer owns newly acquired resources until it returns successfully, shared Prepare then owns rollback, and successful PreparedExecution construction transfers sole ownership to Runtime; failure at each earlier stage cleans the resources owned there.
+    BACKEND["Backend finalizer acquires resources"] --> RETURN["Complete finalizer result returns"]
+    BACKEND -->|failure before return| LOCAL["Backend releases its acquisitions"]
+    RETURN --> PREPARE["Shared Prepare tracks unique resources"]
+    PREPARE -->|later preparation failure| ROLLBACK["Prepare closes acquisitions in reverse order"]
+    PREPARE -->|complete construction succeeds| OWNER["PreparedExecution owns resources once"]
+    OWNER --> CLOSE["Close and final active lease determine release"]
+```
 
 Duplicate rejection does not undo the resource transfer from a returned result. For example,
 if one result lists resource identities `[A, A, B]`, Prepare records both unique owners before

@@ -18,6 +18,12 @@ CPU preparation then chooses a *route*: generated scalar or Vector API code, a r
 Java recurrence, or a qualified native implementation. OpenBLAS and oneDNN are not additional
 backends. Installing a native library does not make an unsupported operation supported.
 
+**CPU** expands to central processing unit. **Host** means the application-side processor and
+memory, as distinct from an accelerator's **device** execution. Native CPU code still runs on the
+host: “native” means a platform-library or machine-level boundary, not “GPU.” A **carrier** is
+the primitive storage container for bits; its Java type alone does not determine their numeric
+meaning. For example, a `short` can carry either of two different 16-bit floating formats.
+
 ## Read the pipeline before the packages
 
 The arrows below show handoffs, not calls made once per tensor element:
@@ -44,6 +50,13 @@ meaning into CPU-specific instructions and access recipes. The **intermediate re
 (IR)** records those instructions, not live buffers. A **specialization** records facts that
 shape generated code. A **slot** identifies assigned storage in a prepared memory plan; it is
 not the storage itself. A **workspace** is run-owned temporary storage or native invocation state.
+
+Some later shorthand describes the mechanism, not extra capabilities. **SIMD** means single
+instruction, multiple data: one vector operation handles several element lanes. **FMA** means
+fused multiply-add, with multiplication and addition combined at a defined rounding boundary.
+**JVM** means Java Virtual Machine; its **JIT** (just-in-time compiler) can translate loaded
+bytecode to machine code later. **ABI** means application binary interface: the exact native
+calling and data-layout agreement. **FFM** means the JDK Foreign Function and Memory API.
 
 Analysis must discover storage before shared assignment. Finalization can realize an already
 selected recipe, not invent another workspace. Runtime binds and executes the result; it does not
@@ -179,6 +192,11 @@ FP8 into BOOL. A CAST retains ordered source/target types and its explicit conve
 Normalized access regimes describe how a generated loop advances through dense, broadcast or
 more general affine storage; bindings retain actual extents, offsets, strides and referenced spans.
 This lets compatible structures share code without sharing invocation addresses.
+
+An **ordinal** is a local numbered position. An **affine** access adds a base offset to fixed
+stride multiples of coordinates. A **virtual** value remains a calculated typed value but needs
+no separately stored intermediate at that boundary. These terms describe different facts:
+sharing normalized access structure does not share a run's actual addresses.
 
 The pointwise canonical identity excludes graph IDs, assigned slots, live segments and run
 bindings. Code-shaping family geometry that is baked into a specialization must still enter its
@@ -480,6 +498,10 @@ automatic oneDNN discovery. Loading/authentication failure throws. API preferenc
 `PRIMITIVES` or `GRAPH` does not force native execution. The bare MATMUL baseline requires positive
 static dense/permuted-dense or normalized broadcast-batch layouts, rank at most 12 and `K>1`.
 Neither symbolic geometry nor Scan orchestration inherits native admission.
+
+**LP64** names a native data model with 64-bit C `long` and pointer values and 32-bit C `int`
+values. **Little-endian** describes the byte order within a stored multi-byte word. These are
+binary-compatibility facts, not statements about a tensor's logical axes or numerical accuracy.
 
 Some ordinary pointwise/reduction/movement units and literal substeps of a composite unit have
 independently qualified projections. A composite pipeline retains the common unit's arithmetic

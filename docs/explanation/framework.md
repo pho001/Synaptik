@@ -14,6 +14,11 @@ A **Tensor** describes typed values and, for a derived result, how to compute th
 execution. These names are not interchangeable: the `modules/model` source directory supplies
 tensor semantics; the Java `Model` class lives in `nn.module`.
 
+Two further distinctions help throughout this journey. **Semantic** information says what the
+program means; **physical** information says which code and memory realize it. An **occurrence**
+is one particular use: two additions with the same name are not automatically the same producer,
+and publishing one result twice creates two result roles, not necessarily two physical copies.
+
 Read this diagram from top to bottom. Each boundary changes the kind of information, not just
 its class name. Training adds gradient expressions before the same compilation path.
 
@@ -79,6 +84,12 @@ Backend analysis declares the buffers/workspaces and private realization it need
 assignment gives those requirements stable runtime slots; backend finalization produces reusable
 executables against that exact assignment. The assembled schedule explicitly orders computation,
 transfers where required, and publication.
+
+A **partition** is a consecutive group of graph nodes with the same backend owner. **Lowering**
+translates that group's meaning into a backend's implementation form; **fusion** combines eligible
+work without storing every intermediate; **specialization** uses known facts to shape executable
+code. A **workspace** is declared temporary scratch, while a **slot** is a stable planned
+position, not an allocation. These decisions belong to preparation rather than each run.
 
 The CPU backend lowers supported operations into its typed private representation and prepares
 ordinary generated execution or a separately qualified native route. The Java learning project

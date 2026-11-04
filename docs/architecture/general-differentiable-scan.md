@@ -14,6 +14,18 @@ an ordinary reverse sibling scan before capture; qualified CPU preparation emits
 of interpreting the body at runtime. This avoids a source graph that grows once per time step
 without introducing general while loops or another executor.
 
+The **body** is the calculation repeated at each step. A **carry** is the state passed to the next
+step; a **sequence** supplies one time slice per step; an **invariant** is supplied unchanged to
+every step. An **emission** is a step result collected at original time positions. **PURE** means
+the body's ordinary calculation has no hidden mutation or random-state effect. “First-order AD”
+means constructing first derivatives, not derivatives of those derivatives.
+
+The page uses T for time steps, B for batch rows, and F/H for feature/state widths. ROW(axis)
+records which local axis follows batch rows; SHARED has no row axis. A **binder** connects the
+body's declared inputs to an occurrence's actual values. A source-valid body, a generated
+derivative, a saved file and an executable backend route are separate admissions, not four names
+for the same support claim.
+
 ```text
 Model: source body + original canonical result/residual wrappers
   -> Compiler: first-order reverse Tensor body, then one combined scoped capture
@@ -323,6 +335,20 @@ can also back a carry without creating
 another history or duplicate bank store.
 Body graphs are preserved, not recursively optimized, so live saved sites retain exact identity
 and rounding boundaries. A descriptor-only primal reference does not make its history live.
+
+Read this conceptual diagram left to right: metadata is always present for the retained ports,
+but only a real consumer or requested publication creates history demand. A step-local use
+alone needs a temporary, not a saved value for every time step.
+
+```mermaid
+flowchart LR
+    accTitle: Residual metadata does not itself allocate scan history
+    accDescr: A retained residual port names a forward value. A reverse consumer or requested publication makes its history demanded and backend analysis declares storage; without that demand the residual has no history bytes or stores.
+    PORT["Residual port names an original body value"] --> CHECK{"Consumed outside the step or published?"}
+    CHECK -->|yes| DEMAND["Compiler records history demand"]
+    DEMAND --> DECLARE["Backend declares required history storage"]
+    CHECK -->|no| DEAD["No residual history bytes or stores"]
+```
 
 ## Conceptual forward and reverse example
 

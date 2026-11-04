@@ -10,6 +10,12 @@ The learning project's `Model.compute` returns a detached host value. The low-le
 returns a closeable run result and lets you decide which publications to copy. Confusing them can
 produce a read from a closed native allocation, or keep an entire run alive unintentionally.
 
+An **owner** is responsible for release; a **borrower** may use a resource while its owner's
+lifetime and access conditions hold. A **lease** keeps a defined use alive until release.
+**Detached** means the value no longer depends on that borrowed resource. Keeping a Java reference
+is not the same as keeping native memory alive. **Quiescent** means no conflicting work or
+mutation is in progress; it does not merely mean the current thread is idle.
+
 The lifetime diagram uses nesting for required dependencies, not Java object inheritance.
 
 ```mermaid
@@ -67,6 +73,11 @@ Merely retaining the result descriptor or a Java reference to a Tensor does not 
 native allocation. Conversely, retaining a `HostTensorValue` does not retain that run's native buffers.
 
 ## Failure and concurrency are ownership questions too
+
+**Admission** is the lifecycle gate that accepts or rejects a new operation. Closing an owner
+can reject later admissions while previously accepted work finishes. **Rollback** cleans up
+resources acquired by an unsuccessful operation; **suppression** preserves cleanup failures
+alongside the original failure instead of replacing its cause.
 
 Preparation and result publication clean up partially acquired resources while preserving the
 primary failure and suppressing cleanup failures. Closure attempts all owned cleanup and retains

@@ -34,6 +34,20 @@ values. Whether execution needs a physical copy is a separate preparation/backen
 A resolved layout does not allocate storage, and a view does not own or prolong an Arena.
 See [layout reference](../reference/tensor/index.md) and [ownership](ownership.md).
 
+Read this table as two ways to name cells in the **same conceptual six-element storage**, not as
+an executed transpose or an automatically shared Tensor storage association. The transpose has a
+different shape and strides, while a hypothetical contiguous copy would store the logical result
+in a new order.
+
+| Description | Shape | Strides in elements | Logical `[0,1]` reads storage position |
+|---|---|---|---|
+| Original matrix | `[2,3]` | `[3,1]` | `1` |
+| Transposed mapping | `[3,2]` | `[1,3]` | `3` |
+| Separate contiguous realization of the transpose | `[3,2]` | `[2,1]` | `1` in the new storage |
+
+“Canonical” here means the conventional dense row-major ordering, with the last axis changing
+fastest. It is a storage-order convention, not a promise that every intermediate is copied.
+
 ## Broadcasting expands an indexing rule, not the dataset
 
 Broadcasting aligns shapes from the right. Equal extents agree; an extent of one can be reused
