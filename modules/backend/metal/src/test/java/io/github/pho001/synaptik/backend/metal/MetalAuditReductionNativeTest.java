@@ -26,6 +26,36 @@ import org.junit.jupiter.api.Test;
 /** Device regressions for ordinary, masked, affine and stored-value reductions. */
 class MetalAuditReductionNativeTest {
     @Test
+    void ordinaryEmptySumPublishesPositiveZeroForEveryNumericCarrierAndGradientState() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (boolean gradient : List.of(false, true)) {
+                var input = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 0, 3}, gradient);
+                var rows = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 3}, gradient);
+                var scalar = new MetalMpsGraphProgram.ValueDescriptor(type, new long[0], gradient);
+                var values = List.of(input, rows, scalar);
+                var nodes = List.of(
+                        reduction(MetalMpsGraphProgram.NodeKind.SUM, 0, 1, List.of(1), false),
+                        reduction(MetalMpsGraphProgram.NodeKind.SUM, 0, 2, List.of(0, 1, 2), false));
+                assertArrayEquals(new byte[6 * type.byteWidth()], execute(values, nodes,
+                        new int[] {0}, new byte[][] {new byte[0]}, 1, 2), type + " rows/" + gradient);
+                assertArrayEquals(new byte[type.byteWidth()], execute(values, nodes,
+                        new int[] {0}, new byte[][] {new byte[0]}, 2, 1), type + " scalar/" + gradient);
+                var emptyRows = new MetalMpsGraphProgram.ValueDescriptor(
+                        type, new long[] {0, 3}, gradient);
+                assertArrayEquals(new byte[0], execute(List.of(input, emptyRows),
+                        List.of(reduction(MetalMpsGraphProgram.NodeKind.SUM,
+                                0, 1, List.of(0), false)),
+                        new int[] {0}, new byte[][] {new byte[0]}, 1));
+                var emptyTarget = new MetalMpsGraphProgram.ValueDescriptor(
+                        type, new long[] {1, 0, 3}, gradient);
+                assertArrayEquals(new byte[0], execute(List.of(input, emptyTarget),
+                        List.of(MetalMpsGraphProgram.Node.sumToShape(0, 1, new long[] {1, 0, 3})),
+                        new int[] {0}, new byte[][] {new byte[0]}, 1));
+            }
+        }
+    }
+
+    @Test
     void actualBroadcastReductionRequiresAnInjectiveRepresentedSubspace() {
         Shape shape = Shape.of(2, 2, 2);
         var node = reduction(MetalMpsGraphProgram.NodeKind.SUM, 0, 1, List.of(2), false);
@@ -552,7 +582,7 @@ class MetalAuditReductionNativeTest {
             targetIndices[0] = target;
             System.arraycopy(siblingTargets, 0, targetIndices, 1, siblingTargets.length);
             var program = new MetalMpsGraphProgram(nodes);
-            var route = nodes.stream().anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(node, values))
+            var route = nodes.stream().anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(node, values, feeds))
                     ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
             var fusion = route == MetalPreparedRoute.CUSTOM_PROGRAM
                     ? MetalPointwiseFusionPlanner.plan(program, values, feeds, targetIndices, route) : null;
@@ -563,6 +593,11 @@ class MetalAuditReductionNativeTest {
             int[] materialized = fusion == null ? slots : fusion.materializedProgramValueIndices();
             for (int value : materialized) {
                 buffers.add(api.createBuffer(context, values.get(value).byteCount()));
+                if (IntStream.of(targetIndices).anyMatch(output -> output == value)) {
+                    var poison = arena.allocate(values.get(value).byteCount(), 1);
+                    poison.fill((byte) 0xa5);
+                    api.upload(buffers.getLast(), 0, poison, poison.byteSize());
+                }
             }
             int inputCount = route == MetalPreparedRoute.CUSTOM_PROGRAM ? buffers.size() : feeds.length;
             MemorySegment inputs = arena.allocate(ADDRESS, inputCount);

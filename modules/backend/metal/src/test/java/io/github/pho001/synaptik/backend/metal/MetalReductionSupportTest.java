@@ -84,7 +84,12 @@ class MetalReductionSupportTest {
                         MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS, List.of(0), false);
                 var values = List.of(input, axisOutput);
                 MetalReductionSupport.validateScan(axis, values);
-                assertThrows(IllegalArgumentException.class, () -> MetalReductionSupport.validate(axis, values));
+                if (kind == MetalMpsGraphProgram.NodeKind.SUM) {
+                    MetalReductionSupport.validate(axis, values);
+                } else {
+                    assertThrows(IllegalArgumentException.class,
+                            () -> MetalReductionSupport.validate(axis, values));
+                }
                 var invalidAxis = MetalMpsGraphProgram.Node.reduction(kind, 0, 1,
                         MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS, List.of(2), false);
                 assertThrows(IllegalArgumentException.class, () -> MetalReductionSupport.validateScan(invalidAxis, values));
@@ -137,7 +142,10 @@ class MetalReductionSupportTest {
                             MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(axis), false);
                     var values = List.of(input, output);
                     MetalReductionSupport.validateScan(node, values);
-                    assertThrows(IllegalArgumentException.class, () -> MetalReductionSupport.validate(node, values));
+                    if (kind == MetalMpsGraphProgram.NodeKind.SUM)
+                        MetalReductionSupport.validate(node, values);
+                    else
+                        assertThrows(IllegalArgumentException.class, () -> MetalReductionSupport.validate(node, values));
                     var badAxis = MetalMpsGraphProgram.Node.reduction(kind, 0, 1,
                             MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(2), false);
                     assertThrows(IllegalArgumentException.class, () -> MetalReductionSupport.validateScan(badAxis, values));

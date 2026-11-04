@@ -55,7 +55,7 @@ final class MetalSigmoidCapabilityTest {
                 Optional.empty(), false), value));
         TensorDescriptor view = new TensorDescriptor(DataType.FLOAT32, shape,
                 Optional.of(LayoutDescriptor.of(shape, new long[] {1, 2}, 0L, true)), false);
-        assertFalse(supports(view, value));
+        assertTrue(supports(view, value));
         assertFalse(supports(value, view));
         TensorDescriptor huge = canonical(DataType.FLOAT32, Shape.of(1_073_741_824L), false);
         assertFalse(supports(huge, huge));
@@ -71,7 +71,7 @@ final class MetalSigmoidCapabilityTest {
             TensorDescriptor lowView = new TensorDescriptor(low, shape,
                     Optional.of(LayoutDescriptor.of(shape, new long[] {1, 2}, 0L, true)),
                     false);
-            assertFalse(supports(lowView, admitted));
+            assertTrue(supports(lowView, admitted));
             assertFalse(supports(admitted, lowView));
             TensorDescriptor lowHuge = canonical(low, Shape.of(2_147_483_648L), false);
             assertFalse(supports(lowHuge, lowHuge));

@@ -71,7 +71,7 @@ final class MetalExpCapabilityTest {
         assertFalse(supports(EXP, List.of(absentLayout), List.of(value)));
         TensorDescriptor view = new TensorDescriptor(DataType.FLOAT32, shape,
                 Optional.of(LayoutDescriptor.of(shape, new long[] {1, 2}, 0L, true)), false);
-        assertFalse(supports(EXP, List.of(view), List.of(value)));
+        assertTrue(supports(EXP, List.of(view), List.of(value)));
         assertFalse(supports(EXP, List.of(value), List.of(view)));
         Shape tooLarge = Shape.of(1_073_741_824L);
         TensorDescriptor oversized = canonical(DataType.FLOAT32, tooLarge, false);
@@ -111,7 +111,7 @@ final class MetalExpCapabilityTest {
             assertFalse(supports(EXP, List.of(noLayout), List.of(value)));
             TensorDescriptor view = new TensorDescriptor(low, shape,
                     Optional.of(LayoutDescriptor.of(shape, new long[] {1, 2}, 0L, true)), false);
-            assertFalse(supports(EXP, List.of(view), List.of(value)));
+            assertTrue(supports(EXP, List.of(view), List.of(value)));
             assertFalse(supports(EXP, List.of(value), List.of(view)));
             TensorDescriptor oversized = canonical(low, Shape.of(2_147_483_648L), false);
             assertFalse(supports(EXP, List.of(oversized), List.of(oversized)));

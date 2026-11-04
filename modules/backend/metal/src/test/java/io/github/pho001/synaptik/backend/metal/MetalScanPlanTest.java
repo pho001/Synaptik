@@ -70,6 +70,8 @@ class MetalScanPlanTest {
         assertFalse(MetalScanLowering.supports(new OperationCapabilityQuery(valid.operation(), inputs, valid.outputs(), valid.scanBody(), Optional.empty())));
         assertFalse(MetalScanLowering.supports(new OperationCapabilityQuery(valid.operation(), valid.inputs(), valid.outputs())));
         assertFalse(MetalScanLowering.supports(symbolicQuery()), "CPU named-B qualification is not Metal admission");
+        assertFalse(MetalScanLowering.supports(additiveQuery(DataType.FLOAT64, 3, 2, false, false)),
+                "mapped numeric ingress does not admit F64 arithmetic");
     }
 
     @Test void rawConstructorRejectsStaleGrammarOverlappingWritersAndRepeatedDemand() {
@@ -127,7 +129,7 @@ class MetalScanPlanTest {
         assertDoesNotThrow(() -> MetalScanLowering.validate(node, values));
     }
 
-    @Test void producedLogicalViewsRequireIndependentDenseRepresentationAtTheOuterBoundary() {
+    @Test void producedLogicalViewsAreNotRemappedButExternalNumericViewsAreMapped() {
         var original = additiveQuery(3, 2, true, false);
         var carryShape = original.inputs().getFirst().shape();
         var expanded = new TensorDescriptor(DataType.FLOAT32, carryShape,
@@ -148,8 +150,59 @@ class MetalScanPlanTest {
         var node = MetalScanLowering.lower(query, new int[] {0, 1, 2}, new int[] {3, 4, 5});
         assertDoesNotThrow(() -> MetalScanLowering.validate(node, values));
         values.set(0, MetalMpsGraphProgram.ValueDescriptor.from(expanded));
-        assertThrows(IllegalArgumentException.class, () -> MetalScanLowering.validate(node, values),
-                "a true external broadcast layout is not canonical represented storage");
+        assertDoesNotThrow(() -> MetalScanLowering.validate(node, values));
+        long ingressBytes = expanded.dataType().byteWidth() * expanded.shape().knownElementCount().orElseThrow();
+        assertEquals(planWorkspace(query) + ingressBytes, MetalProgramWorkspace.scratchBytes(node, values),
+                "only the external carry requires canonical ingress storage");
+    }
+
+    @Test void stridedOffsetIngressRetainsBoundedDenseBodyAndCheckedOuterWorkspace() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
+                var query = stridedAdditiveQuery(type, lengths, reverse);
+                assertTrue(MetalScanLowering.supports(query));
+                var values = new java.util.ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+                query.inputs().forEach(d -> values.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+                query.outputs().forEach(d -> values.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+                int[] inputs = java.util.stream.IntStream.range(0, query.inputs().size()).toArray();
+                int[] outputs = java.util.stream.IntStream.range(query.inputs().size(), values.size()).toArray();
+                var node = MetalScanLowering.lower(query, inputs, outputs);
+                assertDoesNotThrow(() -> MetalScanLowering.validate(node, values));
+                long base = planWorkspace(query);
+                long afterCarry = base + 2L * type.byteWidth();
+                long expected = ((afterCarry + 7L) & ~7L) + 6L * type.byteWidth();
+                assertEquals(expected, MetalProgramWorkspace.scratchBytes(node, values));
+                var plan = MetalScanLowering.plan(query);
+                assertEquals(-1, plan.values().get(1).byteOffset(),
+                        "the dense body still slices its canonical ingress, never the external stride");
+                assertDoesNotThrow(() -> MetalScanEncoding.validate(MetalScanEncoding.encode(plan)));
+                if (lengths) {
+                    var malformed = new java.util.ArrayList<>(values);
+                    malformed.set(inputs.length - 1, MetalMpsGraphProgram.ValueDescriptor.from(
+                            mapped(query.inputs().getLast(), new long[] {2}, 1)));
+                    assertThrows(IllegalArgumentException.class, () -> MetalScanLowering.validate(node, malformed),
+                            "lengths are typed controls, not numeric mapped ingress");
+                }
+            }
+    }
+
+    private static long planWorkspace(OperationCapabilityQuery query) {
+        return MetalScanLowering.plan(query).workspaceBytes();
+    }
+
+    static OperationCapabilityQuery stridedAdditiveQuery(DataType type, boolean lengths, boolean reverse) {
+        var original = additiveQuery(type, 3, 2, lengths, reverse);
+        var inputs = new java.util.ArrayList<>(original.inputs());
+        inputs.set(0, mapped(inputs.get(0), new long[] {2, 1}, 1));
+        inputs.set(1, mapped(inputs.get(1), new long[] {5, 2, 1}, 1));
+        return new OperationCapabilityQuery(original.operation(), inputs, original.outputs(),
+                original.scanBody(), original.scanActivityPlan());
+    }
+
+    static TensorDescriptor mapped(TensorDescriptor descriptor, long[] strides, long offset) {
+        return new TensorDescriptor(descriptor.dataType(), descriptor.shape(),
+                Optional.of(LayoutDescriptor.of(descriptor.shape(), strides, offset, true)),
+                descriptor.requiresGrad());
     }
 
     @Test void rawCoordinatesAreProvedFromOperationsDespiteEqualBatchAndFeatureExtents() {
@@ -314,7 +367,7 @@ class MetalScanPlanTest {
     }
 
     @Test void sourceOnlyPlansKeepTypedInvariantsAndRealEmptyDomains() {
-        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16, DataType.BOOL, DataType.INT32, DataType.INT64))
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT64, DataType.BOOL, DataType.INT32, DataType.INT64))
             for (long time : new long[] {0, 3}) for (long batch : new long[] {0, 2})
                 for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
                     var plan = MetalScanLowering.plan(sourceOnlyQuery(type, time, batch, lengths, reverse));

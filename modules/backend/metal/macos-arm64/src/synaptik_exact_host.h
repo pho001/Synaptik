@@ -74,7 +74,9 @@ static BOOL synaptik_exact_physical(
     if (span >= INT64_MAX || value_type_width(type) == 0U
             || span + 1U > INT64_MAX / value_type_width(type)) return NO;
     if (output) return *offset == 0U;
-    if (zero && (states == NULL || states[value] != SYNAPTIK_METAL_VALUE_AFFINE_VIEW)) return NO;
+    if (zero && (states == NULL
+            || (states[value] != SYNAPTIK_METAL_VALUE_AFFINE_VIEW
+                    && states[value] != SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT))) return NO;
     uint64_t covered = 1U;
     for (NSUInteger i = 0U; i < order_count; i++) {
         NSUInteger axis = order[i];

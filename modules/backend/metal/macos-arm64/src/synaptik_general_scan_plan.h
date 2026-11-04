@@ -35,6 +35,10 @@ typedef struct {
 @property(nonatomic, strong) NSData *scopeMemberships;
 @property(nonatomic, strong) NSArray<SynaptikMetalProgramStep *> *steps;
 @property(nonatomic, strong) NSArray<id<MTLBuffer>> *stepControls;
+@property(nonatomic, strong) NSData *ingressOffsets;
+@property(nonatomic, strong) NSData *ingressSourceBytes;
+@property(nonatomic, strong) NSArray<SynaptikMetalProgramStep *> *ingressSteps;
+@property(nonatomic) NSUInteger workspaceBytes;
 @property(nonatomic, strong) id<MTLComputePipelineState> bindingPipeline;
 @end
 @implementation SynaptikMetalScanPlan
@@ -49,7 +53,7 @@ static BOOL synaptik_scan_multiply(uint64_t a, uint64_t b, uint64_t *result) {
     *result = a * b; return YES;
 }
 static uint32_t synaptik_scan_width(uint64_t type) {
-    switch (type) { case 1U: case 2U: return 4U; case 5U: case 7U: return 2U; case 6U: return 8U; case 3U: return 1U; default: return 0U; }
+    switch (type) { case 1U: case 2U: return 4U; case 5U: case 7U: return 2U; case 4U: case 6U: return 8U; case 3U: return 1U; default: return 0U; }
 }
 static BOOL synaptik_scan_differentiable_type(uint64_t type) { return type == 1U || type == 5U || type == 7U; }
 static BOOL synaptik_scan_scope(uint64_t scope, uint64_t count) {
@@ -462,8 +466,9 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
 /* Complete independent outer binding check. Reference spans are borrowed little-endian bytes
  * from the enclosing authenticated image; no fixed ordinary16/5 arrays or extra copies apply.
  * Result references enumerate demanded roles only; all latent role identities remain local.
- * Ordinary complete-program validation has independently authenticated canonical represented
- * storage for both canonical and materialized affine-view inputs before this binding check. */
+ * Ordinary complete-program validation authenticates represented storage first. External
+ * numeric layouts are subsequently mapped by the ordinary CONTIGUOUS owner; produced affine
+ * views must still have canonical represented storage, never reapplied logical strides. */
 static BOOL synaptik_scan_validate_outer(SynaptikMetalScanPlan *plan,
         uint32_t inputCount, const uint8_t *inputRefs, uint32_t outputCount, const uint8_t *outputRefs,
         uint32_t valueCount, const uint32_t *ranks, const uint64_t *dimensions,
@@ -479,7 +484,8 @@ static BOOL synaptik_scan_validate_outer(SynaptikMetalScanPlan *plan,
         const SynaptikMetalScanValueBinding *formal = locals + w[w[25] + f];
         BOOL sequence = f >= w[5] && f < w[5] + w[6];
         if (actual >= valueCount || types[actual] != formal->type || gradientFlags[actual] != formal->gradient
-                || (states[actual] != 1U && states[actual] != 2U)
+                || (states[actual] != 1U && states[actual] != 2U
+                        && !(states[actual] == 3U && synaptik_scan_differentiable_type(types[actual])))
                 || ranks[actual] != formal->rank + (sequence ? 1U : 0U)) return NO;
         const uint64_t *shape = dimensions + (size_t)actual * SYNAPTIK_MAX_RANK;
         if (sequence && shape[0] != w[3]) return NO;
@@ -513,6 +519,80 @@ static BOOL synaptik_scan_validate_outer(SynaptikMetalScanPlan *plan,
         if (history && shape[0] != w[3]) return NO;
         for (uint32_t a = 0U; a < role->rank; a++) if (shape[a + (history ? 1U : 0U)] != role->dimensions[a]) return NO;
     }
+    return YES;
+}
+
+/* Freeze ordinary mapped-copy metadata at preparation, not invocation. Only external
+ * MATERIALIZED_LAYOUT numeric storage is mapped. A produced AFFINE_VIEW must already be
+ * physically canonical, so its logical strides are never applied twice. The intrinsic body
+ * image stays unchanged; enclosing physical descriptors determine these appended resources. */
+static BOOL synaptik_scan_prepare_ingress(SynaptikMetalScanPlan *plan,
+        uint32_t inputCount, const uint8_t *inputRefs, uint32_t valueCount,
+        NSArray<MPSShape *> *shapes, const uint8_t *types, const uint8_t *declaredStates,
+        const uint64_t *physicalStrides, const uint64_t *physicalOffsets, const uint8_t *physicalStates,
+        id<MTLDevice> device, id<MTLLibrary> library) {
+    if (plan == nil || (inputCount != 0U && inputRefs == NULL)
+            || shapes.count != valueCount || types == NULL
+            || declaredStates == NULL || physicalStrides == NULL || physicalOffsets == NULL
+            || physicalStates == NULL || device == nil || library == nil) return NO;
+    const uint64_t *w = plan.words.bytes;
+    const SynaptikMetalScanValueBinding *values = plan.values.bytes;
+    if (inputCount != w[14] + ((w[4] & 2U) != 0U ? 1U : 0U)) return NO;
+    NSMutableData *offsetData = [NSMutableData dataWithLength:(NSUInteger)w[14] * sizeof(uint64_t)];
+    NSMutableData *sourceData = [NSMutableData dataWithLength:(NSUInteger)w[14] * sizeof(uint64_t)];
+    NSMutableArray<SynaptikMetalProgramStep *> *steps = [NSMutableArray array];
+    if (offsetData == nil || sourceData == nil || steps == nil) return NO;
+    uint64_t *ingressOffsets = offsetData.mutableBytes, *sourceBytes = sourceData.mutableBytes;
+    memset(ingressOffsets, 0xff, offsetData.length);
+    uint64_t cursor = w[22];
+    for (uint32_t f = 0U; f < inputCount; f++) {
+        uint32_t actual = synaptik_read_le32(inputRefs + (size_t)f * 4U);
+        if (actual >= valueCount) return NO;
+        BOOL mapped = declaredStates[actual] == SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT;
+        if (!mapped) {
+            if (physicalStates[actual] != SYNAPTIK_METAL_VALUE_CANONICAL) return NO;
+        } else if (f >= w[14] || !synaptik_scan_differentiable_type(types[actual])
+                || physicalStates[actual] != SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT) return NO;
+        if (f >= w[14]) continue;
+        const SynaptikMetalScanValueBinding *value = values + w[w[25] + f];
+        uint64_t bytes = value->bytes;
+        if (f >= w[5] && f < w[5] + w[6] && !synaptik_scan_multiply(bytes, w[3], &bytes)) return NO;
+        sourceBytes[f] = bytes;
+        if (!mapped || bytes == 0U) continue;
+        uint64_t span = physicalOffsets[actual];
+        MPSShape *shape = shapes[actual];
+        if (shape.count > SYNAPTIK_MAX_RANK) return NO;
+        for (NSUInteger a = 0U; a < shape.count; a++) {
+            uint64_t extent = shape[a].unsignedLongLongValue, reach;
+            if (extent == 0U || !synaptik_scan_multiply(extent - 1U,
+                        physicalStrides[(size_t)actual * SYNAPTIK_MAX_RANK + a], &reach)
+                    || !synaptik_scan_add(span, reach, &span)) return NO;
+        }
+        if (!synaptik_scan_add(span, 1U, &span)
+                || !synaptik_scan_multiply(span, value->width, sourceBytes + f)
+                || sourceBytes[f] > NSUIntegerMax || cursor > NSUIntegerMax - 7U) return NO;
+        cursor = (cursor + 7U) & ~UINT64_C(7);
+        ingressOffsets[f] = cursor;
+        if (!synaptik_scan_add(cursor, bytes, &cursor) || cursor > NSUIntegerMax) return NO;
+        uint8_t pairTypes[2] = {types[actual], types[actual]};
+        uint8_t pairStates[2] = {SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT, SYNAPTIK_METAL_VALUE_CANONICAL};
+        uint64_t pairStrides[2U * SYNAPTIK_MAX_RANK] = {0U};
+        uint64_t pairOffsets[2] = {physicalOffsets[actual], 0U};
+        memcpy(pairStrides, physicalStrides + (size_t)actual * SYNAPTIK_MAX_RANK,
+                SYNAPTIK_MAX_RANK * sizeof(uint64_t));
+        const uint32_t copyInputs[1] = {0U};
+        SynaptikMetalDecodedNode copy = {0};
+        copy.operation = SYNAPTIK_METAL_CUSTOM_CONTIGUOUS;
+        copy.input_count = 1U; copy.inputs = copyInputs; copy.first_input = 0U;
+        copy.output_count = 1U; copy.outputs[0] = 1U; copy.output = 1U;
+        copy.second_input = UINT32_MAX; copy.auxiliary = UINT32_MAX;
+        SynaptikMetalProgramStep *step = make_custom_step(copy, @[shape, shape], pairTypes,
+                pairStrides, pairOffsets, pairStates, NULL, NULL, device, library, 0U, NO, NULL);
+        if (step == nil) return NO;
+        [steps addObject:step];
+    }
+    plan.ingressOffsets = offsetData; plan.ingressSourceBytes = sourceData;
+    plan.ingressSteps = [steps copy]; plan.workspaceBytes = (NSUInteger)cursor;
     return YES;
 }
 
@@ -582,7 +662,7 @@ static BOOL synaptik_scan_bind(SynaptikMetalScanPlan *plan, id<MTLComputeCommand
 }
 
 /* actuals are ordered declared inputs, results are ONLY demanded roles in increasing demand
- * order. workspace is the existing Run-owned prepared resource with exact header22 bytes.
+ * order. workspace includes the intrinsic header22 bytes and mapped ingress regions.
  * The caller validates context/access/alias facts at the ordinary executable boundary; this
  * function independently checks byte sizes and refuses an overlapping workspace.
  */
@@ -599,13 +679,14 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
     const uint8_t *carryPromoted = plan.carryPromoted.bytes;
     BOOL lengthAware = (w[4] & 2U) != 0U, reverse = (w[4] & 1U) != 0U;
     if (actualCount != w[14] + (lengthAware ? 1U : 0U) || resultCount != w[16]
-            || workspace.length < w[22] || workspace.contents == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            || plan.ingressOffsets.length != w[14] * sizeof(uint64_t)
+            || plan.ingressSourceBytes.length != w[14] * sizeof(uint64_t)
+            || plan.workspaceBytes < w[22] || workspace.length < plan.workspaceBytes
+            || workspace.contents == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+    const uint64_t *ingressOffsets = plan.ingressOffsets.bytes;
+    const uint64_t *sourceBytes = plan.ingressSourceBytes.bytes;
     for (uint32_t f = 0U; f < w[14]; f++) {
-        const SynaptikMetalScanValueBinding *v = values + w[w[25] + f];
-        uint64_t bytes = v->bytes;
-        if (f >= w[5] && f < w[5] + w[6] && !synaptik_scan_multiply(bytes, w[3], &bytes))
-            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-        if (actuals[f] == workspace || actuals[f].length < bytes) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+        if (actuals[f] == workspace || actuals[f].length < sourceBytes[f]) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     }
     for (uint32_t d = 0U; d < w[16]; d++) {
         uint64_t port = w[w[27] + d], bytes = values[w[w[26] + port]].bytes;
@@ -621,6 +702,23 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
         if (status != SYNAPTIK_METAL_STATUS_OK) return status;
         lengths = lengthBuffer.contents;
     }
+    id<MTLCommandBuffer> ingressCommand = nil;
+    id<MTLComputeCommandEncoder> ingressEncoder = nil;
+    NSUInteger ingressStep = 0U;
+    for (uint32_t f = 0U; f < w[14]; f++) {
+        if (ingressOffsets[f] == UINT64_MAX) continue;
+        if (ingressStep >= plan.ingressSteps.count
+                || !synaptik_scan_encoder(queue, &ingressCommand, &ingressEncoder))
+            return SYNAPTIK_METAL_STATUS_EXECUTION_FAILED;
+        id<MTLBuffer> __unsafe_unretained pair[2] = {actuals[f], workspace};
+        NSUInteger offsets[2] = {0U, (NSUInteger)ingressOffsets[f]};
+        int32_t status = synaptik_encode_scan_step(plan.ingressSteps[ingressStep++],
+                ingressEncoder, pair, 2U, offsets);
+        if (status != SYNAPTIK_METAL_STATUS_OK) { [ingressEncoder endEncoding]; return status; }
+        [ingressEncoder memoryBarrierWithScope:MTLBarrierScopeBuffers];
+    }
+    int32_t ingressStatus = synaptik_scan_flush(&ingressCommand, &ingressEncoder);
+    if (ingressStatus != SYNAPTIK_METAL_STATUS_OK) return ingressStatus;
     uint64_t *control = (uint64_t *)((uint8_t *)workspace.contents + w[30]);
     memset(control, 0, (size_t)w[31] * 8U);
     uint64_t rootWords = (w[17] + 63U) / 64U, rows = lengthAware ? w[11] : 1U;
@@ -652,7 +750,11 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
         buffers[v] = workspace; bindingOffsets[v] = values[v].offset == UINT64_MAX ? 0U : (NSUInteger)values[v].offset;
     }
     buffers[w[12]] = workspace; bindingOffsets[w[12]] = 0U;
-    for (uint32_t f = (uint32_t)w[5]; f < w[14]; f++) buffers[(NSUInteger)w[w[25] + f]] = actuals[f];
+    for (uint32_t f = (uint32_t)w[5]; f < w[14]; f++) {
+        uint64_t v = w[w[25] + f];
+        buffers[v] = ingressOffsets[f] == UINT64_MAX ? actuals[f] : workspace;
+        bindingOffsets[v] = ingressOffsets[f] == UINT64_MAX ? 0U : (NSUInteger)ingressOffsets[f];
+    }
     id<MTLCommandBuffer> initial = nil;
     id<MTLBlitCommandEncoder> blit = nil;
     for (uint32_t c = 0U; c < w[5]; c++) {
@@ -665,7 +767,9 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
         BOOL present = YES;
         for (uint32_t root = 0U; root < w[19]; root++)
             if (w[carryTable + root * 3U] == c) present = w[carryTable + root * 3U + 1U] != 0U;
-        if (present) [blit copyFromBuffer:actuals[c] sourceOffset:0U toBuffer:workspace destinationOffset:(NSUInteger)v->offset size:(NSUInteger)v->bytes];
+        if (present) [blit copyFromBuffer:ingressOffsets[c] == UINT64_MAX ? actuals[c] : workspace
+                sourceOffset:ingressOffsets[c] == UINT64_MAX ? 0U : (NSUInteger)ingressOffsets[c]
+                toBuffer:workspace destinationOffset:(NSUInteger)v->offset size:(NSUInteger)v->bytes];
         else [blit fillBuffer:workspace range:NSMakeRange((NSUInteger)v->offset, (NSUInteger)v->bytes) value:0U];
     }
     if (initial != nil) {
@@ -677,7 +781,9 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
         if (!synaptik_scan_control_any(control, UINT32_MAX)) continue;
         @autoreleasepool {
         for (uint32_t s = 0U; s < w[6]; s++) {
-            uint64_t v = w[w[25] + w[5] + s]; bindingOffsets[v] = (NSUInteger)(time * values[v].bytes);
+            uint64_t f = w[5] + s, v = w[w[25] + f];
+            bindingOffsets[v] = (ingressOffsets[f] == UINT64_MAX ? 0U : (NSUInteger)ingressOffsets[f])
+                    + (NSUInteger)(time * values[v].bytes);
         }
         for (uint32_t c = 0U; c < w[5]; c++) if (carryPromoted[c]) {
             uint64_t formal = w[w[25] + c], next = w[w[26] + c];

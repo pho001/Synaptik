@@ -475,14 +475,15 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         TensorDescriptor input = inputs.getFirst();
         TensorDescriptor values = outputs.get(0);
         TensorDescriptor indices = outputs.get(1);
-        if (!canonicalOrdering(input, false)
-                || !canonicalOrdering(values, false)
-                || !canonicalOrdering(indices, false)
+        boolean empty = attrs.k() == 0L;
+        if (!canonicalOrdering(input, false, empty)
+                || !canonicalOrdering(values, false, empty)
+                || !canonicalOrdering(indices, false, empty)
                 || attrs.axis() >= input.shape().rank()) {
             return false;
         }
         long[] expected = input.shape().toLongArray();
-        if (attrs.k() < 1L || attrs.k() > expected[attrs.axis()]
+        if (attrs.k() < 0L || attrs.k() > expected[attrs.axis()]
                 || attrs.k() > UINT32_MAX) {
             return false;
         }
@@ -529,7 +530,14 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
 
     private static boolean canonicalOrdering(
             TensorDescriptor descriptor, boolean allowScalar) {
-        if (!canonicalAny(descriptor, allowScalar)) {
+        return canonicalOrdering(descriptor, allowScalar, false);
+    }
+
+    /** Keeps empty ordering geometry local to TOP_K's zero-result domain. */
+    private static boolean canonicalOrdering(
+            TensorDescriptor descriptor, boolean allowScalar, boolean allowEmpty) {
+        if (!(allowEmpty ? canonicalIncludingEmpty(descriptor, allowScalar)
+                : canonicalAny(descriptor, allowScalar))) {
             return false;
         }
         long elements = 1L;
@@ -1537,7 +1545,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
      */
     private static boolean supportsNumericElementary(
             Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
-        if (!isNumericFloat(output.dataType()) || !canonicalAny(output, true)) return false;
+        if (!isNumericFloat(output.dataType())) return false;
         if (operation.kind() instanceof UnaryElementwiseKind unary
                 && switch (unary) {
                     case NEG, ABS, RECIPROCAL, FLOOR, CEIL, SIGN, RELU,
@@ -1547,13 +1555,15 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 }) {
             if (inputs.size() != 1 || operation.attrs() != NoOperationAttrs.INSTANCE) return false;
             TensorDescriptor input = inputs.getFirst();
-            return input.dataType() == output.dataType() && canonicalAny(input, true)
+            return input.dataType() == output.dataType()
+                    && ordinaryPhysicalRead(input, 0) && canonicalIncludingEmpty(output, true)
                     && input.shape().equals(output.shape())
                     && input.requiresGrad() == output.requiresGrad()
                     && ((unary != UnaryElementwiseKind.EXP && unary != UnaryElementwiseKind.SIGMOID)
                             || input.layout().orElseThrow().referencedElementSpan()
                                     <= UINT32_MAX / input.dataType().byteWidth());
         }
+        if (!canonicalAny(output, true)) return false;
         if (operation.kind() instanceof BinaryArithmeticKind) {
             if (inputs.size() != 2 || operation.attrs() != NoOperationAttrs.INSTANCE) return false;
             TensorDescriptor left = inputs.get(0), right = inputs.get(1);
@@ -1867,9 +1877,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 2) return false;
         TensorDescriptor left = inputs.get(0);
         TensorDescriptor right = inputs.get(1);
-        if (!matmulInput(left)
-                || !matmulInput(right)
-                || !canonicalAny(output, true)
+        boolean numeric = isNumericFloat(left.dataType()) && isNumericFloat(right.dataType());
+        if (!(numeric ? ordinaryPhysicalRead(left, 1) : matmulInput(left))
+                || !(numeric ? ordinaryPhysicalRead(right, 1) : matmulInput(right))
+                || !(numeric ? canonicalIncludingEmpty(output, true) : canonicalAny(output, true))
                 || output.requiresGrad() != (left.requiresGrad() || right.requiresGrad())
                 || !matmulShapeMatches(left, right, output)) {
             return false;
@@ -1918,7 +1929,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             long leftExtent = leftAxis < 0 ? 1L : leftShape[leftAxis];
             long rightExtent = rightAxis < 0 ? 1L : rightShape[rightAxis];
             if (leftExtent != rightExtent && leftExtent != 1L && rightExtent != 1L) return false;
-            if (outputShape[axis] != Math.max(leftExtent, rightExtent)) return false;
+            if (outputShape[axis] != (leftExtent == 1L ? rightExtent : leftExtent)) return false;
         }
         int outputAxis = batchRank;
         if (leftShape.length > 1 && outputShape[outputAxis++] != leftShape[leftShape.length - 2]) {
@@ -2290,10 +2301,30 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         LayoutDescriptor layout = descriptor.layout().orElseThrow();
         Math.multiplyExact(elements, descriptor.dataType().byteWidth());
         Math.multiplyExact(layout.referencedElementSpan(), descriptor.dataType().byteWidth());
-        if (layout.hasZeroStride()) {
-            return layout.isView();
-        }
-        return supportedStorageLayout(descriptor, allowScalar ? 0 : 1);
+        return MetalMpsGraphProgram.ValueDescriptor.from(descriptor)
+                .supportsStorageLayout(allowScalar ? 0 : 1);
+    }
+
+    /**
+     * Reuses the independent encoded physical proof on original descriptors, including canonical
+     * empty domains. Broadcast axes must be truthful views and all other read axes injective.
+     */
+    private static boolean ordinaryPhysicalRead(TensorDescriptor descriptor, int minimumRank) {
+        if (!descriptor.shape().isFullyStatic()
+                || descriptor.shape().rank() < minimumRank
+                || descriptor.shape().rank() > MetalMpsGraphProgram.MAX_RANK
+                || descriptor.layout().isEmpty()) return false;
+        var value = MetalMpsGraphProgram.ValueDescriptor.from(descriptor);
+        Math.multiplyExact(value.elementCount(), descriptor.dataType().byteWidth());
+        value.byteCount();
+        return value.supportsStorageLayout(minimumRank);
+    }
+
+    /** Requires exact canonical output geometry without replacing an empty dimension. */
+    private static boolean canonicalIncludingEmpty(TensorDescriptor descriptor, boolean allowScalar) {
+        return ordinaryPhysicalRead(descriptor, allowScalar ? 0 : 1)
+                && descriptor.layout().orElseThrow().equals(
+                        LayoutDescriptor.contiguous(descriptor.shape()));
     }
 
     private static boolean isFloating(DataType dataType) {

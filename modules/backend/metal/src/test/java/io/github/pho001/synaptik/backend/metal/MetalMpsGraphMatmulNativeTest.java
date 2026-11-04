@@ -24,6 +24,30 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphMatmulNativeTest {
     @Test
+    void zeroContractionPublishesExactPositiveZeroWithoutChangingSingletonProductSigns() {
+        Path library = configuredLibrary();
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (boolean gradient : List.of(false, true)) {
+                var program = new MetalMpsGraphProgram(List.of(
+                        MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                        MetalMpsGraphProgram.Node.matmul(3, 4, 5)));
+                var values = List.of(
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 0}, gradient),
+                        typed(type, 0, 3),
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 3}, gradient),
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {1}, gradient),
+                        typed(type, 1),
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[0], gradient));
+                var actual = executeCustom(library, program, values,
+                        new int[] {0, 1, 3, 4}, new int[] {2, 5},
+                        List.of(new byte[0], new byte[0], numericBytes(type, -0.0f), numericBytes(type, 1)));
+                assertArrayEquals(new byte[6 * type.byteWidth()], actual.get(0), type + " K0");
+                assertArrayEquals(numericBytes(type, -0.0f), actual.get(1), type + " K1");
+            }
+        }
+    }
+
+    @Test
     void typedMatmulKeepsScalarResultsAndBatchBroadcastWithGradientFlags() {
         Path library = configuredLibrary();
         for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
@@ -561,6 +585,38 @@ class MetalMpsGraphMatmulNativeTest {
                                 : floatingBytes(type, 30, 70, 110, 70, 174, 278),
                         actual.getFirst(), type + " transpose operand=" + (left ? "left" : "right"));
             }
+        }
+    }
+
+    @Test
+    void logicallyDenseSelectConsumesItsActualStridedBufferWithoutATranspose() {
+        Path library = configuredLibrary();
+        Shape permuted = Shape.of(3, 2, 4);
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            var program = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0, 2)),
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.SELECT, new int[] {1}, new int[] {2},
+                            MetalMpsGraphProgram.AttributeKind.SELECT, new long[] {1, 0}),
+                    MetalMpsGraphProgram.Node.matmul(2, 3, 4)));
+            var values = List.of(
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 3, 4}, true),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, permuted.toLongArray(),
+                            Optional.of(LayoutDescriptor.of(
+                                    permuted, new long[] {4, 12, 1}, 0L, true)), true, true),
+                    denseView(type, Shape.of(3, 4), false),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {4, 2}, true),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3, 2}, true));
+            long width = type == DataType.FLOAT32 ? Float.BYTES : Short.BYTES;
+            List<byte[]> actual = execute(library, program, values,
+                    new int[] {0, 3}, new int[] {4},
+                    List.of(floatingBytes(type,
+                                    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                                    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24),
+                            floatingBytes(type, 1, 2, 3, 4, 5, 6, 7, 8)),
+                    MetalPreparedRoute.CUSTOM_PROGRAM,
+                    new long[] {24 * width, 24 * width, 20 * width, 8 * width, 6 * width});
+            assertArrayEquals(floatingBytes(type, 50, 60, 114, 140, 178, 220), actual.getFirst());
         }
     }
 

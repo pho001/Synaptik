@@ -36,9 +36,9 @@ static BOOL synaptik_reduction_span(MPSShape *shape, const uint64_t *strides,
     return span <= UINT32_MAX / width;
 }
 
-/* Empty local Shapes can originate only in the authenticated Scan binder: ordinary
- * wire descriptors still reject zero extents. Prove their real geometry, never a
- * B=1 surrogate. The common positive-domain owner remains authoritative otherwise. */
+/* Empty numeric SUM and authenticated Scan-local reductions use their real geometry,
+ * never a B=1 surrogate. Family admission remains separate from this shared axis proof;
+ * the common positive-domain owner remains authoritative for nonempty inputs. */
 static NSArray<NSNumber *> *synaptik_reduction_empty_axes(
         SynaptikMetalDecodedNode node, MPSShape *input, MPSShape *output) {
     if ((node.operation != 13U && node.operation != 14U
@@ -174,7 +174,7 @@ static BOOL synaptik_reduction_metadata(SynaptikMetalDecodedNode node,
     }
     if (meta->elementCount == 0U) {
         *grid = MTLSizeMake(0U, 0U, 0U);
-        return YES; /* The authenticated Scan owner skips empty output dispatches. */
+        return YES; /* The ordinary/Scan dispatcher skips authenticated empty output grids. */
     }
     return custom_grid(meta->elementCount, grid, &meta->gridWidth, &meta->gridHeight);
 }

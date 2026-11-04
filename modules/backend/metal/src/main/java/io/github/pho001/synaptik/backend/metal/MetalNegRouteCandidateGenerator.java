@@ -25,14 +25,14 @@ import java.util.Optional;
  * and the scalar-composition source wire, exact raw constant, rank-one {@code [1]} shape, operand
  * order, and primitive opcode. Graph-local identities, partition object identity, native handles,
  * measurements, and cache state are excluded. Generation is cold, thread-safe, deterministic, and
- * performs no native work. Version 43 retains original numerical carrier roles,
- * dynamic composition operands and typed Scan body/activity grammar, and binds singleton
- * MATMUL product semantics. Candidate wires and the exact singleton-NEG tuning policy are unchanged.
+ * performs no native work. Version 44 binds affine numeric reads, ordinary empty identities,
+ * and mapped Scan ingress. Original carrier roles, typed Scan activity and singleton MATMUL
+ * products remain unchanged, as do candidate wires and the exact singleton-NEG tuning policy.
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 43;
-    private static final int EXACT_DEFAULT_POLICY = 43;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 44;
+    private static final int EXACT_DEFAULT_POLICY = 44;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.

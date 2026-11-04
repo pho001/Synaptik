@@ -83,9 +83,6 @@ class MetalAffineCapabilityTest {
         assertFalse(supports(new Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(emptyTarget)),
                 canonical(Shape.of(2), false), view(emptyTarget, new long[] {0, 1}, false)),
                 "zero result cardinality cannot hide incompatible nonzero feature dimensions");
-        var empty = canonical(Shape.of(2, 0), false);
-        assertFalse(supports(new Operation(io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind.NEG,
-                NoOperationAttrs.INSTANCE), empty, empty), "empty EXPAND does not grant empty arithmetic");
     }
 
     @Test

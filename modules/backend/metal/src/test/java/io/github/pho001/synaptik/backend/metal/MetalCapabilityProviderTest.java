@@ -81,6 +81,94 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class MetalCapabilityProviderTest {
+    @Test
+    void truthfulExternalAffineUnaryComparisonAndMatmulDomainsRetainGradientBoundaries() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Shape shape = Shape.of(2);
+            for (boolean gradient : List.of(false, true)) {
+                var affine = new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.of(
+                        shape, new long[] {2}, 1, true)), gradient);
+                var dense = typed(type, shape, gradient);
+                for (var kind : List.of(UnaryElementwiseKind.NEG, UnaryElementwiseKind.SQRT,
+                        UnaryElementwiseKind.EXP)) {
+                    assertTrue(provider.supports(unaryQuery(kind, affine, dense)), type + "/" + kind);
+                    assertFalse(provider.supports(unaryQuery(kind, affine, typed(type, shape, !gradient))));
+                }
+                for (var kind : BinaryComparisonKind.values()) {
+                    assertTrue(provider.supports(new OperationCapabilityQuery(
+                            new Operation(kind, NoOperationAttrs.INSTANCE), List.of(affine, dense),
+                            List.of(typed(DataType.BOOL, shape, false)))), type + "/" + kind);
+                }
+                var empty = typed(type, Shape.of(2, 0, 3), gradient);
+                assertTrue(provider.supports(unaryQuery(UnaryElementwiseKind.NEG, empty, empty)));
+                assertTrue(provider.supports(reductionQuery(AggregateReductionKind.SUM,
+                        new AxisReductionAttrs(1, false), empty, typed(type, Shape.of(2, 3), gradient))));
+                assertFalse(provider.supports(reductionQuery(AggregateReductionKind.SUM,
+                        new AxisReductionAttrs(1, false), empty, typed(type, Shape.of(2, 3), !gradient))));
+                Operation matmul = new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
+                for (long[] strides : List.of(new long[] {8, 2}, new long[] {1, 2},
+                        new long[] {0, 2})) {
+                    Shape leftShape = Shape.of(2, 3);
+                    var left = new TensorDescriptor(type, leftShape,
+                            Optional.of(LayoutDescriptor.of(leftShape, strides, 1, true)), gradient);
+                    assertTrue(supportsMatmul(matmul, left, typed(type, Shape.of(3, 2), false),
+                            typed(type, Shape.of(2, 2), gradient)), type + " affine MATMUL");
+                    assertFalse(supportsMatmul(matmul, left, typed(type, Shape.of(3, 2), false),
+                            typed(type, Shape.of(2, 2), !gradient)));
+                }
+                assertTrue(supportsMatmul(matmul, typed(type, Shape.of(2, 0), gradient),
+                        typed(type, Shape.of(0, 3), false), typed(type, Shape.of(2, 3), gradient)));
+            }
+        }
+        Shape broadcastShape = Shape.of(2, 3);
+        var broadcast = new TensorDescriptor(DataType.FLOAT64, broadcastShape,
+                Optional.of(LayoutDescriptor.of(broadcastShape, new long[] {0, 0}, 1, true)), false);
+        assertTrue(provider.supports(unaryQuery(UnaryElementwiseKind.FLOOR, broadcast,
+                typed(DataType.FLOAT64, broadcastShape, false))));
+        assertFalse(provider.supports(unaryQuery(UnaryElementwiseKind.EXP, broadcast,
+                typed(DataType.FLOAT64, broadcastShape, false))));
+    }
+
+    @Test
+    void broadcastReadDoesNotAuthenticateCollidingNonbroadcastAxes() {
+        Shape shape = Shape.of(2, 2, 2);
+        var aliased = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {0, 1, 1}, 0, true)), false);
+        var readable = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {0, 2, 1}, 0, true)), false);
+        var dense = typed(DataType.FLOAT32, shape, false);
+        for (var kind : BinaryComparisonKind.values()) {
+            var operation = new Operation(kind, NoOperationAttrs.INSTANCE);
+            var output = typed(DataType.BOOL, shape, false);
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    operation, List.of(aliased, dense), List.of(output))));
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    operation, List.of(readable, dense), List.of(output))));
+        }
+    }
+
+    @Test
+    void topKZeroAdmitsEmptyValuesAndIndicesButKeepsOutputShapeAndGradientValidation() {
+        for (DataType type : DataType.values()) {
+            for (long extent : new long[] {0, 3}) {
+                var input = typed(type, Shape.of(2, extent), false);
+                var values = typed(type, Shape.of(2, 0), false);
+                var indices = typed(DataType.INT64, Shape.of(2, 0), false);
+                var operation = new Operation(
+                        io.github.pho001.synaptik.model.operation.ordering.TopKKind.TOP_K,
+                        new io.github.pho001.synaptik.model.operation.ordering.TopKAttrs(1, 0, true, true));
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        operation, List.of(input), List.of(values, indices))), type.toString());
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        operation, List.of(input), List.of(values, typed(DataType.INT64, Shape.of(0, 2), false)))));
+                if (type.isFloating()) {
+                    assertFalse(provider.supports(new OperationCapabilityQuery(operation,
+                            List.of(typed(type, input.shape(), true)), List.of(values, indices))));
+                }
+            }
+        }
+    }
+
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
 
     @Test
@@ -949,7 +1037,7 @@ class MetalCapabilityProviderTest {
                     kind, valid, descriptor(Shape.of(2, 3), true))));
             assertFalse(provider.supports(unaryQuery(kind, noLayout, noLayout)));
             assertFalse(provider.supports(unaryQuery(kind, offset, offset)));
-            assertFalse(provider.supports(unaryQuery(kind, view, valid)));
+            assertTrue(provider.supports(unaryQuery(kind, view, valid)));
             assertFalse(provider.supports(unaryQuery(kind, strided, strided)));
             assertTrue(
                     provider.supports(unaryQuery(
@@ -972,7 +1060,7 @@ class MetalCapabilityProviderTest {
                 new TensorDescriptor(DataType.FLOAT32, dynamic, Optional.empty(), false))));
         assertTrue(provider.supports(query(
                 descriptor(Shape.of(), false), descriptor(Shape.of(), false))));
-        assertFalse(provider.supports(query(
+        assertTrue(provider.supports(query(
                 descriptor(Shape.of(2, 0), false), descriptor(Shape.of(2, 0), false))));
         assertFalse(provider.supports(query(
                 descriptor(rank17, false), descriptor(rank17, false))));
@@ -1443,7 +1531,7 @@ class MetalCapabilityProviderTest {
                 left,
                 descriptor(Shape.of(2, 4), false),
                 output));
-        assertFalse(supportsMatmul(
+        assertTrue(supportsMatmul(
                 matmul,
                 descriptor(Shape.of(2, 0), true),
                 descriptor(Shape.of(0, 4), false),
@@ -1509,16 +1597,19 @@ class MetalCapabilityProviderTest {
                 }
             }
             Shape shape = Shape.of(2, 3);
-            for (LayoutDescriptor invalid : List.of(
+            for (LayoutDescriptor supported : List.of(
                     LayoutDescriptor.of(shape, new long[] {3, 1}, 1L, true),
                     LayoutDescriptor.of(shape, new long[] {4, 1}, 0L, true),
-                    LayoutDescriptor.of(shape, new long[] {2, 1}, 0L, true),
                     LayoutDescriptor.of(shape, new long[] {0, 1}, 0L, true))) {
-                assertFalse(supportsMatmul(matmul,
-                        new TensorDescriptor(type, shape, Optional.of(invalid), false),
+                assertTrue(supportsMatmul(matmul,
+                        new TensorDescriptor(type, shape, Optional.of(supported), false),
                         typed(type, Shape.of(3, 5), false),
                         typed(type, Shape.of(2, 5), false)));
             }
+            LayoutDescriptor aliased = LayoutDescriptor.of(shape, new long[] {2, 1}, 0L, true);
+            assertFalse(supportsMatmul(matmul,
+                    new TensorDescriptor(type, shape, Optional.of(aliased), false),
+                    typed(type, Shape.of(3, 5), false), typed(type, Shape.of(2, 5), false)));
             TensorDescriptor denseViewOutput = new TensorDescriptor(type, Shape.of(2, 5),
                     Optional.of(LayoutDescriptor.of(Shape.of(2, 5),
                             new long[] {5, 1}, 0L, true)), false);

@@ -427,15 +427,14 @@ class MetalMpsGraphAffineSchemaTest {
                 new int[] {0, 4}, new int[] {2, 3, 5}, MetalPreparedRoute.CUSTOM_PROGRAM);
         var direct = new MetalMpsGraphProgram(List.of(permuteNode, selectNode,
                 MetalMpsGraphProgram.Node.matmul(2, 3, 4)));
-        assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        List.of(source, permuted, selected,
-                                new MetalMpsGraphProgram.ValueDescriptor(
-                                        DataType.FLOAT32, new long[] {4, 5}, false),
-                                new MetalMpsGraphProgram.ValueDescriptor(
-                                        DataType.FLOAT32, new long[] {3, 5}, false)),
-                        direct, new int[] {0, 3}, new int[] {4},
-                        MetalPreparedRoute.CUSTOM_PROGRAM));
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                List.of(source, permuted, selected,
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {4, 5}, false),
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {3, 5}, false)),
+                direct, new int[] {0, 3}, new int[] {4},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
     }
 
     @Test

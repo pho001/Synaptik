@@ -119,7 +119,7 @@ final class MetalPointwiseFusionPlanner {
                 nodePosition = generated.end();
             } else {
                 MetalMpsGraphProgram.Node node = nodes.get(nodePosition);
-                boolean custom = fixedCustom(node, descriptors)
+                boolean custom = fixedCustom(node, descriptors, feedValues)
                         || (node.kind() == MetalMpsGraphProgram.NodeKind.MATMUL
                                 && (authenticatedTranspose[node.firstInputIndex()]
                                         || authenticatedTranspose[node.secondInputIndex()]));
@@ -430,11 +430,53 @@ final class MetalPointwiseFusionPlanner {
                 && (!canonicalStorage(values.get(left)) || !canonicalStorage(values.get(right)));
     }
 
+    /**
+     * Keeps packed MATMUL boundary feeds when their exact geometry is dense, independently of
+     * logical view flags. Local affine values remain custom: their represented source can differ
+     * from their logical layout after extraction. Empty and other affine numerical reads also use
+     * the existing custom owner.
+     *
+     * @param node operation being classified
+     * @param values original typed logical descriptors
+     * @param feeds actual external feed indices, not arbitrary logical ancestors
+     * @return whether packed MPSGraph binding cannot represent the numerical input geometry
+     */
+    static boolean numericPhysicalRequiresCustom(
+            MetalMpsGraphProgram.Node node,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] feeds) {
+        if (!node.kind().isNumericUnary()
+                && node.kind() != MetalMpsGraphProgram.NodeKind.MATMUL) return false;
+        for (int input : node.inputs()) {
+            var value = values.get(input);
+            boolean packedMatmulFeed = node.kind() == MetalMpsGraphProgram.NodeKind.MATMUL
+                    && value.matmulDense() && containsFeed(feeds, input);
+            if (value.elementCount() == 0L
+                    || !canonicalStorage(value) && !packedMatmulFeed) return true;
+        }
+        return values.get(node.outputIndex()).elementCount() == 0L;
+    }
+
+    private static boolean containsFeed(int[] feeds, int value) {
+        for (int feed : feeds) if (feed == value) return true;
+        return false;
+    }
+
+    /**
+     * Classifies the fixed custom owner using original descriptors and actual feed provenance.
+     *
+     * @param node operation being classified
+     * @param values complete original typed descriptor table
+     * @param feeds actual external feed indices
+     * @return whether the operation requires a fixed custom-program step
+     */
     static boolean fixedCustom(
             MetalMpsGraphProgram.Node node,
-            List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] feeds) {
         if (node.kind() == MetalMpsGraphProgram.NodeKind.GENERAL_SCAN) return true;
         if (float32BinaryRequiresPhysicalLayout(node, values)) return true;
+        if (numericPhysicalRequiresCustom(node, values, feeds)) return true;
         if (lowPrecisionCustom(node, values)) return true;
         if (MetalExactSupport.handles(node, values)
                 || MetalReductionSupport.handles(node, values)) return true;

@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
@@ -15,6 +17,7 @@ import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /** Actual custom-route regressions for raw FLOAT64 and modular integral operations. */
@@ -35,6 +38,23 @@ class MetalExactNumericNativeTest {
         0x7ff8000000001234L, 0xfff8000000005678L,
         0x7ff0000000001234L, 0xfff0000000005678L
     };
+
+    @Test
+    void externalBroadcastFloat64FloorUsesOffsetWordRatherThanLogicalBufferLength() {
+        Shape shape = Shape.of(2, 3);
+        var input = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT64, shape.toLongArray(),
+                Optional.of(LayoutDescriptor.of(shape, new long[] {0, 0}, 1, true)), false, false);
+        var program = new MetalMpsGraphProgram(List.of(
+                node(MetalMpsGraphProgram.NodeKind.FLOOR, new int[] {0}, 1)));
+        for (long word : new long[] {SIGN, SIGN | 1, 0x3ff0000000000001L}) {
+            long[] expected = new long[6];
+            java.util.Arrays.fill(expected,
+                    Double.doubleToRawLongBits(Math.floor(Double.longBitsToDouble(word))));
+            assertArrayEquals(raw(DataType.FLOAT64, expected), execute(program,
+                    List.of(input, typed(DataType.FLOAT64, 2, 3)), new int[] {0}, new int[] {1},
+                    raw(DataType.FLOAT64, 0x7ff8000000004321L, word)).getFirst());
+        }
+    }
 
     @Test
     void float64ExactUnarySitesPreserveRepresentedSubnormalsAndSpecialClasses() {

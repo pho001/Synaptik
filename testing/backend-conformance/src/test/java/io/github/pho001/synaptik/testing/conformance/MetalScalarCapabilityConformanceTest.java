@@ -56,10 +56,8 @@ final class MetalScalarCapabilityConformanceTest {
             }
             long[] rank17 = new long[17];
             Arrays.fill(rank17, 1L);
-            for (Shape shape : List.of(Shape.of(0), Shape.of(rank17))) {
-                TensorDescriptor invalid = value(type, shape, false);
-                assertFalse(supports(operation, invalid, invalid));
-            }
+            TensorDescriptor invalid = value(type, Shape.of(rank17), false);
+            assertFalse(supports(operation, invalid, invalid));
         }
     }
 

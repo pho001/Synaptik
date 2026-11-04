@@ -2884,10 +2884,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     void publicMetalClosesHomogeneousLowMatmulAndRejectsRemainingExcludedForms() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared()) {
-            Tensor floatLeft = nativeTensor(
-                    descriptor(Shape.of(2, 2)), arena, 1, 2, 3, 4);
-            Tensor floatRight = nativeTensor(
-                    descriptor(Shape.of(2, 1)), arena, 5, 6);
             Tensor bfloatGradientLeft = nativeBfloatTensor(
                     Shape.of(2, 2), true, arena, 1, 2, 3, 4);
             Tensor bfloatGradientRight = nativeBfloatTensor(
@@ -2902,25 +2898,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     Shape.of(2, 2), true, arena, 1, 2, 3, 4);
             Tensor doubleGradientSeed = nativeDoubleTensor(
                     Shape.of(2, 1), arena, 1, 1);
-            Shape zeroLeftShape = Shape.of(2, 0);
-            Shape zeroRightShape = Shape.of(0, 1);
-            Tensor zeroLeft = symbolic(new TensorDescriptor(
-                    DataType.FLOAT32,
-                    zeroLeftShape,
-                    Optional.of(LayoutDescriptor.contiguous(zeroLeftShape)),
-                    false));
-            Tensor zeroRight = symbolic(new TensorDescriptor(
-                    DataType.FLOAT32,
-                    zeroRightShape,
-                    Optional.of(LayoutDescriptor.contiguous(zeroRightShape)),
-                    false));
-            Shape forgedShape = Shape.of(2, 2);
-            Tensor forgedLayout = symbolic(new TensorDescriptor(
-                    DataType.FLOAT32,
-                    forgedShape,
-                    Optional.of(LayoutDescriptor.of(
-                            forgedShape, new long[] {3, 1}, 0L, true)),
-                    false));
 
             try (Engine.Builder builder = Engine.builder()) {
                 builder.takeOwnership(MetalBackendIntegration.open(
@@ -2953,12 +2930,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                     List.of(doubleGradientLeft.matmul(doubleRight)),
                                     List.of(doubleGradientSeed),
                                     List.of(doubleGradientLeft)));
-                    assertThrows(
-                            IllegalStateException.class,
-                            () -> engine.compile(List.of(zeroLeft.matmul(zeroRight))));
-                    assertThrows(
-                            IllegalStateException.class,
-                            () -> engine.compile(List.of(forgedLayout.matmul(floatRight))));
                 }
             }
         }

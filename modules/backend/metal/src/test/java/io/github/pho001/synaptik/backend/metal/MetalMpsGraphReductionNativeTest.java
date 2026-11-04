@@ -51,8 +51,15 @@ class MetalMpsGraphReductionNativeTest {
                         MetalMpsGraphProgram.ReductionForm.FULL,
                         List.of(),
                         true));
+        var emptySum = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.sumToShape(0, 1, new long[] {2, 0})));
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(
+                new int[] {3, 2}, dimensions(new long[][] {{3, 2, 0}, {2, 0}}), emptySum),
+                emptySum, new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
         assertThrows(IllegalArgumentException.class, () ->
-                MetalMpsGraphProgram.Node.sumToShape(0, 1, new long[] {2, 0}));
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(
+                        new int[] {3, 2}, dimensions(new long[][] {{3, 4, 0}, {2, 0}}), emptySum),
+                        emptySum, new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM));
     }
 
     @Test

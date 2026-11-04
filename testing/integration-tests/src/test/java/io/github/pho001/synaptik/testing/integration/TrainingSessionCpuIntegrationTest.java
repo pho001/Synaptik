@@ -312,27 +312,6 @@ final class TrainingSessionCpuIntegrationTest {
         }
     }
 
-    @Test
-    void metalOnlyUnsupportedOperationIsClassifiedBeforeMutation() {
-        Path library = configuredMetalLibrary();
-        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
-            builder.takeOwnership(MetalBackendIntegration.open(
-                    new MetalBackendConfiguration(library)));
-            try (Engine engine = builder.build()) {
-                ScalarModule module = new ScalarModule(vectorOne(arena, 2.0f, true));
-                Tensor input = vectorOne(arena, 3.0f, false);
-                Tensor objective = module.value().value().neg().add(input).sum();
-
-                IllegalStateException unsupported = assertThrows(
-                        IllegalStateException.class,
-                        () -> TrainingSession.open(engine, module.trainingParameters(), objective, new Sgd(0.1d)));
-
-                assertTrue(unsupported.getMessage().contains(
-                        "no hard-eligible backend is available for ownership selection"));
-                assertEquals(2.0f, parameterValue(module), 0.0f);
-            }
-        }
-    }
 
     private static void assertLowPrecisionTrainingLifecycle(DataType dataType) {
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {

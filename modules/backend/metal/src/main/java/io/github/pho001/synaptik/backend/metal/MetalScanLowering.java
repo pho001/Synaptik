@@ -183,6 +183,10 @@ final class MetalScanLowering {
         for (var node : graph.nodes()) {
             var operands = node.inputs().stream().map(id -> projected.get(id).descriptor()).toList();
             var declared = node.outputs().stream().map(id -> projected.get(id).descriptor()).toList();
+            if (java.util.stream.Stream.concat(operands.stream(), declared.stream())
+                    .anyMatch(value -> value.dataType() == DataType.FLOAT64)) {
+                throw invalid("FLOAT64 Scan storage is source-only; no ordinary F64 body instruction");
+            }
             var inferred = ScanBody.describeOrdinary(node.operation(), operands, declared.size(), Optional.empty());
             for (int port = 0; port < declared.size(); port++) {
                 var expected = inferred.get(port); var actual = declared.get(port);
@@ -324,8 +328,10 @@ final class MetalScanLowering {
     private static void checkTypeShape(TensorDescriptor descriptor) {
         if (!descriptor.shape().isFullyStatic() || descriptor.shape().rank() > 16
                 || (!numericCarrier(descriptor.dataType()) && descriptor.dataType() != DataType.BOOL
-                        && descriptor.dataType() != DataType.INT32 && descriptor.dataType() != DataType.INT64)) {
-            throw invalid("static F32/BF16/F16/typed-control domain");
+                        && descriptor.dataType() != DataType.INT32 && descriptor.dataType() != DataType.INT64
+                        && descriptor.dataType() != DataType.FLOAT64)
+                || descriptor.dataType() == DataType.FLOAT64 && descriptor.requiresGrad()) {
+            throw invalid("static numeric/typed-control or non-gradient raw F64 domain");
         }
         long elements = 1;
         for (var dimension : descriptor.shape().dimensions()) elements = Math.multiplyExact(elements, dimension.staticSize().orElseThrow());
@@ -338,11 +344,14 @@ final class MetalScanLowering {
 
     /**
      * Checks logical input geometry without mistaking a produced view for represented storage.
-     * Prepare and the raw outer validator independently require its authenticated dense physical
-     * representation before the binder may use direct offsets.
+     * Authenticated external numeric layouts are mapped once by the ordinary CONTIGUOUS owner;
+     * produced views retain their independently proved canonical representation.
      */
     private static void checkInputBoundary(TensorDescriptor descriptor) {
         checkTypeShape(descriptor);
+        if (descriptor.dataType() == DataType.FLOAT64 && !canonical(descriptor)) {
+            throw invalid("raw F64 Scan input requires canonical storage");
+        }
         var physical = MetalMpsGraphProgram.ValueDescriptor.from(descriptor);
         boolean emptyView = physical.elementCount() == 0 && descriptor.layout()
                 .filter(layout -> layout.isView()

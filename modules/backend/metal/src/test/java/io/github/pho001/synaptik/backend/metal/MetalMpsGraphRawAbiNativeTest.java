@@ -1114,7 +1114,7 @@ class MetalMpsGraphRawAbiNativeTest {
                                 DataType.FLOAT32, new long[] {4}, true),
                         new MetalMpsGraphProgram.ValueDescriptor(
                                 DataType.FLOAT32, new long[] {4}, true));
-                MetalPreparedRoute route = MetalPointwiseFusionPlanner.fixedCustom(node, grad)
+                MetalPreparedRoute route = MetalPointwiseFusionPlanner.fixedCustom(node, grad, new int[] {0})
                         ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
                 MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         grad,
@@ -1441,20 +1441,26 @@ class MetalMpsGraphRawAbiNativeTest {
                             + 16, 7)); // MATMUL output must remain canonical
                     byte[] offset = rewriteInt(valid, input + 20, 2);
                     offset = rewriteLong(offset, input + 24, 1L);
-                    malformed.add(rewriteLong(offset, input + 32, 7L));
+                    var affineFeeds = new ArrayList<byte[]>();
+                    affineFeeds.add(rewriteLong(offset, input + 32, 7L));
                     byte[] holes = rewriteInt(valid, input + 20, 3);
                     holes = rewriteLong(holes, strides, 4L);
-                    malformed.add(rewriteLong(holes, input + 32, 7L));
+                    affineFeeds.add(rewriteLong(holes, input + 32, 7L));
                     byte[] overlap = rewriteInt(valid, input + 20, 3);
                     overlap = rewriteLong(overlap, strides, 1L);
                     malformed.add(rewriteLong(overlap, input + 32, 4L));
-                    byte[] broadcast = rewriteInt(valid, input + 16, 6);
+                    byte[] broadcast = rewriteInt(valid, input + 16, (readInt(valid, input + 16) & 1) | 6);
                     broadcast = rewriteInt(broadcast, input + 20, 4);
                     broadcast = rewriteLong(broadcast, strides, 0L);
-                    malformed.add(rewriteLong(broadcast, input + 32, 3L));
+                    affineFeeds.add(rewriteLong(broadcast, input + 32, 3L));
                     byte[] unrelatedTranspose = rewriteInt(valid, input + 20, 3);
                     unrelatedTranspose = rewriteLong(unrelatedTranspose, strides, 1L);
-                    malformed.add(rewriteLong(unrelatedTranspose, strides + Long.BYTES, 2L));
+                    affineFeeds.add(rewriteLong(unrelatedTranspose, strides + Long.BYTES, 2L));
+                    for (byte[] image : affineFeeds) {
+                        // Truthful external geometry is now valid, but not a packed direct feed.
+                        assertEquals(type == DataType.FLOAT32 ? 13 : 0,
+                                abi.create(image, image.length), type + " external affine feed");
+                    }
                     for (byte[] image : malformed) abi.assertRejectedBeforeTargetWrites(image);
                 }
 
@@ -1813,8 +1819,8 @@ class MetalMpsGraphRawAbiNativeTest {
                         new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3, 2}, true));
                 byte[] holes = directSelect.encodedProgramImage(
                         selectedValues, new int[] {0, 3}, new int[] {4}, MetalPreparedRoute.CUSTOM_PROGRAM);
-                // Logical SELECT [4,1] does not authorize represented operand holes [8,1].
-                abi.assertRejectedBeforeTargetWrites(holes);
+                // This is a valid affine read, not forged dense physical metadata.
+                assertEquals(0, abi.create(holes, holes.length), type + " represented SELECT holes");
             }
         }
     }
@@ -3230,7 +3236,7 @@ class MetalMpsGraphRawAbiNativeTest {
                 kind, new int[] {0}, new int[] {1},
                 MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
         var values = List.of(descriptor(4), descriptor(4));
-        var route = MetalPointwiseFusionPlanner.fixedCustom(node, values)
+        var route = MetalPointwiseFusionPlanner.fixedCustom(node, values, new int[] {0})
                 ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
         return new MetalMpsGraphProgram(List.of(node)).encodedProgramImage(
                 values, new int[] {0}, new int[] {1}, route);

@@ -114,9 +114,9 @@ import java.util.Optional;
  * value/mask/state edges. Fixed recurrent and GeneralScan lowering retain every canonical
  * output, activity and workspace role. Wide CONCAT/STACK retain all operand references and
  * share direct final-output copy children in ordinary and controlled execution.
- * MATMUL admits exact dense logical views without changing their view flags. A
- * non-dense affine operand requires the exact earlier local last-two-axis {@code PERMUTE} rooted
- * in an authenticated dense value; materialized affine buffers retain represented addressing.
+ * MATMUL admits authenticated original-carrier physical read layouts. Exact earlier local
+ * last-two-axis {@code PERMUTE} nodes may still elide their copy when rooted in dense storage;
+ * all other operands retain their truthful represented strides and offsets.
  * RESHAPE resolves its state from the actual source/result descriptors: exact inferred views
  * retain AFFINE_VIEW, while noncontiguous-source canonical results use CANONICAL and a distinct
  * ordinary destination. The source's logical provenance and represented storage remain separate.
@@ -221,7 +221,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     state = feedState(inputValue.descriptor());
                     if (state == MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
                         throw new IllegalArgumentException(
-                                "Metal graph feeds require resolved positive non-overlapping"
+                                "Metal graph feeds require authenticated resolved read"
                                         + " storage geometry: " + inputId);
                     }
                     states.put(inputId, state);
@@ -286,18 +286,21 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     : lower(node.operation(), inputIndices, outputIndices, inputDescriptors, outputDescriptors);
             if (lowered.kind() == MetalMpsGraphProgram.NodeKind.MATMUL) {
                 for (int inputIndex = 0; inputIndex < inputStates.size(); inputIndex++) {
-                    if (!MetalCapabilityProvider.matmulDenseInput(
-                            inputDescriptors.get(inputIndex),
-                            physicalLayouts.get(node.inputs().get(inputIndex)))) {
+                    if (!MetalMpsGraphProgram.ValueDescriptor.from(inputDescriptors.get(inputIndex))
+                            .supportsStorageLayout(
+                                    physicalLayouts.get(node.inputs().get(inputIndex)), 1)) {
                         throw new IllegalArgumentException(
-                                "Metal MATMUL represented input storage must be exact dense");
+                                "Metal MATMUL represented input storage is not a supported read layout");
                     }
-                    if (!MetalCapabilityProvider.matmulDenseInput(
-                                    inputDescriptors.get(inputIndex))
-                            && !Boolean.TRUE.equals(
-                                    localTranspose.get(node.inputs().get(inputIndex)))) {
+                    var input = inputDescriptors.get(inputIndex);
+                    if ((input.dataType() == DataType.INT32 || input.dataType() == DataType.INT64)
+                            && (!MetalCapabilityProvider.matmulDenseInput(
+                                    input, physicalLayouts.get(node.inputs().get(inputIndex)))
+                                    || !MetalCapabilityProvider.matmulDenseInput(input)
+                                            && !Boolean.TRUE.equals(localTranspose.get(
+                                                    node.inputs().get(inputIndex))))) {
                         throw new IllegalArgumentException(
-                                "Metal MATMUL affine input is not an authenticated local transpose");
+                                "Metal integral MATMUL requires dense storage or authenticated local transpose");
                     }
                 }
             }
@@ -446,7 +449,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         boolean containsCustomProgram = containsLowPrecision
                 || graphProgram.nodes().stream()
                         .anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(
-                                node, programValueDescriptors));
+                                node, programValueDescriptors, feedIndices));
         long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
         MetalPreparedRoute route = containsCustomProgram || containsAnchorEpilogue
                 ? MetalPreparedRoute.CUSTOM_PROGRAM

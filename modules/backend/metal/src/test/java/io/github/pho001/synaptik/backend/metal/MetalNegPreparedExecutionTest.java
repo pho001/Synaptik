@@ -1915,8 +1915,18 @@ class MetalNegPreparedExecutionTest {
             MetalNativeApi.ProgramExecutableAbi.validateCreate(
                     plan.programValueDescriptors(), plan.graphProgram(), plan.feedValueIndices(),
                     plan.targetValueIndices(), plan.route(), plan.pointwiseFusionPlan());
-            assertThrows(IllegalArgumentException.class,
-                    () -> analyze(extractedMatmulFixture(false), context));
+            Fixture direct = extractedMatmulFixture(false);
+            MetalNegPreparationPlan directPlan = analyze(direct, context).plan();
+            int directSelected = directPlan.valueIds().indexOf(direct.v2());
+            assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, directPlan.route());
+            assertArrayEquals(new long[] {8, 1},
+                    directPlan.physicalLayouts().get(directSelected).strides());
+            assertEquals(20L,
+                    directPlan.physicalLayouts().get(directSelected).referencedElementSpan());
+            MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                    directPlan.programValueDescriptors(), directPlan.graphProgram(),
+                    directPlan.feedValueIndices(), directPlan.targetValueIndices(),
+                    directPlan.route(), directPlan.pointwiseFusionPlan());
         }
     }
 

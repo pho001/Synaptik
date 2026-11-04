@@ -25,6 +25,55 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class MetalRemainingElementwiseNativeTest {
+    @Test
+    void negAndElementarySqrtConsumeExternalAffineAndPermutedLogicalCoordinates() {
+        Path library = configuredLibrary();
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (boolean gradient : List.of(false, true)) {
+                var sourceShape = io.github.pho001.synaptik.model.shape.Shape.of(2, 3);
+                var targetShape = io.github.pho001.synaptik.model.shape.Shape.of(3, 2);
+                var source = new MetalMpsGraphProgram.ValueDescriptor(type, sourceShape.toLongArray(),
+                        java.util.Optional.of(io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(
+                                sourceShape, new long[] {8, 2}, 1, true)), gradient, false);
+                var permuted = new MetalMpsGraphProgram.ValueDescriptor(type, targetShape.toLongArray(),
+                        java.util.Optional.of(io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(
+                                targetShape, new long[] {2, 8}, 1, true)), gradient, true);
+                var values = List.of(source, permuted,
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 3}, gradient),
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 3}, gradient),
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3, 2}, gradient),
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3, 2}, gradient));
+                var program = new MetalMpsGraphProgram(List.of(
+                        MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0)),
+                        unary(MetalMpsGraphProgram.NodeKind.NEG, 0, 2),
+                        unary(MetalMpsGraphProgram.NodeKind.SQRT, 0, 3),
+                        unary(MetalMpsGraphProgram.NodeKind.NEG, 1, 4),
+                        unary(MetalMpsGraphProgram.NodeKind.SQRT, 1, 5)));
+                var actual = executeCustomBytes(library, program, values,
+                        new int[] {0}, new int[] {2, 3, 4, 5}, List.of(numericWords(type,
+                                90, 0, 91, 1, 92, 4, 93, 94, 95, 9, 96, 16, 97, 25)));
+                assertArrayEquals(numericWords(type, -0.0f, -1, -4, -9, -16, -25), actual.get(0));
+                assertArrayEquals(numericWords(type, 0, 1, 2, 3, 4, 5), actual.get(1));
+                assertArrayEquals(numericWords(type, -0.0f, -9, -1, -16, -4, -25), actual.get(2));
+                assertArrayEquals(numericWords(type, 0, 3, 1, 4, 2, 5), actual.get(3));
+            }
+        }
+    }
+
+    @Test
+    void ordinaryEmptyNegPublishesEmptyForEveryNumericCarrierAndGradientState() {
+        Path library = configuredLibrary();
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (boolean gradient : List.of(false, true)) {
+                var value = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 0, 3}, gradient);
+                var actual = executeCustomBytes(library,
+                        new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.neg(0, 1))),
+                        List.of(value, value), new int[] {0}, new int[] {1}, List.of(new byte[0]));
+                assertArrayEquals(new byte[0], actual.getFirst(), type + "/" + gradient);
+            }
+        }
+    }
+
     private static final int[] INPUT = {
         0x00000000, 0x80000000,
         0x00000001, 0x80000001,
@@ -2006,7 +2055,7 @@ class MetalRemainingElementwiseNativeTest {
                 var program = new MetalMpsGraphProgram(List.of(node));
                 int[] feeds = java.util.stream.IntStream.range(0, feedWords.size()).toArray();
                 int target = values.size() - 1;
-                MetalPreparedRoute route = MetalPointwiseFusionPlanner.fixedCustom(node, values)
+                MetalPreparedRoute route = MetalPointwiseFusionPlanner.fixedCustom(node, values, feeds)
                         ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
                 executable = api.createProgramExecutable(context, values, program, feeds, new int[] {target}, route);
                 for (int[] words : feedWords) {

@@ -66,11 +66,10 @@ static BOOL synaptik_attention_layout(
     uint64_t dimensions[16] = {0};
     for (uint32_t axis = 0U; axis < rank; ++axis) dimensions[axis] = shape[axis].unsignedLongLongValue;
     uint64_t referencedSpan = span + 1U;
-    uint8_t present = 1U;
     // Raw descriptor view authorization is checked by the authenticated decoder;
     // this compact physical seam independently proves the addressed base layout.
     return synaptik_storage_layout_supported(0U, &rank, dimensions, physical,
-            offset, &referencedSpan, &present, &present, 0U);
+            offset, &referencedSpan, YES, YES, 0U);
 }
 
 static BOOL synaptik_attention_numeric(uint32_t type) {

@@ -334,8 +334,8 @@ final class MetalMpsGraphProgram {
                     || wireIdentity >= 65 && wireIdentity <= 68;
         }
 
-        /** PointMeta has no strides; logical views require independently proved dense storage. */
-        boolean requiresDenseNumericInput() {
+        /** Shared numeric unary family, with affine DataMeta reads on original carriers. */
+        boolean isNumericUnary() {
             return switch (this) {
                 case NEG, ABS, RECIPROCAL, EXP, SIGMOID, LOG, LOG1P, EXPM1, ERF,
                         SQRT, RSQRT, FLOOR, CEIL, SIGN, RELU, TANH, GELU,
@@ -401,20 +401,17 @@ final class MetalMpsGraphProgram {
         boolean accepts(ValueState inputState, ValueDescriptor descriptor) {
             boolean physicalRead = inputState == ValueState.AFFINE_VIEW
                     || inputState == ValueState.MATERIALIZED_LAYOUT;
-            boolean extension = isFloat32Reduction() || isNumericElementary()
+            boolean extension = isFloat32Reduction() || isNumericElementary() || isNumericUnary()
                     || wireIdentity == 35 || wireIdentity >= 86 && wireIdentity <= 93
-                    || this == NEG || this == ABS
                     || wireIdentity >= 26 && wireIdentity <= 32
-                    || wireIdentity >= 60 && wireIdentity <= 63
                     || this == ADD || this == SUB || this == MUL
                     || this == DIV
                     || this == SCALAR_ADD || this == SCALAR_SUB
-                    || this == SCALAR_MUL || this == SCALAR_DIV;
-            return accepts(inputState)
-                    || physicalRead && extension
-                    || this == MATMUL
-                            && inputState == ValueState.MATERIALIZED_LAYOUT
-                            && descriptor.matmulDense();
+                    || this == SCALAR_MUL || this == SCALAR_DIV
+                    || wireIdentity >= 20 && wireIdentity <= 25
+                    || this == MATMUL && descriptor.supportsStorageLayout(1)
+                    || this == GENERAL_SCAN && MetalScanDecoding.mappedInput(descriptor);
+            return accepts(inputState) || physicalRead && extension;
         }
 
         boolean acceptsCardinality(int inputs, int outputs) {
@@ -532,11 +529,12 @@ final class MetalMpsGraphProgram {
             return resolved.referencedElementSpan() == expected;
         }
         boolean supportsStorageLayout(int minimumRank) {
-            if (rank() < minimumRank || layout.isEmpty()) return false;
-            // Only operation-specific composite validators grant empty-domain execution.
+            return layout.isPresent() && supportsStorageLayout(layout.orElseThrow(), minimumRank);
+        }
+        boolean supportsStorageLayout(LayoutDescriptor resolved, int minimumRank) {
+            if (rank() < minimumRank || resolved == null || resolved.rank() != rank()) return false;
             if (elementCount() == 0L)
-                return layout.orElseThrow().equals(LayoutDescriptor.contiguous(Shape.of(dimensions)));
-            LayoutDescriptor resolved = layout.orElseThrow();
+                return resolved.equals(LayoutDescriptor.contiguous(Shape.of(dimensions)));
             long[] strides = resolved.strides();
             int[] order = new int[rank()];
             int count = 0;
@@ -794,7 +792,7 @@ final class MetalMpsGraphProgram {
                     requireWords(1);
                     requireAxis(attributeWords[0]);
                 }
-                case REDUCTION -> validateReduction(scanBody);
+                case REDUCTION -> validateReduction();
                 case DEPTH -> {
                     requireWords(1);
                     if (attributeWords[0] <= 0L) throw malformed();
@@ -895,7 +893,7 @@ final class MetalMpsGraphProgram {
                 case TOP_K -> {
                     requireWords(4);
                     requireAxis(attributeWords[0]);
-                    if (attributeWords[1] <= 0L) throw malformed();
+                    if (attributeWords[1] < 0L) throw malformed();
                     requireBoolean(attributeWords[2]);
                     requireBoolean(attributeWords[3]);
                 }
@@ -1061,7 +1059,7 @@ final class MetalMpsGraphProgram {
             }
             if (attributeWords[dimensions * 3] <= 0L) throw malformed();
         }
-        private void validateReduction(boolean scanBody) {
+        private void validateReduction() {
             if (attributeWords.length < 3
                     || attributeWords[0] < 1L || attributeWords[0] > 4L) throw malformed();
             ReductionForm form = ReductionForm.fromWireIdentity((int) attributeWords[0]);
@@ -1079,7 +1077,7 @@ final class MetalMpsGraphProgram {
                 case MULTI_AXIS -> validateAxes(items, MAX_RANK, false);
                 case SUM_TO_SHAPE -> {
                     if (kind != NodeKind.SUM || attributeWords[1] != 0L) throw malformed();
-                    for (long dimension : items) if (dimension < (scanBody ? 0L : 1L)) throw malformed();
+                    for (long dimension : items) if (dimension < 0L) throw malformed();
                 }
             }
         }

@@ -121,6 +121,10 @@ final class MetalScanDecoding {
             var attributeKind = attributeKind(w[cursor + 2]);
             int[] operandIds = indices(w, cursor + 14L, inputs, values.size()).stream().mapToInt(Integer::intValue).toArray();
             int[] outputIds = indices(w, cursor + 14L + inputs, outputs, values.size()).stream().mapToInt(Integer::intValue).toArray();
+            for (int operand : operandIds)
+                if (values.get(operand).descriptor().dataType() == DataType.FLOAT64) throw malformed();
+            for (int output : outputIds)
+                if (values.get(output).descriptor().dataType() == DataType.FLOAT64) throw malformed();
             for (int operand : operandIds) if (!available.contains(operand)) throw malformed();
             for (int output : outputIds) if (!available.add(output) || values.get(output).byteOffset() < 0) throw malformed();
             var node = MetalMpsGraphProgram.Node.genericForScanBody(kind, operandIds, outputIds, attributeKind,
@@ -288,7 +292,8 @@ final class MetalScanDecoding {
             long[] expected = formal.shape().toLongArray();
             if (f >= w[5] && f < w[5] + w[6]) expected = prepend(w[3], expected);
             if (actual.dataType() != formal.dataType() || actual.requiresGrad() != formal.requiresGrad()
-                    || !Arrays.equals(actual.dimensions(), expected) || !denseInput(actual)) throw malformed();
+                    || !Arrays.equals(actual.dimensions(), expected)
+                    || !denseInput(actual) && !mappedInput(actual)) throw malformed();
             gradient |= actual.requiresGrad();
             if ((w[4] & 2) != 0) for (int earlier = 0; earlier < f; earlier++) if (inputs[earlier] == inputs[f]) {
                 int axis = d.values().get(d.formals().get(f)).rowAxis();
@@ -321,6 +326,19 @@ final class MetalScanDecoding {
         return canonical(d) || d.densePhysical() && d.layout().isPresent();
     }
 
+    /**
+     * External numeric layouts use the ordinary mapped CONTIGUOUS owner before dense binding.
+     * Produced dense representations are never walked again using their logical view strides.
+     * Typed controls, including lengths, retain the existing dense-only ingress contract.
+     */
+    static boolean mappedInput(MetalMpsGraphProgram.ValueDescriptor d) {
+        if (!MetalScanLowering.numericCarrier(d.dataType()) || d.densePhysical()
+                || canonical(d) || d.layout().isEmpty()) return false;
+        return d.supportsStorageLayout(0) || d.elementCount() == 0 && d.layout()
+                .filter(layout -> layout.isView()
+                        && Arrays.stream(layout.strides()).allMatch(stride -> stride >= 0)).isPresent();
+    }
+
     private static boolean canonical(MetalMpsGraphProgram.ValueDescriptor d) { return d.layout().filter(l -> l.equals(LayoutDescriptor.contiguous(Shape.of(d.dimensions())))).isPresent() && !d.densePhysical(); }
     private static boolean sameValueShapeType(MetalScanPlan.Value a, MetalScanPlan.Value b) { return a.descriptor().dataType() == b.descriptor().dataType() && a.descriptor().shape().equals(b.descriptor().shape()); }
     private static List<Integer> indices(long[] w, long offset, long count, int bound) {
@@ -335,6 +353,7 @@ final class MetalScanDecoding {
             case 1 -> DataType.FLOAT32;
             case 2 -> DataType.INT32;
             case 3 -> DataType.BOOL;
+            case 4 -> DataType.FLOAT64;
             case 5 -> DataType.BFLOAT16;
             case 6 -> DataType.INT64;
             case 7 -> DataType.FLOAT16;

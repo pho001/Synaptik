@@ -717,7 +717,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                 MetalMpsGraphProgram.ValueDescriptor descriptor = values.get(feed);
                 if (!descriptor.supportsStorageLayout(0)) {
                     throw new IllegalArgumentException(
-                            "Metal graph feed storage must be positive and non-overlapping");
+                            "Metal graph feed storage must have authenticated resolved read geometry");
                 }
                 states[feed] = descriptor.layout().filter(layout -> layout.equals(
                                 LayoutDescriptor.contiguous(Shape.of(descriptor.dimensions()))))
@@ -735,7 +735,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
             boolean containsCustomOperation = graphProgram.nodes().stream()
-                            .anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(node, values)
+                            .anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(node, values, feeds)
                                     || task0066Selected(node.kind())
                                     || usesCustomMatmul(node, types, valueRanks)
                                     || usesLowPrecisionStorage(node, types))
@@ -765,6 +765,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                                             node, valueRanks, valueDimensions)
                                     || usesCustomMatmul(node, types, valueRanks)
                                     || MetalPointwiseFusionPlanner.float32BinaryRequiresPhysicalLayout(node, values)
+                                    || MetalPointwiseFusionPlanner.numericPhysicalRequiresCustom(node, values, feeds)
                                     || usesLowPrecisionStorage(node, types))) {
                 throw new IllegalArgumentException(
                         "custom-only operations have no approved direct MPSGraph route");
@@ -800,14 +801,17 @@ abstract class MetalNativeApi implements AutoCloseable {
                     }
                     if (node.kind() == MetalMpsGraphProgram.NodeKind.GENERAL_SCAN
                             && !LayoutDescriptor.contiguous(Shape.of(values.get(input).dimensions()))
-                                    .equals(physicalLayouts[input])) {
+                                    .equals(physicalLayouts[input])
+                            && !(MetalScanDecoding.mappedInput(values.get(input))
+                                    && values.get(input).supportsStorageLayout(
+                                            physicalLayouts[input], 0))) {
                         throw new IllegalArgumentException(
-                                "Metal Scan requires authenticated dense represented input storage");
+                                "Metal Scan requires authenticated dense or mapped numeric input storage");
                     }
-                    if (numericFloating(types[input]) && node.kind().requiresDenseNumericInput()
-                            && !values.get(input).denseStorage(physicalLayouts[input])) {
+                    if (numericFloating(types[input]) && node.kind().isNumericUnary()
+                            && !values.get(input).supportsStorageLayout(physicalLayouts[input], 0)) {
                         throw new IllegalArgumentException(
-                                "point kernels require authenticated dense represented input storage");
+                                "numeric unary input requires authenticated represented read storage");
                     }
                     used[input] = true;
                 }
@@ -978,11 +982,11 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     && (types[left] == ValueType.FLOAT32
                                             || route == MetalPreparedRoute.CUSTOM_PROGRAM)
                                     && sameShape(left, output, valueRanks, valueDimensions)
-                                    && canonicalExpValue(values.get(left))
+                                    && values.get(left).supportsStorageLayout(0)
                                     && canonicalExpValue(values.get(output))
                                     && values.get(left).requiresGrad() == values.get(output).requiresGrad()
                                     && values.get(left).byteCount() <= UINT32_MAX,
-                            node.kind() + " requires canonical same-type values with matching gradient metadata");
+                            node.kind() + " requires physical same-type reads and canonical output with matching gradient metadata");
                     case FLOOR, CEIL, SIGN ->
                             requireShape(
                                     (numericFloating(types[left])
@@ -1135,13 +1139,14 @@ abstract class MetalNativeApi implements AutoCloseable {
                         requireIndex(right, valueCount, "second node input");
                         if (valueRanks[left] == 0 || valueRanks[right] == 0
                                 || !node.kind().accepts(states[right], values.get(right))
-                                || !values.get(left).matmulDense(physicalLayouts[left])
-                                || !values.get(right).matmulDense(physicalLayouts[right])
-                                || !values.get(left).matmulDense() && !localTranspose[left]
-                                || !values.get(right).matmulDense() && !localTranspose[right]) {
+                                || !values.get(left).supportsStorageLayout(physicalLayouts[left], 1)
+                                || !values.get(right).supportsStorageLayout(physicalLayouts[right], 1)
+                                || !numericFloating(types[left])
+                                        && ((!values.get(left).matmulDense() && !localTranspose[left])
+                                                || (!values.get(right).matmulDense()
+                                                        && !localTranspose[right]))) {
                             throw new IllegalArgumentException(
-                                    "Metal MATMUL inputs require exact dense storage or"
-                                            + " authenticated local last-two-axis transposes");
+                                    "Metal MATMUL inputs require authenticated represented read storage");
                         }
                         requireShape(
                                 !values.get(output).densePhysical()
@@ -1152,7 +1157,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 "MATMUL output must be canonical");
                         requireShape(
                                 matmulMatches(left, right, output, valueRanks, valueDimensions),
-                                "MATMUL shapes must be exact positive static contraction");
+                                "MATMUL shapes must be an exact static contraction");
                         used[right] = true;
                     }
                     case GATHER -> {
@@ -1902,7 +1907,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int[] outputs = node.outputs();
                 long[] input = values.get(inputIndex).dimensions();
                 long[] words = node.attributeWords();
-                if (!task0063Uint32Bounded(input, false, scanBody)) return false;
+                boolean zeroK = node.kind() == MetalMpsGraphProgram.NodeKind.TOP_K
+                        && words.length == 4 && words[1] == 0L;
+                if (!task0063Uint32Bounded(input, false, scanBody || zeroK)) return false;
                 return switch (node.kind()) {
                     case SORT, ARGSORT -> outputs.length == 1
                             && words.length == 2
@@ -1916,7 +1923,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                         if (outputs.length != 2
                                 || words.length != 4
                                 || words[0] < 0L || words[0] >= input.length
-                                || words[1] < 1L || words[1] > UINT32_MAX
+                                || words[1] < 0L || words[1] > UINT32_MAX
                                 || words[1] > input[Math.toIntExact(words[0])]
                                 || words[2] < 0L || words[2] > 1L
                                 || words[3] < 0L || words[3] > 1L) {
@@ -1925,9 +1932,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                         long[] expected = input.clone();
                         expected[Math.toIntExact(words[0])] = words[1];
                         yield task0063Uint32Bounded(
-                                        values.get(outputs[0]).dimensions(), false, scanBody)
+                                        values.get(outputs[0]).dimensions(), false, scanBody || zeroK)
                                 && task0063Uint32Bounded(
-                                        values.get(outputs[1]).dimensions(), false, scanBody)
+                                        values.get(outputs[1]).dimensions(), false, scanBody || zeroK)
                                 && Arrays.equals(
                                         expected, values.get(outputs[0]).dimensions())
                                 && Arrays.equals(

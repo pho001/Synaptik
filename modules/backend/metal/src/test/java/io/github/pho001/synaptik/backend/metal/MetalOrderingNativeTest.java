@@ -17,6 +17,28 @@ import org.junit.jupiter.api.Test;
 
 class MetalOrderingNativeTest {
     @Test
+    void topKZeroPublishesBothEmptyOutputsForEmptyAndNonemptyInputsAcrossReuse() {
+        for (DataType type : DataType.values()) {
+            for (int extent : new int[] {0, 6}) {
+                for (boolean largest : List.of(false, true)) {
+                    for (boolean sorted : List.of(false, true)) {
+                        var program = new MetalMpsGraphProgram(List.of(node(
+                                MetalMpsGraphProgram.NodeKind.TOP_K, new int[] {0}, new int[] {1, 2},
+                                MetalMpsGraphProgram.AttributeKind.TOP_K, 0, 0,
+                                largest ? 1 : 0, sorted ? 1 : 0)));
+                        var actual = execute(program, List.of(typed(type, extent), typed(type, 0),
+                                typed(DataType.INT64, 0)), new int[] {0}, new int[] {1, 2},
+                                extent == 0 ? new byte[0] : carrierCase(type).input());
+                        assertEquals(2, actual.size());
+                        assertArrayEquals(new byte[0], actual.get(0), type + " values");
+                        assertArrayEquals(new byte[0], actual.get(1), type + " indices");
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void exactFloatOrderingTopKAndArgExtremaPublishEveryOutputAcrossReuse() {
         var program = new MetalMpsGraphProgram(List.of(
                 node(MetalMpsGraphProgram.NodeKind.SORT, new int[] {0}, new int[] {1},

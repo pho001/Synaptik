@@ -290,7 +290,7 @@ final class MetalFloat32MathNativeTest {
             try {
                 var program = new MetalMpsGraphProgram(nodes);
                 int[] targets = {target};
-                var route = nodes.stream().anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(node, values))
+                var route = nodes.stream().anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(node, values, feeds))
                         ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
                 var fusion = route == MetalPreparedRoute.CUSTOM_PROGRAM
                         ? MetalPointwiseFusionPlanner.plan(program, values, feeds, targets, route) : null;

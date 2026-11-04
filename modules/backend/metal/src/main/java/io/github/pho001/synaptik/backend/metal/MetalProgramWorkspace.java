@@ -41,7 +41,15 @@ final class MetalProgramWorkspace {
             long[] words = node.attributeWords();
             if (words.length < 32 || words[22] < 0L)
                 throw new IllegalArgumentException("Scan workspace header is malformed");
-            return words[22];
+            long bytes = words[22];
+            for (int input : node.inputs()) {
+                var descriptor = values.get(input);
+                if (!MetalScanDecoding.mappedInput(descriptor)) continue;
+                long ingressBytes = Math.multiplyExact(descriptor.elementCount(), descriptor.dataType().byteWidth());
+                if (ingressBytes != 0L)
+                    bytes = Math.addExact(Math.addExact(bytes, 7L) & ~7L, ingressBytes);
+            }
+            return bytes;
         }
         return 0L;
     }

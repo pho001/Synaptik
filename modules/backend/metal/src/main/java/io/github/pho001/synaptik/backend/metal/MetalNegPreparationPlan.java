@@ -298,7 +298,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                 || containsLowPrecision
                 || this.graphProgram.nodes().stream()
                         .anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(
-                                node, this.programValueDescriptors));
+                                node, this.programValueDescriptors, this.feedValueIndices));
         boolean containsCustomOnlyOperation = containsAnchorEpilogue
                 || containsLowPrecision
                 || this.graphProgram.nodes().stream()

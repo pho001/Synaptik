@@ -106,10 +106,10 @@ final class MetalReductionSupport {
     /**
      * Validates an authenticated Scan-local reduction without projecting empty axes to one.
      *
-     * <p>Canonical empty F32/BF16/F16 local values use the empty-layout exception. Every axis,
-     * shape, mask and correction check remains identical to ordinary validation. Empty SUM/norms
-     * produce positive zero, PROD one, MEAN NaN, LSE negative infinity and extrema their signed
-     * infinity identities; a zero statistical count still violates the required denominator.
+     * <p>Canonical empty F32/BF16/F16 local values use the empty-layout exception, also shared
+     * by ordinary numerical SUM. Every axis, shape, mask and correction check remains identical.
+     * Empty SUM/norms produce positive zero, PROD one, MEAN NaN, LSE negative infinity and extrema
+     * their signed infinity identities; a zero statistical count still violates the denominator.
      *
      * @param node Scan-body reduction with range-checked references
      * @param values complete Scan-local descriptor table with real resolved dimensions
@@ -125,7 +125,7 @@ final class MetalReductionSupport {
      *
      * @param node encoded reduction with checked references
      * @param values actual descriptor table
-     * @param scanLocal whether canonical empty local numeric reductions are authorized
+     * @param scanLocal whether canonical empty numeric reductions beyond SUM are authorized
      * @throws IllegalArgumentException if the encoded operation is not valid in the selected domain
      */
     private static void validate(MetalMpsGraphProgram.Node node,
@@ -133,7 +133,8 @@ final class MetalReductionSupport {
         if (!handles(node, values) || node.outputs().length != 1) throw invalid();
         var input = values.get(node.firstInputIndex()); var output = values.get(node.outputIndex());
         DataType type = input.dataType(); long[] source = input.dimensions(), target = output.dimensions();
-        boolean allowEmpty = scanLocal && numeric(type);
+        boolean allowEmpty = numeric(type)
+                && (scanLocal || node.kind() == MetalMpsGraphProgram.NodeKind.SUM);
         boolean masked = node.attributeKind() == MetalMpsGraphProgram.AttributeKind.MASKED_REDUCTION;
         if (node.inputs().length != (masked ? 2 : 1) || output.dataType() != type
                 || input.requiresGrad() != output.requiresGrad()
@@ -199,10 +200,10 @@ final class MetalReductionSupport {
      * Reuses the common broadcast-aware stored-read proof without allocating a second descriptor.
      *
      * <p>Nonbroadcast axes must be injective and zero strides require a truthful view descriptor.
-     * Canonical empty values are admitted only by the explicit Scan-local caller flag.
+     * Canonical empty values are admitted only for ordinary numeric SUM or a Scan-local caller.
      *
      * @param value encoded descriptor whose original carrier and layout remain authoritative
-     * @param allowEmpty whether this caller has established the Scan-local empty exception
+     * @param allowEmpty whether the operation owner has established its empty-domain exception
      * @return whether the common physical proof and existing custom byte bound both hold
      * @throws ArithmeticException if a descriptor byte extent overflows
      */

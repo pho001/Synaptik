@@ -46,9 +46,8 @@ static BOOL synaptik_nl_storage_supported(MPSShape *shape,
     uint64_t dimensions[16] = {0};
     for (uint32_t axis = 0U; axis < rank; axis++)
         dimensions[axis] = shape[axis].unsignedLongLongValue;
-    uint8_t present = 1U, isView = state == 2U || state == 3U;
     return synaptik_storage_layout_supported(0U, &rank, dimensions, view->strides,
-            &view->offset, &span, &present, &isView, 0U);
+            &view->offset, &span, YES, state == 2U || state == 3U, 0U);
 }
 
 static BOOL synaptik_nl_layout(MPSShape *shape, uint32_t value, uint8_t type,

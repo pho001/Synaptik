@@ -83,6 +83,68 @@ class MetalGeneralScanNativeTest {
             }
     }
 
+    @Test void stridedOffsetExternalNumericIngressMapsTimeAndRowsBeforeDenseScanBinding() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
+                var query = MetalScanPlanTest.stridedAdditiveQuery(type, lengths, reverse);
+                try (var run = new RawScan(query, null)) {
+                    run.bytes(0, numeric(type, Float.NaN, 0, Float.NaN, -0.0f));
+                    run.bytes(1, numeric(type, Float.NaN, 1, Float.NaN, 10, Float.NaN,
+                            Float.NaN, 2, Float.NaN, lengths ? Float.NaN : 20, Float.NaN,
+                            Float.NaN, 3, Float.NaN, lengths ? Float.NaN : 30));
+                    run.poisonOutputs(0x5a5a5a5a);
+                    if (lengths) {
+                        run.longs(2, 3, 4);
+                        assertThrows(MetalNativeApi.NativeFailure.class, run::execute);
+                        for (int output = 0; output < run.outputs.length; output++) {
+                            byte[] sentinel = new byte[run.outputSizes[output]];
+                            Arrays.fill(sentinel, (byte) 0x5a);
+                            assertArrayEquals(sentinel, run.outputBytes(output),
+                                    "invalid lengths must precede mapped ingress and every publication");
+                        }
+                        run.longs(2, 3, 1);
+                    }
+                    float[] carry = {0, -0.0f}, history = new float[6], previous = new float[6];
+                    for (int iteration = 0; iteration < 3; iteration++) {
+                        int time = reverse ? 2 - iteration : iteration;
+                        for (int row = 0; row < 2; row++) if (!lengths || row == 0 || time == 0) {
+                            previous[time * 2 + row] = carry[row];
+                            carry[row] += (time + 1) * (row == 0 ? 1 : 10);
+                            history[time * 2 + row] = carry[row];
+                        }
+                    }
+                    run.execute();
+                    assertEquals(6.0f, carry[0], "audited sequence 1,2,3 ends at six");
+                    assertArrayEquals(numeric(type, carry), run.outputBytes(0));
+                    assertArrayEquals(numeric(type, history), run.outputBytes(1));
+                    assertArrayEquals(numeric(type, previous), run.outputBytes(2));
+                }
+            }
+    }
+
+    @Test void mappedSourceOnlyIngressPreservesRawCarrySequenceAndOffsetInvariantPayloads() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            var original = MetalScanPlanTest.sourceOnlyQuery(type, 2, 2, false, false);
+            var inputs = new ArrayList<>(original.inputs());
+            inputs.set(0, MetalScanPlanTest.mapped(inputs.get(0), new long[] {2, 1}, 1));
+            inputs.set(1, MetalScanPlanTest.mapped(inputs.get(1), new long[] {5, 2, 1}, 1));
+            inputs.set(2, MetalScanPlanTest.mapped(inputs.get(2), new long[0], 1));
+            var query = new OperationCapabilityQuery(original.operation(), inputs, original.outputs(),
+                    original.scanBody(), original.scanActivityPlan());
+            int negativeZero = type == DataType.FLOAT32 ? 0x80000000 : 0x8000;
+            int nan = type == DataType.FLOAT32 ? 0x7fc12345 : type == DataType.BFLOAT16 ? 0x7fc5 : 0x7e45;
+            try (var run = new RawScan(query, null)) {
+                run.bytes(0, rawNumeric(type, 0, negativeZero, 0, nan));
+                run.bytes(1, rawNumeric(type, 0, nan, 0, negativeZero, 0, 0, negativeZero, 0, nan));
+                run.bytes(2, rawNumeric(type, 0, nan));
+                run.execute();
+                assertArrayEquals(rawNumeric(type, negativeZero, nan), run.outputBytes(0));
+                assertArrayEquals(rawNumeric(type, nan, negativeZero, negativeZero, nan), run.outputBytes(1));
+                assertArrayEquals(rawNumeric(type, nan, nan), run.outputBytes(2));
+            }
+        }
+    }
+
     @Test void mixedComparisonBodiesBindOriginalCarrierWidthsAndPublishBoolRows() {
         var types = List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
         for (var left : types) for (var right : types)
@@ -113,6 +175,30 @@ class MetalGeneralScanNativeTest {
                         assertArrayEquals(numeric(type, expected), run.outputBytes(0));
                     }
                 }
+    }
+
+    @Test void sourceOnlyFloat64ScanPreservesRawCarrySequenceAndInvariantWithoutArithmetic() {
+        long negativeZero = 0x8000000000000000L, nan = 0xfff0000000004321L;
+        for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
+            var query = MetalScanPlanTest.sourceOnlyQuery(DataType.FLOAT64, 2, 2, lengths, reverse);
+            try (var run = new RawScan(query, null)) {
+                run.longs(0, negativeZero, nan);
+                run.longs(1, nan, negativeZero, negativeZero, nan);
+                run.longs(2, 1L);
+                if (lengths) run.longs(3, 2, 0);
+                run.poisonOutputs(0x5a5a5a5a); run.execute();
+                assertArrayEquals(longs(negativeZero, nan), run.outputBytes(0));
+                assertArrayEquals(longs(nan, lengths ? 0L : negativeZero,
+                        negativeZero, lengths ? 0L : nan), run.outputBytes(1));
+                assertArrayEquals(longs(1L, 1L), run.outputBytes(2));
+                if (lengths) {
+                    run.longs(3, 0, 0); run.execute();
+                    assertArrayEquals(longs(negativeZero, nan), run.outputBytes(0));
+                    assertArrayEquals(new byte[4 * Long.BYTES], run.outputBytes(1));
+                    assertArrayEquals(new byte[2 * Long.BYTES], run.outputBytes(2));
+                }
+            }
+        }
     }
 
     @Test void sourceOnlyLowBindingsPreserveRawPayloadsAcrossCarryHistoryAndInvariant() {
@@ -686,7 +772,7 @@ class MetalGeneralScanNativeTest {
             try {
                 context = api.createContext(); executable = api.createProgramExecutable(context, descriptors, program, inputs, outputs, MetalPreparedRoute.CUSTOM_PROGRAM);
                 for (var descriptor : descriptors) buffers.add(api.createBuffer(context, Math.max(8, descriptor.byteCount())));
-                buffers.add(api.createBuffer(context, MetalScanLowering.plan(query).workspaceBytes()));
+                buffers.add(api.createBuffer(context, MetalProgramWorkspace.scratchBytes(node, descriptors)));
             } catch (RuntimeException failure) { close(); throw failure; }
         }
         void floats(int ordinal, float... values) { upload(ordinal, MetalGeneralScanNativeTest.floats(values)); }
