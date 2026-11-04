@@ -11,10 +11,20 @@ used by `Engine.standard()` and explicit `Engine.builder()` composition.
 `AdvancedEngine.takeOwnership(...)` accepts one explicitly supplied integration for advanced
 CPU-only composition. The SPI is not the ordinary end-user execution facade.
 
-The [temporary CPU low-arithmetic lock](production-support.md#temporary-java-low-computation-lock)
-is implemented. Later low mathematical descriptions in this guide document retained implementation,
-not current numerical admission. Exact/raw/storage/conversion roles and explicit F32-master work
-remain active; historical low-support counts do not override the current capability ledger.
+The [CPU low-precision parity cutover](production-support.md#temporary-java-low-computation-lock)
+supersedes CPU0078. BFLOAT16, FLOAT16, FLOAT8_E4M3 and FLOAT8_E5M2 reuse ordinary CPU
+execution, Compiler AD, Scan and Training owners under each family's existing geometry guards.
+Historical counts and receipts below qualify their original checkpoint, not the complete cutover.
+
+The earlier seven-carrier, four-floating-type and 49-cast inventories below are historical
+implementation checkpoints. Current ordinary CPU has nine types (six floating), including both
+FP8 byte carriers across the existing low numerical/raw families and all Model-legal casts.
+These additions do not widen Metal transfer, SIMD, OpenBLAS or native geometry domains.
+
+FP8 source persistence selects graph v7 (dtype wire IDs 8/9); old IDs 1–7 and non-FP8
+smallest-sufficient v1–v6 bytes remain unchanged. FP8 NN values select conditional
+model.v2/SYNMOD02, definition SYNDEF02 and whole-model.v2 formats. These source formats
+do not persist a compiled plan, optimizer continuation or new runtime execution policy.
 
 ## Ordinary named-batch CPU execution
 
@@ -61,27 +71,27 @@ stay unresolved and caller-bindable input descriptors remain exact. This complet
 capability: the provider and complete-partition lowering still reject unsupported semantics, data
 types, Shapes, resolved geometry, topology, carriers, and resource requirements.
 
-Historical generator schemas68/71 retain the portable FLOAT16 implementation, raw short storage
-and the operation's FLOAT32 working boundary/final binary16 narrowing. CPU0078 now locks numerical
-BFLOAT16/FLOAT16 operand roles without deleting those implementations, including direct scalar
-low recurrence. It preserves exact represented-value operations, raw movement, borrowing/export,
-initialized literals and casts; no historical F32 substitution rule grants current low compute.
-An explicit low-storage -> F32 cast -> F32 computation path remains supported. Actual repeated
-TrainingSession SGD and snapshot/restore/resume preserve F32 master values and narrow logical
-parameters only at the existing commit boundary. See [CPU0078's evidence](../planning/backends/cpu/tasks/0078-temporary-low-arithmetic-lock.md#result)
-and current v2 independently queried answers; no implicit emulated-low backend or runtime unlock.
+All four low storage types use FLOAT32 working arithmetic and accumulators, then one final
+round-to-nearest, ties-to-even (RNE) narrowing at each ordinary operation result, public output
+or saved boundary. Unlike low operands promote to FLOAT32; FLOAT64 dominates. Exact movement,
+same-type casts, comparison, selection, indices, masks and state retain their original contracts.
+Raw NaN payloads survive movement/selection; arithmetic NaNs need not retain sign/payload.
+Direct FLOAT64/integer casts round directly to the destination, without a lossy FLOAT32 step.
+Training uses FLOAT32 master/optimizer values for low parameters, narrows logical candidates
+at commit, and rejects nonfinite represented candidates transactionally. F32/F64 remain supported;
+this is neither a second executor nor a runtime unlock.
 
 Ordinary static noncontiguous-input RESHAPE now materializes canonical non-view output through
 the existing affine ordinal copy. Genuine contiguous views retain exact offsets and metadata.
 All seven carriers passed public PERMUTE -> RESHAPE logical-order/raw-bit proof; generated-copy
 tests cover changed inputs, offset/gapped source, source preservation and destination canaries.
-This raw movement does not unlock low arithmetic. [CPU0079](../planning/backends/cpu/tasks/0079-materializing-reshape-admission.md#result)
+This raw-movement receipt is historical. [CPU0079](../planning/backends/cpu/tasks/0079-materializing-reshape-admission.md#result)
 records its separate provider, full module/conformance and public consumer evidence.
 
 The separate [current general Scan composition](#current-general-scan-composition) composes every
-ordinary CPU-supported PURE unit and selected actual FLOAT32/FLOAT64 first-order derivatives.
-Historical low substitution grants no current low compute; actual forward/reverse bodies
-independently qualify under ordinary guards.
+ordinary CPU-supported PURE unit and selected actual first-order derivatives, including low
+types under ordinary qualification. Forward and reverse bodies independently satisfy the same
+dtype, geometry, resource and exact-boundary guards.
 
 A CPU-owned partition directed acyclic graph (DAG) has no fixed eight-node partition cap. Its
 compiled nodes must be supported and remain in stable producer-before-consumer order; checked
@@ -115,8 +125,8 @@ without mutating inputs. Scalar and parallel-scalar execution own disjoint outpu
 The sixth family is exactly one resolved-layout overlap fold occurrence: general-axis
 `FOLD_AXIS`, canonical columns-to-NCHW `FOLD2D`, or columns-to-NCDHW `FOLD3D`. Every result
 coordinate begins at represented positive zero and accumulates its logical input contributions
-in canonical input row-major order. Current image-fold arithmetic accepts FLOAT64/FLOAT32;
-retained BFLOAT16/FLOAT16 arithmetic remains locked. `FOLD_AXIS` additionally accepts INT32
+in canonical input row-major order. Image-fold arithmetic accepts FLOAT64/FLOAT32 and all four
+low floating types, with FLOAT32 low accumulation and one final narrowing. `FOLD_AXIS` additionally accepts INT32
 and INT64. Image folds exclude padded and ceil-tail positions outside the unpadded result.
 Schema-26 generated fold entries embed the selected family mapping, represented addition, and
 typed array or native-order segment access. Dense heap arrays use integer loop/address state;
@@ -401,6 +411,32 @@ Graph API through the JDK Foreign Function and Memory (FFM) API; neither API is 
 Graph here means oneDNN's compiled numeric block, not Synaptik's automatic differentiation (AD).
 Both APIs consume the same common CPU intermediate representation (IR) and bind canonical
 external CPU buffers; native-internal layouts do not replace public or saved stores.
+
+### Typed low MATMUL qualification
+
+Native low execution is independently qualified per API, dtype, target ISA and exact geometry.
+The current low route is bare MATMUL with K > 1, not arbitrary native low graphs. Native inputs
+retain their BF16/F16/FP8 dtype: converting inputs to F32 is not native low execution.
+Strict F32 native working/accumulation writes a declared F32 workspace, followed by the existing
+generated CAST's final RNE narrowing into the logical low output. All staging, copies and scratch
+are declared before shared slot assignment and bound cold; execution does not allocate, retry
+or reselect. Typed recipes authenticate dtypes, spans, origins, alignment and resource identity.
+
+Primitive and Graph availability are independent. Pinned oneDNN 3.14 Graph rejects FP8.
+FP8 primitives require a supported x86 ISA (upstream CPU implementation requires at least
+AVX512_CORE_FP16); there is no native FP8 execution claim on Arm. Unavailable native recipes
+leave ordinary CPU candidates eligible during cold selection, not as execution-time fallback.
+F64 oneDNN expansion is excluded; existing ordinary CPU/OpenBLAS F64 remains.
+
+Local M3 Max descriptor diagnostics admitted F32/BF16/F16 2×2 MATMUL and returned unsupported
+status 3 for both FP8 types and F64. Actual public cutover smoke passed 205 scenarios across
+all four low types: arithmetic/shared AD, pooling, changing-B, length-aware Scan, gradients,
+repeated SGD and bit-exact save/load/fresh SGD. Three policies with changed weights confirmed
+native F16 AUTO/PRIMITIVES/GRAPH and BF16 AUTO/PRIMITIVES; BF16 GRAPH kept ordinary CPU
+for that shape. Both FP8 types used ordinary CPU under every policy; no native FP8 execution
+was observed. The affected test/catalog gate remains pending. These receipts do not establish
+rebuilt-release, performance or universal-shape qualification.
+
 
 ### External binary and loading requirements
 
@@ -2182,14 +2218,14 @@ are supported.
 window coordinates. It adds the value only when the corresponding unpadded height and width are
 inside `[0, H)` and `[0, W)`. Leading or trailing symmetric-padding positions and terminal
 ceil-grid positions outside the unpadded output are excluded geometrically; there is no padding
-scalar to compare or add. FLOAT64/FLOAT32 arithmetic is active; retained BFLOAT16/FLOAT16
-arithmetic is frozen behind the temporary low-computation lock.
+scalar to compare or add. FLOAT64/FLOAT32 and all four low floating types are admitted under
+ordinary guards; low arithmetic uses FLOAT32 accumulation and one final narrowing.
 
 `FOLD3D` uses the same fold owner with canonical columns
 `[N, C * KD * KH * KW, OD * OH * OW]` and explicit NCDHW target `[N,C,D,H,W]`.
 It excludes out-of-target padded and literal-ceil-tail coordinates and sums overlapping
-in-range contributions. Current arithmetic qualification is FLOAT32/FLOAT64; retained low
-arithmetic paths remain locked, not silently widened by the raw UNFOLD3D capability.
+in-range contributions. Arithmetic includes all four low floating types under ordinary guards;
+raw UNFOLD3D itself remains exact movement, not arithmetic qualification.
 
 For each output coordinate, scalar generated execution visits contributing logical input
 positions in canonical flattened row-major order. FLOAT64 and FLOAT32 perform sequential
@@ -2437,8 +2473,8 @@ complement, reciprocal, and multiplication: FLOAT64 computes `input * (1.0d / (1
 FLOAT32 computes `input * (1.0f / (float) (1.0d - probability))`. Homogeneous low bodies expand
 the represented input to FLOAT32, use the FLOAT32 complement/reciprocal/multiply sites, and narrow
 only the final product. This is not direct division of the input by the complement. RNG words,
-keep masks, and modulo state advancement are unchanged; the ordinary CPU low-arithmetic lock
-still determines whether a low numerical occurrence is admitted.
+keep masks, and modulo state advancement are unchanged; all four low types use the ordinary
+CPU numerical admission and exact RNG/state guards.
 
 The independent compatibility vectors are:
 
@@ -3229,7 +3265,7 @@ maximum/subtraction/exponential/reduction/division/logarithm graph as this famil
 use the same FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 representation and exact Shape, and retain
 matching gradient-eligibility metadata. A zero extent on any axis makes the shape-preserving
 output empty, so execution performs no source load, generated value pass, write, or worker
-submission. The retained low body does not override the ordinary CPU low-arithmetic lock.
+submission. Low bodies use the ordinary CPU parity admission and unchanged family guards.
 The separate [ordinary backward fusion](#ordinary-softmax-and-log-softmax-backward-fusion) reads
 this stored result and retains the Compiler's primitive derivative graph.
 
@@ -3637,8 +3673,8 @@ there is no Conv1d operation, generated body, workspace, materialization, or gra
 Conv3d is instead one first-class `CONV3D` occurrence. The direct CPU route accepts fully static,
 resolved-layout NCDHW input `[N, C_in, D, H, W]`, weight
 `[C_out, C_in/groups, K_d, K_h, K_w]`, optional intrinsic bias `[C_out]`, and output
-`[N, C_out, D_out, H_out, W_out]`. FLOAT64/FLOAT32 computation is active; retained
-BFLOAT16/FLOAT16 numerical code remains subject to the temporary low-arithmetic lock.
+`[N, C_out, D_out, H_out, W_out]`. FLOAT64/FLOAT32 and all four low floating types use
+ordinary CPU admission, with FLOAT32 low working arithmetic and final RNE narrowing.
 Groups may be one, intermediate or depthwise; stride and dilation are positive; symmetric padding
 is non-negative. Legal layouts may have arbitrary non-negative offsets and strides, but the
 output must be injective; complete generated-gradient admission may be narrower.
@@ -3698,10 +3734,10 @@ records independent all-role finite differences and real NN train/save/load/new-
 The compiler retains symbolic Dimensions, but public ordinary named-B Conv3d admission is
 unchanged. Proved general-Scan body lowering composes Conv3d forward and reverse in
 all-valid/length-aware modes and both traversal directions for F32/F64; the complete body/binder
-and higher-order gates still apply. CPU Pool3d independently requires `requiresGrad=false`.
-No low-arithmetic unlock, arbitrary-layout closure, broader cold constructor inventory,
-new epilogue fusion, native convolution, packing, autotuning or cross-backend bitwise promise
-follows from this extension.
+and higher-order gates still apply. Current pooling AD reuses the shared pooling/fold rules.
+Neither low parity nor this extension grants arbitrary-layout closure, broader cold constructor
+inventory, new epilogue fusion, native convolution, packing, autotuning or a cross-backend
+bitwise promise.
 
 ### Current portable MATMUL family
 
@@ -4913,8 +4949,8 @@ Current admission composes every ordinary CPU-supported PURE unit under the same
 layout, finite/value-validation and selected derivative guards, not the finite historical algebra
 below. The sole [Scan semantic contract](../architecture/contracts/recurrent-scan.md#general-differentiable-scan)
 and [backend execution contract](../architecture/contracts/backend-execution.md) remain authoritative.
-Selected actual FLOAT32/FLOAT64 AD uses ordinary rules; families without backward retain that
-limit, while nondifferentiable units may occur on non-gradient primal paths.
+Selected actual first-order AD, including low types, uses ordinary Compiler rules; families without
+backward retain that limit, while nondifferentiable units may occur on non-gradient primal paths.
 
 All-valid bodies use WholeTensor. Length-aware body values may be proved ROW(axis) values or
 arbitrary-shape SHARED tensors; lengths is a separate final non-gradient INT64 `[B]` control
@@ -4930,8 +4966,8 @@ The following legacy sections retain qualified domains, exact identities/ABIs, r
 and parallel exclusions, and bounded performance evidence, not a current operator whitelist.
 Current ordinary CPU general Scan qualifies all-valid named-batch FLOAT32/FLOAT64 forward and
 actual selected VJPs under ordinary single-B, fixed-T/features guards. This does not grant ordinary
-symbolic FLOAT64 MATMUL or arbitrary symbolic geometry. Java BFLOAT16/FLOAT16 computation stays
-locked; raw/storage/cast/exact roles remain.
+symbolic FLOAT64 MATMUL or arbitrary symbolic geometry. All four low types now reuse ordinary
+Scan owners under their dtype/geometry guards; end-to-end cutover qualification remains partial.
 No Metal general Scan, nested control flow, fixed BPTT, parallel-composite, cold/wire or NN recipe
 widening follows. Legacy qualified bytes/identities remain unchanged; composite-only v2 streams
 invalidate the old bad interface-copy form. Partial smokes/numeric receipts are not final unified

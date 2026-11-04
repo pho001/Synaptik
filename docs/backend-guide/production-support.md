@@ -34,7 +34,7 @@ dimension or mixed-floating backward parity; ordinary family and selected-VJP pr
 
 | Family | Common static F32/F64 domain | First-order closure and current release evidence |
 |---|---|---|
-| Pointwise and selection | Floating tensor/scalar arithmetic, 19 unary kinds, clamp, comparisons, BOOL logic and WHERE under exact dtype/broadcast rules; Model-valid promoted F32/F64 and I32/I64 tuples | Original cotangent carrier conversion and exact stored-value comparisons passed public mixed-operand and WHERE witnesses. Discrete conditions receive no cotangent; implicit low arithmetic remains locked. Actual two-layer ReLU MLP forward/SGD/save/load/new-train passed in both types. |
+| Pointwise and selection | Floating tensor/scalar arithmetic, 19 unary kinds, clamp, comparisons, BOOL logic and WHERE under exact dtype/broadcast rules; Model-valid promoted F32/F64 and I32/I64 tuples | Original cotangent carrier conversion and exact stored-value comparisons passed public mixed-operand and WHERE witnesses. Discrete conditions receive no cotangent. Low arithmetic now follows the parity section below; these historical F32/F64 receipts do not qualify it. Actual two-layer ReLU MLP forward/SGD/save/load/new-train passed in both types. |
 | MATMUL/linear | Vector/matrix rank cases and broadcast batches; direct/tiled scalar, eligible N-vector and range parallelism | Ordinary rank edits, transpose and SUM-to-Shape derivatives. Homogeneous MLP/RNN paths passed; optional qualified OpenBLAS is not proof of portable Java coverage. |
 | Conv1d/Conv2d | NCW/NCHW; bias/no bias, groups/depthwise, stride/padding/dilation, family-qualified noncanonical reads | Actual dX/dW/db passed 16 public cases across both types, grouped/dilated/strided, depthwise multiplier and asymmetric geometry. Both ranks passed complete owned Model journeys. |
 | Max/AveragePool1d/2d | Exact floor/literal-ceil grids, padding/dilation, fixed average divisor, overlap | Actual backward passed 24 public cases: finite overlap, dilated ceil tails, NaN, signed zero, real -infinity and all-padding windows. Uses existing winner/fold rules, not a new derivative. |
@@ -115,35 +115,43 @@ CPU Scan passed F32/F64, max/average, all-valid/runtime-length and both traversa
 including actual backward input-role finite differences and save/close/load/fresh execution.
 
 These are locally runtime-qualified capabilities, not joined-release or published-candidate
-acceptance. Ordinary public CPU named-B admission, arbitrary layouts, the CPU low-arithmetic
-lock and performance boundaries remain unchanged. Metal Scan has separate qualification below.
-CPU low maximum-pool forward remains within its exact domain; low pooling gradients and average
-arithmetic are not unlocked. Metal FLOAT64 pooling/folds retain their qualified non-overlap limits;
-Metal F32/BF16/F16 overlapping pooling adjoints use shared output-owned FLOAT32 working arithmetic.
+acceptance. Ordinary public CPU named-B admission, arbitrary layouts and performance remain
+bounded by their family contracts. The low-parity cutover below supersedes the historical CPU
+low-arithmetic lock; these earlier volumetric receipts do not themselves qualify low gradients.
+Metal FLOAT64 pooling/folds retain their qualified non-overlap limits; Metal F32/BF16/F16
+overlapping pooling adjoints use shared output-owned FLOAT32 working arithmetic.
 
 ## Temporary Java low-computation lock
 
-The required lock is implemented. Preserve BF16/FP16 types, storage/borrowing/export,
-raw transfer/movement, initialized literals and casts/conversions. INT32/INT64/BOOL control remains.
-An explicit low-storage -> F32 cast -> F32 computation path stays valid, including existing
-Training storage/conversion behavior; this is not an implicit emulated-low backend fallback.
+This anchor is retained for existing links; the CPU0078 lock is historical and superseded by
+the [CPU low-precision parity cutover](../architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover).
+BFLOAT16, FLOAT16, FLOAT8_E4M3 and FLOAT8_E5M2 now reuse ordinary CPU numerical owners,
+shared Compiler first-order AD, fixed/general/length-aware Scan, qualified symbolic geometry
+and Training. This is not a second executor, hidden quantization scale or runtime unlock.
+Each family still checks its exact dtype/promotion, shape, layout, value, resource and alias domain;
+functional parity is not universal geometry, strategy or performance qualification.
 
-Reject low numerical operand roles, even if the result is promoted: arithmetic/transcendentals,
-matmul/convolution, arithmetic reductions/cumulative operations, average pooling, normalization,
-loss/attention, dropout scaling, overlap-fold addition and scatter ADD/MUL. Preserve exact
-comparison/classification/WHERE, MIN/MAX/arg-extrema/ordering/winner selection and exact unary
-ABS/NEG/SIGN/FLOOR/CEIL/RELU/clamp behavior under their existing contracts. Their backward may
-still require prohibited low numerical operations. Do not disable every low-containing partition.
+| Boundary | Current CPU low behavior |
+|---|---|
+| Storage | BF16/F16 use raw shorts; E4M3/E5M2 use raw bytes, never BOOL normalization. |
+| Numerical operations | Homogeneous low outputs retain their type; FLOAT32 working arithmetic and accumulators end in one final RNE (round-to-nearest, ties-to-even) narrowing per ordinary operation/public/saved boundary. Unlike low types promote to F32; F64 dominates. Existing F32/F64 behavior remains. |
+| Exact operations | Raw movement, same-type casts, ABS/NEG, comparison, ordering, winner/WHERE selection, indices, masks and RNG state retain exact contracts. Arithmetic NaN payload latitude does not apply to selected/copied stored NaN bits. |
+| Casts and FP8 range | Direct F64/integer casts round directly to the target. Widening preserves representable NaN sign/payload. E4M3 has max 448 and no infinity: the finite 464 tie rounds to 448, above it/infinity input becomes canonical NaN 0x7f. E5M2 has max 57344 and signed infinity; numeric NaNs narrow to 0x7e. Same-type/raw import preserves every bit. |
+| Extrema | Nonempty extrema select an original represented winner; an unrepresentable E4M3 infinity sentinel must not poison it. Empty infinity results narrow to E4M3 NaN. |
+| Training | Low parameters have F32 master/optimizer values, explicitly F32/F64 scalar objectives, final logical narrowing and transactional nonfinite-candidate rejection/rollback. |
+| Native MATMUL | Qualified typed low inputs, strict F32 native stage, then generated final RNE narrowing; bare K > 1 geometry only. Primitive/Graph/API/ISA availability is independent. Graph 3.14 rejects FP8; no native FP8 on Arm is claimed. Unsupported native recipes leave ordinary CPU selected cold, never runtime fallback. F64 remains ordinary/OpenBLAS, not oneDNN. |
 
-Admission must be independent at occurrence/provider, direct preparation/IR realization before
-cache hits, and direct fixed-recurrent execution. Retain implementation; add no runtime opt-in
-backdoor and no new low capability. Current ledger v2 changes, historical v1 and Metal do not.
-
-[CPU0078](../planning/backends/cpu/tasks/0078-temporary-low-arithmetic-lock.md#result) records the
-passed affected gate and actual both-type public rejection/retention proof. A real six-step
-changing-target TrainingSession consumer also verifies exact F32 master values, low logical
-narrowing, snapshot restore and fresh resumed training. Complete original owner/query domains
-remain; retained generated rows are literal, historical v1 and Metal unchanged by this CPU cutover.
+The historical [CPU0078 receipt](../planning/backends/cpu/tasks/0078-temporary-low-arithmetic-lock.md#result)
+records the earlier rejection/retention gate and six-step F32-master Training consumer, not today's
+low admission. Current public cutover smoke passed 205 scenarios across all four low types:
+arithmetic/shared Compiler AD, Pool2d/3d, changing-B (including B=0), length-aware Scan with
+inactive NaNs, gradients, repeated SGD, bit-exact save/close/load and fresh SGD. It also covered
+all 256 FP8 raw encodings through transpose and 12 unlike-low ADD promotions. Three configured
+policies with changed weights confirmed F16 native AUTO/PRIMITIVES/GRAPH and BF16 native
+AUTO/PRIMITIVES; BF16 GRAPH kept ordinary execution for that shape. Both FP8 types stayed
+ordinary CPU on M3 under all policies. Local descriptor diagnostics returned status 3 for FP8
+and F64. No native FP8 execution, final affected test/catalog gate, rebuilt-release acceptance,
+unbounded geometry or performance qualification is claimed.
 
 ## Owned source and persistence boundaries
 
@@ -155,11 +163,12 @@ F32/BF16/F16 owned MLP, Conv3d/overlapping Pool3d and explicit GeneralScan RNN e
 
 Tensor-level numerical support is broader than cold acquisition/serialization. Within the
 existing recipe domain, cold reconstruction accepts Model-legal per-role floating types and casts.
-An outer or contained Pool3d occurrence selects v6; other admitted flat/all-valid/length sources
-retain their byte-identical smallest sufficient v1–v5 format. Public checkpoint wire versions
-and strict descriptor rebind remain unchanged. Arbitrary PURE Scan execution does not
-automatically widen cold reconstruction or add wire opcodes. Fixed recipes are not implicitly
-migrated to GeneralScan and retain their distinct working/publication boundaries.
+Any source containing FP8 selects graph domain v7, with dtype wire IDs 8 (E4M3) and 9 (E5M2).
+Old dtype IDs 1–7 and non-FP8 smallest-sufficient v1–v6 bytes remain unchanged: Pool3d selects
+v6 when FP8 is absent. NN FP8 persistence uses conditional model.v2/SYNMOD02,
+definition SYNDEF02 and whole-model.v2 formats; non-FP8 values retain old compatible formats.
+Strict descriptor rebind remains. Arbitrary PURE Scan execution does not automatically widen
+cold reconstruction or add wire opcodes. Fixed recipes retain their distinct working/publication boundaries.
 No optimizer/history/compiled-plan continuation is promised.
 
 ## Metal production target
@@ -199,7 +208,7 @@ Current genuine M3 Max component evidence exercises the original F32/BF16/F16 ca
 shared typed storage/POD roles, FLOAT32 working arithmetic and per-output publication. The
 separate low-precision library is retired in favor of common owners and
 `synaptik_numeric_codec.h`; there is no FLOAT32 tensor proxy, CPU fallback, FP64
-arithmetic/emulation or CPU BF16/F16 arithmetic unlock.
+arithmetic/emulation. This Metal receipt does not qualify the independent CPU low-parity cutover.
 
 - CONCAT/STACK passed 17/33/257 inputs in all three types, including original-carrier views and
   last-operand-only AD. Zero-output CONCAT/STACK empty cotangents passed public GPU
