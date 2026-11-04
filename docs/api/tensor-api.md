@@ -102,7 +102,7 @@ The current Model contract defines one numerical meaning per family and dtype, w
 selector. Kinds, attributes, mapping, contributors, masks, indices, state, traversal, casts,
 ordering, guards, identities, divisors, stored comparisons and extrema, raw movement and
 selection, and publication remain exact. Denormals-are-zero (DAZ) at named arithmetic inputs and
-flush-to-zero (FTZ) at named arithmetic results are permitted for FLOAT32, BFLOAT16, and FLOAT16,
+flush-to-zero (FTZ) at named arithmetic results are permitted for FLOAT32 and all four low types,
 including low multiplication, but forbidden for FLOAT64. They do not apply to stored comparison,
 extrema, cast, raw movement, selection, or the exact unary ABS/NEG/SIGN/FLOOR/CEIL/RELU sites.
 Every floating scatter MUL includes the base and each addressed update exactly once but may use a
@@ -712,7 +712,7 @@ a compiler-owned forward-publication plan.
 ## Data types
 
 The public data type contracts live in `io.github.pho001.synaptik.model.datatype`. The current
-`DataType` model contains seven backend-independent element types in append-only ordinal order:
+`DataType` model contains these backend-independent element types in append-only ordinal order:
 
 | Data type | Category | Bit width | Byte width | Differentiable |
 |---|---|---:|---:|---|
@@ -723,15 +723,28 @@ The public data type contracts live in `io.github.pho001.synaptik.model.datatype
 | `INT64` | `INTEGRAL` | 64 | 8 | no |
 | `BOOL` | `BOOLEAN` | 8 | 1 | no |
 | `FLOAT16` | `FLOATING` | 16 | 2 | yes |
+| `FLOAT8_E4M3` | `FLOATING` | 8 | 1 | yes |
+| `FLOAT8_E5M2` | `FLOATING` | 8 | 1 | yes |
 
 `FLOAT32` is the default floating data type. Data type metadata describes logical model semantics and does not claim that a particular backend supports the type or uses the same physical allocation alignment.
+
+Homogeneous low arithmetic uses FLOAT32 working values and accumulators with one final
+ties-to-even narrowing at each declared ordinary operation, saved or public result boundary.
+Exact raw movement, casts, sign operations, stored comparisons, selection, masks, indices and
+state remain exact. An E4M3 infinity-class result, including a pole or empty floating extremum,
+narrows to NaN; nonempty extrema select represented input winners without an infinity sentinel
+poisoning the result. CPU reuses existing operation/shared Compiler AD/Scan/recurrent owners
+under their family, geometry and actual derivative guards. Native availability does not define
+CPU support: oneDNN is an occurrence-specific typed-input realization with strict FLOAT32 low
+working arithmetic, not converted-FLOAT32 input advertised as native FP8. FLOAT64 has no native
+oneDNN route. Metal retains its independent seven-carrier/no-FP8 scope.
 
 ### Numeric promotion
 
 `DataTypePromotion` exposes two related contracts. `promoteFloating(left, right)` treats
-`BFLOAT16` and `FLOAT16` as distinct incomparable formats: a homogeneous low pair retains its type,
-a mixed BFLOAT16/FLOAT16 pair promotes to FLOAT32, FLOAT32 wins over either low type, and FLOAT64
-wins over every other floating type.
+`BFLOAT16`, `FLOAT16`, `FLOAT8_E4M3` and `FLOAT8_E5M2` as distinct low formats: a homogeneous
+low pair retains its type, unlike low pairs promote to FLOAT32, FLOAT32 wins over every low
+type, and FLOAT64 wins over every other floating type.
 
 `promoteNumeric(left, right)` accepts a pair only when both operands belong to that floating
 category or both belong to the signed-integral hierarchy:
@@ -766,6 +779,16 @@ even, preserves signed zero and infinities, and canonicalizes NaN to the target 
 quiet pattern. Each utility describes value format only; neither allocates storage, exposes device
 formats, or reports backend capabilities.
 
+`Float8E4M3Bits` and `Float8E5M2Bits` expose `toFloat(byte)`, `fromFloat(float)` and
+`fromDouble(double)` for unscaled OFP8. Encoding returns raw bytes with non-saturating
+round-to-nearest, ties-to-even; `fromDouble` rounds directly, without a FLOAT32 intermediate.
+E4M3 has bias 7, maximum 448 and no infinity: magnitude 464 ties to 448, larger magnitudes
+and infinity input become canonical NaN `0x7f`. E5M2 has bias 15, maximum 57344 and signed
+infinities `0x7c`/`0xfc`; magnitude at or above 61440 rounds to signed infinity, and numeric
+NaN becomes `0x7e`. Both formats have signed zeros and gradual subnormals. Raw decoding
+accepts all 256 patterns and preserves represented NaN sign/fraction bits. There is no scale,
+clipping, calibration or automatic loss scaling.
+
 ### Exact typed scalar values
 
 `ScalarValue` is an immutable operation parameter consisting of one exact `DataType` and that
@@ -789,19 +812,23 @@ canonicalizing NaN; `bfloat16(float)` and `float16(float)` are the separately na
 16-bit conversions. `int32` and `int64` retain exact two's-complement values, so the INT64 example
 remains exact even though it is above `2^53`. `bool` stores only canonical false or true.
 Equality and hashing use the data type and exact bits.
+`float8E4m3(float)` and `float8E5m2(float)` perform numeric encoding;
+`float8E4m3Bits(byte)` / `float8E5m2Bits(byte)` and the corresponding instance accessors
+preserve every raw byte, including NaNs. A mismatched accessor throws rather than converting.
 
 Each inspector is strict. For example, calling `float32Value()` on an INT64 value throws
 `IllegalStateException` rather than narrowing or interpreting the bits. There is no general
 conversion method. Scalar/clamp Tensor expressions require a matching floating value, while
-constant padding accepts all seven types when the value exactly matches the receiver:
+constant padding accepts every Model data type when the value exactly matches the receiver:
 
 ```java
 Tensor scaled = float32Input.mul(ScalarValue.float32(0.5f));
 Tensor padded = boolInput.pad(before, after, ScalarValue.bool(false));
 ```
 
-The primitive `TensorFactory.scalar`, `scalarBFloat16`, `scalarFloat16`, `full`,
-`fullBFloat16`, and `fullFloat16` methods create eager scalar or dense Tensor storage through
+The primitive `TensorFactory.scalar`, `scalarBFloat16`, `scalarFloat16`,
+`scalarFloat8E4m3`, `scalarFloat8E5m2`, `full`, `fullBFloat16`, `fullFloat16`,
+`fullFloat8E4m3`, and `fullFloat8E5m2` methods create eager scalar or dense Tensor storage through
 their exact primitive signatures; this API does not add a `ScalarValue` factory overload or
 materialize a `ScalarValue` as a Tensor.
 
@@ -1249,7 +1276,7 @@ descriptors or choose or resolve layouts; these two creation overloads do not im
 For a descriptor whose layout is resolved, `allocate(descriptor)` and
 `allocate(descriptor, label)` allocate exactly `layout.referencedElementSpan()` elements. The
 factory maps `FLOAT64` to `double[]`, `FLOAT32` to `float[]`, both `BFLOAT16` and `FLOAT16` to raw
-`short[]`, `INT32` to `int[]`, `INT64` to `long[]`, and `BOOL` to raw `byte[]`. The new array
+`short[]`, `INT32` to `int[]`, `INT64` to `long[]`, and BOOL/both FP8 types to `byte[]`. The new array
 begins with the JVM's default all-zero raw representation. A span above `Integer.MAX_VALUE` is
 rejected before array allocation, and an unresolved layout is rejected rather than inferred. These overloads do not
 provide typed access, copy or conversion, boolean normalization, value import, fill operations,
@@ -1263,10 +1290,14 @@ source)` has exactly six overloads and maps carriers without conversion:
 |---|---|---|
 | `double[]` | `FLOAT64` | IEEE 754 binary64 values copied bit-for-bit |
 | `float[]` | `FLOAT32` | IEEE 754 binary32 values copied bit-for-bit |
-| `short[]` | `BFLOAT16` | Raw BFLOAT16 bit patterns copied unchanged |
+| `short[]` | `BFLOAT16` | Raw BFLOAT16 bits copied unchanged |
 | `int[]` | `INT32` | Signed 32-bit integer values |
 | `long[]` | `INT64` | Signed 64-bit integer values |
 | `byte[]` | `BOOL` | Zero becomes `0`; every non-zero value becomes canonical `1` |
+| `byte[]` | `FLOAT8_E4M3` or `FLOAT8_E5M2` | Exact raw bytes copied unchanged, without BOOL normalization |
+
+FLOAT16 raw shorts use the separate `fromFlatFloat16Array(descriptor, label, short[])`
+method, with the same dense-layout, exact-count and independent-copy requirements.
 
 The descriptor must have the exact mapped data type and a resolved `DENSE_CONTIGUOUS` layout.
 Its known logical element count must equal the Java array length. The factory treats source order
@@ -1315,7 +1346,7 @@ consumed before Tensor validation fails. Identifier exhaustion is likewise obser
 destination allocation and before the final flat-to-storage copy. Neither failure exposes or
 retains the intermediate carrier.
 
-Constant creation is the factory's other descriptor-synthesis boundary. Its six scalar methods
+Constant creation is the factory's other descriptor-synthesis boundary. Its scalar methods
 infer an exact data type from the declared primitive input and create canonical rank-0 dense
 tensors:
 
@@ -1324,6 +1355,9 @@ tensors:
 | `double` | `FLOAT64` | Exact binary64 bits |
 | `float` | `FLOAT32` | Exact binary32 bits |
 | `scalarBFloat16(float)` | `BFLOAT16` | `BFloat16Bits.fromFloat(value)` |
+| `scalarFloat16(float)` | `FLOAT16` | One numeric binary16 rounding |
+| `scalarFloat8E4m3(float)` | `FLOAT8_E4M3` | One numeric E4M3 rounding |
+| `scalarFloat8E5m2(float)` | `FLOAT8_E5M2` | One numeric E5M2 rounding |
 | `int` | `INT32` | Exact signed 32-bit value |
 | `long` | `INT64` | Exact signed 64-bit value |
 | `boolean` | `BOOL` | Canonical byte `0` or `1` |
@@ -1362,13 +1396,16 @@ carrier. Identifier exhaustion is observed after destination allocation, with th
 carrier distinction. A JVM allocation failure that occurs before ID allocation consumes no ID.
 
 Full-value creation extends the same dense constant path without adding a generic conversion or
-mutable fill operation. The six type-safe entries are:
+mutable fill operation. The type-safe entries are:
 
 | Factory value | Result data type | Stored value |
 |---|---|---|
 | `double` | `FLOAT64` | Exact binary64 value, including signed-zero and NaN payload bits |
 | `float` | `FLOAT32` | Exact binary32 value, including signed-zero and NaN payload bits |
 | `fullBFloat16(..., float, ...)` | `BFLOAT16` | One `BFloat16Bits.fromFloat(value)` conversion repeated as raw bits |
+| `fullFloat16(..., float, ...)` | `FLOAT16` | Once-rounded binary16 bits repeated |
+| `fullFloat8E4m3(..., float, ...)` | `FLOAT8_E4M3` | Once-rounded E4M3 byte repeated |
+| `fullFloat8E5m2(..., float, ...)` | `FLOAT8_E5M2` | Once-rounded E5M2 byte repeated |
 | `int` | `INT32` | Exact signed 32-bit value |
 | `long` | `INT64` | Exact signed 64-bit value |
 | `boolean` | `BOOL` | Canonical false byte `0` or true byte `1` |
@@ -1381,7 +1418,7 @@ provenance. The API deliberately has no boxed value, caller-selected conversion,
 scalar, `fullLike`, default-label overload, or post-construction mutation.
 
 `identityMatrix(rows, columns, dataType, label, requiresGrad)` creates a canonical dense rank-two
-matrix for any of the seven current data types. Both dimensions are non-negative `long` values, so
+matrix for any current Model data type. Both dimensions are non-negative `long` values, so
 square, wide, tall, zero-row, and zero-column matrices are valid when their checked logical count
 fits a Java array. The method writes typed one only at coordinates `(i, i)` for
 `0 <= i < min(rows, columns)` and leaves every other position at typed zero. Its exact values are
@@ -1632,7 +1669,7 @@ explicit-source `TensorRandoms` method described next.
 
 `TensorRandoms` owns exactly one public normal method:
 `randomNormal(shape, dataType, mean, standardDeviation, randomGenerator, label, requiresGrad)`.
-It accepts only fully static Java-array-sized shapes and all four floating data types.
+It accepts only fully static Java-array-sized shapes and every floating type, including FP8.
 Both parameters must be finite, and the standard deviation must be numerically non-negative;
 either signed zero is valid. The result has a newly synthesized canonical dense-contiguous
 descriptor, independent writable heap storage, the explicit label and gradient intent, and a new
@@ -1642,8 +1679,8 @@ For every logical row-major element, the method calls the exact supplied
 `RandomGenerator.nextGaussian()` once, multiplies the returned binary64 value by the standard
 deviation, and then adds the binary64 mean. It does not use fused multiply-add. `FLOAT64` stores
 the result directly, `FLOAT32` narrows it once to binary32, and `BFLOAT16` first narrows to
-binary32 and then uses `BFloat16Bits.fromFloat`. A scalar consumes one call; an empty shape
-consumes none. Generated non-finite values are stored according to the requested conversion and
+binary32 and then uses `BFloat16Bits.fromFloat`; FLOAT16 and both FP8 types round directly from
+binary64. A scalar consumes one call; an empty shape consumes none. Non-finite converted values
 are not rejected after sampling.
 
 The generator is transient caller-owned state. `TensorRandoms` does not select an algorithm or
@@ -1744,8 +1781,8 @@ integral, or Bernoulli behavior, typed export, or runtime/backend random executi
 
 `TensorRandoms` also owns exactly one public continuous-uniform method:
 `randomUniform(shape, dataType, lowerBoundInclusive, upperBoundExclusive, randomGenerator, label,
-requiresGrad)`. It accepts only fully static Java-array-sized shapes and `FLOAT64`, `FLOAT32`, or
-`BFLOAT16`. Both binary64 bounds must be finite, and the lower bound must be strictly less than the
+requiresGrad)`. It accepts only fully static Java-array-sized shapes and every floating type,
+including FP8. Both binary64 bounds must be finite, and the lower bound must be strictly less than the
 upper bound. The result has a newly synthesized canonical dense-contiguous descriptor, independent
 writable heap storage, the explicit label and gradient intent, and a new factory ID.
 
@@ -1753,7 +1790,7 @@ For every logical row-major element, the method calls the exact supplied
 `RandomGenerator.nextDouble(lowerBoundInclusive, upperBoundExclusive)` once. A conforming source
 returns a binary64 value in the half-open interval `[lowerBoundInclusive, upperBoundExclusive)`.
 `FLOAT64` stores that value directly, `FLOAT32` narrows it once to binary32, `BFLOAT16` first
-narrows to binary32 and then uses `BFloat16Bits.fromFloat`, and `FLOAT16` rounds directly from the
+narrows to binary32 and then uses `BFloat16Bits.fromFloat`, and FLOAT16/both FP8 types round directly from the
 binary64 sample without an intermediate binary32 rounding. The half-open promise applies before
 narrowing: a stored low-precision or FLOAT32 value may equal the corresponding narrowed upper
 bound or may round to a lower representable value. `TensorRandoms` does not clamp, resample, or
@@ -2373,7 +2410,7 @@ execution.
 
 #### Failures and useful variations
 
-- Using this `byte[]` with a non-`BOOL` descriptor fails before destination or ID allocation.
+- Using this `byte[]` with a descriptor other than BOOL or either FP8 type fails before destination or ID allocation.
 - An offset, strided, broadcast, or unresolved layout is rejected before source-length validation.
 - A source of length two or four fails because the shape has exactly three logical elements.
 - `short[]` imports raw BFLOAT16 bits; it does not convert Java `float` values.
@@ -2548,8 +2585,8 @@ after existing promotion. They promise no NaN payload or bitwise result. The red
 remain `min` and `max`.
 
 ADD, SUB, MUL, MIN, and MAX accept either two floating operands or two signed-integral operands.
-Floating promotion follows the rule above: homogeneous low pairs retain their type, direct
-BFLOAT16/FLOAT16 pairs promote to FLOAT32, FLOAT32 wins over either low type, and FLOAT64 wins over
+Floating promotion follows the rule above: homogeneous low pairs retain their type,
+unlike low pairs promote to FLOAT32, FLOAT32 wins over every low type, and FLOAT64 wins over
 all other floating types. Integral pairs use `INT32 < INT64`, with an INT32 operand conceptually
 sign-extended into the promoted INT64 domain. DIV and POW remain floating-only. BOOL and mixed
 floating/integral pairs are rejected; callers use an explicit `cast` when cross-category conversion is intended. Every accepted method applies the existing
@@ -2854,7 +2891,7 @@ resultShape = broadcast(condition.shape, branchShape)
 ```
 
 The condition must have exactly `DataType.BOOL`. The true and false branches must each be
-`BFLOAT16`, `FLOAT16`, `FLOAT32`, or `FLOAT64`; the shared floating-promotion rule derives the result
+floating, including either FP8 type; the shared floating-promotion rule derives the result
 data type from the branches only. The first local broadcast proves branch compatibility. The
 second proves that the condition can address their common result shape. Equal dimensions and
 static singleton expansion are accepted, including locally provable dynamic cases; incompatible
@@ -2977,8 +3014,8 @@ gradient routing, graph capture, ONNX mapping, backend support, or execution.
 ### Cast expressions
 
 `Tensor.cast(targetDataType)` records an explicit request to convert each logical input value to a
-target data type. The method accepts every ordered pair formed from the seven current `DataType`
-values, so all 49 source/target combinations have the Model-owned value meaning below. A concrete
+target data type. The method accepts every ordered pair of current `DataType` values,
+including both FP8 types, with the Model-owned value meaning below. A concrete
 backend still advertises and implements only the pairs it supports.
 
 The row is the source type and the column is the target type. `BITS` preserves the exact represented
@@ -2998,6 +3035,12 @@ floating signed zero.
 | `INT32` | `RNE` | `RNE` | direct `RNE` | direct `RNE` | `SIGNEXT` | `BITS` | `TRUTH` |
 | `BOOL` | `01` | `01` | `01` | `01` | `01` | `01` | `BITS` |
 
+For either FP8 source, conversion to FLOAT32/FLOAT64 is exact widening; to integral/BOOL it
+uses the same `TRUNC-SAT`/`TRUTH` rules. Conversion to another low format rounds directly,
+while same-type conversion is `BITS`. Every other numeric source converts directly to FP8
+with `RNE`, and BOOL maps to exact positive zero/one. E4M3's no-infinity overflow rule below
+is an exception to the usual signed-infinity target behavior, not saturation.
+
 Same-type conversion preserves every raw bit, including floating sign, subnormal representation,
 and every NaN sign, quiet/signaling bit, and payload. `CastValueConversions.convert` returns the
 exact source `ScalarValue` reference for this scalar case. `Tensor.cast`, however, always creates a
@@ -3007,10 +3050,10 @@ storage.
 Finite floating-to-floating and integer-to-floating conversions choose the target value nearest
 to the exact represented source value, with an exact midpoint selecting the result whose least
 significant significand bit is zero. The conversion rounds once, directly to the requested target
-format. Overflow at or beyond the target rounding midpoint produces signed infinity. Underflow is
-gradual through target subnormals; an exact zero/least-subnormal midpoint selects signed zero, and
-the next representable source magnitude above it selects the signed least subnormal. Floating zero
-keeps its sign for every floating target, and floating infinity keeps its sign and classification.
+format. Overflow normally produces signed infinity, except E4M3: magnitude 464 rounds to
+finite 448, larger magnitudes and infinity input become canonical NaN `0x7f`. E5M2 magnitude
+at or above 61440 becomes signed infinity. Underflow is gradual through target subnormals;
+an exact zero/least-subnormal tie selects signed zero. Floating zero keeps its sign.
 
 Lossy cross-floating conversion maps every NaN to the target's positive canonical quiet pattern:
 
@@ -3019,9 +3062,12 @@ Lossy cross-floating conversion maps every NaN to the target's positive canonica
 | `FLOAT64` | `0x7FF8000000000000` |
 | `FLOAT32` | `0x7FC00000` |
 | `BFLOAT16` | `0x7FC0` |
+| `FLOAT16` | `0x7E00` |
+| `FLOAT8_E4M3` | `0x7F` |
+| `FLOAT8_E5M2` | `0x7E` |
 
 No current lossy pair targets `FLOAT64`, but its canonical pattern is fixed for the family. The
-three lossless widening directions preserve NaN sign, quiet/signaling state, and complete source
+lossless widening directions preserve NaN sign, quiet/signaling state, and complete source
 fraction by left-aligning that fraction and filling new low bits with zero:
 
 ```text
@@ -3210,14 +3256,14 @@ Nineteen zero-argument unary methods create one-input, floating-preserving eleme
 | `geluTanhApproximation` | Fixed conventional tanh approximation to GELU. |
 | `silu` | Sigmoid linear unit, `x * sigmoid(x)`. |
 
-Each method accepts `BFLOAT16`, `FLOAT16`, `FLOAT32`, or `FLOAT64`. The result retains the exact
+Each method accepts every floating type, including both FP8 types. The result retains the exact
 input data type, immutable `Shape` reference, and `requiresGrad` flag, while leaving layout unresolved.
 That flag is eligibility metadata; it does not assert that a derivative or backward rule exists.
 
 `rsqrt`, `log1p`, `expm1`, both GELU variants, and SiLU are first-class transforms, not stored
 compositions. Model owns one family/dtype result contract for these and the other unary kinds.
 The six exact represented-value kinds `ABS`, `NEG`, `SIGN`, `FLOOR`, `CEIL`, and `RELU` have no
-arithmetic DAZ/FTZ permission. Other named FLOAT32/BFLOAT16/FLOAT16 arithmetic primitive inputs
+arithmetic DAZ/FTZ permission. Other named FLOAT32 and low arithmetic primitive inputs
 may use denormals-are-zero (DAZ), and results may use flush-to-zero (FTZ); FLOAT64 forbids both.
 Each kind retains its mathematical function, domain, special class, range, and required zero-sign
 rules. Finite thresholds are route-qualified in tests, not public ordered-distance or forward-
@@ -3416,7 +3462,7 @@ until their singularity, tie, endpoint, discontinuity, and exceptional-value pol
 selected.
 
 The current package-private compiler has one narrower, guarded internal rewrite after canonical
-validation. It may bypass scalar `MUL` by exact typed positive one for all six numeric types,
+validation. It may bypass scalar `MUL` by exact typed positive one for numeric types,
 scalar `DIV` and `POW` by exact typed positive one for floating types, and scalar `ADD` and `SUB`
 by exact typed zero for `INT32` and `INT64`. It also recognizes duplicate-input binary `MIN` and
 `MAX`. Each bypass is limited to a non-gradient, one-output internal occurrence in either graph
@@ -3581,7 +3627,7 @@ product, minimum, and maximum expression metadata without reading or combining e
 | Minimum | `min()` | `min(axis)` | `min(axis, keepDimensions)` |
 | Maximum | `max()` | `max(axis)` | `max(axis, keepDimensions)` |
 
-All five families accept `BFLOAT16`, `FLOAT16`, `FLOAT32`, or `FLOAT64`. Sum, product, minimum, and
+All five families accept every floating type, including both FP8 types. Sum, product, minimum, and
 maximum also accept `INT32` and `INT64`; mean remains floating-only. Every family preserves the exact input
 data type without promotion or widening. A full form reduces every input axis to the canonical
 rank-zero `Shape.scalar()` and records
@@ -3773,7 +3819,7 @@ later binding validation. Thus `[8, 4] -> [X, 4]` is constructible: a later bind
 means reduction of the first aligned axis, binding it to `8` means preservation, and any other
 concrete value is invalid. Construction does not bind `X` or choose an axis set.
 
-The method accepts `BFLOAT16`, `FLOAT16`, `FLOAT32`, `FLOAT64`, `INT32`, and `INT64`; it rejects `BOOL`.
+The method accepts floating and signed-integral inputs, including FP8; it rejects BOOL.
 The fresh result preserves exact input type and gradient eligibility, retains the exact target
 `Shape` reference in both descriptor and `SumToShapeAttrs`, leaves layout unresolved, and has no
 label or storage. Provenance records one `AggregateReductionKind.SUM` occurrence, ordered inputs
@@ -4200,7 +4246,7 @@ record requires an explicit non-null policy. A complete overload can pass `LAST_
 requests the largest logical index among equal candidates. Logical indices are coordinates along
 the normalized selected axis, independent of storage offset, stride, layout, or traversal.
 
-Every form accepts `FLOAT64`, `FLOAT32`, `BFLOAT16`, `FLOAT16`, `INT32`, or `INT64` input and rejects `BOOL`;
+Every form accepts floating and signed-integral input, including FP8, and rejects BOOL;
 numeric inputs are neither promoted nor converted. The positive or negative caller axis is
 normalized exactly once against the input `Shape`. A false `keepDimensions` removes the selected
 axis; true replaces only that axis with a new static extent of one. Removing the sole axis of a
@@ -4280,7 +4326,7 @@ them: it reads no element or host storage and allocates no result storage. A zer
 axis produces a zero-length result with no position at which to emit an identity. On a non-empty
 exclusive scan, the identity appears at the first position in the selected traversal direction.
 
-All four methods accept exactly `FLOAT64`, `FLOAT32`, `BFLOAT16`, `FLOAT16`, `INT32`, and `INT64`;
+All four methods accept floating and signed-integral inputs, including FP8;
 `BOOL` is rejected without truthiness or conversion. A positive or negative caller axis is normalized
 exactly once against the input `Shape`. Every valid result is a fresh unlabeled, storage-free
 Tensor whose descriptor retains the exact input Shape reference, data type, and `requiresGrad`
@@ -4329,7 +4375,7 @@ non-gradient `INT64[batch]`. Initial hidden and cell states are `[batch, hiddenS
 count `G`, input weight is `[G * hiddenSize, inputSize]`, hidden weight is
 `[G * hiddenSize, hiddenSize]`, and optional bias is `[G * hiddenSize]`; `G` is one, three, or four
 for RNN, GRU, or LSTM respectively. The input, states, weights, and optional bias use one exact
-common `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` data type.
+common floating data type, including either FP8 type.
 
 The fixed transition equations match the current NN cells. With `X = x @ transpose(inputWeight)`
 plus the optional input-side bias and `H = h @ transpose(hiddenWeight)`:
@@ -4397,7 +4443,7 @@ revalidates the fully static descriptor contract, while both backward-capable mo
 complete forward inventory containing recurrence before derivative Tensor allocation.
 
 CPU scalar execution currently supports all six signatures and both directions for homogeneous
-FLOAT32/FLOAT64, with canonical dense outputs. Every input role, including INT64
+floating types, including all four low types, with canonical dense outputs. Every input role, including INT64
 lengths, accepts resolved nonnegative-stride/offset reads: dense, transposed, sliced/gapped,
 overlapping and zero-stride repeated layouts. Non-singleton repetition requires Model's view flag.
 Negative and unresolved storage geometry is unsupported. Every dimension, packed gate extent,
@@ -4405,8 +4451,8 @@ logical count and referenced storage span must fit `int`; fresh Engine bindings 
 full referenced span, not merely the logical count. Empty layouts have span zero regardless of
 unused offset.
 
-The BFLOAT16/FLOAT16 implementation and its numerical meaning below are retained but currently
-[locked for Java CPU computation](../backend-guide/production-support.md#temporary-java-low-computation-lock).
+CPU low fixed recurrence includes BFLOAT16, FLOAT16 and both OFP8 types under the same
+layout, geometry and actual derivative guards; no separate executor or AD is introduced.
 
 FLOAT64 work/accumulation is double without denormal flushing. Low types decode exactly and use
 FLOAT32 work/accumulation without intermediate low gate or projection narrowing. Hidden/cell
@@ -4433,8 +4479,8 @@ input axis:
 | `logSoftmax(axis)` | `SoftmaxKind.LOG_SOFTMAX` | Maximum-shifted log-probabilities, not logarithms of rounded softmax outputs |
 
 A normalization slice fixes every coordinate except the selected axis. For a rank-two tensor and
-axis `1`, each row is therefore normalized independently. The input must be `FLOAT64`, `FLOAT32`,
-`BFLOAT16`, or `FLOAT16`; integral and BOOL inputs are rejected before axis validation. A positive
+axis `1`, each row is therefore normalized independently. The input must be floating, including
+either FP8 type; integral and BOOL inputs are rejected before axis validation. A positive
 or negative caller axis is normalized exactly once against the input Shape.
 
 Every valid result is a fresh unlabeled, storage-free Tensor. Its descriptor retains the exact
@@ -4561,8 +4607,8 @@ corresponds to input axis `R - K + j`. This table shows the two supported forms.
 | No affine | `[input]` | `normalizedShape` exactly describes trailing input axes | Exact input type |
 | Affine | `[input, scale, bias]` | Same trailing rule; scale and bias Shapes each equal `normalizedShape` exactly | Floating promotion in input, scale, bias order |
 
-Every operand must be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64. Epsilon must be finite and strictly
-positive. It has the exact result type except that a FLOAT16 result uses exact FLOAT32 epsilon
+Every operand must be floating, including either FP8 type. Epsilon must be finite and strictly
+positive. It has the exact result type except that FLOAT16 and FP8 results use exact FLOAT32 epsilon
 metadata for its FLOAT32 arithmetic domain. There is no default epsilon, `double` convenience,
 axis-array overload, scale-only form, affine broadcasting, or implicit scale or bias Tensor.
 
@@ -4594,7 +4640,7 @@ affine result     ~= [-1.9494713718, 0.5, 2.9494713718]
 
 This establishes centering, population correction, epsilon placement, and affine order. It does
 not promise bitwise rounding or a reduction traversal. Conforming execution may reassociate finite
-arithmetic or use wider intermediates subject to later tolerance. BFLOAT16, FLOAT16, and FLOAT32
+arithmetic under the Model contract. All four low types and FLOAT32
 results accumulate mean and variance in FLOAT32; FLOAT64 results use FLOAT64. Affine multiply and
 add occur in the result arithmetic domain with one final low-type narrowing.
 
@@ -4662,9 +4708,9 @@ The operands and Shape relationships are:
 | No scale | `[input]` | `normalizedShape` exactly describes a non-empty trailing input Shape | Exact input type |
 | Scaled | `[input, scale]` | Same trailing rule; scale Shape exactly equals `normalizedShape` and is not broadcast | Ordered floating promotion of input then scale |
 
-Both forms accept BFLOAT16, FLOAT16, FLOAT32, and FLOAT64 operands. Epsilon must be finite and
-strictly positive. It has the exact result type except that a FLOAT16 result uses exact FLOAT32
-epsilon metadata. There is no default epsilon. BFLOAT16, FLOAT16, and FLOAT32 results accumulate
+Both forms accept every floating type, including FP8. Epsilon must be finite and
+strictly positive. It has the exact result type except that FLOAT16 and FP8 results use FLOAT32
+epsilon metadata. There is no default epsilon. All four low types and FLOAT32 results accumulate
 squares and sums in FLOAT32; FLOAT64 results accumulate them in FLOAT64.
 
 For a non-empty slice of `N` values, the mathematical contract is:
@@ -4750,10 +4796,10 @@ normalized against the input rank. It may identify any logical input axis: neith
 layout nor an NCHW or NHWC convention changes its meaning. Each coordinate that shares channel
 coordinate `c` uses the same four vector entries.
 
-All five Tensors must be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64. Their result type is derived by
+All five Tensors must be floating, including either FP8 type. Their result type is derived by
 floating promotion in exact producer order: input with scale, then bias, running mean, and running
 variance. Epsilon must be finite and strictly positive. It has the exact result type except that a
-FLOAT16 result uses exact FLOAT32 epsilon metadata. No cast producer or hidden default is inserted.
+FLOAT16 or FP8 result uses exact FLOAT32 epsilon metadata. No cast producer or hidden default is inserted.
 
 For each output coordinate with channel `c`, the mathematical contract is:
 
@@ -4766,7 +4812,7 @@ output       = standardized * scale[c] + bias[c]
 
 Epsilon is inside the square root. The running variance is used directly as the estimated
 variance supplied by the caller; inference applies no sample/population correction conversion,
-recomputation, clamp, momentum, or mutation. BFLOAT16, FLOAT16, and FLOAT32 results perform formula
+recomputation, clamp, momentum, or mutation. All four low types and FLOAT32 results perform formula
 arithmetic in FLOAT32 and round the final low value once to the result format. FLOAT64 results use
 FLOAT64. There is no reduction accumulator or configurable computation format.
 
@@ -4863,7 +4909,7 @@ All-valid WholeTensor differs from proved length-aware ROW(axis) and SHARED role
 tensors may have arbitrary Shape under ordinary guards. Original length-AD carries/sequences
 and emissions stay ROW(0); intermediate ROW axes follow the proved coordinate. Row-mixing
 requires materialized same-length support, not Tensor identity. Structural absence differs from a present
-all-zero seed. Java BFLOAT16/FLOAT16 computation remains locked. Cold/wire and NN admission stay
+all-zero seed. CPU low types use the same ordinary/shared-AD owners. Cold/wire and NN admission stay
 separately bounded; no Metal general Scan grant follows.
 Fixed `RecurrentScan` APIs and routes are unchanged.
 
@@ -5120,8 +5166,9 @@ CPU0042 separately qualifies fixed T/B/features FLOAT32/FLOAT64 forward and actu
 reverse through the existing Engine/Prepare/generated CPU path. It validates every produced
 length in `[0,T]` before any scan-local write, then skips inactive loads and arithmetic. See the
 [CPU execution scope and example](../backend-guide/cpu-backend.md#length-aware-fixed-batch-execution).
-Static homogeneous FLOAT32/FLOAT64 length mode now has bounded cold reconstruction and selective
-Checkpoint v5 persistence; [the cold contract](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction) remains narrower
+Static floating length mode has bounded cold reconstruction, including per-role floating
+intermediates and explicit casts, and selective graph persistence (FP8 v7, otherwise v5/v6 as
+needed). [The cold contract](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction) remains narrower
 than Model source expressibility. Prepare0015 implements the bounded symbolic-length CPU/Engine path
 below; symbolic cold/wire remains unavailable. NN's qualified static runtime-length RNN workflow
 supports owned training, save/load and fresh training-session reuse.
@@ -5161,8 +5208,8 @@ raw initial/final-seed values; inactive emissions/dX are +0. Lengths do not chan
 dense denominator. The initial Prepare0015 layer excluded all-valid symbolic FLOAT64 and ordinary
 symbolic FLOAT64 MATMUL; that historical exclusion does not limit current ordinary CPU Scan
 composition under the same ordinary guards. Its native/mixed and vector/parallel exclusions
-record that layer's execution scope, not new general Scan grants. Java low-type computation
-remains locked; higher-order, symbolic cold/copy/wire and NN/Training admission are not widened.
+record that layer's historical execution scope. CPU low parity uses these same owners;
+higher-order and symbolic cold/copy/wire admission are not widened.
 
 The first `rowCarryCount` carries identify a leading batch coordinate B (ROW(0)); the source count
 is in `[0, carryCount]`. B comes from the INT64 lengths descriptor, not the first carry.
@@ -5416,9 +5463,9 @@ are empty and no mean, variance, inverse standard deviation, affine result, or t
 evaluated. Overflow of a non-zero checked product already proves `N >= 2` and is not stored in
 attributes.
 
-All five Tensor inputs must be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64. Floating promotion follows
-input order. Momentum and epsilon have the exact promoted result type except that a FLOAT16 result
-uses exact FLOAT32 scalar metadata. BFLOAT16, FLOAT16, and FLOAT32 results use FLOAT32 for
+All five Tensor inputs must be floating, including FP8. Floating promotion follows
+input order. Momentum and epsilon have the exact promoted result type except that FLOAT16/FP8
+results use exact FLOAT32 scalar metadata. All four low types and FLOAT32 results use FLOAT32 for
 reductions and formula arithmetic; FLOAT64 results use FLOAT64. Final low outputs are narrowed
 once to the result format. The operation selects no traversal, pass count, reassociation,
 compensation method, kernel, or backend algorithm.
@@ -5459,7 +5506,7 @@ public Tensor meanSquaredError(Tensor target, LossReduction reduction)
 ```
 
 The receiver is the prediction at producer input position zero, and `target` is input position
-one. Both inputs must be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64. Their data types are promoted in
+one. Both inputs must be floating, including FP8. Their data types are promoted in
 that order with floating promotion; no cast Tensor is inserted. Prediction and target must have equal
 rank and positionally compatible Dimensions. Structurally equal Dimensions pass, unequal static
 Dimensions fail, and an unequal pair involving an unresolved Dimension defers an equality
@@ -5492,7 +5539,7 @@ constructing the expression reads no values. It is comparable to official
 [PyTorch MSE loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.mse_loss.html),
 while Synaptik deliberately has no default reduction, weights, or broadcasting.
 
-BFLOAT16, FLOAT16, and FLOAT32 results use FLOAT32 subtraction, multiplication, accumulation, and
+All four low types and FLOAT32 results use FLOAT32 subtraction, multiplication, accumulation, and
 division; FLOAT64 results use FLOAT64. Final values are rounded to the promoted result type.
 Implementations may use equal-or-wider intermediates, stable or compensated sums, vectorization, parallelization,
 fusion, and reassociation when later tolerances and the required special-value classes remain
@@ -5518,8 +5565,8 @@ These are current model metadata facts and do not define a Model-owned gradient 
 Package-private compiler first-order autograd now supports prediction and target roles for all
 three reductions, restores reduced cotangents through logical Tensor element counts, and uses
 exact typed scalar-operation coefficients `2` and `-2`. Compiler capture and deferred equality
-proof are current. CPU currently executes FLOAT32/FLOAT64 MSE; the low-storage arithmetic lock
-does not change Model semantics. Metal owns the admitted homogeneous BFLOAT16/FLOAT16/FLOAT32
+proof are current. CPU MSE includes all four low types with FLOAT32 working arithmetic and
+final logical narrowing. Metal owns the admitted homogeneous BFLOAT16/FLOAT16/FLOAT32
 canonical positive-rank forward domain for `NONE`, `SUM`, and `MEAN`, with the exact input-gradient OR.
 Generated backward ownership requires each actual derived occurrence to qualify independently.
 Every other Metal loss or normalization family remains fail-closed.
@@ -5546,7 +5593,7 @@ public Tensor categoricalCrossEntropyWithLogits(
 
 | Form and target type | Meaning | Ignore value |
 |---|---|---|
-| Three arguments, BFLOAT16/FLOAT16/FLOAT32/FLOAT64 | Existing dense target-weighted loss | None |
+| Three arguments, floating types including FP8 | Existing dense target-weighted loss | None |
 | Three arguments, INT32/INT64 | Index-target selected-class loss | None |
 | Four arguments, INT32/INT64 | Index-target selected-class loss | Required `ScalarValue` with the exact target type |
 
@@ -5621,7 +5668,7 @@ is also valid when every target is ignored; because construction reads no values
 deferred alternative `S == 0 || classExtent > 0 || all targets equal ignoreIndex`. Every
 non-ignored target is invalid when class extent is zero.
 
-BFLOAT16, FLOAT16, and FLOAT32 index computation uses FLOAT32 max, exponential, summation,
+All four low types and FLOAT32 index computation uses FLOAT32 max, exponential, summation,
 logarithm, subtraction, loss accumulation, and division; FLOAT64 uses FLOAT64. Final values round to logits
 type. Equal-or-wider intermediates, compensation, vectorization, fusion, and reassociation remain
 allowed. No narrower arithmetic, fixed traversal, bitwise identity, NaN payload/sign, or identical
@@ -5647,7 +5694,7 @@ publication, and training coordination remain planned in their owning lifecycle 
 ### Contiguous expressions
 
 The current parameterless `Tensor.contiguous()` method requests canonical dense row-major result
-geometry for one logical input. It accepts all seven data types and preserves the exact input Shape
+geometry for one logical input. It accepts every Model data type and preserves the exact input Shape
 reference, data type, and `requiresGrad` value. Every valid call creates a fresh unlabeled,
 storage-free Tensor with `CONTIGUOUS`, `NoOperationAttrs.INSTANCE`, and exact ordered provenance
 `[input]`.
@@ -5762,7 +5809,7 @@ execution.
 
 The current `Tensor.reshape(long...)` and `Tensor.reshape(Shape)` methods create fresh model
 expressions that preserve the input's ordered logical element sequence under new coordinates.
-Both overloads accept all seven current data types, retain the exact input data type and
+Both overloads accept every Model data type, retain the exact input data type and
 `requiresGrad` value, and return an unlabeled, storage-free Tensor. Provenance contains exactly
 `Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(targetShape))` and ordered input
 `[input]`. Same-shape, repeated, and nested requests remain explicit fresh expressions.
@@ -8073,7 +8120,7 @@ padding, and floor mode unfolds to `[1, 4, 4]`. Folding compatible columns to `[
 scatter-adds four contributions at the center and one at each corner, without overlap averaging.
 
 The 3D forms extend the same algebra to rank-five NCDHW input `[N, C, D, H, W]`. They accept
-BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 only. For each depth, height, and width axis they use the same
+every floating type, including FP8. For each depth, height, and width axis they use the same
 literal floor-or-ceiling formula above, deriving depth first, then height, then width. They do not
 drop a terminal literal-ceil window even when every sampled coordinate lies outside the unpadded
 input. `unfold3d` always returns the canonical rank-three Shape:
@@ -8149,10 +8196,10 @@ three adjoints through the same public API: either unfold form maps its cotangen
 `fold3d` into the exact original input Shape, and fold maps its cotangent through the direct
 positive-zero `unfold3d` overload. Typed padding is immutable configuration rather than a
 differentiable input. CPU separately executes fully static resolved-layout UNFOLD3D raw movement
-for FLOAT32/FLOAT64/BFLOAT16/FLOAT16 and FOLD3D overlap arithmetic for FLOAT32/FLOAT64;
-low arithmetic remains locked. Metal FOLD2D/FOLD3D overlap is FLOAT32-only, while its other
-floating image folds retain non-overlap. CPU F32/F64 and Metal F32 Pool3d training now reuse the
-shared pooling adjoints and these 3D windows; CPU low arithmetic remains locked.
+for every floating type, including FP8, and FOLD3D overlap arithmetic under ordinary dtype/geometry
+guards. Metal FOLD2D/FOLD3D overlap is FLOAT32-only, while its other floating image folds retain
+non-overlap. CPU floating and Metal F32 Pool3d training reuse the shared pooling adjoints and
+these 3D windows; CPU parity does not widen Metal's independent domain.
 These capabilities require concrete backend admission; constructing metadata alone supplies no
 materialized result or performance guarantee. See the
 [production matrix](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
@@ -8320,11 +8367,11 @@ discharge any retained obligation before execution.
 #### Data type, numerical meaning, and result metadata
 
 `DataTypePromotion.promoteNumeric` accepts same-category floating pairs
-(`BFLOAT16`, `FLOAT16`, `FLOAT32`, `FLOAT64`) and same-category signed-integral pairs
-(`INT32`, `INT64`). A direct BFLOAT16/FLOAT16 pair promotes to FLOAT32; otherwise the promoted type
+(including both FP8 types) and same-category signed-integral pairs
+(`INT32`, `INT64`). Unlike low pairs promote to FLOAT32; otherwise the promoted type
 is the result type. BOOL and floating/integral pairs fail, and construction inserts no cast.
 
-For a `FLOAT64` result, pairwise products accumulate in FLOAT64. BFLOAT16, FLOAT16, and FLOAT32
+For a FLOAT64 result, pairwise products accumulate in FLOAT64. All four low types and FLOAT32
 results accumulate in FLOAT32, with one final conversion for a low result. Under
 the current FLOAT32 contract, exact broadcast/contraction mapping and contributor membership stay fixed;
 every pairwise product participates exactly once under any aggregate tree with per-step FLOAT32
@@ -8552,7 +8599,7 @@ singleton-or-equal obligation; combinations that cannot preserve the already sel
 Shape fail locally.
 
 Floating promotion occurs in query/key/value order. FLOAT64 scores and output sums accumulate in
-FLOAT64. BFLOAT16, FLOAT16, and FLOAT32 use FLOAT32 accumulation, with one final conversion for a
+FLOAT64. All four low types and FLOAT32 use FLOAT32 accumulation, with one final conversion for a
 low output. Reassociation and fused multiply-add remain subject to attention's exact guards and
 literal eligible-score EXP/sum/division sites. The distinct first-class finite-softmax shift does
 not replace them; this contract gives no bitwise or cross-backend identical-rounding promise.
@@ -8863,7 +8910,7 @@ IEEE-754 multiplication. In particular, a padded zero multiplied by an infinite 
 ordinary floating behavior rather than being skipped.
 
 Input, weight, and present bias must be floating. Their promoted type is the output type. FLOAT64
-output accumulates in FLOAT64. BFLOAT16, FLOAT16, and FLOAT32 output accumulate in FLOAT32, with one
+output accumulates in FLOAT64. All four low types and FLOAT32 output accumulate in FLOAT32, with one
 final conversion for a low output. NaN, infinity, and signed zero follow ordinary multiplication and
 addition. An empty channel contraction starts from positive zero before optional bias. Empty
 batch and output-channel axes remain valid. Implementations may reassociate terms and use fused
@@ -8998,7 +9045,7 @@ samples and participate in ordinary IEEE-754 multiplication, including multiplic
 infinity.
 
 Input, weight, and present bias must be floating. Promotion processes input and weight first,
-then present bias. FLOAT64 output accumulates in FLOAT64; BFLOAT16, FLOAT16, and FLOAT32 output
+then present bias. FLOAT64 output accumulates in FLOAT64; all four low types and FLOAT32 output
 accumulate in FLOAT32, with one final conversion for a low output. NaN, infinity, and signed zero otherwise follow
 ordinary multiplication and addition. An empty input-channel contraction starts at positive
 zero before optional bias; empty batch and output-channel axes are valid. Reassociation and fused
@@ -9062,7 +9109,7 @@ in-bounds NaN is dominant at its first logical occurrence, positive zero ranks a
 zero, equal values retain their first occurrence, and an all-padding window produces negative
 infinity. Average pooling inherits the fixed count-padding divisor, which reduces from
 `1 * kernelWidth` to `kernelWidth`; padding contributes positive zero while still counting.
-BFLOAT16, FLOAT16, and FLOAT32 average accumulation and division use FLOAT32; FLOAT64 uses FLOAT64,
+All four low types and FLOAT32 average accumulation and division use FLOAT32; FLOAT64 uses FLOAT64,
 and a low result narrows once. The existing Pool2d NaN, infinity, signed-zero, rounding,
 reassociation, and all-padding policies otherwise apply unchanged.
 
@@ -9139,7 +9186,7 @@ The input and result contracts are:
 
 | Value | Required Shape and type | Result meaning |
 |---|---|---|
-| receiver input | `[N, C, H, W]`; BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 | one rank-four NCHW source |
+| receiver input | `[N, C, H, W]`; floating, including FP8 | one rank-four NCHW source |
 | result | `[N, C, H_out, W_out]`; exact input type | exact input `N` and `C` Dimension references plus derived spatial Dimensions |
 
 `MaxPool2dAttrs` carries the complete intrinsic window geometry. Each successful call retains the
@@ -9256,7 +9303,7 @@ metadata; it does not read values or calculate an average.
 
 | Value | Required Shape and type | Result meaning |
 |---|---|---|
-| receiver input | `[N, C, H, W]`; BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 | one rank-four NCHW source |
+| receiver input | `[N, C, H, W]`; floating, including FP8 | one rank-four NCHW source |
 | result | `[N, C, H_out, W_out]`; exact input type | exact input `N` and `C` Dimension references plus derived spatial Dimensions |
 
 `AveragePool2dAttrs` is distinct from `MaxPool2dAttrs` because average pooling owns divisor and
@@ -9270,7 +9317,7 @@ attributes reference in provenance.
 | `paddingHeight`, `paddingWidth` | non-negative `long` | symmetric positions per side; each contributes conceptual positive zero and still counts in the divisor |
 | `dilationHeight`, `dilationWidth` | positive `long` | spacing between consecutive kernel positions; it does not change the divisor |
 | `ceilMode` | boolean | use the literal ceiling grid when true and the floor grid when false |
-| accumulation and division | fixed by input type | BFLOAT16, FLOAT16, and FLOAT32 use FLOAT32; FLOAT64 uses FLOAT64; divide the accumulated sum once |
+| accumulation and division | fixed by input type | All four low types and FLOAT32 use FLOAT32; FLOAT64 uses FLOAT64; divide the accumulated sum once |
 
 There is no count-padding option, valid-sample averaging mode, or divisor override. For either
 spatial axis, input extent `D`, kernel-position count `k`, padding per side `p`, dilation `d`, and
@@ -9325,7 +9372,7 @@ produce `0.25` or allocate result storage.
 #### Numerical, empty, and metadata policy
 
 Every in-bounds value contributes once to the numerator and every out-of-bounds position
-contributes exact positive zero. BFLOAT16, FLOAT16, and FLOAT32 accumulate and divide in FLOAT32;
+contributes exact positive zero. All four low types and FLOAT32 accumulate and divide in FLOAT32;
 FLOAT64 uses FLOAT64. A low result narrows once after division. The accumulator-domain sum is
 divided exactly once by `kernelHeight * kernelWidth`.
 
@@ -9362,7 +9409,7 @@ materialized numerical result.
 
 | Value | Required Shape and type | Result meaning |
 |---|---|---|
-| receiver input | `[N, C, D, H, W]`; BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 | one rank-five NCDHW source |
+| receiver input | `[N, C, D, H, W]`; floating, including FP8 | one rank-five NCDHW source |
 | result | `[N, C, D_out, H_out, W_out]`; exact input type | exact input `N` and `C` Dimension references plus three derived spatial Dimensions |
 
 `MaxPool3dAttrs` and `AveragePool3dAttrs` are separate immutable thirteen-component records. In
@@ -9466,8 +9513,8 @@ distinguishable; its selected mask is fixed for a later derivative stage. Curren
 general `unfold3d`/`fold3d` algebra. CPU FLOAT32/FLOAT64 now admit matching input/output gradient
 flags and actual Pool3d backward closure through these existing shared rules and window families.
 Direct forward execution retains fully static Shapes, resolved non-negative layouts, injective
-output layouts and checked geometry. BFLOAT16/FLOAT16 maximum-pool forward retains its existing
-exact domain only; CPU low pooling gradients and average arithmetic remain locked. Existing
+output layouts and checked geometry. CPU low pooling forward and selected actual gradients use
+the same owners with FLOAT32 arithmetic and final narrowing. Existing
 scalar/caller-parallel forward emission owns complete output cells with zero workspace or
 materialization; no standalone backward kernel or vector/native/fused pooling route was added.
 Qualified CPU all-valid/runtime-length Scan composes both pools and their actual reverse bodies
@@ -11547,9 +11594,9 @@ current finite body whitelist. Current general Scan composes every ordinary CPU-
 unit under the same ordinary dtype/layout/attribute guards, including supported symbolic
 occurrences with fixed time/features. Each actual forward and selected ordinary-VJP reverse body
 qualifies independently. ND roles cut derivatives; unsupported required finite paths reject.
-Model itself owns none of those downstream stages. Java BFLOAT16/FLOAT16 computation remains
-locked; raw/storage/casts/exact support is separate. Cold/wire, NN workflows and Metal support
-are not widened by this composition.
+Model itself owns none of those downstream stages. CPU BFLOAT16, FLOAT16 and both FP8 types
+reuse ordinary CPU/shared Compiler AD owners under the same family and geometry constraints.
+Cold/wire, NN workflows and Metal support remain separately bounded.
 CPU0042 additionally qualifies fixed T/B/features FLOAT32/FLOAT64 length-mode forward and actual
 first-order reverse. Prepare0011 adds static length-mode boundary/demand
 projection, preserving mixed generated reverse roles and outer layouts without CPU read predicates.
@@ -12052,10 +12099,10 @@ remain planned.
   happen after destination allocation; scalar and one creation have also allocated their source
   carrier, while zero creation has no source carrier. Every successful result has independent
   descriptor, layout, storage, backing array, Tensor object, and factory ID.
-- Its six type-safe full-value methods require a fully static shape and infer the exact data type
-  from a primitive value; only `fullBFloat16` converts a binary32 semantic input. Each method fills
-  one exact carrier and delegates once to flat import, preserving raw floating signed-zero and NaN
-  values and canonical BOOL bytes. `identityMatrix` supports all seven data types and non-negative
+- Its type-safe full-value methods require a fully static shape and infer the exact data type
+  from a primitive value; named low factories round binary32 once to the requested format.
+  Each method fills one exact carrier and delegates once to raw import, preserving stored
+  values and canonical BOOL bytes. `identityMatrix` supports every Model data type and non-negative
   rectangular dimensions, writes typed one only on the main diagonal of one default-zero carrier,
   and delegates once; `eye` is a pure canonical delegation. Early shape, dimension, count, layout,
   and gradient failures consume no ID. Blank labels, exhaustion, and unexpected copy failures have
