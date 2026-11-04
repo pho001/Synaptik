@@ -213,6 +213,43 @@ final class SourceGraphReconstructionTest {
     }
 
     @Test
+    void staticCarryFreeAndZeroRowLengthScopesPreserveExactPerRoleTypes() {
+        for (long time : List.of(0L, 3L)) for (long batch : List.of(0L, 1L, 3L))
+            for (boolean reverse : List.of(false, true)) {
+                for (DataType type : List.of(DataType.INT32, DataType.INT64, DataType.FLOAT32, DataType.FLOAT64)) {
+                    Tensor x = formal(type, batch, 2);
+                    assertColdBodyRoundTrip(new ScanBody(List.of(), List.of(x), List.of(),
+                            List.of(), List.of(x, x.add(x), x)), time, reverse);
+                }
+                Tensor x = formal(DataType.FLOAT64, batch, 2);
+                Tensor old = formal(DataType.FLOAT32);
+                Tensor contribution = x.sum().cast(DataType.FLOAT32);
+                for (boolean carry : List.of(false, true)) {
+                    var body = new ScanBody(carry ? List.of(old) : List.of(), List.of(x), List.of(),
+                            carry ? List.of(old.add(contribution)) : List.of(), List.of(x, x));
+                    Tensor initial = formal(DataType.FLOAT32), sequence = formal(DataType.FLOAT64, time, batch, 2);
+                    Tensor lengths = formal(DataType.INT64, batch);
+                    var result = Scan.apply(carry ? List.of(initial) : List.of(), List.of(sequence), List.of(),
+                            lengths, 0, List.of(java.util.OptionalInt.of(0)), body, reverse);
+                    var roots = new ArrayList<>(result.finalCarry()); roots.addAll(result.outputs()); roots.addAll(result.residuals());
+                    assertRoundTrip(roots);
+                    var source = GraphCompilationPort.captureSource(roots);
+                    var rebuilt = GraphCompilationPort.reconstructSource(source.graph(), source.leaves());
+                    var producer = rebuilt.getFirst().provenance().orElseThrow().producer();
+                    assertEquals(0, ((ScanAttrs) producer.operation().attrs()).rowCarryCount());
+                    assertSame(lengths, producer.inputs().getLast());
+                    var freshBody = producer.scanBody().orElseThrow();
+                    assertEquals(DataType.FLOAT64, freshBody.step().getFirst().descriptor().dataType());
+                    if (carry) {
+                        assertEquals(Shape.scalar(), freshBody.carry().getFirst().descriptor().shape());
+                        assertEquals(DataType.FLOAT32, freshBody.carry().getFirst().descriptor().dataType());
+                    }
+                    assertSame(freshBody.emissions().getFirst(), freshBody.emissions().getLast());
+                }
+            }
+    }
+
+    @Test
     void generalScanRebuildsIndependentScopesAllCanonicalPortsAndRepeatedRolesActuals() {
         Tensor h = formal(DataType.FLOAT32, 2), h2 = formal(DataType.FLOAT32, 2);
         Tensor x = formal(DataType.FLOAT32, 2), x2 = formal(DataType.FLOAT32, 2);

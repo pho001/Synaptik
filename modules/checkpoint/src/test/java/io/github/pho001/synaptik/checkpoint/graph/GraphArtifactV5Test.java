@@ -22,16 +22,16 @@ import org.junit.jupiter.api.io.TempDir;
 final class GraphArtifactV5Test {
     @TempDir Path directory;
 
-    @Test void newlyRepresentableHeadersRejectBeforeRoleAndBodyAllocationEvenAtZeroDomains() throws Exception {
+    @Test void invalidCountsRejectBeforeRoleAndBodyAllocationEvenAtZeroDomains() throws Exception {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
             for (long time : new long[] {0, 1}) for (long batch : new long[] {0, 1})
                 for (boolean reverse : List.of(false, true)) {
                     var f = fixture(type, time, batch, 0, reverse, false, true, false);
                     byte[] noCarry = Arrays.copyOf(f.bytes(), f.offsets().get("reverse") + 1);
-                    ByteBuffer.wrap(noCarry).putInt(f.offsets().get("carryCount"), 0);
+                    ByteBuffer.wrap(noCarry).putInt(f.offsets().get("carryCount"), -1);
                     assertInstanceOf(IllegalArgumentException.class, rejected(image(noCarry)).getCause());
                     byte[] noRows = Arrays.copyOf(f.bytes(), f.offsets().get("rowCarryCount") + 4);
-                    ByteBuffer.wrap(noRows).putInt(f.offsets().get("rowCarryCount"), 0);
+                    ByteBuffer.wrap(noRows).putInt(f.offsets().get("rowCarryCount"), -1);
                     assertInstanceOf(IllegalArgumentException.class, rejected(image(noRows)).getCause());
                 }
     }
@@ -308,7 +308,7 @@ final class GraphArtifactV5Test {
         var fixture = fixture(DataType.FLOAT32, 0, 3, 0, false, true, true, false);
         // No row count, axis count or role bytes exist: header failure must win over underflow.
         byte[] header = Arrays.copyOf(fixture.bytes(), fixture.offsets().get("reverse") + 1);
-        for (var mutation : List.of(Map.of("carryCount", 0), Map.of("sequenceCount", 0),
+        for (var mutation : List.of(Map.of("carryCount", -1), Map.of("sequenceCount", 0),
                 Map.of("invariantCount", -1), Map.of("emissionCount", -1), Map.of("residualCount", -1),
                 Map.of("carryCount", 2), Map.of("sequenceCount", 1_000_000))) {
             byte[] bad = header.clone();

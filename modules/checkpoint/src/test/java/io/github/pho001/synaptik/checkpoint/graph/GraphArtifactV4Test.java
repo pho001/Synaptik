@@ -22,11 +22,11 @@ import org.junit.jupiter.api.io.TempDir;
 final class GraphArtifactV4Test {
     @TempDir Path directory;
 
-    @Test void carryFreeV4HeaderRejectsBeforeAnyBodyFieldsOrCandidates() throws Exception {
+    @Test void negativeCarryV4HeaderRejectsBeforeAnyBodyFieldsOrCandidates() throws Exception {
         for (long time : new long[] {0, 1}) {
             var f = fixture(0, new byte[0], true, time);
             byte[] header = Arrays.copyOf(f.bytes(), f.offsets().get("reverse") + 1);
-            ByteBuffer.wrap(header).putInt(f.offsets().get("carryCount"), 0);
+            ByteBuffer.wrap(header).putInt(f.offsets().get("carryCount"), -1);
             Tensor before = f();
             var failure = assertThrows(ArtifactFormatException.class, () -> GraphArtifactCodec.decode(image(header), LIMITS));
             assertInstanceOf(IllegalArgumentException.class, failure.getCause());

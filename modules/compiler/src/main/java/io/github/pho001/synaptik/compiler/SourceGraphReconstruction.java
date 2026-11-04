@@ -52,8 +52,6 @@ import java.util.OptionalInt;
  * Reconstruction creates fresh canonical formals for every declaration, invokes each public
  * family constructor once per occurrence and retains all canonical
  * ports, without time unrolling. New substitution ties are checked per occurrence before IDs.
- * Cold source independently retains nonempty carry and positive ROW length-mode admission,
- * regardless of the broader source header; rejection precedes any reconstructed identities.
  * Index and length values are never read; raw unresolved layouts stay unresolved. Admission is
  * independent of backend dtype qualification and persistence eligibility.</p>
  */
@@ -108,9 +106,6 @@ final class SourceGraphReconstruction {
             var kind = node.operation().kind();
             if (kind == ScanKind.SCAN) {
                 var attrs = (ScanAttrs) node.operation().attrs();
-                if (attrs.carryCount() == 0 || attrs.lengthAware() && attrs.rowCarryCount() == 0) {
-                    throw new IllegalArgumentException("cold scan requires nonempty carry and positive ROW length mode");
-                }
                 if (bodyScope) throw new IllegalArgumentException("nested source scan");
                 var body = node.scanBody().orElseThrow();
                 var roles = new LinkedHashSet<>(body.nextCarry());
@@ -135,7 +130,7 @@ final class SourceGraphReconstruction {
                 Map<ValueId, TensorDescriptor> bodyDescriptors = preflight(body.graph(), true);
                 if (attrs.lengthAware()) {
                     try {
-                        validateColdLengthIntersection(node, bodyDescriptors);
+                        validateColdLengthIntersection(node, bodyDescriptors, descriptors);
                     } catch (ArithmeticException failure) {
                         throw new IllegalArgumentException(
                                 node.id() + ": cold length Scan geometry overflows", failure);
@@ -183,15 +178,17 @@ final class SourceGraphReconstruction {
      * whole-graph inference boundary below. Entirely SHARED RELU and batched MATMUL remain
      * cold-unsupported even though forward metadata now admits them.
      * @param scan stored static length occurrence whose body has passed independent preflight
+     * @param outerDescriptors exact containing-scope descriptors, including external lengths
      * @param descriptors exact independently inferred body-scope descriptors
      * @throws IllegalArgumentException if old operation/rank/role/attribute limits are exceeded
      */
-    private static void validateColdLengthIntersection(CompiledNode scan, Map<ValueId, TensorDescriptor> descriptors) {
+    private static void validateColdLengthIntersection(CompiledNode scan,
+            Map<ValueId, TensorDescriptor> descriptors, Map<ValueId, TensorDescriptor> outerDescriptors) {
         ScanAttrs header = (ScanAttrs) scan.operation().attrs();
         var body = scan.scanBody().orElseThrow();
-        var first = descriptors.get(body.graph().inputs().getFirst()).shape();
-        if (first.rank() == 0) throw coldLengthFailure();
-        var batch = first.dimension(0);
+        var lengths = outerDescriptors.get(scan.inputs().getLast()).shape();
+        if (lengths.rank() != 1) throw coldLengthFailure();
+        var batch = lengths.dimension(0);
         Map<ValueId, Scan.ValueSemantics> facts = new HashMap<>();
         for (int i = 0; i < body.graph().inputs().size(); i++) {
             int row = i < header.rowCarryCount() ? 0 : i >= header.carryCount()

@@ -19,30 +19,101 @@ import org.junit.jupiter.api.Test;
 
 /** Cold general-body normalization and ownership; no backend execution eligibility is inferred. */
 final class GraphCheckpointGeneralScanTest {
-    @Test void sourceOnlyTopologiesDoNotOpenCopyRebindOrPersistence(
+    @Test void zeroCarryAndRowCountsCopySaveLoadAndRebindWithoutReadingExternalLengths(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
-            for (long time : new long[] {0, 1}) for (long batch : new long[] {0, 1})
-                for (boolean reverse : List.of(false, true)) for (int topology = 0; topology < 3; topology++) {
-                    Tensor x = f(type, batch, 2), old = f(type, 2);
-                    boolean shared = topology == 2;
-                    var body = new ScanBody(shared ? List.of(old) : List.of(), List.of(x), List.of(),
-                            shared ? List.of(old.add(x.sum(0, false))) : List.of(), List.of(x));
+            for (long time : new long[] {0, 3}) for (long batch : new long[] {0, 1, 3})
+                for (boolean reverse : List.of(false, true)) for (int topology = 0; topology < 4; topology++) {
+                    boolean shared = topology >= 2, sharedSequence = topology == 3;
+                    Tensor x = sharedSequence ? f(type, 2) : f(type, batch, 2), old = f(type, 2);
+                    Tensor w = f(type, 2), state = tensor(type, Shape.of(2), false, true, raw(type, 2));
+                    Tensor step = x.mul(w);
+                    var body = new ScanBody(shared ? List.of(old) : List.of(), List.of(x), List.of(w),
+                            shared ? List.of(old.add(sharedSequence ? step : step.sum(0, false))) : List.of(),
+                            sharedSequence ? List.of() : List.of(step, step));
                     var initial = shared ? List.of(f(type, 2)) : List.<Tensor>of();
-                    Tensor sequence = f(type, time, batch, 2), lengths = f(DataType.INT64, batch);
-                    var result = topology == 0 ? Scan.apply(initial, List.of(sequence), List.of(), body, reverse)
-                            : Scan.apply(initial, List.of(sequence), List.of(), lengths, 0,
-                                    List.of(java.util.OptionalInt.of(0)), body, reverse);
+                    Tensor sequence = sharedSequence ? f(type, time, 2) : f(type, time, batch, 2);
+                    Tensor lengths = f(DataType.INT64, batch);
+                    MemorySegmentStorage control;
+                    try (Arena arena = Arena.ofConfined()) {
+                        control = new MemorySegmentStorage(DataType.INT64, batch, arena.allocate(batch * 8, 8));
+                        lengths.replaceHostStorage(control);
+                    }
+                    var axes = List.of(sharedSequence ? java.util.OptionalInt.empty() : java.util.OptionalInt.of(0));
+                    var result = topology == 0 ? Scan.apply(initial, List.of(sequence), List.of(state), body, reverse)
+                            : Scan.apply(initial, List.of(sequence), List.of(state), lengths, 0, axes, body, reverse);
                     var inputs = new ArrayList<>(initial); inputs.add(sequence);
                     if (topology != 0) inputs.add(lengths);
-                    var source = new GraphCheckpoint.Source(inputs, result.outputs(), List.of());
-                    var path = directory.resolve("source-only");
-                    Tensor before = f(DataType.BOOL);
-                    assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.copy(source));
-                    assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.rebind(source, source.inputs()));
-                    assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.save(path, source, LIMITS));
-                    assertFalse(java.nio.file.Files.exists(path));
-                    assertEquals(before.id().value() + 1, f(DataType.BOOL).id().value());
+                    var roots = new ArrayList<>(result.finalCarry()); roots.addAll(result.outputs()); roots.addAll(result.residuals());
+                    var source = new GraphCheckpoint.Source(inputs, roots, List.of(
+                            leaf("state", GraphCheckpoint.Role.BUFFER, state), leaf("alias", GraphCheckpoint.Role.BUFFER, state)));
+                    var expected = GraphSource.capture(source).graph;
+                    var path = directory.resolve("topology");
+                    GraphCheckpoint.save(path, source, LIMITS);
+                    for (var acquired : List.of(GraphCheckpoint.copy(source), GraphCheckpoint.load(path, LIMITS))) {
+                        assertEquals(expected, GraphSource.capture(acquired).graph);
+                        assertTrue(acquired.inputs().stream().allMatch(t -> t.hostStorage().isEmpty()));
+                        Tensor owned = acquired.leaves().getFirst().tensor();
+                        assertSame(owned, acquired.leaves().getLast().tensor()); assertNotSame(state, owned);
+                        assertArrayEquals(raw(type, 2), GraphValueStorage.encode(
+                                owned.descriptor(), owned.hostStorage().orElseThrow().segment()));
+                        var replacements = acquired.inputs().stream().map(t -> TensorFactory.create(t.descriptor())).toList();
+                        var rebound = GraphCheckpoint.rebind(acquired, replacements);
+                        assertEquals(expected, GraphSource.capture(new GraphCheckpoint.Source(
+                                replacements, rebound, acquired.leaves())).graph);
+                        var producer = rebound.getFirst().provenance().orElseThrow().producer();
+                        for (int port = 0; port < roots.size(); port++) assertSame(producer.output(port), rebound.get(port));
+                        if (topology != 0) assertSame(replacements.getLast(), producer.inputs().getLast());
+                        if (!sharedSequence) {
+                            int emission = initial.size();
+                            assertNotSame(rebound.get(emission), rebound.get(emission + 1));
+                            assertSame(producer.scanBody().orElseThrow().emissions().getFirst(),
+                                    producer.scanBody().orElseThrow().emissions().getLast());
+                        }
+                        var wrong = new ArrayList<>(replacements);
+                        wrong.set(0, f(type, 7));
+                        assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.rebind(acquired, wrong));
+                    }
+                    assertSame(control, lengths.hostStorage().orElseThrow()); assertFalse(control.isAlive());
+                }
+    }
+
+    @Test void zeroRowScalarAccumulatorRetainsMixedRoleTypesAndRawLowState(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        for (DataType stateType : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+            for (long time : List.of(0L, 3L)) for (long batch : List.of(0L, 3L))
+                for (boolean reverse : List.of(false, true)) {
+                    Tensor old = f(DataType.FLOAT32), x = f(DataType.FLOAT64, batch, 2), w = f(stateType, 2);
+                    Tensor product = x.mul(w.cast(DataType.FLOAT64));
+                    var body = new ScanBody(List.of(old), List.of(x), List.of(w),
+                            List.of(old.add(product.sum().cast(DataType.FLOAT32))), List.of(product));
+                    Tensor initial = f(DataType.FLOAT32), sequence = f(DataType.FLOAT64, time, batch, 2);
+                    Tensor lengths = f(DataType.INT64, batch);
+                    Tensor state = tensor(stateType, Shape.of(2), false, true, raw(stateType, 2));
+                    var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(state), lengths, 0,
+                            List.of(java.util.OptionalInt.of(0)), body, reverse);
+                    var roots = new ArrayList<>(scan.finalCarry()); roots.addAll(scan.outputs()); roots.addAll(scan.residuals());
+                    var source = new GraphCheckpoint.Source(List.of(sequence, lengths, initial), roots,
+                            List.of(leaf("state", GraphCheckpoint.Role.BUFFER, state)));
+                    var expected = GraphSource.capture(source).graph;
+                    var file = directory.resolve("mixed-zero-row");
+                    GraphCheckpoint.save(file, source, LIMITS);
+                    for (var acquired : List.of(GraphCheckpoint.copy(source), GraphCheckpoint.load(file, LIMITS))) {
+                        assertEquals(expected, GraphSource.capture(acquired).graph);
+                        Tensor owned = acquired.leaves().getFirst().tensor();
+                        assertEquals(state.descriptor(), owned.descriptor());
+                        assertArrayEquals(raw(stateType, 2), GraphValueStorage.encode(
+                                owned.descriptor(), owned.hostStorage().orElseThrow().segment()));
+                        var replacements = acquired.inputs().stream().map(t -> TensorFactory.create(t.descriptor())).toList();
+                        var rebound = GraphCheckpoint.rebind(acquired, replacements);
+                        assertEquals(expected, GraphSource.capture(new GraphCheckpoint.Source(
+                                replacements, rebound, acquired.leaves())).graph);
+                        var fresh = rebound.getFirst().provenance().orElseThrow().producer().scanBody().orElseThrow();
+                        assertEquals(DataType.FLOAT32, fresh.carry().getFirst().descriptor().dataType());
+                        assertEquals(Shape.scalar(), fresh.carry().getFirst().descriptor().shape());
+                        assertEquals(DataType.FLOAT64, fresh.step().getFirst().descriptor().dataType());
+                        assertEquals(stateType, fresh.invariants().getFirst().descriptor().dataType());
+                    }
                 }
     }
 

@@ -406,8 +406,8 @@ final class GraphArtifactCodec {
      * Selects the explicit scope-specific inventory without widening outer admission.
      * Compiler retains family inference and dtype/descriptor validation. Length mode has its own
      * outer opcode and header; it never changes the all-valid seven-field record.
-     * Both scan opcodes retain nonempty carry; length opcode 33 additionally retains positive
-     * ROW carry, declared axes zero/one and rank-two ROW(1) declarations, including unused ones.
+     * Both scan opcodes retain nonnegative carry counts; length opcode 33 independently retains
+     * nonnegative ROW carry, declared axes zero/one and rank-two ROW(1) declarations, including unused ones.
      * Compiler's independent cold preflight retains the constructor/type/coordinate intersection.
      * Broader source headers reject here before sizing or storage admission, and the reader
      * applies the same scalar restrictions before body/role allocation. Mode is opcode-derived.
@@ -421,10 +421,6 @@ final class GraphArtifactCodec {
         if (node.scanBody().isPresent() != (kind == ScanKind.SCAN)
                 || bodyScope && (kind == ScanKind.SCAN || kind instanceof RecurrentScanKind))
             throw invalid("Missing, extra or nested scan attachment");
-        if (kind == ScanKind.SCAN && node.operation().attrs() instanceof ScanAttrs scan
-                && (scan.carryCount() == 0 || scan.lengthAware() && scan.rowCarryCount() == 0)) {
-            throw invalid("Wire scan requires nonempty carry and positive ROW length mode");
-        }
         if (kind == ScanKind.SCAN && node.operation().attrs() instanceof ScanAttrs scan
                 && scan.lengthAware()) {
             var local = node.scanBody().orElseThrow().graph();
@@ -798,11 +794,10 @@ final class GraphArtifactCodec {
                 case 23, 33 -> {
                     var header = new ScanAttrs(bytes.getLong(), bytes.getInt(), bytes.getInt(), bytes.getInt(),
                             bytes.getInt(), bytes.getInt(), flag());
-                    if (header.carryCount() == 0) throw invalid("Wire scan requires nonempty carry");
                     if (op == 23) yield new Operation(ScanKind.SCAN, header);
                     if (Math.addExact(header.inputCount(), 1) != arity) throw invalid("Scan actual count mismatch");
                     int rowCarry = bytes.getInt();
-                    if (rowCarry <= 0 || rowCarry > header.carryCount()) throw invalid("Invalid row carry count");
+                    if (rowCarry < 0 || rowCarry > header.carryCount()) throw invalid("Invalid row carry count");
                     int count = count(1);
                     if (count != header.sequenceCount()) throw invalid("Scan sequence axis count mismatch");
                     var axes = new ArrayList<OptionalInt>(count);

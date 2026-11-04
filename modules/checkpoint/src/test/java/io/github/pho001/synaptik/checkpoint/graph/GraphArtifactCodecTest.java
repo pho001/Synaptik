@@ -32,9 +32,8 @@ import org.junit.jupiter.api.io.TempDir;
 final class GraphArtifactCodecTest {
     @TempDir Path directory;
 
-    @Test void codecLocalAdmissionRejectsNewTopologiesWithoutCompilerOrSizing() throws Exception {
-        // Invoke the existing semantic admission predicate, not Compiler or the writer. Without
-        // the codec-local topology guard it returns an opcode and this regression must fail.
+    @Test void codecLocalAdmissionAcceptsZeroCarryAndRowCountsWithoutCompilerOrSizing() throws Exception {
+        // The existing count fields represent these Model-valid topologies without a new opcode.
         var admission = GraphArtifactCodec.class.getDeclaredMethod("opcode", CompiledNode.class);
         admission.setAccessible(true);
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
@@ -42,24 +41,29 @@ final class GraphArtifactCodecTest {
                 for (boolean reverse : List.of(false, true)) for (int topology = 0; topology < 3; topology++) {
                     var raw = sourceOnlyScanFixture(type, time, batch, reverse, topology);
                     Tensor before = prototype(type, Shape.scalar(), false, true);
-                    var failure = assertThrows(java.lang.reflect.InvocationTargetException.class,
-                            () -> admission.invoke(null, raw.graph.nodes().getFirst()));
-                    assertInstanceOf(IllegalArgumentException.class, failure.getCause());
+                    assertEquals(topology == 0 ? 23 : 33,
+                            admission.invoke(null, raw.graph.nodes().getFirst()));
                     assertEquals(before.id().value() + 1, prototype(type, Shape.scalar(), false, true).id().value());
                 }
     }
 
-    @Test void rawEncoderRejectsNewTopologiesWithCompleteSourceBoundaries() throws Exception {
-        // End-to-end rejection is separate evidence: these graphs have reachable Scan outputs,
-        // contiguous input IDs before produced IDs, and the exact matching source boundary.
+    @Test void rawEncoderRoundTripsZeroCarryAndRowCountsInExistingWireVersions() throws Exception {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
             for (long time : new long[] {0, 1}) for (long batch : new long[] {0, 1})
                 for (boolean reverse : List.of(false, true)) for (int topology = 0; topology < 3; topology++) {
                     var raw = sourceOnlyScanFixture(type, time, batch, reverse, topology);
-                    Tensor before = prototype(type, Shape.scalar(), false, true);
-                    assertThrows(IllegalArgumentException.class, () -> GraphArtifactCodec.encode(raw, LIMITS));
+                    var image = GraphArtifactCodec.encode(raw, LIMITS);
+                    assertEquals(topology == 0 ? "graph-model.v4" : "graph-model.v5", image.kind());
+                    var loaded = GraphArtifactCodec.decode(image, LIMITS);
+                    assertEquals(raw.graph, GraphSource.capture(loaded).graph);
+                    var encodedAgain = GraphArtifactCodec.encode(GraphSource.capture(loaded), LIMITS);
+                    assertEquals(image.kind(), encodedAgain.kind());
+                    assertEquals(image.entries().stream().map(ArtifactEnvelope.Entry::key).toList(),
+                            encodedAgain.entries().stream().map(ArtifactEnvelope.Entry::key).toList());
+                    assertEquals(image.entries().stream().map(ArtifactEnvelope.Entry::payload).toList(),
+                            encodedAgain.entries().stream().map(ArtifactEnvelope.Entry::payload).toList());
                     assertThrows(IllegalArgumentException.class, () -> GraphArtifactCodec.encode(raw, new ArtifactLimits(48, 8, 0, 1, 0, 0)));
-                    assertEquals(before.id().value() + 1, prototype(type, Shape.scalar(), false, true).id().value());
+                    assertTrue(loaded.inputs().stream().allMatch(t -> t.hostStorage().isEmpty()));
                 }
     }
 
@@ -169,7 +173,8 @@ final class GraphArtifactCodecTest {
         var localNodes = new ArrayList<CompiledNode>();
         if (shared) {
             formals.add(y); localValues.add(new GraphValue(y, descriptor.apply(type, shape)));
-            localValues.add(new GraphValue(sum, descriptor.apply(type, shape)));
+            // Raw ADD inference leaves its result layout unresolved; only Scan ports are closed here.
+            localValues.add(new GraphValue(sum, new TensorDescriptor(type, shape, Optional.empty(), false)));
             localNodes.add(new CompiledNode(new NodeId(0), new Operation(
                     io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind.ADD,
                     io.github.pho001.synaptik.model.operation.NoOperationAttrs.INSTANCE), List.of(x, y), List.of(sum)));

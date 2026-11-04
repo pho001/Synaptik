@@ -32,7 +32,7 @@ final class LengthAwareScanBodyInferenceTest {
             }
     }
 
-    @Test void emptyCarryAndZeroRowLengthSourceInferWhileColdAdmissionRemainsIndependent() {
+    @Test void emptyCarryAndZeroRowLengthSourceInferAndPassIndependentColdAdmission() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
             for (long batch : new long[] {0, 1}) for (long time : new long[] {0, 1})
                 for (boolean reverse : List.of(false, true)) for (int topology = 0; topology < 3; topology++) {
@@ -52,7 +52,7 @@ final class LengthAwareScanBodyInferenceTest {
                             .filter(v -> v.id().equals(id)).findFirst().orElseThrow().descriptor()).toList();
                     // The raw inference and cold owners are reached independently, not via compile.
                     assertDoesNotThrow(() -> ScanBodyInference.infer(node, inputs));
-                    assertThrows(IllegalArgumentException.class, () -> SourceGraphReconstruction.preflight(raw));
+                    assertDoesNotThrow(() -> SourceGraphReconstruction.preflight(raw));
                 }
     }
 

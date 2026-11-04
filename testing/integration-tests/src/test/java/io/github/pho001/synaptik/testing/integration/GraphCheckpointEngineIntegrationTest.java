@@ -105,6 +105,85 @@ final class GraphCheckpointEngineIntegrationTest {
         }
     }
 
+    @ParameterizedTest
+    @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64"})
+    void staticZeroCarryAndRowScansRoundTripAndExecuteWithExactLengthSemantics(DataType type) throws Exception {
+        var limits = new ArtifactLimits(100_000, 10_000, 10, 32, 10_000, 90_000);
+        try (Engine engine = Engine.builder().takeOwnership(
+                io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration.open()).build()) {
+            for (int topology = 0; topology < 3; topology++)
+                for (int time : List.of(0, 3)) for (int batch : List.of(0, 3))
+                    for (boolean reverse : List.of(false, true)) {
+                        boolean shared = topology == 2, lengthAware = topology != 0;
+                        Tensor x = TensorFactory.create(scanDescriptor(type, Shape.of(batch, 2)));
+                        Tensor old = TensorFactory.create(scanDescriptor(type, Shape.scalar()));
+                        Tensor w = TensorFactory.create(scanDescriptor(type, Shape.of(2)));
+                        Tensor product = x.mul(w);
+                        var body = new ScanBody(shared ? List.of(old) : List.of(), List.of(x), List.of(w),
+                                shared ? List.of(old.add(product.sum())) : List.of(), List.of(product, product));
+                        Tensor initial = TensorFactory.create(old.descriptor());
+                        Tensor sequence = TensorFactory.create(scanDescriptor(type, Shape.of(time, batch, 2)));
+                        var lengthsDescriptor = new TensorDescriptor(DataType.INT64, Shape.of(batch),
+                                Optional.of(LayoutDescriptor.contiguous(Shape.of(batch))), false);
+                        Tensor lengths = TensorFactory.create(lengthsDescriptor), weight = scanValue(type, Shape.of(2), .5, 2);
+                        var scan = lengthAware ? Scan.apply(shared ? List.of(initial) : List.of(), List.of(sequence),
+                                List.of(weight), lengths, 0, List.of(java.util.OptionalInt.of(0)), body, reverse)
+                                : Scan.apply(List.of(), List.of(sequence), List.of(weight), body, reverse);
+                        var inputs = new java.util.ArrayList<Tensor>();
+                        if (shared) inputs.add(initial);
+                        inputs.add(sequence);
+                        if (lengthAware) inputs.add(lengths);
+                        var outputs = new java.util.ArrayList<>(scan.finalCarry()); outputs.addAll(scan.outputs());
+                        var source = new GraphCheckpoint.Source(inputs, outputs, List.of(
+                                new GraphCheckpoint.Leaf("weight", GraphCheckpoint.Role.PARAMETER, weight),
+                                new GraphCheckpoint.Leaf("alias", GraphCheckpoint.Role.PARAMETER, weight)));
+                        Path file = directory.resolve("zero-count.graph");
+                        GraphCheckpoint.save(file, source, limits);
+                        double[] lanes = new double[time * batch * 2], expected = new double[lanes.length];
+                        long[] control = new long[batch];
+                        for (int row = 0; row < batch; row++) control[row] = row == 0 ? time : row == 1 ? Math.min(1, time) : 0;
+                        double total = .75;
+                        for (int t = 0; t < time; t++) for (int row = 0; row < batch; row++)
+                            for (int feature = 0; feature < 2; feature++) {
+                                int index = (t * batch + row) * 2 + feature;
+                                lanes[index] = index + 1;
+                                if (!lengthAware || t < control[row]) {
+                                    expected[index] = lanes[index] * (feature == 0 ? .5 : 2);
+                                    total += expected[index];
+                                }
+                            }
+                        for (var acquired : List.of(GraphCheckpoint.copy(source), GraphCheckpoint.load(file, limits))) {
+                            assertSame(acquired.leaves().getFirst().tensor(), acquired.leaves().getLast().tensor());
+                            assertTrue(acquired.inputs().stream().allMatch(t -> t.hostStorage().isEmpty()));
+                            var actuals = new java.util.ArrayList<Tensor>();
+                            if (shared) actuals.add(scanValue(type, Shape.scalar(), .75));
+                            actuals.add(scanValue(type, Shape.of(time, batch, 2), lanes));
+                            if (lengthAware) actuals.add(TensorFactory.fromFlatArray(
+                                    lengthsDescriptor, Optional.empty(), control.clone()));
+                            var rebound = GraphCheckpoint.rebind(acquired, actuals);
+                            var compiled = engine.compile(rebound);
+                            var pool = new java.util.ArrayList<>(actuals); pool.add(acquired.leaves().getFirst().tensor());
+                            var bindings = compiled.inputs().stream().map(input -> pool.stream()
+                                    .filter(t -> t.id().equals(input.tensorId())).findFirst().orElseThrow()).toList();
+                            try (var prepared = engine.prepare(compiled); var result = engine.runValues(prepared, bindings)) {
+                                int emission = shared ? 1 : 0;
+                                if (shared) assertScanLanes(type, new double[]{total},
+                                        result.materialize(result.publications().getFirst(), 1024));
+                                for (int port = emission; port < emission + 2; port++)
+                                    assertScanLanes(type, expected, result.materialize(result.publications().get(port), 1024));
+                            }
+                        }
+                    }
+        }
+    }
+
+    private static void assertScanLanes(DataType type, double[] expected, HostTensorValue actual) {
+        var bytes = actual.bytes();
+        assertEquals(expected.length * type.byteWidth(), bytes.remaining());
+        for (int i = 0; i < expected.length; i++)
+            assertEquals(expected[i], type == DataType.FLOAT32 ? bytes.getFloat(i * 4) : bytes.getDouble(i * 8), 0);
+    }
+
     /**
      * Composes an independent ordinary scan whose retained carry history is publicly requested.
      * @param initial canonical gradient-eligible two-lane initial carry
