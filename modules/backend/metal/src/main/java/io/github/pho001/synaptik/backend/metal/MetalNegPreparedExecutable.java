@@ -595,10 +595,10 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                     throw failure;
                 }
                 if (reproduced != null) {
-                    reproduced.initCause(failure);
                     if (observerFailure != null) {
                         MetalTraceProducer.suppressObserverError(reproduced, observerFailure);
                     }
+                    reproduced.initCause(failure);
                     throw reproduced;
                 }
                 throw failure;
