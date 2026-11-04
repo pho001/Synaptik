@@ -1602,7 +1602,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * specializations and owner cursor resets become
      * immutable generation facts. Their control starts after the physical value/carry inventory,
      * and each helper's aligned scratch follows the complete control slabs. Retained staged scans
-     * keep their existing resource/strategy policy. No storage or control values are read here.
+     * keep their existing resource/strategy policy. Changed low Scan bodies select the shared
+     * low-arithmetic compatibility projection; unchanged F32/F64 Scan bodies retain projection 71.
+     * No storage or control values are read here.
      * @param context exact single-unit projection, inspected without storage reads
      * @param lowered proved generated scan and positional boundaries
      * @param workspaceId exact unit-local workspace declaration identity
@@ -1653,9 +1655,11 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 : CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR : ranges > 1
                 ? CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR;
         int bits = vectorRow ? speciesBits(scan.ir().dataType()) : 0;
+        int schema = CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(scan.ir())
+                ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA : 71;
         var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(scan.ir().structuralKey()),
                 strategy, lowered.boundaryDataTypes(), carriers,
-                bits, -1, List.of(), workspace.isPresent(), 71, Optional.empty(), Optional.of(scan.ir()),
+                bits, -1, List.of(), workspace.isPresent(), schema, Optional.empty(), Optional.of(scan.ir()),
                 false,false,Optional.empty(),emission,Optional.empty(),Optional.empty(),
                 compositionResources.map(CompositionResources::units).orElseGet(List::of));
         var route = new CpuPortableRoutePlan(scan.ir(), specialization);
