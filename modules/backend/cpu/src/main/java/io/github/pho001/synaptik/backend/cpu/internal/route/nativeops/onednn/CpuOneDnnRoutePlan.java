@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Selected realizations of retained common units, owning no native handles or run data.
@@ -63,11 +64,13 @@ public record CpuOneDnnRoutePlan(String sessionIdentity, List<Unit> units,
      *     intermediates/constants and native per-step scratch, charged once
      * @param implementation non-null non-blank copied native implementation identity
      * @param inputCopies non-null immutable ingress role declarations; copied
+     * @param outputStagingWorkspace declared F32 native destination exactly when final CAST is needed
      * @param invocationWorkspace non-null private scratch declaration, aligned to 64 bytes
      */
     public record Unit(int unitPosition, CpuOneDnnProjection projection, Api api,
             long scratchpadBytes, String implementation, List<InputCopy> inputCopies,
-            PreparationResourceRequirement.Workspace invocationWorkspace) {
+            PreparationResourceRequirement.Workspace invocationWorkspace,
+            Optional<PreparationResourceRequirement.Workspace> outputStagingWorkspace) {
         /**
          * Authenticates descriptor, shared ingress and invocation-workspace geometry.
          *
@@ -78,6 +81,7 @@ public record CpuOneDnnRoutePlan(String sessionIdentity, List<Unit> units,
          * @param implementation non-null non-blank implementation identity
          * @param inputCopies non-null copy roles, snapshotted without retaining run data
          * @param invocationWorkspace non-null private 64-byte-aligned scratch declaration
+         * @param outputStagingWorkspace private F32 destination declaration, absent for direct output
          * @throws NullPointerException if a required object or list element is null
          * @throws IllegalArgumentException if selection, scratch, copy roles or source spans disagree
          */
@@ -87,6 +91,13 @@ public record CpuOneDnnRoutePlan(String sessionIdentity, List<Unit> units,
             Objects.requireNonNull(implementation, "implementation");
             inputCopies = List.copyOf(inputCopies);
             Objects.requireNonNull(invocationWorkspace, "invocationWorkspace");
+            Objects.requireNonNull(outputStagingWorkspace, "outputStagingWorkspace");
+            if (projection.requiresOutputNarrowing() != outputStagingWorkspace.isPresent()
+                    || outputStagingWorkspace.filter(workspace ->
+                        workspace.byteSize() != projection.spec().output().byteSize()
+                            || workspace.byteAlignment() != 64).isPresent()) {
+                throw new IllegalArgumentException("oneDNN output staging disagrees with logical result");
+            }
             if (unitPosition < 0 || api == Api.AUTO || scratchpadBytes < 0
                     || implementation.isBlank() || invocationWorkspace.byteSize() != scratchpadBytes
                     || invocationWorkspace.byteAlignment() != 64) {
@@ -109,13 +120,30 @@ public record CpuOneDnnRoutePlan(String sessionIdentity, List<Unit> units,
             }
         }
         /**
-         * Lists ingress declarations followed by the private invocation declaration.
+         * Creates a direct-output native selection with no final destination conversion.
+         * @param unitPosition common-unit index
+         * @param projection direct-output numeric projection
+         * @param api resolved native API
+         * @param scratchpadBytes exact queried native invocation bytes
+         * @param implementation retained selected implementation
+         * @param inputCopies declared ingress copies
+         * @param invocationWorkspace private invocation declaration
+         */
+        public Unit(int unitPosition, CpuOneDnnProjection projection, Api api,
+                long scratchpadBytes, String implementation, List<InputCopy> inputCopies,
+                PreparationResourceRequirement.Workspace invocationWorkspace) {
+            this(unitPosition, projection, api, scratchpadBytes, implementation, inputCopies,
+                    invocationWorkspace, Optional.empty());
+        }
+        /**
+         * Lists ingress declarations, optional F32 result staging, then the private invocation.
          *
          * @return non-null immutable ordered declarations; shared ingress may recur across units
          */
         public List<PreparationResourceRequirement.Workspace> workspaceRequirements() {
             var result = new ArrayList<PreparationResourceRequirement.Workspace>(inputCopies.size() + 1);
             for (InputCopy copy : inputCopies) result.add(copy.workspace());
+            outputStagingWorkspace.ifPresent(result::add);
             result.add(invocationWorkspace);
             return List.copyOf(result);
         }
@@ -154,6 +182,11 @@ public record CpuOneDnnRoutePlan(String sessionIdentity, List<Unit> units,
                     throw new IllegalArgumentException("oneDNN ingress must have one preceding refresh owner");
                 }
             }
+            unit.outputStagingWorkspace().ifPresent(staging -> {
+                if (declarations.putIfAbsent(staging.requirementId(), staging) != null) {
+                    throw new IllegalArgumentException("oneDNN output staging must be private");
+                }
+            });
             var invocation = unit.invocationWorkspace();
             if (declarations.putIfAbsent(invocation.requirementId(), invocation) != null) {
                 throw new IllegalArgumentException("oneDNN invocation workspace must be private");

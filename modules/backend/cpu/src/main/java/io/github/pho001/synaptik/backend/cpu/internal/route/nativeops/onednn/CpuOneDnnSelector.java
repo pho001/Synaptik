@@ -136,6 +136,9 @@ public final class CpuOneDnnSelector {
                 }
                 copies.add(new CpuOneDnnRoutePlan.InputCopy(entry.getValue(), workspace, refresh));
             }
+            Optional<PreparationResourceRequirement.Workspace> outputStaging = projected.requiresOutputNarrowing()
+                    ? Optional.of(new PreparationResourceRequirement.Workspace(workspaceId++,
+                            projected.spec().output().byteSize(), 64)) : Optional.empty();
             CpuOneDnnRoutePlan.Unit best = null;
             long bestCost = Long.MAX_VALUE;
             for (var api : apis()) {
@@ -147,6 +150,12 @@ public final class CpuOneDnnSelector {
                 long perRun = Math.addExact(Math.multiplyExact(NATIVE_CONTROL_AND_DISPATCH, steps),
                         Math.addExact(macs(projected.spec()), elements(projected.spec().output())));
                 perRun = Math.addExact(perRun, Math.addExact(copyBytes, facts.scratchpadBytes()));
+                if (outputStaging.isPresent()) {
+                    perRun = Math.addExact(perRun, Math.addExact(outputStaging.orElseThrow().byteSize(),
+                            Math.addExact(projected.logicalOutputByteSize(),
+                                    Math.multiplyExact(PORTABLE_ELEMENT, elements(projected.spec().output())))));
+                    perRun = Math.addExact(perRun, 1_000L);
+                }
                 // Each declared workspace includes allocation, native control creation and cleanup.
                 perRun = Math.addExact(perRun, Math.multiplyExact(1_000L, freshCopies.size() + 1L));
                 long cost = Math.addExact(Math.multiplyExact(perRun, runs),
@@ -156,7 +165,7 @@ public final class CpuOneDnnSelector {
                     best = new CpuOneDnnRoutePlan.Unit(position, projected, api,
                             facts.scratchpadBytes(), facts.implementation(), copies,
                             new PreparationResourceRequirement.Workspace(workspaceId,
-                                    facts.scratchpadBytes(), 64));
+                                    facts.scratchpadBytes(), 64), outputStaging);
                 }
             }
             long portableUnit = Math.multiplyExact(

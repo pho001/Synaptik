@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * oneDNN 3.14 Graph C ABI emitter for an already-lowered F32 numeric block.
+ * oneDNN 3.14 Graph C ABI emitter for an already-lowered typed F32-working numeric block.
  * This is not Synaptik automatic differentiation or independent graph lowering. External inputs,
  * including weights, are VARIABLE and retain canonical descriptors; opaque native-internal
  * layouts cannot replace public stores. Wider diagnostic descriptors are not production eligibility.
@@ -180,8 +180,10 @@ public final class CpuOneDnnGraph {
     private static int physicalType(CpuOneDnnKernelSpec.Tensor tensor) {
         return switch (tensor.dataType()) {
             case FLOAT32 -> F32;
+            case FLOAT16 -> 1;
+            case BFLOAT16 -> 2;
             case BOOL -> 8; // Graph boolean is distinct from primitive u8.
-            default -> throw unsupported("represented dtype is not F32 or BOOL");
+            default -> throw unsupported("represented dtype is not F32, F16, BF16 or BOOL; Graph FP8 is unavailable");
         };
     }
 

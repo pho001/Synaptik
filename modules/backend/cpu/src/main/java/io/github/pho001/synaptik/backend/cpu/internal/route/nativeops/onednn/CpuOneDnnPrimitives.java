@@ -35,7 +35,7 @@ public final class CpuOneDnnPrimitives {
     private CpuOneDnnPrimitives() { }
 
     /**
-     * Queries an actual strict-F32 primitive descriptor without creating an executable primitive.
+     * Queries an actual typed F32-working primitive descriptor without creating an executable primitive.
      * All descriptor, attribute and ABI-memory resources are closed before returning; the copied
      * facts retain no native handle or library lease. A query or cleanup failure prevents publication,
      * and cleanup failures are suppressed on an earlier failure.
@@ -54,7 +54,7 @@ public final class CpuOneDnnPrimitives {
     }
 
     /**
-     * Creates one executable primitive from the same strict-F32 descriptor used for metadata queries.
+     * Creates one executable primitive from the same strict F32-working descriptor used for metadata queries.
      * The returned kernel owns the descriptor scope and a library lease, retained by issued
      * workspaces until their close. Failed preparation, primitive creation or publication closes all
      * acquired resources, suppressing cleanup failures on the original failure.
@@ -124,6 +124,10 @@ public final class CpuOneDnnPrimitives {
                 MemorySegment attributes = created((int) api.attrCreate.invokeExact(attrResult),
                         attrResult, temporary, api.attrDestroy, "create primitive attributes");
                 check((int) api.attrFpmath.invokeExact(attributes, STRICT_FPMATH), "set strict fpmath");
+                if (spec.inputs().stream().anyMatch(input -> CpuOneDnnProjection.lowType(input.dataType()))) {
+                    // Default/strict is F32 accumulation; never allow partial low spills.
+                    check((int) api.attrAccumulation.invokeExact(attributes, 0), "set strict accumulation");
+                }
                 check((int) api.attrScratch.invokeExact(attributes, USER_SCRATCHPAD), "set user scratchpad");
                 var contraction = spec instanceof CpuOneDnnKernelSpec.Contraction value ? value : null;
                 if (contraction != null && contraction.activation() != CpuOneDnnKernelSpec.Activation.NONE) {
@@ -198,6 +202,10 @@ public final class CpuOneDnnPrimitives {
     private static int physicalType(Tensor tensor) {
         return switch (tensor.dataType()) {
             case FLOAT32 -> F32;
+            case FLOAT16 -> 1;
+            case BFLOAT16 -> 2;
+            case FLOAT8_E5M2 -> 9;
+            case FLOAT8_E4M3 -> 10;
             case BOOL -> 6; // Primitive storage is u8, not Graph's boolean enum.
             default -> throw new IllegalArgumentException("unsupported oneDNN represented dtype");
         };
@@ -288,6 +296,19 @@ public final class CpuOneDnnPrimitives {
      *     descriptor combination has not been qualified for the represented semantics
      */
     private static void qualifyImplementation(CpuOneDnnKernelSpec spec, String implementation) {
+        boolean lowInputs = spec.inputs().stream().anyMatch(input -> CpuOneDnnProjection.lowType(input.dataType()));
+        if (lowInputs && spec instanceof CpuOneDnnKernelSpec.Contraction contraction
+                && !qualifiedLowMatmul(contraction, implementation)) {
+            throw new CpuOneDnnCompiler.UnsupportedRealizationException(
+                    "unqualified typed F32-accumulating MATMUL implementation: " + implementation);
+        }
+        if (lowInputs && !(spec instanceof CpuOneDnnKernelSpec.Contraction)
+                && !implementation.equals("ref:any")) {
+            // Pinned ref_binary.cpp and ref_reduction.cpp load represented operands to float
+            // and compute/store F32. Their proof does not qualify an unrelated optimized body.
+            throw new CpuOneDnnCompiler.UnsupportedRealizationException(
+                    "unqualified typed F32-working implementation: " + implementation);
+        }
         // Reference ABS changes +0 to -0; x64 EXP flushes at an unauthorized elementary site.
         if (spec instanceof CpuOneDnnKernelSpec.Unary unary
                 && (unary.algorithm() == CpuOneDnnKernelSpec.UnaryAlgorithm.ABS
@@ -314,6 +335,38 @@ public final class CpuOneDnnPrimitives {
         if (spec instanceof CpuOneDnnKernelSpec.Pooling && !implementation.equals("simple_nchw:any")) {
             throw new CpuOneDnnCompiler.UnsupportedRealizationException("unqualified padded-average implementation: " + implementation);
         }
+    }
+
+    /**
+     * Binds the low MATMUL working-precision proof to pinned implementations, not descriptor
+     * availability. oneDNN 3.14 ref_matmul.cpp uses float operands/accumulators. AArch64 kai_utils.hpp
+     * dispatches homogeneous BF16/F16 to gemm&lt;low,low,float&gt; with fast mode disabled under
+     * strict attributes. The two x64 FP8-via-exact-F16-conversion brgemm paths accumulate with
+     * TDPFP16PS/VDPPHPS into F32. Native AMX-FP8 (avx10_2_amx_2) uses a different fixed-point
+     * accumulator and is deliberately not admitted by a broad implementation-name prefix.
+     * All recipes have F32 destinations, default scales and no post-operations.
+     * @param spec exact typed bare contraction recipe
+     * @param implementation actual native primitive-descriptor identity
+     * @return whether the selected source implementation preserves F32 working precision
+     */
+    private static boolean qualifiedLowMatmul(CpuOneDnnKernelSpec.Contraction spec, String implementation) {
+        if (spec.operation() != CpuOneDnnKernelSpec.Operation.MATMUL
+                || spec.bias() != CpuOneDnnKernelSpec.Bias.NONE
+                || spec.activation() != CpuOneDnnKernelSpec.Activation.NONE
+                || spec.output().dataType() != DataType.FLOAT32) return false;
+        DataType type = spec.inputs().getFirst().dataType();
+        if (spec.inputs().stream().anyMatch(input -> input.dataType() != type)) return false;
+        if (implementation.equals("ref:any")) return true;
+        String arch = System.getProperty("os.arch");
+        if ((type == DataType.FLOAT16 || type == DataType.BFLOAT16) && arch.equals("aarch64")) {
+            return implementation.equals("kai");
+        }
+        if ((type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2)
+                && (arch.equals("amd64") || arch.equals("x86_64"))) {
+            return implementation.equals("brg_matmul:avx10_1_512_amx_fp16")
+                    || implementation.equals("brg_matmul:avx10_2");
+        }
+        return false;
     }
 
     /**
@@ -469,7 +522,7 @@ public final class CpuOneDnnPrimitives {
         if (missing < 0) throw new IllegalArgumentException("operand rank exceeds output rank");
         if (missing == 0) return tensor;
         ArrayList<Long> dimensions = new ArrayList<>(rank), strides = new ArrayList<>(rank);
-        long leadingStride = tensor.byteSize() / Float.BYTES;
+        long leadingStride = tensor.byteSize() / tensor.dataType().byteWidth();
         for (int axis = 0; axis < missing; axis++) {
             dimensions.add(1L);
             strides.add(leadingStride);
@@ -687,7 +740,7 @@ public final class CpuOneDnnPrimitives {
                 || (requiredBytes != 0 && segment.address() == 0)
                 || (segment.address() & (alignment - 1)) != 0
                 || (writable && segment.isReadOnly())) {
-            throw new IllegalArgumentException("oneDNN requires accessible, sufficiently sized native F32 storage"
+            throw new IllegalArgumentException("oneDNN requires accessible, sufficiently sized typed native storage"
                     + (writable ? " writable for output/scratchpad" : ""));
         }
     }
@@ -695,7 +748,7 @@ public final class CpuOneDnnPrimitives {
     /** All symbol lookup and ABI adaptation happens once, before any workspace exists. */
     private static final class Api {
         private final MethodHandle mdCreate, mdDestroy, mdSize;
-        private final MethodHandle attrCreate, attrDestroy, attrFpmath, attrScratch, attrPostOps;
+        private final MethodHandle attrCreate, attrDestroy, attrFpmath, attrAccumulation, attrScratch, attrPostOps;
         private final MethodHandle postCreate, postDestroy, postEltwise;
         private final MethodHandle matmulCreate, convCreate, pdDestroy, queryMd, query;
         private final MethodHandle unaryCreate, binaryCreate, reductionCreate, reorderCreate, poolingCreate;
@@ -711,6 +764,8 @@ public final class CpuOneDnnPrimitives {
             attrCreate = library.bind("dnnl_primitive_attr_create", FunctionDescriptor.of(JAVA_INT, ADDRESS));
             attrDestroy = library.bind("dnnl_primitive_attr_destroy", FunctionDescriptor.of(JAVA_INT, ADDRESS));
             attrFpmath = library.bind("dnnl_primitive_attr_set_fpmath_mode",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT));
+            attrAccumulation = library.bind("dnnl_primitive_attr_set_accumulation_mode",
                     FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT));
             attrScratch = library.bind("dnnl_primitive_attr_set_scratchpad_mode",
                     FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT));

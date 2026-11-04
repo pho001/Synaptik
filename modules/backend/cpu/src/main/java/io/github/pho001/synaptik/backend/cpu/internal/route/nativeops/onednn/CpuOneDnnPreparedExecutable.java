@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn;
 
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget;
+import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuWorkspaceRecipeProvider;
@@ -35,6 +36,8 @@ public final class CpuOneDnnPreparedExecutable extends PreparedExecutable
     private final boolean[] direct;
     private final DataType[] dataTypes;
     private final PreparedRepresentationPlan.WorkspaceCreator invocationCreator;
+    private final Optional<CpuGeneratedKernel> outputNarrowing;
+    private final Optional<CpuOneDnnOutputNarrowing> narrowingRecipe;
 
     /**
      * Retains the exact selected facts without acquiring native resources or taking their close duty.
@@ -48,17 +51,27 @@ public final class CpuOneDnnPreparedExecutable extends PreparedExecutable
      * @param kernel non-null freshly finalized kernel borrowing Runtime's persistent ownership;
      *     spec, scratch and implementation must exactly match analysis
      * @param budget non-null shared CPU budget borrowed for synchronous demand-one execution
+     * @param outputNarrowing exact existing generated CAST artifact iff the native output is staged F32
      * @throws NullPointerException if a required argument or list element is null
      * @throws IllegalArgumentException if kernel facts, boundaries or assigned declarations disagree
      * @throws ArithmeticException if checked boundary origin/span arithmetic overflows
      */
     public CpuOneDnnPreparedExecutable(PreparedMemoryPlan memoryPlan,
             List<BufferSelection> unitBuffers, List<WorkspaceSelection> routeWorkspaces,
-            CpuOneDnnRoutePlan.Unit route, CpuOneDnnKernel kernel, CpuConcurrencyBudget budget) {
+            CpuOneDnnRoutePlan.Unit route, CpuOneDnnKernel kernel, CpuConcurrencyBudget budget,
+            Optional<CpuGeneratedKernel> outputNarrowing) {
         super(memoryPlan, unitBuffers, routeWorkspaces, accesses(unitBuffers, route));
         this.route = Objects.requireNonNull(route, "route");
         this.kernel = Objects.requireNonNull(kernel, "kernel");
         this.budget = Objects.requireNonNull(budget, "budget");
+        this.outputNarrowing = Objects.requireNonNull(outputNarrowing, "outputNarrowing");
+        narrowingRecipe = route.projection().requiresOutputNarrowing()
+                ? Optional.of(CpuOneDnnOutputNarrowing.from(route.projection())) : Optional.empty();
+        if (narrowingRecipe.isPresent() != outputNarrowing.isPresent()
+                || narrowingRecipe.isPresent() && !narrowingRecipe.orElseThrow().specialization()
+                    .equals(outputNarrowing.orElseThrow().specialization())) {
+            throw new IllegalArgumentException("oneDNN output CAST disagrees with selected result boundary");
+        }
         selections = List.copyOf(routeWorkspaces);
         if (!kernel.spec().equals(route.projection().spec())
                 || kernel.scratchpadBytes() != route.scratchpadBytes()
@@ -90,9 +103,10 @@ public final class CpuOneDnnPreparedExecutable extends PreparedExecutable
                     projection.byteOffsets().get(input), projection.spec().inputs().get(input).byteSize()));
         }
         int output = projection.outputBoundaryPosition();
-        dataTypes[output] = projection.spec().output().dataType();
+        dataTypes[output] = projection.logicalOutputType();
         requiredBytes[output] = Math.addExact(projection.byteOffsets().getLast(),
-                projection.spec().output().byteSize());
+                projection.logicalOutputByteSize());
+        direct[output] = !projection.requiresOutputNarrowing();
         for (var copy : route.inputCopies()) {
             for (int input : copy.inputPositions()) {
                 direct[projection.inputBoundaryPositions().get(input)] = false;
@@ -140,10 +154,10 @@ public final class CpuOneDnnPreparedExecutable extends PreparedExecutable
 
     private static boolean alignedOrigins(CpuOneDnnProjection projection) {
         for (int input = 0; input < projection.spec().inputs().size(); input++) {
-            int width = projection.spec().inputs().get(input).dataType() == DataType.BOOL ? 1 : Float.BYTES;
+            int width = projection.spec().inputs().get(input).dataType().byteWidth();
             if (projection.byteOffsets().get(input) % width != 0) return false;
         }
-        int width = projection.spec().output().dataType() == DataType.BOOL ? 1 : Float.BYTES;
+        int width = projection.logicalOutputType().byteWidth();
         return projection.byteOffsets().getLast() % width == 0;
     }
 
@@ -161,7 +175,7 @@ public final class CpuOneDnnPreparedExecutable extends PreparedExecutable
     }
 
     /**
-     * Authenticates one fixed typed F32 or canonical one-byte BOOL boundary without changing handles.
+     * Authenticates one fixed typed floating or canonical one-byte BOOL boundary without changing handles.
      *
      * @param index zero-based child-local boundary selection
      * @param representation candidate borrowed representation; null or incompatible values fail closed
@@ -175,7 +189,7 @@ public final class CpuOneDnnPreparedExecutable extends PreparedExecutable
         try {
             var argument = cpu.argument(); // Preserve observable-carrier authentication even for raw copies.
             MemorySegment segment = cpu.segment();
-            int width = dataTypes[index] == DataType.BOOL ? 1 : Float.BYTES;
+            int width = dataTypes[index].byteWidth();
             return argument.byteOffset() % width == 0
                     && (!direct[index] || segment.isNative())
                     && segment.address() % width == 0
@@ -311,14 +325,19 @@ public final class CpuOneDnnPreparedExecutable extends PreparedExecutable
             for (int input : selectedCopy.inputPositions()) nativeInputs[input] = targets[copy];
         }
         MemorySegment output = sources[outputBoundary].asSlice(projection.byteOffsets().getLast(),
-                projection.spec().output().byteSize());
+                projection.logicalOutputByteSize());
+        MemorySegment nativeOutput = route.outputStagingWorkspace().isPresent()
+                ? targets[route.inputCopies().size()] : output;
+        Runnable narrowOutput = narrowingRecipe.isPresent()
+                ? narrowingRecipe.orElseThrow().bind(outputNarrowing.orElseThrow(), nativeOutput, output) : null;
         var invocationWorkspace = (CpuOneDnnWorkspace) workspaces[workspaces.length - 1];
-        invocationWorkspace.bind(nativeInputs, output);
+        invocationWorkspace.bind(nativeInputs, nativeOutput);
         Runnable executeNative = () -> {
             for (int copy = 0; copy < copySources.length; copy++) {
                 MemorySegment.copy(copySources[copy], 0, copyTargets[copy], 0, copyTargets[copy].byteSize());
             }
             invocationWorkspace.execute();
+            if (narrowOutput != null) narrowOutput.run();
         };
         return new BoundInvocation(state) {
             @Override protected void executeBound() { budget.execute(1, executeNative); }

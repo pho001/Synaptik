@@ -26,29 +26,42 @@ public final class CpuOneDnnCompiler {
      * step is independently qualified; no input values or runtime numeric certificates are used.
      *
      * @param spec non-null common numeric projection; no tensor contents are inspected
-     * @return whether the recipe has a supported F32/BOOL form and safe literal geometry
+     * @return whether the recipe has a supported typed F32-working form and safe literal geometry
      * @throws NullPointerException if spec is null
      */
     public static boolean qualified(CpuOneDnnKernelSpec spec) {
         Objects.requireNonNull(spec, "spec");
         if (spec instanceof CpuOneDnnKernelSpec.Pipeline pipeline) {
-            for (var input : pipeline.inputs()) if (input.dataType() != DataType.FLOAT32) return false;
+            for (var input : pipeline.inputs()) if (!arithmeticType(input.dataType())) return false;
             for (var step : pipeline.steps()) if (!qualified(step.spec())) return false;
             return true;
         }
-        for (var input : spec.inputs()) if (input.dataType() != DataType.FLOAT32) return false;
+        boolean lowInputs = spec.inputs().stream().anyMatch(input -> CpuOneDnnProjection.lowType(input.dataType()));
+        for (var input : spec.inputs()) if (!arithmeticType(input.dataType())) return false;
         boolean predicate = spec instanceof CpuOneDnnKernelSpec.Binary binary
                 && switch (binary.algorithm()) {
                     case LT, LE, EQ, NE -> true;
                     default -> false;
                 };
         if (spec.output().dataType() != (predicate ? DataType.BOOL : DataType.FLOAT32)) return false;
+        if (lowInputs) {
+            // Exact predicates/raw selection and low elementary implementations need separate proof.
+            if (predicate || spec instanceof CpuOneDnnKernelSpec.Reorder
+                    || spec instanceof CpuOneDnnKernelSpec.Unary
+                    || spec instanceof CpuOneDnnKernelSpec.Pooling) return false;
+            if (spec instanceof CpuOneDnnKernelSpec.Binary binary && switch (binary.algorithm()) {
+                case ADD, SUB, MUL, DIV -> false;
+                default -> true;
+            }) return false;
+        }
         if (spec instanceof CpuOneDnnKernelSpec.Contraction contraction) {
             if (contraction.operation() != CpuOneDnnKernelSpec.Operation.MATMUL
                     || contraction.bias() != CpuOneDnnKernelSpec.Bias.NONE
                     || contraction.activation() != CpuOneDnnKernelSpec.Activation.NONE
                     || contraction.inputs().getFirst().dimensions().getLast() <= 1
                     || !densePermutation(contraction.output())) return false;
+            if (lowInputs && contraction.inputs().stream().anyMatch(input ->
+                    input.dataType() != contraction.inputs().getFirst().dataType())) return false;
             for (var input : contraction.inputs()) if (!densePermutation(input)) return false;
             return true;
         }
@@ -59,6 +72,10 @@ public final class CpuOneDnnCompiler {
         }
         if (spec instanceof CpuOneDnnKernelSpec.Pooling pooling) return qualifiedPooling(pooling);
         return true;
+    }
+
+    private static boolean arithmeticType(DataType type) {
+        return type == DataType.FLOAT32 || CpuOneDnnProjection.lowType(type);
     }
 
     private static boolean densePermutation(CpuOneDnnKernelSpec.Tensor tensor) {
@@ -167,6 +184,19 @@ public final class CpuOneDnnCompiler {
      * @throws UnsupportedRealizationException if Graph hides a required implementation proof
      */
     private static void requireQualifiedGraph(CpuOneDnnKernelSpec spec) {
+        if (spec.inputs().stream().anyMatch(input ->
+                input.dataType() == DataType.FLOAT8_E4M3 || input.dataType() == DataType.FLOAT8_E5M2)) {
+            throw new UnsupportedRealizationException("Graph 3.14 does not support FP8 arithmetic");
+        }
+        if (spec instanceof CpuOneDnnKernelSpec.Reduction reduction
+                && CpuOneDnnProjection.lowType(reduction.input().dataType())) {
+            throw new UnsupportedRealizationException("Graph reductions require equal input and output types");
+        }
+        if (spec instanceof CpuOneDnnKernelSpec.Binary binary
+                && (CpuOneDnnProjection.lowType(binary.left().dataType())
+                    || CpuOneDnnProjection.lowType(binary.right().dataType()))) {
+            throw new UnsupportedRealizationException("Graph does not expose the selected low binary working-precision implementation");
+        }
         if (spec instanceof CpuOneDnnKernelSpec.Pipeline pipeline) {
             for (var step : pipeline.steps()) requireQualifiedGraph(step.spec());
         } else if (spec instanceof CpuOneDnnKernelSpec.Reorder) {

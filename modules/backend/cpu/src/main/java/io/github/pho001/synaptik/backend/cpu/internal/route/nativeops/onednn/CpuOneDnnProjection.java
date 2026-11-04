@@ -11,6 +11,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -27,9 +31,11 @@ import java.util.Optional;
  * @param byteOffsets non-null non-negative original byte origins, inputs followed by output; copied
  * @param inputBoundaryPositions non-null common-unit input positions in spec order; copied
  * @param outputBoundaryPosition non-negative common-unit output position, distinct from every input
+ * @param logicalOutputType non-null public result type; low arithmetic uses a separate F32 native
+ *     result and the existing generated CAST, never native destination rounding
  */
 public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffsets,
-        List<Integer> inputBoundaryPositions, int outputBoundaryPosition) {
+        List<Integer> inputBoundaryPositions, int outputBoundaryPosition, DataType logicalOutputType) {
     /**
      * Snapshots positional binding without retaining a graph, carrier or native resource.
      *
@@ -37,11 +43,17 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
      * @param byteOffsets non-null non-negative input/output byte origins; copied
      * @param inputBoundaryPositions non-null common input positions matching spec order; copied
      * @param outputBoundaryPosition non-negative distinct common output position
+     * @param logicalOutputType exact result type, equal to native output or a final low CAST target
      * @throws NullPointerException if a required object or list element is null
      * @throws IllegalArgumentException if boundary positions, origins or operand counts disagree
      */
     public CpuOneDnnProjection {
         Objects.requireNonNull(spec, "spec");
+        Objects.requireNonNull(logicalOutputType, "logicalOutputType");
+        if (logicalOutputType != spec.output().dataType()
+                && !(lowType(logicalOutputType) && spec.output().dataType() == DataType.FLOAT32)) {
+            throw new IllegalArgumentException("oneDNN logical result cannot use this native result type");
+        }
         byteOffsets = List.copyOf(byteOffsets);
         inputBoundaryPositions = List.copyOf(inputBoundaryPositions);
         if (byteOffsets.size() != spec.inputs().size() + 1
@@ -55,7 +67,38 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
     }
 
     /**
-     * Projects supported static F32 ordinary families and literal composite substeps.
+     * Creates a direct-output projection without destination conversion.
+     * @param spec non-null native recipe
+     * @param byteOffsets input/output byte origins
+     * @param inputBoundaryPositions descriptor-order common input positions
+     * @param outputBoundaryPosition common output position
+     */
+    public CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffsets,
+            List<Integer> inputBoundaryPositions, int outputBoundaryPosition) {
+        this(spec, byteOffsets, inputBoundaryPositions, outputBoundaryPosition, spec.output().dataType());
+    }
+
+    /** @return whether a declared F32 result workspace and generated final CAST are required */
+    public boolean requiresOutputNarrowing() { return logicalOutputType != spec.output().dataType(); }
+
+    /** @return exact referenced public result bytes, excluding its original byte origin */
+    public long logicalOutputByteSize() {
+        return Math.multiplyExact(spec.output().byteSize() / spec.output().dataType().byteWidth(),
+                logicalOutputType.byteWidth());
+    }
+
+    /**
+     * Identifies represented low arithmetic types independently of native availability.
+     * @param type represented dtype, or null
+     * @return whether this is one of the four F32-working low types
+     */
+    static boolean lowType(DataType type) {
+        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2;
+    }
+
+    /**
+     * Projects supported static F32 sites and typed low arithmetic with an F32 native destination.
      * Unsupported instructions reject the complete unit; dynamic, Scan, empty and multiple-output
      * units stay ordinary. Singleton-normalized operands must cover the native binary result
      * domain, and unary/identity views must retain the exact input span. Unrepresentable valid
@@ -78,7 +121,7 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
                 || portable.specialization().materializedSourcePosition() >= 0
                 || !unit.carrierPattern().equals(unit.generatedCarrierPattern())
                 || portable.specialization().boundaryDataTypes().stream()
-                    .anyMatch(type -> type != DataType.FLOAT32 && type != DataType.BOOL)) {
+                    .anyMatch(type -> type != DataType.FLOAT32 && type != DataType.BOOL && !lowType(type))) {
             return Optional.empty();
         }
         if (portable.specialization().matmulIr().isPresent()
@@ -110,11 +153,12 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
     private static Optional<CpuOneDnnProjection> matmul(
             CpuPartitionPreparationPlan.ExecutionUnitPlan unit, CpuMatmulIr ir,
             CpuMatmulLowering.Geometry geometry) {
-        if (ir.leftType() != DataType.FLOAT32 || ir.rightType() != DataType.FLOAT32
-                || ir.resultType() != DataType.FLOAT32
-                || geometry.leftType() != DataType.FLOAT32
-                || geometry.rightType() != DataType.FLOAT32
-                || geometry.resultType() != DataType.FLOAT32
+        DataType type = ir.leftType();
+        if ((type != DataType.FLOAT32 && !lowType(type)) || ir.rightType() != type
+                || ir.resultType() != type || geometry.leftType() != type
+                || geometry.rightType() != type || geometry.resultType() != type
+                || lowType(type) && (ir.epilogue().hasBias()
+                    || ir.epilogue().terminal() != CpuMatmulIr.Epilogue.Terminal.NONE)
                 || geometry.k() <= 1 || geometry.m() == 0 || geometry.n() == 0
                 || geometry.batchCount() == 0 || geometry.outputCount() == 0) {
             return Optional.empty();
@@ -132,14 +176,14 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
         for (long extent : batch) if (extent == 0) return Optional.empty();
         var inputs = new ArrayList<CpuOneDnnKernelSpec.Tensor>();
         inputs.add(matrix(batch, geometry.leftBatchStrides(), geometry.m(), geometry.k(),
-                geometry.leftMStride(), geometry.leftKStride(), true));
+                geometry.leftMStride(), geometry.leftKStride(), true, type));
         inputs.add(matrix(batch, geometry.rightBatchStrides(), geometry.k(), geometry.n(),
-                geometry.rightKStride(), geometry.rightNStride(), true));
+                geometry.rightKStride(), geometry.rightNStride(), true, type));
         var output = matrix(batch, geometry.resultBatchStrides(), geometry.m(), geometry.n(),
-                geometry.resultMStride(), geometry.resultNStride(), false);
+                geometry.resultMStride(), geometry.resultNStride(), false, DataType.FLOAT32);
         var offsets = new ArrayList<Long>();
-        offsets.add(bytes(geometry.leftOffset()));
-        offsets.add(bytes(geometry.rightOffset()));
+        offsets.add(Math.multiplyExact(geometry.leftOffset(), type.byteWidth()));
+        offsets.add(Math.multiplyExact(geometry.rightOffset(), type.byteWidth()));
         var bias = switch (ir.epilogue().addInputOrder()) {
             case NONE -> CpuOneDnnKernelSpec.Bias.NONE;
             case MATMUL_LEFT -> CpuOneDnnKernelSpec.Bias.EXTERNAL_RIGHT;
@@ -155,13 +199,13 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
                     binding.extents(), binding.effectiveStrides()));
             offsets.add(bytes(binding.baseElementOffset()));
         }
-        offsets.add(bytes(geometry.resultOffset()));
+        offsets.add(Math.multiplyExact(geometry.resultOffset(), type.byteWidth()));
         return projection(unit, new CpuOneDnnKernelSpec.Contraction(CpuOneDnnKernelSpec.Operation.MATMUL,
                 inputs, output, 1, List.of(), List.of(), List.of(), List.of(), bias, activation), offsets);
     }
 
     private static CpuOneDnnKernelSpec.Tensor matrix(long[] batch, long[] batchStrides,
-            long rows, long columns, long rowStride, long columnStride, boolean broadcast) {
+            long rows, long columns, long rowStride, long columnStride, boolean broadcast, DataType type) {
         var dimensions = new ArrayList<Long>();
         var strides = new ArrayList<Long>();
         for (int axis = 0; axis < batch.length; axis++) {
@@ -173,7 +217,7 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
         dimensions.add(columns);
         strides.add(rowStride);
         strides.add(columnStride);
-        return new CpuOneDnnKernelSpec.Tensor(DataType.FLOAT32, dimensions, strides);
+        return new CpuOneDnnKernelSpec.Tensor(type, dimensions, strides);
     }
 
     private static Optional<CpuOneDnnProjection> conv2d(
@@ -240,6 +284,9 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
 
     private static Optional<CpuOneDnnProjection> pointwise(
             CpuPartitionPreparationPlan.ExecutionUnitPlan unit, CpuKernelIr ir) {
+        if (ir.values().stream().anyMatch(value -> lowType(value.dataType()))) {
+            return lowPointwise(unit, ir);
+        }
         if (!ir.familyIdentity().equals("pointwise") || ir.instructions().isEmpty()
                 || ir.stores().size() != 1 || ir.stores().getFirst().outputOrdinal() != 0
                 || unit.accessBindings().size() != unit.boundaryValues().size()) return Optional.empty();
@@ -329,6 +376,74 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
                 intermediates, constants, steps), offsets(unit));
     }
 
+    /**
+     * Projects one literal low binary arithmetic site. Fused low chains retain ordinary generated
+     * ownership because each logical operation must narrow before its next consumer. Predicates,
+     * selection and exact unary sites are not inferred from arithmetic implementation support.
+     */
+    private static Optional<CpuOneDnnProjection> lowPointwise(
+            CpuPartitionPreparationPlan.ExecutionUnitPlan unit, CpuKernelIr ir) {
+        if (ir.instructions().size() != 1 || !ir.familyIdentity().equals("pointwise")
+                || ir.stores().size() != 1 || ir.stores().getFirst().outputOrdinal() != 0
+                || unit.accessBindings().size() != unit.boundaryValues().size()) return Optional.empty();
+        var instruction = ir.instructions().getFirst();
+        if (instruction.output() != ir.stores().getFirst().value()) return Optional.empty();
+        var binary = binary(instruction.opcode());
+        if (binary == null || switch (binary) {
+            case ADD, SUB, MUL, DIV -> false;
+            default -> true;
+        }) return Optional.empty();
+        int inputCount = unit.boundaryValues().size() - 1;
+        var inputs = new ArrayList<CpuOneDnnKernelSpec.Tensor>();
+        var valueSlots = new int[ir.values().size()];
+        java.util.Arrays.fill(valueSlots, -1);
+        for (var value : ir.values()) {
+            if (value.kind() != CpuKernelIr.Value.Kind.INPUT) continue;
+            int position = inputs.size();
+            if (position >= inputCount || value.dataType() != DataType.FLOAT32 && !lowType(value.dataType())) {
+                return Optional.empty();
+            }
+            var binding = unit.accessBindings().get(position);
+            if (!valid(binding)) return Optional.empty();
+            inputs.add(tensor(value.dataType(), binding, true));
+            valueSlots[value.ordinal()] = position;
+        }
+        if (inputs.size() != inputCount) return Optional.empty();
+        var operands = new ArrayList<CpuOneDnnKernelSpec.Tensor>();
+        var operandSlots = new ArrayList<Integer>();
+        for (int value : instruction.inputs()) {
+            int position = valueSlots[value];
+            if (position < 0) return Optional.empty();
+            operands.add(inputs.get(position));
+            operandSlots.add(position);
+        }
+        var binding = unit.accessBindings().getLast();
+        if (!valid(binding)) return Optional.empty();
+        var output = tensor(DataType.FLOAT32, binding, false);
+        var constants = new ArrayList<CpuOneDnnKernelSpec.Constant>();
+        if (instruction.scalarImmediate() != null) {
+            var immediate = instruction.scalarImmediate();
+            float value = switch (immediate.dataType()) {
+                case FLOAT32 -> Float.intBitsToFloat((int) immediate.bits());
+                case BFLOAT16 -> BFloat16Bits.toFloat((short) immediate.bits());
+                case FLOAT16 -> Float16Bits.toFloat((short) immediate.bits());
+                case FLOAT8_E4M3 -> Float8E4M3Bits.toFloat((byte) immediate.bits());
+                case FLOAT8_E5M2 -> Float8E5M2Bits.toFloat((byte) immediate.bits());
+                default -> throw new IllegalArgumentException("low arithmetic has a non-floating scalar");
+            };
+            var scalar = dense(DataType.FLOAT32, java.util.Collections.nCopies(output.dimensions().size(), 1L));
+            constants.add(new CpuOneDnnKernelSpec.Constant(scalar, List.of(Float.floatToRawIntBits(value))));
+            operands.add(scalar);
+            operandSlots.add(inputCount + 1);
+        }
+        if (operands.size() != 2) return Optional.empty();
+        var projected = binarySpec(binary, operands.getFirst(), operands.get(1), output);
+        if (projected.isEmpty()) return Optional.empty();
+        var pipeline = new CpuOneDnnKernelSpec.Pipeline(inputs, output, List.of(), constants,
+                List.of(new CpuOneDnnKernelSpec.Step(projected.orElseThrow(), operandSlots, inputCount)));
+        return projection(unit, pipeline, offsets(unit));
+    }
+
     private static CpuOneDnnKernelSpec.UnaryAlgorithm unary(CpuPointwiseOpcode opcode) {
         return switch (opcode) {
             case ABS -> CpuOneDnnKernelSpec.UnaryAlgorithm.ABS;
@@ -357,7 +472,7 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
 
     private static Optional<CpuOneDnnProjection> aggregate(
             CpuPartitionPreparationPlan.ExecutionUnitPlan unit, CpuAggregateIr ir) {
-        if (ir.dataType() != DataType.FLOAT32 || ir.symbolicGeometry()
+        if ((ir.dataType() != DataType.FLOAT32 && !lowType(ir.dataType())) || ir.symbolicGeometry()
                 || ir.domainCount() == 0 || unit.accessBindings().size() != 2
                 || ir.kind() != CpuAggregateIr.Kind.SUM && ir.kind() != CpuAggregateIr.Kind.MEAN
                     && ir.kind() != CpuAggregateIr.Kind.PROD) return Optional.empty();
@@ -367,7 +482,10 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
         var source = unit.accessBindings().getFirst();
         var target = unit.accessBindings().getLast();
         if (!valid(source) || !valid(target)) return Optional.empty();
-        var input = tensor(DataType.FLOAT32, source, false);
+        var input = tensor(ir.dataType(), source, false);
+        if (lowType(ir.dataType()) && (source.extents().isEmpty() || ir.selectedAxes().length == 0)) {
+            return Optional.empty();
+        }
         if (source.extents().isEmpty()) {
             return projection(unit, new CpuOneDnnKernelSpec.Reorder(input,
                     tensor(DataType.FLOAT32, target, false)), offsets(unit));
@@ -493,7 +611,7 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
         var offsets = new ArrayList<Long>();
         for (int position = 0; position < unit.accessBindings().size(); position++) {
             offsets.add(Math.multiplyExact(unit.accessBindings().get(position).baseElementOffset(),
-                    types.get(position) == DataType.BOOL ? 1L : Float.BYTES));
+                    types.get(position).byteWidth()));
         }
         return offsets;
     }
@@ -601,7 +719,8 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
         }
         var positions = new ArrayList<Integer>();
         for (int position = 0; position < spec.inputs().size(); position++) positions.add(position);
-        return Optional.of(new CpuOneDnnProjection(spec, offsets, positions, spec.inputs().size()));
+        return Optional.of(new CpuOneDnnProjection(spec, offsets, positions, spec.inputs().size(),
+                unit.portablePlan().specialization().boundaryDataTypes().getLast()));
     }
 
     private static List<Long> broadcastDimensions(List<Long> dimensions, List<Long> strides) {
