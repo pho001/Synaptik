@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -78,7 +79,8 @@ public final class EngineOneDnnMovementIntegrationTest {
             for (boolean gapped : new boolean[] {false, true}) {
                 int columnStride = gapped ? 2 : 1;
                 int rowStride = gapped ? columns * 2 + 3 : columns;
-                int[] physical = new int[origin + rows * rowStride + 9];
+                int[] physical = new int[origin + (rows - 1) * rowStride
+                        + (columns - 1) * columnStride + 1];
                 Arrays.fill(physical, 0x7fa76543);
                 Tensor input = tensor(Shape.of(rows, columns),
                         new long[] {rowStride, columnStride}, origin, physical);
@@ -91,6 +93,7 @@ public final class EngineOneDnnMovementIntegrationTest {
                                         = RAW_WORDS[(row * columns + column + run) % RAW_WORDS.length];
                             }
                         }
+                        input.hostStorage().orElseThrow().segment().copyFrom(MemorySegment.ofArray(physical));
                         int[] before = physical.clone();
                         try (var result = engine.run(prepared, List.of(input))) {
                             ByteBuffer bytes = result.materialize(
@@ -98,7 +101,9 @@ public final class EngineOneDnnMovementIntegrationTest {
                             assertTransposeBytes(bytes, physical, rows, columns,
                                     rowStride, columnStride, origin);
                         }
-                        assertArrayEquals(before, physical, "borrowed input, prefix and holes remain unchanged");
+                        assertArrayEquals(before, input.hostStorage().orElseThrow().segment()
+                                .toArray(ValueLayout.JAVA_INT_UNALIGNED),
+                                "borrowed input, prefix and holes remain unchanged");
                     }
                 }
             }
@@ -193,17 +198,19 @@ public final class EngineOneDnnMovementIntegrationTest {
     }
 
     /**
-     * Borrows integer-backed bytes as FLOAT32 without a conversion that might quiet signaling NaNs.
+     * Copies represented words into a FLOAT32 heap carrier without floating conversion.
      * @param shape positive static logical shape
      * @param strides nonnegative physical element strides
      * @param origin physical element origin
-     * @param words mutable caller-owned physical storage including prefix and holes
-     * @return tensor borrowing the exact represented source bytes
+     * @param words exact initial physical words including prefix and holes
+     * @return tensor with independent mutable FLOAT32 heap storage preserving every input bit
      */
     private static Tensor tensor(Shape shape, long[] strides, long origin, int[] words) {
+        MemorySegment storage = MemorySegment.ofArray(new float[words.length]);
+        storage.copyFrom(MemorySegment.ofArray(words));
         return TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
                 Optional.of(LayoutDescriptor.of(shape, strides, origin, true)), false), Optional.empty(),
-                Optional.of(new MemorySegmentStorage(DataType.FLOAT32, words.length, MemorySegment.ofArray(words))));
+                Optional.of(new MemorySegmentStorage(DataType.FLOAT32, words.length, storage)));
     }
 
     /**

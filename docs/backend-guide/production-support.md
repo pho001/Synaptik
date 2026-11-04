@@ -60,12 +60,13 @@ Finite tolerances do not replace exact discrete, special-value, saved-value or p
 Current exact predicates remain in CpuCapabilityProvider and the CPU lowerers; a family row is not
 a declaration that arbitrary partitions or every possible backward target are eligible.
 
-The optional [oneDNN CPU peer](cpu-backend.md#explicit-onednn-composition) qualifies only bare
-homogeneous static FLOAT32 MATMUL with K > 1, normalized dense/permuted-dense layouts and
-broadcast batches up to native rank 12. It does not broaden CPU operation/type admission:
-convolutions, external bias/activations and other ineligible work keep preplanned ordinary CPU
-units. API preferences are not provider priority; complete-plan costs and Model numerics remain
-authoritative. Target-specific correctness and report-only timings are recorded in that guide.
+The optional [oneDNN CPU peer](cpu-backend.md#explicit-onednn-composition) retains its bare
+F32 MATMUL baseline and adds qualified common F32 occurrences under the
+[API/implementation/geometry limits](cpu-backend.md#numerical-qualification-and-training).
+It does not broaden Model admission or substitute unqualified numerical formulas: every
+unsupported unit keeps its preplanned ordinary CPU realization. API preferences do not force
+provider selection. New local expanded-F32 source evidence is distinct from the earlier sealed
+artifact and cross-platform receipts below; no new release or performance claim follows.
 
 ## CPU operation-audit closure
 

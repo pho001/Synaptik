@@ -236,13 +236,7 @@ public final class CpuOneDnnGraph {
                     axes.add((long) axis);
                 }
             }
-            // An identity reduction still consumes the one existing extent-one axis.
-            if (axes.isEmpty()) {
-                for (int axis = 0; axis < reduction.input().dimensions().size(); axis++) {
-                    if (reduction.input().dimensions().get(axis) == 1) { axes.add((long) axis); break; }
-                }
-            }
-            if (axes.isEmpty()) throw unsupported("identity reduction has no singleton axis");
+            if (axes.isEmpty()) throw unsupported("oneDNN 3.14 does not support identity reductions");
             longAttr(arena, api, operation, 64, axes);
             boolAttr(arena, api, operation, 97, true);
         } else if (spec instanceof CpuOneDnnKernelSpec.Pooling pooling) {

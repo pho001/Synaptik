@@ -52,6 +52,11 @@ public final class CpuOneDnnCompiler {
             for (var input : contraction.inputs()) if (!densePermutation(input)) return false;
             return true;
         }
+        if (spec instanceof CpuOneDnnKernelSpec.Reduction reduction) {
+            // oneDNN 3.14 rejects shape-identity reduction descriptors; Graph can throw
+            // across its native boundary while constructing the underlying primitive.
+            return !reduction.input().dimensions().equals(reduction.output().dimensions());
+        }
         if (spec instanceof CpuOneDnnKernelSpec.Pooling pooling) return qualifiedPooling(pooling);
         return true;
     }

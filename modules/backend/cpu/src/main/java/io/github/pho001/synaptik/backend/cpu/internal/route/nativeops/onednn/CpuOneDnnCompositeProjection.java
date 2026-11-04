@@ -113,6 +113,11 @@ public final class CpuOneDnnCompositeProjection {
         long[] extents = geometry.extents();
         if (!representable(extents, geometry.predictionStrides())
                 || !representable(extents, geometry.targetStrides())) return Optional.empty();
+        long count = 1;
+        if (ir.reduction() == LossReduction.MEAN) {
+            for (long extent : extents) count = Math.multiplyExact(count, extent);
+            if (!CpuOneDnnProjection.exactF32Count(count)) return Optional.empty();
+        }
         if (geometry.axis() != -1 || geometry.targetRank() != extents.length
                 || geometry.outputRank() != (ir.reduction() == LossReduction.NONE ? extents.length : 0)) {
             throw new IllegalArgumentException("MSE native projection geometry disagrees");
@@ -167,8 +172,6 @@ public final class CpuOneDnnCompositeProjection {
                 intermediates.add(scalar());
                 steps.add(new Step(new Reduction(ReductionAlgorithm.SUM, dense, reduced),
                         List.of(squareSlot), sumSlot));
-                long count = 1;
-                for (long extent : extents) count = Math.multiplyExact(count, extent);
                 constants.add(new Constant(scalar(), List.of(Float.floatToRawIntBits((float) count))));
                 int countSlot = unique + 1 + intermediates.size();
                 if (!binary(steps, BinaryAlgorithm.DIV, scalar(), scalar(), output,

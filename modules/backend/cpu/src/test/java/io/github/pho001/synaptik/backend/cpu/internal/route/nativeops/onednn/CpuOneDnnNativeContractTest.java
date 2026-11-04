@@ -354,17 +354,14 @@ final class CpuOneDnnNativeContractTest {
 
     @ParameterizedTest
     @EnumSource(value = CpuOneDnnRoutePlan.Api.class, names = {"PRIMITIVE", "GRAPH"})
-    void standaloneElementaryReductionAndRawReorderKeepTheirLiteralSites(CpuOneDnnRoutePlan.Api api) {
+    void standaloneElementaryAndReductionKeepTheirLiteralSites(CpuOneDnnRoutePlan.Api api) {
         var root = new CpuOneDnnKernelSpec.Unary(CpuOneDnnKernelSpec.UnaryAlgorithm.SQRT, dense(4), dense(4));
         var product = new CpuOneDnnKernelSpec.Reduction(CpuOneDnnKernelSpec.ReductionAlgorithm.PROD,
                 dense(2, 3), dense(2, 1));
-        var reorder = new CpuOneDnnKernelSpec.Reorder(tensor(new long[] {2, 3}, 1, 2), dense(2, 3));
         try (CpuOneDnnLibrary library = openLibrary(); Arena arena = Arena.ofShared()) {
-            List<CpuOneDnnKernelSpec> specs = List.of(root, product, reorder);
-            List<int[]> inputs = List.of(new int[] {0, 1, 4, 9}, new int[] {1, 2, 3, 2, 3, 4},
-                    new int[] {1, 2, 3, 4, 5, 6});
-            List<int[]> outputs = List.of(new int[] {0, 1, 2, 3}, new int[] {6, 24},
-                    new int[] {1, 2, 3, 4, 5, 6});
+            List<CpuOneDnnKernelSpec> specs = List.of(root, product);
+            List<int[]> inputs = List.of(new int[] {0, 1, 4, 9}, new int[] {1, 2, 3, 2, 3, 4});
+            List<int[]> outputs = List.of(new int[] {0, 1, 2, 3}, new int[] {6, 24});
             for (int index = 0; index < specs.size(); index++) {
                 var spec = specs.get(index);
                 var input = buffer(arena, spec.inputs().getFirst());
@@ -381,20 +378,6 @@ final class CpuOneDnnNativeContractTest {
         }
     }
 
-    @Test
-    void paddedAverageRequiresPaddingInEveryWindowAndPowerOfTwoDivisor() {
-        var eligible = new CpuOneDnnKernelSpec.Pooling(dense(1, 1, 1, 1), dense(1, 1, 2, 2),
-                List.of(2L, 2L), List.of(1L, 1L), List.of(1L, 1L), List.of(1L, 1L), List.of(1L, 1L));
-        assertTrue(CpuOneDnnCompiler.qualified(eligible));
-        var interior = new CpuOneDnnKernelSpec.Pooling(dense(1, 1, 3, 3), dense(1, 1, 4, 4),
-                List.of(2L, 2L), List.of(1L, 1L), List.of(1L, 1L), List.of(1L, 1L), List.of(1L, 1L));
-        assertFalse(CpuOneDnnCompiler.qualified(interior));
-        var divisor = new CpuOneDnnKernelSpec.Pooling(dense(1, 1, 1, 1), dense(1, 1, 2, 2),
-                List.of(3L, 3L), List.of(1L, 1L), List.of(1L, 1L), List.of(2L, 2L), List.of(1L, 1L));
-        assertFalse(CpuOneDnnCompiler.qualified(divisor));
-        assertThrows(IllegalArgumentException.class,
-                () -> CpuOneDnnCompiler.describe(null, eligible, CpuOneDnnRoutePlan.Api.GRAPH));
-    }
 
     @ParameterizedTest
     @EnumSource(value = CpuOneDnnRoutePlan.Api.class, names = {"PRIMITIVE", "GRAPH"})

@@ -697,14 +697,14 @@ is unchanged. The [CPU guide's complete configuration example](../backend-guide/
 shows `Engine.builder().takeOwnership(configuredCpu).build()`, the JVM flag, exact external build
 pin and resource closure.
 
-Production eligibility is bare homogeneous FLOAT32 MATMUL, K > 1, static positive dense or
-permuted-dense/normalized broadcast-batch layouts up to rank 12. K=0/K=1, gapped/symbolic
-geometry, Scan bodies and row regions retain existing CPU execution. Conv2d/Conv3d, bias,
-activations and post-operations are likewise not production-native. This preserves Model's
-signed-zero, NaN and bias-ordering/rounding contracts; diagnostic native bindings are not
-production capability. Compiler-generated AD is unchanged: eligible existing rank-four
-contractions in CNN gradients may use native code while convolution, fold/unfold and reductions
-stay on their ordinary CPU units. Saved/public stores and current-weight visibility remain.
+The native F32 surface now includes qualified common arithmetic, predicates, aggregates,
+coordinate-proved movement and literal MSE/BatchNorm/padded-pooling realizations, alongside bare
+MATMUL with K > 1. Each API/implementation/geometry is independently admitted; the
+[CPU qualification table](../backend-guide/cpu-backend.md#numerical-qualification-and-training)
+defines the exact boundary. Unsupported occurrences, symbolic/Scan orchestration and opaque
+convolution or fused activation replacements retain preplanned CPU execution. Literal native
+pipelines preserve the existing common unit's stores and arithmetic sites; they are neither a
+second graph nor a second AD system. Saved/public stores and current-weight visibility remain.
 
 The oneDNN comparison uses conservative dimensionless whole-plan heuristics, not measured
 latencies or promised speedups. Decisions account for arithmetic/remainder, control/dispatch,

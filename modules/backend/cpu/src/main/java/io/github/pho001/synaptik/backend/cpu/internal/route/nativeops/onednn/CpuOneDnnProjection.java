@@ -361,6 +361,9 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
                 || ir.domainCount() == 0 || unit.accessBindings().size() != 2
                 || ir.kind() != CpuAggregateIr.Kind.SUM && ir.kind() != CpuAggregateIr.Kind.MEAN
                     && ir.kind() != CpuAggregateIr.Kind.PROD) return Optional.empty();
+        if (ir.kind() == CpuAggregateIr.Kind.MEAN && !exactF32Count(ir.domainCount())) {
+            return Optional.empty();
+        }
         var source = unit.accessBindings().getFirst();
         var target = unit.accessBindings().getLast();
         if (!valid(source) || !valid(target)) return Optional.empty();
@@ -493,6 +496,16 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
                     types.get(position) == DataType.BOOL ? 1L : Float.BYTES));
         }
         return offsets;
+    }
+
+    /**
+     * Checks that a cardinality can be a native F32 divisor without changing its integer value.
+     * @param count exact positive contributor count, not an already rounded floating value
+     * @return whether all significant count bits fit binary32's 24-bit significand
+     */
+    static boolean exactF32Count(long count) {
+        return count > 0 && Long.numberOfTrailingZeros(count)
+                >= Long.SIZE - Long.numberOfLeadingZeros(count) - 24;
     }
 
     private static boolean valid(CpuAccessPlan.Binding binding) {

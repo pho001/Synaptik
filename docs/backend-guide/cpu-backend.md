@@ -263,7 +263,7 @@ for eligible FLOAT32/FLOAT64 bare MATMUL described below. Ordinary preparation a
 CPU-owned work into the bounded mixed CPU/Metal schedule defined by ADR 0016. Generic
 plugin/backend alternatives, broader transfer domains, and broader Metal operation coverage remain
 planned. Current native CPU routes are the exact OpenBLAS MATMUL route and the explicitly
-configured [oneDNN MATMUL route](#explicit-onednn-composition).
+configured [oneDNN route](#explicit-onednn-composition).
 CPU-private specialized-subgraph recognition is current only
 as the cold, recognition-only boundary described below. Functional scatter,
 overlap fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
@@ -493,20 +493,38 @@ native selection. A relative or incompatible library path fails at explicit open
 
 ### Numerical qualification and training
 
-Production eligibility is only **bare homogeneous FLOAT32 MATMUL with K > 1**, static positive
-geometry, dense or permuted-dense layouts and normalized broadcast batches, up to rank 12.
-K=0/K=1, empty or gapped layouts, symbolic B, Scan bodies, and selected row regions are not
-relabeled native. Conv2d/Conv3d, intrinsic or external bias, activations and other post-operations
-remain existing CPU units chosen before the run. Internal C bindings can construct wider
-primitives for diagnostics; that does not grant production capability.
+Native qualification is **occurrence-specific**, not a consequence of a oneDNN operation name
+or successful descriptor creation. The F32 expansion retains static, nonempty geometry of native
+rank at most 12 and independently checks descriptor span, layout and implementation semantics.
 
-This boundary preserves Model numerics. Actual 3.14.0 counterexamples expose convolution
-signed-zero differences, activation NaN/zero behavior and external-bias rounding/ordering
-differences; availability of an apparently equivalent fused primitive is insufficient.
-There is no Model, AD or backend-owner rule change. Full convolutional-network AD can accelerate
-its existing eligible rank-four matrix products while convolution, fold/unfold, reductions and
-other operations retain their qualified CPU implementations. Saved preactivations and public
-stores remain present, and every run observes current inputs and weights.
+| Common F32 unit | Native realization and limits |
+|---|---|
+| Bare MATMUL | Existing K > 1 dense/permuted-dense and normalized broadcast-batch qualification. |
+| Pointwise arithmetic | Literal ADD/SUB/MUL/DIV stores; MIN/MAX only on the qualified AArch64 primitive implementation. |
+| Elementary operations | SQRT/TANH; ABS/EXP only on the qualified AArch64 primitive implementation. Other activations remain ordinary CPU. |
+| Predicates | Primitive LT/LE/EQ/NE produce canonical one-byte BOOL; GT/GE reverse operands. Graph predicates remain ordinary CPU. |
+| Aggregates | All-contributor SUM/PROD; MEAN is SUM followed by actual DIV, never reciprocal multiplication. A native count divisor must represent the exact integer count in F32. |
+| MSE | Separate subtraction, square, optional SUM and actual DIV stores; nonrepresentable count divisors retain ordinary CPU. |
+| BatchNorm inference | Separate subtraction, epsilon addition, SQRT, DIV, scale multiply and bias addition; no opaque native normalization substitution. |
+| Average Pool2d/Pool3d | Qualified primitive only: power-of-two divisor and conceptual positive-zero padding in every output window. |
+| Raw movement | Composed coordinate mapping must be proved; only the qualified AArch64 primitive reorder preserves raw F32 words. Graph and unqualified reference reorders retain ordinary CPU. |
+
+An unsupported substep rejects the complete native candidate before selection. A fixed native
+pipeline realizes one existing common unit and preserves its typed rounding/materialization
+boundaries; it is not a replacement semantic graph, executor or AD implementation.
+Shape-identity reductions, including singleton-only reductions inside a pipeline, reject before
+any native query: oneDNN 3.14 cannot create their reduction primitive, and its Graph backend
+can abort the process instead of returning an unsupported status.
+K=0/K=1 contractions, symbolic B, Scan orchestration, row regions, opaque convolutions,
+contraction bias/post-operations and unqualified geometry remain preplanned CPU work.
+F64 CPU/OpenBLAS behavior is unchanged; no F64 oneDNN support is claimed.
+
+Actual 3.14.0 counterexamples expose convolution signed-zero differences, activation NaN/zero
+behavior, reference-reorder arithmetic and external-bias rounding/ordering differences.
+Descriptor availability does not override those results. Compiler-generated gradients use the
+same qualified ordinary units; saved/public stores remain present, and every run observes
+current inputs and weights. DAZ/FTZ permissions apply only at the Model's named arithmetic sites,
+never raw movement, stored comparisons, masks or selection.
 
 ### Preparation, leases and concurrency
 
@@ -521,9 +539,12 @@ a selected Phase-2 topology is never replaced.
 Analysis retains no native handles. Primitive description queries a primitive descriptor without
 creating a primitive. Graph exposes scratch size only after compilation, so analysis compiles,
 queries and closes a temporary block. After shared assignment, finalization freshly recompiles
-the exact recipe and verifies its descriptor facts. oneDNN owns its native cache; Synaptik adds
-no custom native cache. Selected kernels are acquired in order as persistent `PreparedResource`
-objects, with transactional rollback if later acquisition fails.
+the exact recipe and verifies its descriptor facts. Singleton-axis strides are canonicalized
+without changing addresses or spans, so primitive and Graph queries cannot disagree through
+oneDNN's equivalent-descriptor cache. oneDNN owns its native cache; Synaptik adds no custom
+native cache. Selected kernels are acquired in order as persistent `PreparedResource` objects,
+with transactional rollback if later acquisition fails. Literal intermediates, constants and
+per-step scratch share one declared invocation allocation and are charged once.
 
 Persistent kernel/library leases are distinct from run resources. Each run workspace factory
 creates its stream, memory/tensor handles, ABI argument tables and user scratch before binding.
@@ -543,9 +564,20 @@ performed in that hot path.
 
 Phase-2 tuning decisions use schema 4 with the oneDNN policy and exact load-session identity;
 stale versions are rejected. This adds neither compatibility shims nor persistent cache support.
-oneDNN adds no Metal execution path; the Java CPU BFLOAT16/FLOAT16 arithmetic lock is unchanged.
+This F32 expansion adds no Metal execution path or low-precision numerical capability.
 
 ### Evidence and report-only benchmarking
+
+The expanded F32 source additionally passed 32 public scenarios under each of PRIMITIVES,
+GRAPH and AUTO on the local M3 Max (96 total): current-input refresh, literal pointwise stores,
+special values, BOOL predicates, SUM/PROD/MEAN, MSE, BatchNorm inference, padded pooling and
+three actual Compiler-gradient invocations sharing one preparation. A separate cache-warmup
+diagnostic reproduced the singleton-stride metadata mismatch before canonicalization and
+stable descriptor facts afterward. Public MLP/CNN consumers also passed actual SGD, save/load
+and freshly configured SGD under all three policies, with scalar/finite-difference oracles and
+native execution records. A singleton-axis reduction reproduced the Graph process abort before
+cold rejection and preserved all 65,535 public values afterward. This is bounded source evidence,
+not a republished artifact, cross-platform qualification or performance claim.
 
 Recorded macOS arm64/M3 Max qualification used JDK 26.0.1 and oneDNN 3.14.0 SEQ: ten native
 contract cases and twelve public Engine cases passed, including distinct concurrent bindings and
@@ -1411,14 +1443,14 @@ the always-available semantic fallback for every occurrence it supports. CPU 000
 four execution strategies for the proving slice. OpenBLAS is a narrow cross-platform native route
 for eligible BLAS-compatible linear algebra, not the universal or preferred CPU route.
 The explicitly configured oneDNN primitive/Graph peer is current only within the
-[bare-F32 qualification](#numerical-qualification-and-training). Accelerate BLAS/vDSP/vForce,
+[F32 occurrence qualification](#numerical-qualification-and-training). Accelerate BLAS/vDSP/vForce,
 distinct oneMKL BLAS/VML, AOCL-BLAS/AOCL-LibM and optional ZenDNN peers remain planned.
 
 There is no fixed vendor priority and no route-specific `BackendId`. Planning selects the single
 CPU owner; CPU Prepare filters exact capability, platform, semantics, numerical/determinism,
-layout, representation, and resources, then compares whole-plan cost. Current oneDNN qualification
-has recorded macOS Apple Silicon evidence, not a Linux x86 pass. A processor vendor or ARM target
-does not imply any hard-coded native library or unqualified provider capability.
+layout, representation, and resources, then compares whole-plan cost. The baseline oneDNN route
+has recorded macOS and Linux x86 evidence; the expanded F32 occurrences currently have local
+macOS evidence only. A processor vendor or ARM target does not imply a native library or qualification.
 
 Portable generated loops use universal primitive `start`/`end` loops. Compatible
 concrete extents and element count bind on the cold path and do not normally change class/cache

@@ -75,13 +75,13 @@ Focused documentation identifies the exact current boundary for each area.
 CPU also supports explicit **oneDNN** (external native kernel library) 3.14.0 composition through
 `CpuBackendIntegration.openOneDnn(absolutePath[, OneDnnApi])`. Its primitive and Graph APIs are
 routes inside the same CPU owner, not new backends or automatic-differentiation systems.
-Only qualified bare static homogeneous FLOAT32 MATMUL with K > 1 is production-native;
-convolution, bias, activations and unqualified geometry remain existing CPU work. Model/AD,
-Metal, default CPU composition and the Java CPU low-arithmetic lock are unchanged. API preference
-does not force native selection, and heuristic whole-plan costs do not promise a speedup.
-No binary is bundled. See the [complete public configuration and external-binary requirements](docs/backend-guide/cpu-backend.md#explicit-onednn-composition),
-including JDK native-access permission, ownership and report-only benchmarking. Recorded
-macOS arm64 correctness evidence is not a claim of Linux x86 qualification or performance.
+Qualified F32 arithmetic and literal composite units extend the existing bare MATMUL route;
+unsupported implementations and geometry keep the ordinary CPU plan before execution.
+Model/AD, Metal and default CPU composition remain unchanged. API preference does not force
+native selection, and heuristic whole-plan costs do not promise a speedup.
+No binary is bundled. See the [configuration, exact qualification and external-binary requirements](docs/backend-guide/cpu-backend.md#explicit-onednn-composition),
+including JDK native-access permission, ownership and report-only benchmarking. Expanded-F32
+source evidence is currently local macOS arm64; earlier sealed release receipts remain unchanged.
 
 ## Prerequisites
 

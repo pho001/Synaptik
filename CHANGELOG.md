@@ -7,10 +7,16 @@
 - Explicit oneDNN 3.14.0 LP64 sequential CPU composition with `openOneDnn(Path)` and immutable
   `AUTO`/`PRIMITIVES`/`GRAPH` API preferences inside the existing CPU owner. Required explicit
   load failures throw; default CPU/OpenBLAS discovery is unchanged and no binary is bundled.
-  Production-native qualification is limited to bare homogeneous static dense/permuted-dense
-  FLOAT32 MATMUL, including normalized broadcast batches up to rank 12, with K > 1.
-  Conv2d/Conv3d, bias, activations, symbolic/Scan/row-region and other unqualified work keep their
-  existing CPU units to preserve Model numerics. Common-IR whole-plan heuristic comparison,
+  The bare homogeneous static dense/permuted-dense FLOAT32 MATMUL baseline, including normalized
+  broadcast batches up to rank 12 with K > 1, now also admits qualified F32 common arithmetic,
+  predicates, aggregates, composed raw movement and literal MSE/BatchNorm/padded-average-pool
+  units. Unsupported API/implementation/geometry retains its preplanned CPU unit; opaque
+  convolution/normalization/activation replacements and Scan orchestration remain unqualified.
+  Literal SUM/DIV preserves mean divisors without reciprocal substitution; nonexact F32 counts
+  reject cold. Singleton-stride normalization prevents primitive/Graph native-cache aliasing.
+  Shape-identity reductions reject before native queries to avoid the pinned Graph backend's
+  unsupported reduction-descriptor abort.
+  Common-IR whole-plan heuristic comparison,
   declared ingress/scratch, per-run current-weight refresh and leased native resources preserve
   saved/public stores and existing AD; Phase-2 schema 4 rejects stale policy/session decisions.
   Actual macOS arm64 and Linux x86-64 native/public qualification and report-only training

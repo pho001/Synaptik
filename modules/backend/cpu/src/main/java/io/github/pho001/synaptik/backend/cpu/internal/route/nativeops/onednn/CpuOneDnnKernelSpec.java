@@ -32,10 +32,13 @@ public sealed interface CpuOneDnnKernelSpec permits CpuOneDnnKernelSpec.Atomic, 
     enum ReductionAlgorithm { SUM, PROD }
 
     /**
-     * Descriptor relative to its bound segment, with no origin prefix.
+     * Descriptor relative to its bound segment, with no origin prefix. Singleton-axis strides
+     * are normalized to the next physical row stride: they never change an address, but oneDNN's
+     * cache equates them while implementation selection can otherwise distinguish them. The same
+     * canonical descriptor must therefore reach primitive analysis, Graph and finalization.
      * @param dataType non-null represented element type
      * @param dimensions positive extents of rank 1..12; scalars use [1]
-     * @param strides matching nonnegative element strides; copied
+     * @param strides matching nonnegative element strides; copied and singleton-normalized
      */
     record Tensor(DataType dataType, List<Long> dimensions, List<Long> strides) {
         public Tensor {
@@ -47,6 +50,19 @@ public sealed interface CpuOneDnnKernelSpec permits CpuOneDnnKernelSpec.Atomic, 
                     || strides.stream().anyMatch(value -> value < 0)) {
                 throw new IllegalArgumentException("invalid oneDNN tensor descriptor");
             }
+            ArrayList<Long> normalized = null;
+            long rowStride = 1;
+            for (int axis = dimensions.size() - 1; axis >= 0; axis--) {
+                if (dimensions.get(axis) == 1) {
+                    if (strides.get(axis) != rowStride) {
+                        if (normalized == null) normalized = new ArrayList<>(strides);
+                        normalized.set(axis, rowStride);
+                    }
+                } else {
+                    rowStride = Math.max(1, Math.multiplyExact(dimensions.get(axis), strides.get(axis)));
+                }
+            }
+            if (normalized != null) strides = List.copyOf(normalized);
             spanBytes(dataType, dimensions, strides);
         }
         /** @return checked referenced byte span, not logical count or origin prefix */

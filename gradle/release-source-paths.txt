@@ -1190,12 +1190,15 @@ modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasTuningBatch.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasTuningDecision.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/package-info.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnAtomicKernel.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnCompiler.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnCompositeProjection.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnGraph.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnKernel.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnKernelMetadata.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnKernelSpec.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnLibrary.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnPipeline.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnPreparedExecutable.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnPrimitives.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnProjection.java
@@ -2538,7 +2541,9 @@ testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integr
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineModelAutotuningIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineNumericalSemanticsIntegrationTest.java
+testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineOneDnnBroadcastIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineOneDnnIntegrationTest.java
+testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineOneDnnMovementIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineOrderingMetalIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EnginePool3dTrainingIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineProducerlessMetalIntegrationTest.java

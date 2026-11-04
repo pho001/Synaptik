@@ -495,7 +495,11 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                         || kernel.scratchpadBytes() != nativeUnit.scratchpadBytes()
                         || !kernel.implementation().equals(nativeUnit.implementation())) {
                     throw new IllegalArgumentException(
-                            "oneDNN compilation differs from retained analysis metadata");
+                            "oneDNN compilation differs from retained analysis metadata: scratch "
+                            + nativeUnit.scratchpadBytes() + " -> " + kernel.scratchpadBytes()
+                            + ", implementation " + nativeUnit.implementation() + " -> "
+                            + kernel.implementation() + ", same spec="
+                            + kernel.spec().equals(nativeUnit.projection().spec()));
                 }
                 children.add(new CpuOneDnnPreparedExecutable(finalization.memoryPlan(),
                         localSelections.get(index), nativeUnit.workspaceRequirements().stream()

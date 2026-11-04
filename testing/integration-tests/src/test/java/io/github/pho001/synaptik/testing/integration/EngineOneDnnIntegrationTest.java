@@ -316,6 +316,71 @@ final class EngineOneDnnIntegrationTest {
         }
     }
 
+    @ParameterizedTest
+    @EnumSource(OneDnnApi.class)
+    void scalarMeanRemainsPreparableAcrossApiQueriesAndUsesActualDivision(OneDnnApi api) {
+        int count = 65535;
+        float[] values = new float[count];
+        values[0] = 257f;
+        Tensor input = tensor(Shape.of(count), false, values);
+        try (Engine engine = configured(api)) {
+            var compiled = engine.compile(List.of(input.mean()));
+            for (int preparation = 0; preparation < 2; preparation++) {
+                try (var prepared = engine.prepare(compiled)) {
+                    for (int invocation = 0; invocation < 2; invocation++) {
+                        values[0] = invocation == 0 ? 257f : -257f;
+                        try (var result = engine.run(prepared, List.of(input))) {
+                            float actual = result.materialize(result.publications().getFirst(),
+                                    Float.BYTES).bytes().getFloat();
+                            assertEquals(Float.floatToRawIntBits(values[0] / count),
+                                    Float.floatToRawIntBits(actual));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(OneDnnApi.class)
+    void meanDoesNotRoundTheExactContributorCountToAnF32Divisor(OneDnnApi api) {
+        int count = (1 << 24) + 1;
+        float[] values = new float[count];
+        values[0] = 1 << 24;
+        Tensor input = tensor(Shape.of(count), false, values);
+        try (Engine engine = configured(api);
+                var prepared = engine.prepare(engine.compile(List.of(input.mean())));
+                var result = engine.run(prepared, List.of(input))) {
+            float expected = (float) ((double) values[0] / count);
+            float actual = result.materialize(result.publications().getFirst(),
+                    Float.BYTES).bytes().getFloat();
+            assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(actual));
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(OneDnnApi.class)
+    void singletonAxisReductionsPreserveValuesWithoutUnsupportedNativeDescriptors(OneDnnApi api) {
+        int count = 65535;
+        float[] values = new float[count];
+        for (int index = 0; index < count; index++) values[index] = (index % 11 + 1) * .125f;
+        Tensor input = tensor(Shape.of(count, 1), false, values);
+        try (Engine engine = configured(api)) {
+            for (Tensor output : List.of(input.sum(1, false), input.mean(1, false), input.prod(1, false))) {
+                try (var prepared = engine.prepare(engine.compile(List.of(output)));
+                        var result = engine.run(prepared, List.of(input))) {
+                    var bytes = result.materialize(result.publications().getFirst(),
+                            (long) count * Float.BYTES).bytes();
+                    for (float expected : values) {
+                        assertEquals(Float.floatToRawIntBits(expected),
+                                Float.floatToRawIntBits(bytes.getFloat()));
+                    }
+                    assertEquals(0, bytes.remaining());
+                }
+            }
+        }
+    }
+
     /**
      * Runs one public forward recipe and detaches its publication before closing all owners.
      * @param engine borrowed open Engine
