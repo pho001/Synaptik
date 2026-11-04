@@ -500,7 +500,14 @@ class MetalGeneralScanNativeTest {
             var node = MetalScanLowering.lower(query, inputs, outputs);
             byte[] valid = new MetalMpsGraphProgram(List.of(node)).encodedProgramImage(
                     descriptors, inputs, outputs, MetalPreparedRoute.CUSTOM_PROGRAM);
-            byte[] forged = valid.clone();
+            // Serialize the forged outer type first so its canonical manifest/digest agrees.
+            // Only the nested raw words are patched afterward: constructing an unsupported
+            // GENERAL_SCAN Node would correctly fail Java's independent validation.
+            var forgedDescriptors = new ArrayList<>(descriptors);
+            forgedDescriptors.set(2, MetalMpsGraphProgram.ValueDescriptor.from(
+                    MetalScanPlanTest.descriptor(right)));
+            byte[] forged = new MetalMpsGraphProgram(List.of(node)).encodedProgramImage(
+                    forgedDescriptors, inputs, outputs, MetalPreparedRoute.CUSTOM_PROGRAM);
             int dimensions = descriptors.stream().mapToInt(MetalMpsGraphProgram.ValueDescriptor::rank).sum();
             int references = inputs.length + outputs.length + node.inputCount() + node.outputCount();
             int payload = MetalMpsGraphProgram.HEADER_BYTES
@@ -513,9 +520,6 @@ class MetalGeneralScanNativeTest {
             // Change only the invariant's represented carrier, consistently in both binding tables.
             // Invariants have no workspace slot, so this two-byte change cannot alter workspace offsets.
             for (int value = 0; value < 2; value++) formal += Math.toIntExact(words[formal]);
-            image.putInt(MetalMpsGraphProgram.HEADER_BYTES
-                    + 2 * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES,
-                    MetalMpsGraphProgram.dataTypeWire(right));
             image.putLong(payload + (formal + 1) * Long.BYTES, MetalMpsGraphProgram.dataTypeWire(right));
             image.putLong(payload + (formal + 8) * Long.BYTES, right.byteWidth());
 
