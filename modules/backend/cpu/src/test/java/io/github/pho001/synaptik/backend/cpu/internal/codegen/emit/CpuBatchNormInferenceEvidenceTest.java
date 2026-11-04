@@ -21,7 +21,7 @@ import java.nio.file.Path;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
-/** CPU 0007F1 evidence driver preserving supported measurements and explicit locked-low outcomes. */
+/** Generated/direct inference evidence with independent numerical checks for admitted low fixtures. */
 public final class CpuBatchNormInferenceEvidenceTest {
     private static final long MIN_BATCH_NANOS = 25_000_000L;
     private static volatile long sink;
@@ -32,14 +32,8 @@ public final class CpuBatchNormInferenceEvidenceTest {
     private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
             .withOrder(ByteOrder.nativeOrder());
     @FunctionalInterface private interface Action { long run() throws Throwable; }
-    private sealed interface CaseOutcome permits Case, UnsupportedCase {
-        String name();
-    }
     private record Case(String name, Action generated, Action direct, Runnable verify,
-            long roots, long reads, long[] generatedRounds, long[] directRounds)
-            implements CaseOutcome { }
-    private record UnsupportedCase(String name, IllegalArgumentException rejection)
-            implements CaseOutcome { }
+            long roots, long reads, long[] generatedRounds, long[] directRounds) { }
     private record Prepared(MethodHandle handle, long[] geometry,
             CpuBatchNormInferenceIr.RangeForm form, long items) { }
 
@@ -51,20 +45,9 @@ public final class CpuBatchNormInferenceEvidenceTest {
                 value.direct::run, value.verify::run);
     }
 
-    private static UnsupportedCase unsupported(String name,
-            org.junit.jupiter.api.function.Executable fixture) {
-        return new UnsupportedCase(name, assertThrows(IllegalArgumentException.class, fixture, name));
-    }
-
     @Test void inferenceFixturesMatchIndependentJava() throws Throwable {
-        List<CaseOutcome> cases = cases();
-        for (CaseOutcome outcome : cases) {
-            switch (outcome) {
-                case Case value -> {
-                    value.generated.run(); value.direct.run(); value.verify.run();
-                }
-                case UnsupportedCase value -> assertNotNull(value.rejection());
-            }
+        for (Case value : cases()) {
+            value.generated.run(); value.direct.run(); value.verify.run();
         }
     }
 
@@ -76,28 +59,15 @@ public final class CpuBatchNormInferenceEvidenceTest {
     }
 
     /**
-     * Runs an isolated fork, reporting locked low fixtures separately from generated/direct timings.
+     * Runs an isolated fork, reporting generated/direct timings after independent numerical checks.
      *
      * @param args optional deterministic fork number
      * @throws Throwable if a fixture outcome, semantic gate, timing gate, or evidence write fails
      */
     public static void main(String[] args) throws Throwable {
         long fork = args.length == 0 ? 0 : Long.parseLong(args[0]);
-        List<CaseOutcome> outcomes = cases();
-        List<Case> cases = new ArrayList<>();
+        List<Case> cases = cases();
         StringBuilder summary = new StringBuilder();
-        for (CaseOutcome outcome : outcomes) {
-            switch (outcome) {
-                case Case value -> cases.add(value);
-                case UnsupportedCase value -> {
-                    String row = "UNSUPPORTED," + value.name() + ","
-                            + value.rejection().getClass().getName() + ","
-                            + clean(value.rejection().getMessage()) + '\n';
-                    System.out.print(row);
-                    summary.append(row);
-                }
-            }
-        }
         int[] repetitions = new int[cases.size() * 2];
         for (int i = 0; i < cases.size(); i++) {
             cases.get(i).generated.run(); cases.get(i).direct.run(); cases.get(i).verify.run();
@@ -145,16 +115,15 @@ public final class CpuBatchNormInferenceEvidenceTest {
         if (failures != 0) throw new AssertionError("ratio failures " + failures);
     }
 
-    private static List<CaseOutcome> cases() throws Throwable {
-        List<CaseOutcome> result = new ArrayList<>();
-        result.add(unsupported("BN-BF16-A1",
-                () -> dense("BN-BF16-A1", DataType.BFLOAT16, 32, 64, 256, 1)));
+    private static List<Case> cases() throws Throwable {
+        List<Case> result = new ArrayList<>();
+        result.add(dense("BN-BF16-A1", DataType.BFLOAT16, 32, 64, 256, 1));
         result.add(dense("BN-F32-A1", DataType.FLOAT32, 32, 64, 256, 1));
         result.add(dense("BN-F64-A1", DataType.FLOAT64, 32, 64, 256, 1));
         result.add(dense("BN-F32-A0", DataType.FLOAT32, 4096, 128, 1, 0));
         result.add(dense("BN-F32-A2", DataType.FLOAT32, 32, 256, 64, 2));
-        result.add(unsupported("BN-MIX-F64", () -> mixedDense("BN-MIX-F64", true)));
-        result.add(unsupported("BN-MIX-F32", () -> mixedDense("BN-MIX-F32", false)));
+        result.add(mixedDense("BN-MIX-F64", true));
+        result.add(mixedDense("BN-MIX-F32", false));
         result.add(repeated());
         return result;
     }
@@ -291,7 +260,7 @@ public final class CpuBatchNormInferenceEvidenceTest {
             long io,long[]is,long[]vo,long[]vs,long oo,long[]os){for(long[]r:ranges(p.items))for(int c=0;c<32;c++)for(long q=r[0];q<r[1];q++){long n=q/64,z=q%64,ia=io+n*is[0]+c*is[1]+z*is[2],oa=oo+n*os[0]+c*os[1]+z*os[2];if(f64){double centered=((float[])i)[(int)ia]-((MemorySegment)m).get(FLOAT,(vo[2]+c*vs[2])*4);double rad=((double[])v)[(int)(vo[3]+c*vs[3])]+1e-5;double den=Math.sqrt(rad),std=centered/den,scaled=std*((MemorySegment)s).get(DOUBLE,(vo[0]+c*vs[0])*8);((MemorySegment)o).set(DOUBLE,oa*8,scaled+Float.intBitsToFloat(Short.toUnsignedInt(((short[])b)[(int)vo[1]])<<16));}else{float centered=Float.intBitsToFloat(Short.toUnsignedInt(((MemorySegment)i).get(SHORT,ia*2))<<16)-((float[])m)[(int)(vo[2]+c*vs[2])];float rad=Float.intBitsToFloat(Short.toUnsignedInt(((short[])v)[(int)(vo[3]+c*vs[3])])<<16)+1e-5f;float den=(float)Math.sqrt(rad),std=centered/den,scaled=std*((float[])s)[(int)(vo[0]+c*vs[0])];((float[])o)[(int)oa]=scaled+Float.intBitsToFloat(Short.toUnsignedInt(((MemorySegment)b).get(SHORT,vo[1]*2))<<16);}}return checksumMixed(f64,o);}
     private static void formula(DataType result,Object i,Object s,Object b,Object m,Object v,Object o,long x,int c){
         if(result==DataType.FLOAT64){double centered=read(i,x)-read(m,c),radicand=read(v,c)+1e-5,den=Math.sqrt(radicand),standard=centered/den,scaled=standard*read(s,c);((double[])o)[(int)x]=scaled+read(b,c);}
-        else{float centered=(float)((float)read(i,x)-(float)read(m,c));float radicand=(float)((float)read(v,c)+1e-5f);float den=(float)Math.sqrt(radicand);float standard=centered/den;float scaled=standard*(float)read(s,c);float value=scaled+(float)read(b,c);if(result==DataType.BFLOAT16)((short[])o)[(int)x]=bf(value);else((float[])o)[(int)x]=value;}}
+        else{float centered=(float)((float)read(i,x)-(float)read(m,c));float epsilon=result==DataType.BFLOAT16?Float.intBitsToFloat(0x37280000):1e-5f;float radicand=(float)((float)read(v,c)+epsilon);float den=(float)Math.sqrt(radicand);float standard=centered/den;float scaled=standard*(float)read(s,c);float value=scaled+(float)read(b,c);if(result==DataType.BFLOAT16)((short[])o)[(int)x]=bf(value);else((float[])o)[(int)x]=value;}}
     private static void initializeMixed(boolean f64,Object i,Object s,Object b,Object m,Object v,
             long io,long[]is,long[]vo,long[]vs){for(int n=0;n<16;n++)for(int c=0;c<32;c++)for(int z=0;z<64;z++){float value=n*.125f+c*.03125f+z*.0078125f-1;if(f64)((float[])i)[(int)(io+n*is[0]+c*is[1]+z*is[2])]=value;else((MemorySegment)i).set(SHORT,(io+n*is[0]+c*is[1]+z*is[2])*2,bf(value));}for(int c=0;c<32;c++){float scale=.5f+c*.015625f,bias=.125f,mean=-.25f+c*.0078125f,variance=.5f+c*.03125f;if(f64){((MemorySegment)s).set(DOUBLE,(vo[0]+c*vs[0])*8,scale);((short[])b)[(int)vo[1]]=bf(bias);((MemorySegment)m).set(FLOAT,(vo[2]+c*vs[2])*4,mean);((double[])v)[(int)(vo[3]+c*vs[3])]=variance;}else{((float[])s)[(int)(vo[0]+c*vs[0])]=scale;((MemorySegment)b).set(SHORT,vo[1]*2,bf(bias));((float[])m)[(int)(vo[2]+c*vs[2])]=mean;((short[])v)[(int)(vo[3]+c*vs[3])]=bf(variance);}}}
     private static long checksumMixed(boolean f64,Object o){long h=0;if(f64){MemorySegment x=(MemorySegment)o;for(long p=0;p<x.byteSize();p+=8)h=Long.rotateLeft(h,1)^Double.doubleToRawLongBits(x.get(DOUBLE,p));}else for(float x:(float[])o)h=Long.rotateLeft(h,1)^Integer.toUnsignedLong(Float.floatToRawIntBits(x));return h;}
@@ -308,7 +277,4 @@ public final class CpuBatchNormInferenceEvidenceTest {
     private static long time(Action a,int n)throws Throwable{long start=System.nanoTime(),v=0;for(int i=0;i<n;i++)v^=a.run();sink^=v;return System.nanoTime()-start;}
     private static int repetitions(Action a)throws Throwable{int n=1;while(time(a,n)<MIN_BATCH_NANOS)n=Math.multiplyExact(n,2);return n;}
     private static long median(long[]a){long[]c=a.clone();Arrays.sort(c);return c[4];}
-    private static String clean(String message) {
-        return message == null ? "" : message.replace('\n', ' ').replace('\r', ' ').replace(',', ';');
-    }
 }

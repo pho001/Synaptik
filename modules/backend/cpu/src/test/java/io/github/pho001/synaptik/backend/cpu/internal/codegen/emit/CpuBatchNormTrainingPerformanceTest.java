@@ -2,8 +2,6 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLowering;
@@ -26,7 +24,7 @@ import java.util.*;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-/** Generated/direct CPU 0007F2 driver; locked low fixtures report unsupported, never timings. */
+/** Generated/direct training evidence with independent numerical checks for admitted low fixtures. */
 public final class CpuBatchNormTrainingPerformanceTest {
     private static final long MIN_BATCH_NANOS = 25_000_000L;
     private static final Path EVIDENCE = Path.of(
@@ -45,13 +43,8 @@ public final class CpuBatchNormTrainingPerformanceTest {
 
     @FunctionalInterface interface BenchmarkAction { long run() throws Throwable; }
     @FunctionalInterface interface Verification { void run() throws Throwable; }
-    private sealed interface CaseOutcome permits BenchmarkCase, UnsupportedCase {
-        String name();
-    }
     record BenchmarkCase(String name, BenchmarkAction generated, BenchmarkAction direct,
-            Verification verify) implements CaseOutcome { }
-    private record UnsupportedCase(String name, IllegalArgumentException rejection)
-            implements CaseOutcome { }
+            Verification verify) { }
     private record Prepared(MethodHandle handle, MemorySegment generatedScratch,
             MemorySegment directScratch, long[] packed, CpuBatchNormTrainingLowering.Geometry g,
             int ranges) { }
@@ -61,20 +54,9 @@ public final class CpuBatchNormTrainingPerformanceTest {
         return new BenchmarkCase(name, generated, direct, verify);
     }
 
-    private static UnsupportedCase unsupported(String name,
-            org.junit.jupiter.api.function.Executable fixture) {
-        return new UnsupportedCase(name, assertThrows(IllegalArgumentException.class, fixture, name));
-    }
-
     @Test void trainingAndControlFixturesMatchIndependentJava() throws Throwable {
         try (Arena arena = Arena.ofConfined()) {
-            List<CaseOutcome> cases = cases(arena);
-            for (CaseOutcome outcome : cases) {
-                switch (outcome) {
-                    case BenchmarkCase value -> gate(value);
-                    case UnsupportedCase value -> assertNotNull(value.rejection());
-                }
-            }
+            for (BenchmarkCase value : cases(arena)) gate(value);
         }
     }
 
@@ -86,7 +68,7 @@ public final class CpuBatchNormTrainingPerformanceTest {
     }
 
     /**
-     * Runs a fork with explicit unsupported rows, or aggregates accepted forks zero through four.
+     * Runs a numerically checked fork, or aggregates accepted forks zero through four.
      *
      * @param args optional fork and attempt numbers, or {@code aggregate}
      * @throws Throwable if a fixture outcome, semantic gate, timing gate, or evidence write fails
@@ -98,17 +80,7 @@ public final class CpuBatchNormTrainingPerformanceTest {
         StringBuilder report = new StringBuilder();
         try (Arena arena = Arena.ofConfined()) {
             environment(report);
-            List<CaseOutcome> outcomes = cases(arena);
-            List<BenchmarkCase> cases = new ArrayList<>();
-            for (CaseOutcome outcome : outcomes) {
-                switch (outcome) {
-                    case BenchmarkCase value -> cases.add(value);
-                    case UnsupportedCase value -> report.append("UNSUPPORTED,")
-                            .append(value.name()).append(',')
-                            .append(value.rejection().getClass().getName()).append(',')
-                            .append(clean(value.rejection().getMessage())).append('\n');
-                }
-            }
+            List<BenchmarkCase> cases = cases(arena);
             int[] repetitions = new int[cases.size() * 2];
             for (int i = 0; i < cases.size(); i++) {
                 gate(cases.get(i));
@@ -159,16 +131,16 @@ public final class CpuBatchNormTrainingPerformanceTest {
         System.out.print(report);
     }
 
-    private static List<CaseOutcome> cases(Arena arena) throws Throwable {
-        List<CaseOutcome> result = new ArrayList<>();
-        result.add(unsupported("BNT-BF16-A1", () -> dense(arena, "BNT-BF16-A1",
-                DataType.BFLOAT16, Shape.of(32,64,256),1,4)));
+    private static List<BenchmarkCase> cases(Arena arena) throws Throwable {
+        List<BenchmarkCase> result = new ArrayList<>();
+        result.add(dense(arena, "BNT-BF16-A1",
+                DataType.BFLOAT16, Shape.of(32,64,256),1,4));
         result.add(dense(arena, "BNT-F32-A1", DataType.FLOAT32, Shape.of(32,64,256),1,4));
         result.add(dense(arena, "BNT-F64-A1", DataType.FLOAT64, Shape.of(32,64,256),1,1));
         result.add(dense(arena, "BNT-F32-A0", DataType.FLOAT32, Shape.of(128,4096),0,4));
         result.add(dense(arena, "BNT-F32-A2", DataType.FLOAT32, Shape.of(32,256,64),2,4));
-        result.add(unsupported("BNT-MIX-F64", () -> mixed(arena, true)));
-        result.add(unsupported("BNT-MIX-F32", () -> mixed(arena, false)));
+        result.add(mixed(arena, true));
+        result.add(mixed(arena, false));
         result.add(repeated(arena));
         result.add(CpuBatchNormInferenceEvidenceTest.float32BatchInferenceControl());
         result.addAll(CpuTrailingNormalizationEvidenceTest.trainingControls(arena));
@@ -285,14 +257,61 @@ public final class CpuBatchNormTrainingPerformanceTest {
 
     private static void channel64(Prepared p,MemorySegment state,int c,double[]x,double[]scale,double[]bias,double[]oldMean,double[]oldVar,double[]out,double[]nextMean,double[]nextVar,double[]savedMean,double[]savedInv){var g=p.g;Exact.reset(state,g.stateLimbCount());for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++)Exact.add64(state,x[q],g.stateLimbCount());}double mean=Double.longBitsToDouble(Exact.mean(state,Exact.F64,g.stateLimbCount(),g.reductionCount()));double ds=0,dc=0,ss=0,sc=0;for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++){double d=x[q]-mean,y=d-dc,t=ds+y;dc=(t-ds)-y;ds=t;double sq=d*d; y=sq-sc;t=ss+y;sc=(t-ss)-y;ss=t;}}double n=ss-ds*ds/g.reductionCount();if(n<0)n=0;double bi=n/g.reductionCount(),un=n/(g.reductionCount()-1),inv=1/Math.sqrt(bi+1e-5),om=1-.25;nextMean[c]=om*oldMean[c]+.25*mean;nextVar[c]=om*oldVar[c]+.25*un;savedMean[c]=mean;savedInv[c]=inv;for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++){double w=x[q]-mean;w=w*inv;w=w*scale[c];out[q]=w+bias[c];}}}
     private static void channel32(Prepared p,MemorySegment state,int c,float[]x,float[]scale,float[]bias,float[]oldMean,float[]oldVar,float[]out,float[]nextMean,float[]nextVar,float[]savedMean,float[]savedInv,boolean ignored){var g=p.g;Exact.reset(state,g.stateLimbCount());for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++)Exact.add32(state,x[q],g.stateLimbCount());}float mean=Float.intBitsToFloat((int)Exact.mean(state,Exact.F32,g.stateLimbCount(),g.reductionCount()));double ds=0,dc=0,ss=0,sc=0;for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++){double d=(float)(x[q]-mean),y=d-dc,t=ds+y;dc=(t-ds)-y;ds=t;double sq=d*d;y=sq-sc;t=ss+y;sc=(t-ss)-y;ss=t;}}double n=ss-ds*ds/g.reductionCount();if(n<0)n=0;float bi=(float)((float)n/(float)g.reductionCount()),un=(float)((float)n/(float)(g.reductionCount()-1)),inv=1f/(float)Math.sqrt(bi+1e-5f),om=1f-.25f;nextMean[c]=om*oldMean[c]+.25f*mean;nextVar[c]=om*oldVar[c]+.25f*un;savedMean[c]=mean;savedInv[c]=inv;for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++){float w=x[q]-mean;w=w*inv;w=w*scale[c];out[q]=w+bias[c];}}}
-    private static void channel16(Prepared p,MemorySegment state,int c,short[]x,short[]scale,short[]bias,short[]oldMean,short[]oldVar,short[]out,short[]nextMean,short[]nextVar,short[]savedMean,short[]savedInv){var g=p.g;Exact.reset(state,g.stateLimbCount());for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++)Exact.add32(state,decode(x[q]),g.stateLimbCount());}float mean=Float.intBitsToFloat((int)Exact.mean(state,Exact.F32,g.stateLimbCount(),g.reductionCount()));double ds=0,dc=0,ss=0,sc=0;for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++){double d=(float)(decode(x[q])-mean),y=d-dc,t=ds+y;dc=(t-ds)-y;ds=t;double sq=d*d;y=sq-sc;t=ss+y;sc=(t-ss)-y;ss=t;}}double n=ss-ds*ds/g.reductionCount();if(n<0)n=0;float bi=(float)((float)n/(float)g.reductionCount()),un=(float)((float)n/(float)(g.reductionCount()-1)),inv=1f/(float)Math.sqrt(bi+decode((short)0x3728)),om=1f-.25f;nextMean[c]=bf(om*decode(oldMean[c])+.25f*mean);nextVar[c]=bf(om*decode(oldVar[c])+.25f*un);savedMean[c]=bf(mean);savedInv[c]=bf(inv);float s=decode(scale[c]),b=decode(bias[c]);for(int a=0;a<g.prefixCount();a++){int q=(int)((a*g.channelCount()+c)*g.suffixCount()),z=(int)(q+g.suffixCount());for(;q<z;q++){float w=decode(x[q])-mean;w=w*inv;w=w*s;out[q]=bf(w+b);}}}
+    private static void channel16(Prepared p, MemorySegment state, int c, short[] x,
+            short[] scale, short[] bias, short[] oldMean, short[] oldVar, short[] out,
+            short[] nextMean, short[] nextVar, short[] savedMean, short[] savedInv) {
+        var g = p.g;
+        Exact.reset(state, g.stateLimbCount());
+        for (int a = 0; a < g.prefixCount(); a++) {
+            int q = (int) ((a * g.channelCount() + c) * g.suffixCount());
+            int end = (int) (q + g.suffixCount());
+            for (; q < end; q++) Exact.add32(state, decode(x[q]), g.stateLimbCount());
+        }
+        float mean = Float.intBitsToFloat((int) Exact.mean(state, Exact.F32,
+                g.stateLimbCount(), g.reductionCount()));
+        float deviations = 0, deviationCompensation = 0, squares = 0, squareCompensation = 0;
+        for (int a = 0; a < g.prefixCount(); a++) {
+            int q = (int) ((a * g.channelCount() + c) * g.suffixCount());
+            int end = (int) (q + g.suffixCount());
+            for (; q < end; q++) {
+                float d = decode(x[q]) - mean;
+                float y = d - deviationCompensation, next = deviations + y;
+                deviationCompensation = (next - deviations) - y;
+                deviations = next;
+                y = d * d - squareCompensation;
+                next = squares + y;
+                squareCompensation = (next - squares) - y;
+                squares = next;
+            }
+        }
+        float numerator = Math.max(0f,
+                squares - deviations * deviations / (float) g.reductionCount());
+        float biased = numerator / (float) g.reductionCount();
+        float unbiased = numerator / (float) (g.reductionCount() - 1);
+        float inv = 1f / (float) Math.sqrt(biased + decode((short) 0x3728));
+        nextMean[c] = bf(.75f * decode(oldMean[c]) + .25f * mean);
+        nextVar[c] = bf(.75f * decode(oldVar[c]) + .25f * unbiased);
+        savedMean[c] = bf(mean);
+        savedInv[c] = bf(inv);
+        float s = decode(scale[c]), b = decode(bias[c]);
+        for (int a = 0; a < g.prefixCount(); a++) {
+            int q = (int) ((a * g.channelCount() + c) * g.suffixCount());
+            int end = (int) (q + g.suffixCount());
+            for (; q < end; q++) {
+                float value = decode(x[q]) - mean;
+                value = value * inv;
+                value = value * s;
+                out[q] = bf(value + b);
+            }
+        }
+    }
 
     private static long directMixed64(Prepared p,float[]x,MemorySegment scale,short[]bias,
             MemorySegment oldMean,double[]oldVar,Object[]o){var g=p.g;var in=g.inputs();var out=g.outputs();
         for(int r=0;r<4;r++){MemorySegment state=scratch(p.directScratch,p,r);for(int c=(int)start(p,r);c<end(p,r);c++){
             Exact.reset(state,g.stateLimbCount());long ib=in.get(0).offset()+c*in.get(0).strides()[1];
-            for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2])Exact.add32(state,x[(int)q],g.stateLimbCount());}
-            double mean=Float.intBitsToFloat((int)Exact.mean(state,Exact.F32,g.stateLimbCount(),1024)),ds=0,dc=0,ss=0,sc=0;
+            for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2])Exact.add64(state,x[(int)q],g.stateLimbCount());}
+            double mean=Double.longBitsToDouble(Exact.mean(state,Exact.F64,g.stateLimbCount(),1024)),ds=0,dc=0,ss=0,sc=0;
             for(int a=0;a<16;a++){long q=ib+a*in.get(0).strides()[0];for(int z=0;z<64;z++,q+=in.get(0).strides()[2]){double d=x[(int)q]-mean,y=d-dc,t=ds+y;dc=(t-ds)-y;ds=t;double sq=d*d;y=sq-sc;t=ss+y;sc=(t-ss)-y;ss=t;}}
             double n=ss-ds*ds/1024.;if(n<0)n=0;double bi=n/1024.,un=n/1023.,inv=1/Math.sqrt(bi+1e-5),s=scale.get(DOUBLE,vecByte(in.get(1),c,8)),b=decode(bias[(int)vec(in.get(2),c)]),om=oldMean.get(FLOAT,vecByte(in.get(3),c,4)),ov=oldVar[(int)vec(in.get(4),c)];
             store64(o[1],out.get(1),c,.75*om+.25*mean);store64(o[2],out.get(2),c,.75*ov+.25*un);store64(o[3],out.get(3),c,mean);store64(o[4],out.get(4),c,inv);
@@ -368,29 +387,24 @@ public final class CpuBatchNormTrainingPerformanceTest {
     private static void retain(boolean accepted,int fork,int attempt,String text)throws Exception{Path dir=EVIDENCE.resolve(accepted?"forks":"rejected-samples");Files.createDirectories(dir);String name=accepted?"fork-"+fork+".csv":"fork-"+fork+"-attempt-"+attempt+"-"+Instant.now().toEpochMilli()+".csv";Files.writeString(dir.resolve(name),text);}
     private static void aggregate() throws Exception {
         List<Map<String, Double>> forks = new ArrayList<>();
-        Map<String, String> unsupported = null;
         List<String> inventory = null;
         for (int fork = 0; fork < 5; fork++) {
             Map<String, Double> ratios = new LinkedHashMap<>();
-            Map<String, String> negatives = new LinkedHashMap<>();
             List<String> names = new ArrayList<>();
             for (String line : Files.readAllLines(EVIDENCE.resolve("forks/fork-" + fork + ".csv"))) {
-                if (line.startsWith("RESULT,") || line.startsWith("UNSUPPORTED,")) {
+                if (line.startsWith("RESULT,")) {
                     String[] fields = line.split(",", 6);
                     if (names.contains(fields[1])) throw new AssertionError("duplicate " + fields[1]);
                     names.add(fields[1]);
-                    if (fields[0].equals("RESULT")) ratios.put(fields[1], Double.parseDouble(fields[4]));
-                    else negatives.put(fields[1], line);
+                    ratios.put(fields[1], Double.parseDouble(fields[4]));
                 }
             }
-            if (ratios.isEmpty() || negatives.isEmpty()) throw new AssertionError("missing outcomes");
             if (!new HashSet<>(CASE_NAMES).equals(new HashSet<>(names))) {
                 throw new AssertionError("incomplete fork owner inventory");
             }
             if (inventory == null) {
                 inventory = List.copyOf(names);
-                unsupported = Map.copyOf(negatives);
-            } else if (!inventory.equals(names) || !unsupported.keySet().equals(negatives.keySet())
+            } else if (!inventory.equals(names)
                     || !forks.getFirst().keySet().equals(ratios.keySet())) {
                 throw new AssertionError("fork outcome inventory");
             }
@@ -399,10 +413,6 @@ public final class CpuBatchNormTrainingPerformanceTest {
         StringBuilder summary = new StringBuilder();
         int failures = 0;
         for (String name : inventory) {
-            if (unsupported.containsKey(name)) {
-                summary.append(unsupported.get(name)).append('\n');
-                continue;
-            }
             double[] values = new double[5];
             for (int fork = 0; fork < 5; fork++) values[fork] = forks.get(fork).get(name);
             Arrays.sort(values);
