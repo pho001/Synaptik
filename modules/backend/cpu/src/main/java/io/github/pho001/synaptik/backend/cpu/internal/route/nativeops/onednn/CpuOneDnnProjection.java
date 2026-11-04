@@ -405,16 +405,79 @@ public record CpuOneDnnProjection(CpuOneDnnKernelSpec spec, List<Long> byteOffse
         return projection(unit, pipeline, offsets(unit));
     }
 
+    /**
+     * Represents the complete cold-composed copy table in final-result coordinates. Boundary
+     * bindings describe the original layouts, not the intervening view transformations. Inferred
+     * descriptor strides are therefore only candidates: every source and destination address must
+     * equal the descriptor address before native selection is possible. This admits affine
+     * permutations and materialization, but rejects non-affine transpose/reshape chains rather
+     * than replacing their mapping with logical identity. Origins come from the same table and
+     * are applied exactly once by the outer binding.
+     *
+     * @param unit validated static one-source/one-result common unit with composed address pairs
+     * @param ir represented-bit copy whose logical write domain must be one-to-one
+     * @return exact native coordinate recipe, or empty when the complete mapping is not strided
+     */
     private static Optional<CpuOneDnnProjection> movement(
             CpuPartitionPreparationPlan.ExecutionUnitPlan unit, CpuAffineCopyIr ir) {
         if (ir.dataType() != DataType.FLOAT32
                 || ir.writeDomain() != CpuAffineCopyIr.WriteDomain.LOGICAL_ELEMENTS
                 || unit.accessBindings().size() != 2) return Optional.empty();
-        var source = unit.accessBindings().getFirst();
         var output = unit.accessBindings().getLast();
-        if (!valid(source) || !valid(output) || !source.extents().equals(output.extents())) return Optional.empty();
-        return projection(unit, new CpuOneDnnKernelSpec.Reorder(
-                tensor(DataType.FLOAT32, source, false), tensor(DataType.FLOAT32, output, false)), offsets(unit));
+        if (!valid(unit.accessBindings().getFirst()) || !valid(output)) return Optional.empty();
+        var dimensions = output.extents().isEmpty() ? List.of(1L) : output.extents();
+        if (!positive(dimensions)) return Optional.empty();
+        long count = 1;
+        for (long extent : dimensions) count = Math.multiplyExact(count, extent);
+        long[] pairs = unit.runtimeFacts().affineAddressPairs();
+        if (count != unit.elementCount() || pairs.length != Math.multiplyExact(count, 2L)) {
+            return Optional.empty();
+        }
+        var input = movementTensor(dimensions, pairs, 0);
+        var target = movementTensor(dimensions, pairs, 1);
+        if (input.isEmpty() || target.isEmpty()) return Optional.empty();
+        return projection(unit, new CpuOneDnnKernelSpec.Reorder(input.orElseThrow(),
+                target.orElseThrow()), List.of(bytes(pairs[0]), bytes(pairs[1])));
+    }
+
+    /**
+     * Proves one plain strided descriptor against every address of a composed copy boundary.
+     * Singleton strides are canonicalized to one because their coordinates never vary. No tensor
+     * contents are inspected and no inferred coefficient is accepted on sampling evidence.
+     *
+     * @param dimensions positive final-result dimensions, rank at most twelve
+     * @param pairs complete alternating source/destination absolute element addresses
+     * @param boundary zero for source, one for destination
+     * @return descriptor relative to the first table address, or empty on any disagreement
+     */
+    private static Optional<CpuOneDnnKernelSpec.Tensor> movementTensor(
+            List<Long> dimensions, long[] pairs, int boundary) {
+        long origin = pairs[boundary];
+        if (origin < 0) return Optional.empty();
+        var strides = new ArrayList<Long>(java.util.Collections.nCopies(dimensions.size(), 1L));
+        long logicalStride = 1;
+        for (int axis = dimensions.size() - 1; axis >= 0; axis--) {
+            if (dimensions.get(axis) > 1) {
+                long stride = Math.subtractExact(
+                        pairs[Math.toIntExact(Math.addExact(Math.multiplyExact(logicalStride, 2), boundary))],
+                        origin);
+                if (stride < 0) return Optional.empty();
+                strides.set(axis, stride);
+            }
+            logicalStride = Math.multiplyExact(logicalStride, dimensions.get(axis));
+        }
+        for (int entry = 0; entry < pairs.length / 2; entry++) {
+            long coordinate = entry;
+            long address = origin;
+            for (int axis = dimensions.size() - 1; axis >= 0; axis--) {
+                long extent = dimensions.get(axis);
+                address = Math.addExact(address,
+                        Math.multiplyExact(coordinate % extent, strides.get(axis)));
+                coordinate /= extent;
+            }
+            if (address != pairs[entry * 2 + boundary]) return Optional.empty();
+        }
+        return Optional.of(new CpuOneDnnKernelSpec.Tensor(DataType.FLOAT32, dimensions, strides));
     }
 
     private static List<Long> offsets(CpuPartitionPreparationPlan.ExecutionUnitPlan unit) {

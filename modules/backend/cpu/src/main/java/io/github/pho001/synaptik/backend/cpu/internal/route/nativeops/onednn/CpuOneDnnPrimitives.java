@@ -265,6 +265,28 @@ public final class CpuOneDnnPrimitives {
         throw new IllegalArgumentException("pipeline requires fixed atomic descriptor preparation");
     }
 
+    /**
+     * Qualifies the selected implementation, not just the primitive operation.
+     *
+     * <p>Raw reorder is restricted to AArch64 {@code jit:uni}, homogeneous F32, plain
+     * dense/permuted-dense descriptors, and the default scales/zero-points/no-post-ops attributes
+     * created above. For pinned oneDNN 3.14 commit
+     * {@code 18378c8475643c4172fe059fefba855b14c07345},
+     * {@code src/cpu/aarch64/reorder/jit_uni_reorder_utils.cpp:293-324,450-451} makes scales
+     * NONE, zero-points absent, beta zero and scale-adjust one. In
+     * {@code jit_uni_reorder_kernel.cpp}, direct-copy (593-719), generic (723-1396), and
+     * F32 transpose (382-575) then only load, shuffle and store the represented bits; F32
+     * conversion is explicitly a no-op. The other optimized transpose is F32-to-BF16 only.
+     * This proof does not qualify x64 implementations sharing the same name, converted,
+     * repeated-address or gapped descriptors, or any other implementation. In particular
+     * {@code simple:any}'s reference path in {@code src/cpu/reorder/simple_reorder.hpp:2728-2732}
+     * performs floating arithmetic even with default attributes, changing negative zero and NaNs.
+     *
+     * @param spec exact descriptor recipe using only the attributes created by this class
+     * @param implementation actual implementation identity returned by its primitive descriptor
+     * @throws CpuOneDnnCompiler.UnsupportedRealizationException if this implementation and
+     *     descriptor combination has not been qualified for the represented semantics
+     */
     private static void qualifyImplementation(CpuOneDnnKernelSpec spec, String implementation) {
         // Reference ABS changes +0 to -0; x64 EXP flushes at an unauthorized elementary site.
         if (spec instanceof CpuOneDnnKernelSpec.Unary unary
@@ -280,9 +302,45 @@ public final class CpuOneDnnPrimitives {
                         && System.getProperty("os.arch").equals("aarch64"))) {
             throw new CpuOneDnnCompiler.UnsupportedRealizationException("unqualified stored-extrema implementation: " + implementation);
         }
+        if (spec instanceof CpuOneDnnKernelSpec.Reorder reorder
+                && !(implementation.equals("jit:uni")
+                        && System.getProperty("os.arch").equals("aarch64")
+                        && reorder.input().dataType() == io.github.pho001.synaptik.model.datatype.DataType.FLOAT32
+                        && reorder.output().dataType() == io.github.pho001.synaptik.model.datatype.DataType.FLOAT32
+                        && rawMovementDense(reorder.input()) && rawMovementDense(reorder.output()))) {
+            throw new CpuOneDnnCompiler.UnsupportedRealizationException(
+                    "unqualified raw-movement implementation or descriptors: " + implementation);
+        }
         if (spec instanceof CpuOneDnnKernelSpec.Pooling && !implementation.equals("simple_nchw:any")) {
             throw new CpuOneDnnCompiler.UnsupportedRealizationException("unqualified padded-average implementation: " + implementation);
         }
+    }
+
+    /**
+     * Proves a plain descriptor has one dense physical permutation without repeated addresses.
+     *
+     * @param tensor positive-rank plain strided native descriptor
+     * @return whether all nonsingleton axes form a complete dense stride chain
+     */
+    private static boolean rawMovementDense(Tensor tensor) {
+        int remaining = 0;
+        for (int axis = 0; axis < tensor.dimensions().size(); axis++) {
+            if (tensor.dimensions().get(axis) > 1) remaining |= 1 << axis;
+        }
+        long stride = 1;
+        while (remaining != 0) {
+            int next = -1;
+            for (int axis = 0; axis < tensor.dimensions().size(); axis++) {
+                if ((remaining & (1 << axis)) != 0 && tensor.strides().get(axis) == stride) {
+                    next = axis;
+                    break;
+                }
+            }
+            if (next < 0) return false;
+            remaining &= ~(1 << next);
+            stride = Math.multiplyExact(stride, tensor.dimensions().get(next));
+        }
+        return true;
     }
 
     private static MemorySegment descriptor(Api api, NativeScope scope, MemorySegment result,

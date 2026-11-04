@@ -153,9 +153,20 @@ public final class CpuOneDnnCompiler {
         if (api == CpuOneDnnRoutePlan.Api.GRAPH) requireQualifiedGraph(spec);
     }
 
+    /**
+     * Rejects Graph operations whose selected implementation cannot be qualified. Graph Reorder
+     * does not expose that implementation, and the 3.14 reference primitive uses floating
+     * arithmetic even for same-type default-attribute movement, so raw F32 bits are not proved.
+     *
+     * @param spec atomic recipe or cold-fixed pipeline whose every step must qualify
+     * @throws UnsupportedRealizationException if Graph hides a required implementation proof
+     */
     private static void requireQualifiedGraph(CpuOneDnnKernelSpec spec) {
         if (spec instanceof CpuOneDnnKernelSpec.Pipeline pipeline) {
             for (var step : pipeline.steps()) requireQualifiedGraph(step.spec());
+        } else if (spec instanceof CpuOneDnnKernelSpec.Reorder) {
+            throw new UnsupportedRealizationException(
+                    "Graph does not expose the selected raw-movement implementation");
         } else if (spec instanceof CpuOneDnnKernelSpec.Unary unary
                 && (unary.algorithm() == CpuOneDnnKernelSpec.UnaryAlgorithm.ABS
                         || unary.algorithm() == CpuOneDnnKernelSpec.UnaryAlgorithm.EXP)) {
