@@ -342,8 +342,8 @@ class CompletePlanTuningCacheTest {
             var failure = assertThrows(DirectoryNotEmptyException.class,
                     () -> file.publish(target, Map.of(cacheKey, value)));
             assertEquals(0, failure.getSuppressed().length);
-            assertArrayEquals(value.encodedDecision(),
-                    new ModelPlanCacheFile().load(target).get(cacheKey).encodedDecision());
+            assertArrayEquals(value.decision(),
+                    new ModelPlanCacheFile().load(target).get(cacheKey).decision());
         } finally {
             Files.delete(temporaryPath[0].resolve("blocker"));
             Files.delete(temporaryPath[0]);

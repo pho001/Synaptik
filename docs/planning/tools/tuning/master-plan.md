@@ -84,6 +84,7 @@ The root package is the deliberate small public surface. It contains no [backend
 | 0003 | [Read-only cache, plan, and evidence inspection](tasks/0003-read-only-cache-plan-and-evidence-inspection.md) | Complete | 0001–0002, stable [artifact](../../../glossary.md#term-artifact) [schemas](../../../glossary.md#term-schema) | Added bounded redacted inspection with structural/key mismatch reasons and no decoding, execution, or mutation. |
 | 0004 | [Tuning package Javadoc status reconciliation](tasks/0004-package-javadoc-status-reconciliation.md) | Complete | 0001–0003; Engine 0009/0013 | Corrected public two-phase CPU Engine composition and remaining limitations in package [Javadoc](../../../glossary.md#term-javadoc). |
 | 0005 | [Bound model-plan cache encoding before allocation](tasks/0005-model-plan-cache-encoding-bound.md) | Complete | 0002–0004; project review | [Preflight](../../../glossary.md#term-preflight) the existing aggregate artifact bound before encoding; preserve schema and [atomic](../../../glossary.md#resource-transaction-and-rollback) rejection. |
+| 0006 | [Candidate coverage and correctness audit](tasks/0006-candidate-coverage-and-correctness-audit.md) | In progress | Documentation comprehension pass; current delivered producers | [Audit findings and exercised evidence](../../autotuning-audit.md); transaction repairs verified, CPU coverage work active; architecture-changing expansion is analysis-only. |
 
 ## Milestones and current frontier
 
@@ -93,6 +94,11 @@ current [CPU](../../../glossary.md#term-cpu) public composition around the gener
 [producer](../../../glossary.md#term-producer). Documentation-only 0004 is `Complete`; its independent review confirmed the corrected
 package status without changing authority or capability. Project-review repair 0005 is Complete;
 it changes resource safety, not candidate semantics or the artifact format.
+
+The current authorized frontier is [0006](tasks/0006-candidate-coverage-and-correctness-audit.md).
+Its two read-only audit scopes may run concurrently; implementation follows grounded findings
+and the user's architecture-preservation restriction. This does not authorize heterogeneous
+tuning or a broader Metal candidate domain than the current scoped contract permits.
 
 ## [Artifact](../../../glossary.md#term-artifact), measurement, and [lifecycle](../../../glossary.md#lifecycle) [ownership](../../../glossary.md#term-ownership-meanings)
 

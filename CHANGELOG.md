@@ -4,6 +4,12 @@
 
 ### Added
 
+- [Autotuning transaction repairs](docs/planning/autotuning-audit.md#reproduced-and-verified-transaction-repairs):
+  accept valid `nanoTime()` rollover intervals, read each cache from one opened-file snapshot,
+  and preserve primary publication failures when temporary cleanup also fails. Existing cache
+  formats, checked work/size limits and Runtime ownership remain unchanged. Actual before/after
+  programs and affected-suite results are recorded in the audit, separately from source review.
+
 - [Whole-document terminology and comprehension revision](docs/planning/documentation-terminology-validation.md):
   local caller/callee, ownership and graph-leaf explanations; a prerequisite-linked dictionary;
   LaTeX arithmetic/calculus; why-comments and clearer sections; focused related-topic links and a
