@@ -34,7 +34,7 @@ and the complete [Model](../../../../glossary.md#term-model) exceptional-value c
 The implementation must preserve attention as one [atomic](../../../../glossary.md#resource-transaction-and-rollback) numerical unit, publish the requested
 output slots exactly once, use one declared per-range score/[weight](../../../../glossary.md#term-weight) workspace, and [partition](../../../../glossary.md#partition) only
 complete broadcast-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/query rows. Generated code must preserve the semantic algorithm,
-hot-loop/[dataflow](../../../../glossary.md#term-dataflow) [shape](../../../../glossary.md#shape), and avoidable-overhead profile of an optimal clean Java implementation of
+hot-loop/[dataflow](../../../../glossary.md#term-dataflow) shape, and avoidable-overhead profile of an optimal clean Java implementation of
 the same exact type, eligibility, output, [carrier](../../../../glossary.md#term-storage-carrier), [layout](../../../../glossary.md#layout), and range [specialization](../../../../glossary.md#term-specialization).
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -196,7 +196,7 @@ the same exact type, eligibility, output, [carrier](../../../../glossary.md#term
   `0` or `1`, once per distinct [mask](../../../../glossary.md#term-boolean-mask) [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) rather than once per broadcast use.
 - Complete all carrier, mask, workspace, and overlap validation before scratch mutation, output
   writes, generated calls, or worker submission. Invalid input leaves every output and the
-  workspace unmodified and submits no worker work.<span data-glossary-navigation="true"> ([leaves glossary](../../../../glossary.md#term-leaf))</span><span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
+  workspace unmodified and submits no worker work.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - Read-only query, key, value, and mask spans may overlap each other. Reject each output span
   against every input span, reject output/output overlap for the two-output form, and reject the
   workspace against every input and output span. In-place or partially overlapping attention is
@@ -417,7 +417,7 @@ expected.
     specializations.
     Every report proves one public typed static entry, no fields or constructors, the exact
     scratch/geometry/range signature, direct score/normalization/value/optional-weight loops,
-    direct typed loads/stores, and the complete forbidden-instruction/descriptor/call-owner scan.<span data-glossary-navigation="true"> ([signature glossary](../../../../glossary.md#term-signature); [normalization glossary](../../../../glossary.md#term-normalization); [owner glossary](../../../../glossary.md#term-owner); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+    direct typed loads/stores, and the complete forbidden-instruction/descriptor/call-owner scan.<span data-glossary-navigation="true"> ([signature glossary](../../../../glossary.md#term-signature); [normalization glossary](../../../../glossary.md#term-normalization); [owner glossary](../../../../glossary.md#term-owner))</span>
 11. No generated [specialization](../../../../glossary.md#term-specialization) contains avoidable allocation, boxing, reflection,
     `invokedynamic`, generic object access, collection/map/string dispatch, monitor use, graph or
     layout inspection, worker/cache/route/resource selection, reference/fallback calls, or a
@@ -487,7 +487,7 @@ reference-[kernel](../../../../glossary.md#kernel) call is a failure, not a diff
   scan raw constant pools, descriptors, instructions, and call owners; do not rely only on text
   search of decompilation. Retain the exact-to-normalized performance-equivalence manifest,
   normalized loop-skeleton and boundary-access fragment inventories, their hashes, and the
-  complete 11,880-to-992 coverage report required by criterion 13.<span data-glossary-navigation="true"> ([hashes glossary](../../../../glossary.md#term-hash); [owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [descriptors glossary](../../../../glossary.md#term-descriptor); [signature glossary](../../../../glossary.md#term-signature); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [scan glossary](../../../../glossary.md#term-cumulative-scan); [constant glossary](../../../../glossary.md#term-constant); [decompilation glossary](../../../../glossary.md#term-decompilation); [manifest glossary](../../../../glossary.md#term-manifest))</span>
+  complete 11,880-to-992 coverage report required by criterion 13.<span data-glossary-navigation="true"> ([hashes glossary](../../../../glossary.md#term-hash); [owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [descriptors glossary](../../../../glossary.md#term-descriptor); [signature glossary](../../../../glossary.md#term-signature); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [constant glossary](../../../../glossary.md#term-constant); [decompilation glossary](../../../../glossary.md#term-decompilation); [manifest glossary](../../../../glossary.md#term-manifest))</span>
 - [Run](../../../../glossary.md#term-run) `CpuAttentionPerformanceTest` only with an explicit opt-in environment flag and evidence-root
   property. Run exactly the 992 rows from criterion 12 in each of five fresh Java 26 forks with
   fixed `-Xms1g -Xmx1g`, identical generated/direct inputs, a fixed hot dense rank-four workload
@@ -513,7 +513,7 @@ reference-[kernel](../../../../glossary.md#kernel) call is a failure, not a diff
 capability breadth, [partition](../../../../glossary.md#partition) [lowering](../../../../glossary.md#lowering), resource assignment, [prepared execution](../../../../glossary.md#prepared-execution--preparedexecution), and generator
 compatibility. Run `./gradlew :backends:cpu:javadoc` after the clean documentation/[Javadoc](../../../../glossary.md#term-javadoc) pass.
 Run the repository Markdown link/anchor/fence checks, exact changed-path inventory, status/order
-checks, `git diff --check`, and a tracked-[artifact](../../../../glossary.md#term-artifact) [scan](../../../../glossary.md#term-cumulative-scan) that confirms performance evidence did not
+checks, `git diff --check`, and a tracked-[artifact](../../../../glossary.md#term-artifact) scan that confirms performance evidence did not
 enter source control.
 
 ### Tier 4: boundary conclusions
@@ -657,7 +657,7 @@ Implementation evidence, supplied to and independently inspected by the document
   `/tmp/synaptik-cpu-0008h-evidence/structural-delta-review-20260901a`: `BUILD SUCCESSFUL`,
   11,880 generated classes, 992 timed rows, 456 normalized skeletons, and 312 ordered boundary
   fragments. Verifier, member, constant-pool, call-owner, forbidden scan, and 11,880-to-992
-  skeleton/fragment coverage passed. Inventory SHA-256<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [scan glossary](../../../../glossary.md#term-cumulative-scan); [SHA-256 glossary](../../../../glossary.md#term-sha-256))</span>
+  skeleton/fragment coverage passed. Inventory SHA-256<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [SHA-256 glossary](../../../../glossary.md#term-sha-256))</span>
   `1d0dc5b397429da4e876252b82b05bf0e9e8a63b8100c9638aadfebea78921a2`; fragment inventory
   `2614f63804ad5f5432498e33155779ce5e6b8faca430787cf8566bfad5699232`; loop skeleton
   `8f192aed0dedf35283bfaf1647374fcdd24b0ccb6fa4f571dca91ae554cbb9b5`; timed components

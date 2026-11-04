@@ -39,7 +39,7 @@ the [Result](tasks/0073-row-map-multi-reduction-fusion.md#result) owns exact [va
 Source/measurement frontiers None; performance unmeasured, no automatic successor or [commit](../../../glossary.md#term-commit)/push.
 
 The [model](../../../glossary.md#term-model) is one existing family implementation with different generation-time [bindings](../../../glossary.md#term-binding).
-Ordinary entries bind invocation operands and ranges; [Scan](../../../glossary.md#term-cumulative-scan) binds time slices, old/new [carry](../../../glossary.md#term-carry),
+Ordinary entries bind invocation operands and ranges; Scan binds time slices, old/new [carry](../../../glossary.md#term-carry),
 activity and saved histories around the same [operation](../../../glossary.md#operation) regions. A region means emitted code,
 not a [runtime](../../../glossary.md#term-runtime) [callback](../../../glossary.md#term-callback), instruction object or second body [graph](../../../glossary.md#graph). Single-instruction-multiple-data
 ([SIMD](../../../glossary.md#simd)) math is reusable; parallel execution is a separate orchestration question.
@@ -68,17 +68,17 @@ support nor a speculative family-by-family implementation campaign or new task c
 These headings, not this plan, govern numerics, resources and the single [Runtime](../../../glossary.md#term-runtime) [owner](../../../glossary.md#term-owner).
 
 Retain current static all-valid [F32](../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../glossary.md#floating-point-precision-and-rounding), symbolic all-valid F32, and static/symbolic length-mode
-F32/F64 forward and independently qualified actual [Compiler](../../../glossary.md#term-compiler) reverse. F32/F64 [mean](../../../glossary.md#term-mean) [FLOAT32](../../../glossary.md#term-float32)/[FLOAT64](../../../glossary.md#term-float64).
+F32/F64 forward and independently qualified actual [Compiler](../../../glossary.md#term-compiler) reverse. F32/F64 mean [FLOAT32](../../../glossary.md#term-float32)/[FLOAT64](../../../glossary.md#term-float64).
 Keep dense actual-read/[scalar](../../../glossary.md#term-scalar)-read exceptions, formal/write guards and every unsupported case.
 In particular, shared code does not admit all-valid symbolic F64, ordinary symbolic F64 [MATMUL](../../../glossary.md#matrix-multiplication--matmul),
-low types, new body families/[layouts](../../../glossary.md#layout), native/[OpenBLAS](../../../glossary.md#term-openblas)/[Metal](../../../glossary.md#term-metal) [Scan](../../../glossary.md#term-cumulative-scan), higher-order [AD](../../../glossary.md#autograd) or [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) migration.
+low types, new body families/[layouts](../../../glossary.md#layout), native/[OpenBLAS](../../../glossary.md#term-openblas)/[Metal](../../../glossary.md#term-metal) Scan, higher-order [AD](../../../glossary.md#autograd) or [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) migration.
 Ordinary `CpuMatmulIr.batchGeometry` remains F32/direct-scalar/sequential/no-[epilogue](../../../glossary.md#term-epilogue) only.
 Compiler0015/0016 and Prepare0015 remain accepted boundaries, not new work in this plan.
 
 ## Grouped current family seams
 
 This is a complete grouped inventory of the standard generated/direct-delegating family [dispatch](../../../glossary.md#term-dispatch),
-not an all-[operation](../../../glossary.md#operation) [Scan](../../../glossary.md#term-cumulative-scan) support claim or semantics audit. Names below share the source prefix
+not an all-[operation](../../../glossary.md#operation) Scan support claim or semantics audit. Names below share the source prefix
 `modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/`.
 The [generator dispatch](../../../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuClassFileKernelGenerator.java)
 (`generateClassBytes`, `generatePartialReduction`),
@@ -121,7 +121,7 @@ Keep these spaces distinct; replacing every integer called a slot with one manag
 | Space | Existing [owner](../../../glossary.md#term-owner) | Example and required adaptation |
 |---|---|---|
 | [JVM](../../../glossary.md#term-java-virtual-machine-jvm) local-variable slots | `CodeBuilder.allocateLocal(TypeKind)` | [Carrier](../../../glossary.md#term-storage-carrier) reference, address, [accumulator](../../../glossary.md#accumulator-type) and species locals; long/double occupy two JVM slots. Reuse this allocator; no generic slot manager. |
-| Packed geometry indices | Family `Geometry.pack`, [Scan](../../../glossary.md#term-cumulative-scan) `Facts.pack` and invocation-owned `long[]` | [MATMUL](../../../glossary.md#matrix-multiplication--matmul) indices 4/5/6 denote M/K/N, not JVM locals or [Runtime](../../../glossary.md#term-runtime) [buffers](../../../glossary.md#term-buffer). Decode [invariant](../../../glossary.md#term-invariant) facts once; bind time-varying bases directly without per-step repacking. |
+| Packed geometry indices | Family `Geometry.pack`, Scan `Facts.pack` and invocation-owned `long[]` | [MATMUL](../../../glossary.md#matrix-multiplication--matmul) indices 4/5/6 denote M/K/N, not JVM locals or [Runtime](../../../glossary.md#term-runtime) [buffers](../../../glossary.md#term-buffer). Decode [invariant](../../../glossary.md#term-invariant) facts once; bind time-varying bases directly without per-step repacking. |
 | Runtime buffer/workspace selections | [CPU](../../../glossary.md#term-cpu) analysis → shared [Prepare](../../../glossary.md#prepare) assignment → cold binder under one [`RunState`](../../../glossary.md#run-state--runstate) | Outer buffers and declared workspace; body-local value ordinals never select outer slots by numeric coincidence. Cuts address existing declared regions or demanded ports. |
 
 [`CpuCarrierEmitter`](../../../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuCarrierEmitter.java)
@@ -166,7 +166,7 @@ No new named production type, package, enum, record or public [signature](../../
 
 CPU0071 is one complete [MATMUL](../../../glossary.md#matrix-multiplication--matmul) foundation: common [rank-two](../../../glossary.md#axis-rank-scalar-vector-and-matrix) [validation](../../../glossary.md#term-validation) and setup/body separation
 in existing MATMUL/[carrier](../../../glossary.md#term-storage-carrier)/loop [owners](../../../glossary.md#term-owner); ordinary direct/tiled scalar/[SIMD](../../../glossary.md#simd) paths keep their math,
-including CPU0065 [TANH](../../../glossary.md#term-tanh), while current scalar [Scan](../../../glossary.md#term-cumulative-scan) uses the common [contraction](../../../glossary.md#contraction-dimension) [owner](../../../glossary.md#term-owner). Its
+including CPU0065 [TANH](../../../glossary.md#term-tanh), while current scalar Scan uses the common [contraction](../../../glossary.md#contraction-dimension) [owner](../../../glossary.md#term-owner). Its
 indexed/cursor variants and contributor gating moved to common math, not a renamed Scan owner.
 `CpuGeneralScanMatmulEmitter` was retired after forward/actual-reverse caller [qualification](../../../glossary.md#term-qualification).
 Do not rewrite unrelated ordinary high-[rank](../../../glossary.md#term-rank)/vector forms just to force one universal loop.
@@ -205,7 +205,7 @@ The frozen implementation retains MAIN-approved package-local [signatures](../..
 Its implemented `validatePointwise` shares only current common [arity](../../../glossary.md#term-arity)/attrs/[dtype](../../../glossary.md#data-type--datatype)/broadcast checks;
 ordinary broader instructions and each caller's provider/binder [admission](../../../glossary.md#term-admission) stay independent.
 `CpuAggregateLowering.normalizedAxes/reductionForm/keepDimensions` replace duplicated ordinary
-SUM/[MEAN](../../../glossary.md#term-mean) and [Scan](../../../glossary.md#term-cumulative-scan) SUM facts. Exact [Dimensions](../../../glossary.md#dimension), not sampled extents, identify named B. Preserve
+SUM/[MEAN](../../../glossary.md#term-mean) and Scan SUM facts. Exact [Dimensions](../../../glossary.md#dimension), not sampled extents, identify named B. Preserve
 `BatchGeometry.bind`'s actual [singleton](../../../glossary.md#term-singleton) filtering and resource guards; share no eligibility waiver.
 
 `CpuClassFileKernelGenerator.emitBoundPointwise` owns the ordered composition, using existing
@@ -250,7 +250,7 @@ its static-MATMUL cutover as authorization to change pointwise/SUM or v9. Retain
 [canonical](../../../glossary.md#term-canonical-form) keys and both [identity](../../../glossary.md#term-identity-meanings) streams/[schema](../../../glossary.md#term-schema)/family 71, shaped-v4, MATMUL-v5, static length-v1/
 retained-MATMUL-v2, symbolic-v3, combined-v9 and ordinary/fixed/pointwise controls. An unexpected
 changed byte is a stop, not a name-normalized comparison or opportunistic namespace increment.
-If retention necessarily prevents the required extraction, report the exact branch/[shape](../../../glossary.md#shape) conflict
+If retention necessarily prevents the required extraction, report the exact branch/shape conflict
 and seek a narrow user-approved owning-contract cutover before implementation resumes. No such
 conflict is currently established; no new production type or cutover is proposed.
 
@@ -286,7 +286,7 @@ current full-[module](../../../glossary.md#term-module)/named-join and frozen-co
 |---|---|---|
 | Ordinary [pointwise](../../../glossary.md#term-pointwise) [scalar](../../../glossary.md#term-scalar)/[vector](../../../glossary.md#term-vector) | [Generated pointwise tests](../../../../modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPointwiseGeneratedKernelTest.java), [paired structural oracle](../../../../modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuOrdinaryPointwiseCastStructuralOracleTest.java) | CPU0071 accepted module/control preservation; existing typed semantics and selected-entry hygiene. [Oracle](../../../glossary.md#term-test-oracle) is deliberately partial; vector is not claimed identical to scalar Java or optimally fast. |
 | Exact ordinary SUM/[MEAN](../../../glossary.md#term-mean) | [Aggregate generation](../../../../modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuAggregateGeneratedKernelTest.java), [dynamic-batch closure](../../../../modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuOrdinaryDynamicBatchTest.java)<span data-glossary-navigation="true"> ([batch glossary](../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span> | CPU0071 accepted module and 21 ordinary controls include typed [F64](../../../glossary.md#floating-point-precision-and-rounding) SUM/MEAN/[AD](../../../glossary.md#autograd); retain exact-state/count/resource rules and existing performance dispositions, not new reduction timing or vector support. |
-| [Scan](../../../glossary.md#term-cumulative-scan) sequential SUM and [fused](../../../glossary.md#specialization-and-fusion) [producer](../../../glossary.md#term-producer)/tail | [Symbolic/combined generated tests](../../../../modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuSymbolicScanGeneratedKernelTest.java): `fusedSumToShapeKeepsProducerTailAndSingletonRepresentedIdentity`, raw-[singleton](../../../glossary.md#term-singleton)/activity/v9 proofs | Accepted module/controls; [CPU0064 Result](tasks/0064-scan-clean-java-generator-port.md#result) supplies bounded v9 reverse benefit at T4/F3/H2/B7,B32, with differing entry [ABI](../../../glossary.md#term-application-binary-interface-abi) and no other-[shape](../../../glossary.md#shape)/[dtype](../../../glossary.md#data-type--datatype)/[Engine](../../../glossary.md#term-engine) parity claim. No exact ordinary-SUM substitution. |
+| Scan sequential SUM and [fused](../../../glossary.md#specialization-and-fusion) [producer](../../../glossary.md#term-producer)/tail | [Symbolic/combined generated tests](../../../../modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuSymbolicScanGeneratedKernelTest.java): `fusedSumToShapeKeepsProducerTailAndSingletonRepresentedIdentity`, raw-[singleton](../../../glossary.md#term-singleton)/activity/v9 proofs | Accepted module/controls; [CPU0064 Result](tasks/0064-scan-clean-java-generator-port.md#result) supplies bounded v9 reverse benefit at T4/F3/H2/B7,B32, with differing entry [ABI](../../../glossary.md#term-application-binary-interface-abi) and no other-[shape](../../../glossary.md#shape)/[dtype](../../../glossary.md#data-type--datatype)/[Engine](../../../glossary.md#term-engine) parity claim. No exact ordinary-SUM substitution. |
 | Actual [Compiler](../../../glossary.md#term-compiler) AD | [Static binding tests](../../../../modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuMatmulBindingTest.java) and symbolic/combined tests above, including saved [activation](../../../glossary.md#term-activation) injection | CPU0071 module/named joins and existing actual sibling/clean-Java/raw saved-site checks. Its sole eight-row diagnostic is closed: unstable arms, no [C2](../../../glossary.md#term-c2) causal [logs](../../../glossary.md#commit-release-distribution-log-and-seed-meanings), length-reverse ~1.50 [F32](../../../glossary.md#floating-point-precision-and-rounding)/~1.42 F64 remains unresolved. |
 
 CPU0072 met this conditional transfer gate for its literal 278-ClassFile control corpus and
@@ -331,7 +331,7 @@ proved completion before a consumer or cut reuse; this example supplies no [sync
 
 ## Numerics, saved sites and v9 preservation
 
-Keep ordinary exact-state SUM/[MEAN](../../../glossary.md#term-mean) and [Scan](../../../glossary.md#term-cumulative-scan) represented-sequential SUM as distinct existing
+Keep ordinary exact-state SUM/[MEAN](../../../glossary.md#term-mean) and Scan represented-sequential SUM as distinct existing
 algorithms under common aggregate [ownership](../../../glossary.md#term-ownership-meanings). `CpuAggregateIr.Kind.SUM` remains exact; never bypass
 its scratch guards or encode sequential arithmetic as an under-resourced exact sum. Common
 [normalization](../../../glossary.md#term-normalization) uses explicit algorithm inputs, not an accuracy selector or diagnostic string.
@@ -348,7 +348,7 @@ time indexing. Activity guards apply to ROW(0), ROW(1) and SHARED, including hoi
 
 Move and retain v9's direct stable entry carriers/temporal bases, explicit-B affine facts,
 coefficient-proved zero scratch bases, cell-scoped address sharing and [pointwise](../../../glossary.md#term-pointwise) prefixes, indexed
-[feature](../../../glossary.md#term-software-feature)/active-row contractions and bank-free scheduling. Existing
+[feature](../../../glossary.md#term-feature)/active-row contractions and bank-free scheduling. Existing
 [`CpuGeneralScanStageSchedule.order`](../../../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuGeneralScanStageSchedule.java)
 checks producing dependencies, physical final-port hazards and inclusive all-B cut lifetimes.
 Keep those temporal proofs; extract a common proof only where both callers actually need it,
@@ -363,8 +363,8 @@ and implemented, MAIN-accepted
 Authority/docs APPROVE and MAIN's [Ready](../../../glossary.md#term-ready) receipt preceded implementation; CPU0074 is now Complete.
 The [brief Result](tasks/0074-row-fusion-simd-parallel.md#result) records final [validation](../../../glossary.md#term-validation) and
 the sole comparison, with steady-state profitability unqualified and [JIT](../../../glossary.md#term-just-in-time-compilation-jit)-pressure follow-up separate.
-Only selected exec-v1 regions gain [feature](../../../glossary.md#term-software-feature)/output SIMD and row-partial workers; no all-[operation](../../../glossary.md#operation)
-[Scan](../../../glossary.md#term-cumulative-scan) vectorization or feature-K splitting follows. Existing [vector](../../../glossary.md#term-vector) math is reused, with preferred
+Only selected exec-v1 regions gain [feature](../../../glossary.md#term-feature)/output SIMD and row-partial workers; no all-[operation](../../../glossary.md#operation)
+Scan vectorization or feature-K splitting follows. Existing [vector](../../../glossary.md#term-vector) math is reused, with preferred
 species/masked feature tails and exact selected-realization saved sites. [Scalar](../../../glossary.md#term-scalar) fallback is explicit.
 
 Parallel composition was not an automatic property of inline math. MAIN's worker
@@ -409,7 +409,7 @@ Completed off-tree experiments changed no repository source. A used current fres
 B used fresh Job+monitor; C reused Job with the same monitor protocol. One timing [JVM](../../../glossary.md#term-java-virtual-machine-jvm), three
 rounds, 2/4 workers and minimal/GEMM16/GEMM96 payloads showed no win over A: observed C medians
 were 0.085–5.50% slower. These descriptive observations establish no statistical significance
-and are not an end-to-end [Scan](../../../glossary.md#term-cumulative-scan) benchmark.
+and are not an end-to-end Scan benchmark.
 
 The separate one-JVM memory [run](../../../glossary.md#term-run) used three rounds × 100000 dispatches per arm/configuration
 (300000 each; 1.8M total). Same-protocol B→C saved 135.855680/167.756693 B per [dispatch](../../../glossary.md#term-dispatch)
@@ -428,7 +428,7 @@ The subsequent [row-map/multiple-terminal proposal](row-map-multi-reduction-fusi
 exact names/[signatures](../../../glossary.md#term-signature)/[identities](../../../glossary.md#term-identity-meanings)/contract packet and implementation start. The
 [backend authority packet](../../../architecture/contracts/backend-execution.md#cpu0073-accepted-row-map-and-multiple-terminal-reduction-fusion)<span data-glossary-navigation="true"> ([backend glossary](../../../glossary.md#backend))</span>
 has Boole's independent APPROVE (0 P1/P2) and MAIN acceptance/[Ready](../../../glossary.md#term-ready) receipt on 2026-10-30.
-One ordinary lowered unit or a region inside the existing [Scan](../../../glossary.md#term-cumulative-scan) unit shares current math, not a
+One ordinary lowered unit or a region inside the existing Scan unit shares current math, not a
 per-step [Runtime](../../../glossary.md#term-runtime) unit/Job. CPU0073 is Complete after clean implementation, independent final
 code/tests/[Javadoc](../../../glossary.md#term-javadoc)/evidence-transfer APPROVE, MAIN's named join and documentation closure.
 Its Result preserves the failed full-[module](../../../glossary.md#term-module) [run](../../../glossary.md#term-run) separately from passing targeted closure and
@@ -462,7 +462,7 @@ standard math and setup, ordinary workers, existing prepared [owners](../../../g
 v9 optimizations and historical evidence. This plan records retirement; it grants no new execution.
 Other [matrix](../../../glossary.md#term-matrix-meanings) families stay untouched until a concrete capability request reaches a stable frontier.
 
-### Post-integration actual [Scan](../../../glossary.md#term-cumulative-scan) [evaluation](../../../glossary.md#term-evaluation)
+### Post-integration actual Scan [evaluation](../../../glossary.md#term-evaluation)
 
 The bounded independent-Java comparison now identifies repeated whole-stage traversals and delta
 scratch traffic as a general [fusion](../../../glossary.md#term-fusion) opportunity. Its small-case raw matches are not general proof
