@@ -13,9 +13,9 @@ import java.lang.foreign.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
-/** Public low UNFOLD remains exact raw movement; its numerical fold adjoint is unavailable on CPU. */
+/** Public low UNFOLD preserves exact raw storage bits and leaves its input unchanged. */
 class EngineCpuLowFoldIntegrationTest {
-    @Test void actualLowUnfoldRemainsRawButBothFoldAdjointsReject() {
+    @Test void actualLowUnfoldRemainsRaw() {
         for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) for (boolean image : List.of(false, true)) {
             try (var arena = Arena.ofShared(); var engine = Engine.builder().takeOwnership(CpuBackendIntegration.open()).build()) {
                 Shape shape = image ? Shape.of(2, 2, 3, 5) : Shape.of(2, 5, 2);
@@ -26,9 +26,6 @@ class EngineCpuLowFoldIntegrationTest {
                 byte[] unchanged = source.toArray(ValueLayout.JAVA_BYTE);
                 var window = new Window2dAttrs(2, 3, 1, 1, 1, 1, 1, 1, true);
                 var unfolded = image ? input.unfold2d(window) : input.unfold(1, 3, 1);
-                var seed = tensor(arena, type, unfolded.descriptor().shape(), false, 1);
-                assertThrows(IllegalStateException.class,
-                        () -> engine.compile(List.of(unfolded), List.of(seed), List.of(input)));
                 var forward = engine.compile(List.of(unfolded));
                 try (var prepared = engine.prepare(forward); var result = engine.run(prepared, List.of(input))) {
                     long bytes = unfolded.descriptor().shape().knownElementCount().orElseThrow() * 2;

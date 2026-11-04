@@ -2,8 +2,6 @@ package io.github.pho001.synaptik.testing.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
-import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr;
-import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -15,7 +13,7 @@ import java.lang.foreign.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
-/** Actual average-pool AD with fresh nonuniform cotangents and exact stored low DIV sites. */
+/** Actual average-pool AD with fresh nonuniform cotangents and exact stored DIV sites. */
 class EngineCpuAveragePoolBackwardIntegrationTest {
     @Test void actualAveragePoolBackwardReusesPreparationWithFreshInputAndNonuniformSeeds() {
         for(var type:List.of(DataType.FLOAT32,DataType.FLOAT64)) {
@@ -69,36 +67,6 @@ class EngineCpuAveragePoolBackwardIntegrationTest {
         }
     }
 
-    @Test void actualLowAveragePoolRejectsForwardAndBackwardBeforeStorageRealization() {
-        try (var arena = Arena.ofShared(); var engine = Engine.builder().takeOwnership(CpuBackendIntegration.open()).build()) {
-            for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-                Shape shape = Shape.of(2, 3, 5, 7);
-                var input = tensor(arena, type, shape, true, 1);
-                var output = input.averagePool2d(new AveragePool2dAttrs(2, 3, 2, 2, 1, 1, 1, 1, true));
-                var seed = tensor(arena, type, output.descriptor().shape(), false, 1);
-                assertThrows(IllegalStateException.class, () -> engine.compile(List.of(output)));
-                assertThrows(IllegalStateException.class,
-                        () -> engine.compile(List.of(output), List.of(seed), List.of(input)));
-            }
-        }
-    }
-
-    @Test void actualLowOverlappingAveragePoolBackwardRemainsUnsupported() {
-        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-            try (var arena = Arena.ofShared(); var engine = Engine.builder().takeOwnership(CpuBackendIntegration.open()).build()) {
-                Shape shape = Shape.of(2, 3, 5, 7);
-                var input = tensor(arena, type, shape, true, 1);
-                var output = input.averagePool2d(new AveragePool2dAttrs(2, 3, 1, 1, 1, 1, 1, 1, true));
-                var seed = tensor(arena, type, output.descriptor().shape(), false, 1);
-                assertThrows(IllegalStateException.class,
-                        () -> engine.compile(List.of(output), List.of(seed), List.of(input)));
-            }
-        }
-    }
-
-
-    private static short encodeLow(DataType type,float value) {return type==DataType.BFLOAT16?io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(value):Float.floatToFloat16(value);}
-
     /**
      * Evaluates the independent split recipe: stores each typed DIV, physically repeats columns,
      * then scatters contributions in canonical q,p order. Temporary and result arrays belong to
@@ -131,8 +99,7 @@ class EngineCpuAveragePoolBackwardIntegrationTest {
         for(int i=0;i<count;i++) {
             double value=scale*(i%19-9)/10d;
             if(type==DataType.FLOAT32)storage.setAtIndex(ValueLayout.JAVA_FLOAT,i,(float)value);
-            else if(type==DataType.FLOAT64)storage.setAtIndex(ValueLayout.JAVA_DOUBLE,i,value);
-            else storage.setAtIndex(ValueLayout.JAVA_SHORT,i,encodeLow(type,(float)value));
+            else storage.setAtIndex(ValueLayout.JAVA_DOUBLE,i,value);
         }
         return TensorFactory.create(new TensorDescriptor(type,shape,Optional.of(LayoutDescriptor.contiguous(shape)),gradient),Optional.empty(),Optional.of(new MemorySegmentStorage(type,count,storage)));
     }

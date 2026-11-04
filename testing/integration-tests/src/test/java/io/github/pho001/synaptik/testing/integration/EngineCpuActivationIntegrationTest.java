@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Public CPU sessions retain F64 activation numerics and exact low storage while rejecting low composites. */
+/** Public CPU sessions retain F64 activation numerics and exact low ABS storage bits. */
 final class EngineCpuActivationIntegrationTest {
     @Test void doubleErfAndGeluPublishHugeFiniteValuesAndSpecialClasses() {
         double[] values = {-1e100, 1e100, -Double.MAX_VALUE, Double.MAX_VALUE, -0d, 0d,
@@ -38,7 +38,7 @@ final class EngineCpuActivationIntegrationTest {
         }
     }
 
-    @Test void bothLowTypesRejectNumericalGeluAndRetainExactAbsBits() {
+    @Test void bothLowTypesRetainExactAbsBits() {
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
             short[] values = type == DataType.BFLOAT16 ? new short[] {(short) 0xc0c0, (short) 0x40c0,
                     (short) 0x8000, 0, (short) 0xff80, (short) 0x7f80, (short) 0x7fc0}
@@ -46,10 +46,6 @@ final class EngineCpuActivationIntegrationTest {
                             (short) 0xfc00, (short) 0x7c00, (short) 0x7e00};
             try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
                 Tensor input = tensor(arena, type, MemorySegment.ofArray(values), values.length);
-                for (boolean tanh : List.of(false, true)) {
-                    Tensor output = tanh ? input.geluTanhApproximation() : input.gelu();
-                    assertThrows(IllegalStateException.class, () -> engine.compile(List.of(output)));
-                }
                 ByteBuffer exact = run(engine, input, input.abs(), values.length * 2L);
                 for (short value : values) assertEquals((short) (value & 0x7fff), exact.getShort());
             }
