@@ -12,7 +12,7 @@ dependencies {
     api(project(":modules:runtime"))
     api(project(":modules:prepare"))
     api(project(":modules:backend-contract"))
-    implementation(project(":modules:trace"))
+    api(project(":modules:trace"))
     implementation(project(":backends:openblas-provider"))
 }
 

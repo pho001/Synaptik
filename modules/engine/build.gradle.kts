@@ -5,7 +5,7 @@ dependencies {
     api(project(":modules:runtime"))
     implementation(project(":modules:prepare"))
     api(project(":modules:config"))
-    implementation(project(":modules:trace"))
+    api(project(":modules:trace"))
     api(project(":backends:cpu"))
     api(project(":backends:metal"))
     implementation(project(":tools:tuning"))
