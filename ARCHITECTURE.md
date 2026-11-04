@@ -17,7 +17,7 @@ Only the following six files are incorporated as [normative](docs/glossary.md#te
 non-overlapping scopes:
 
 1. [Foundational module and numerical-semantics contract](docs/architecture/contracts/foundational-modules.md)<span data-glossary-navigation="true"> ([module glossary](docs/glossary.md#term-module))</span>
-2. [Fixed and general differentiable-scan contract](docs/architecture/contracts/recurrent-scan.md)<span data-glossary-navigation="true"> ([differentiable glossary](docs/glossary.md#derivative-and-chain-rule); [scan glossary](docs/glossary.md#term-cumulative-scan))</span>
+2. [Fixed and general differentiable-scan contract](docs/architecture/contracts/recurrent-scan.md)<span data-glossary-navigation="true"> ([differentiable glossary](docs/glossary.md#derivative-and-chain-rule))</span>
 3. [Compiler and automatic-differentiation contract](docs/architecture/contracts/compiler-autograd.md)<span data-glossary-navigation="true"> ([Compiler glossary](docs/glossary.md#term-compiler))</span>
 4. [Runtime, Prepare, and Engine contract](docs/architecture/contracts/runtime-prepare-engine.md)<span data-glossary-navigation="true"> ([Runtime glossary](docs/glossary.md#term-runtime); [Prepare glossary](docs/glossary.md#prepare); [Engine glossary](docs/glossary.md#term-engine))</span>
 5. [Backend execution contract](docs/architecture/contracts/backend-execution.md)<span data-glossary-navigation="true"> ([Backend glossary](docs/glossary.md#backend))</span>
@@ -170,7 +170,7 @@ Tensor expression
 ```
 
 Given an output expression `output` and its caller-owned input [Tensor](docs/glossary.md#tensor) `input`, the current
-ordinary public [API](docs/glossary.md#term-application-programming-interface-api) [shape](docs/glossary.md#shape) is:
+ordinary public [API](docs/glossary.md#term-application-programming-interface-api) shape is:
 
 ```java
 try (Engine engine = Engine.standard()) {
@@ -199,7 +199,7 @@ The [bounded symbolic Scan contract](docs/architecture/contracts/recurrent-scan.
 has a Model source foundation under
 [Model0042](docs/planning/modules/model/tasks/0042-symbolic-scan-source-foundation.md), independently reviewed
 and MAIN accepted 2026-10-25. Static source remains first-class; named symbolic shapes retain unresolved
-[layouts](docs/glossary.md#layout). Compiler0014 implements scoped [inference](docs/glossary.md#term-inference), actual FLOAT32/[FLOAT64](docs/glossary.md#term-float64) first-order [AD](docs/glossary.md#autograd) and
+[layouts](docs/glossary.md#layout). Compiler0014 implements scoped [inference](docs/glossary.md#term-inference-meanings), actual FLOAT32/[FLOAT64](docs/glossary.md#term-float64) first-order [AD](docs/glossary.md#autograd) and
 fresh all-port metadata [binding](docs/glossary.md#term-binding), independently reviewed and MAIN accepted 2026-10-25 after the
 named compatibility [checkpoint](docs/glossary.md#term-checkpoint). Prepare0014 implements bounded homogeneous FLOAT32 [symbolic
 Scan](docs/glossary.md#symbolic-scan) forward and actual Compiler-generated first-order reverse through Prepare/CPU/Engine,
@@ -257,7 +257,7 @@ Construction, cold forward and save create no Engine. The owning rules are in
 
 Owned Models compose fixed and general recurrent scans through that same public Engine lifecycle
 and may configure first-order training when the actual forward/Compiler-AD/backend closure qualifies.
-Explicit `ModelBuilder` [scan](docs/glossary.md#term-cumulative-scan) recipes share runtime lengths and zero initial states;
+Explicit `ModelBuilder` scan recipes share runtime lengths and zero initial states;
 `buildWithLengths()` returns the existing list-boundary Model. The generic two-input, one-output
 compute convenience uses the same cached execution path, including after load. Fixed/general
 recipes retain their original storage and [rounding](docs/glossary.md#term-rounding) semantics; NN neither rewrites them nor owns
@@ -399,7 +399,7 @@ The following invariants must remain true:
   `ordinary-batch-typed-v1` namespaces under the
   [CPU owner](docs/architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract).
   CPU0044 advanced only the combined baked payload to v4 for four proved code-shape redundancy
-  fixes. CPU0045 advanced that payload to <span data-glossary-navigation="true"> ([shape glossary](docs/glossary.md#shape))</span>`|scan-symbolic-length-v5=` in both
+  fixes. CPU0045 advanced that payload to `|scan-symbolic-length-v5=` in both
   specialization streams for cell-scoped read/write offset sharing and proved zero-base omission
   after raw initialization of a stable own-final-port carry without a bank. Each derived view
   retains its own nominal stride recipe; changing/bank-backed and noncombined bindings are unchanged.
@@ -543,7 +543,7 @@ The following invariants must remain true:
   CPU0079 owns existing affine-copy admission. The Metal0081 identity38 checkpoint passed its
   source-matched native/package/GPU and unchanged original-typed consumer proof; current Conv3d
   and Pool3d training use identity40, with the joined release checkpoint remaining separate. No consumer copy,
-  low-arithmetic unlock or blanket CPU identity bump follows.<span data-glossary-navigation="true"> ([inference glossary](docs/glossary.md#term-inference); [GPU glossary](docs/glossary.md#term-gpu))</span>
+  low-arithmetic unlock or blanket CPU identity bump follows.<span data-glossary-navigation="true"> ([inference glossary](docs/glossary.md#term-inference-meanings); [GPU glossary](docs/glossary.md#term-gpu))</span>
 - [`CompiledGraphModel`](docs/glossary.md#compiled-graph--compiledgraphmodel) is immutable [compile](docs/glossary.md#compile)-time [graph](docs/glossary.md#graph) state.
 - The sole bounded-body exception is the fixed-count [general differentiable scan](docs/glossary.md#general-differentiable-scan) specified by
   [the recurrent-scan semantic owner](docs/architecture/contracts/recurrent-scan.md#general-differentiable-scan).
@@ -618,7 +618,7 @@ The following invariants must remain true:
   Old all-valid paths remain unchanged. Bounded all-valid body persistence belongs only to<span data-glossary-navigation="true"> ([dependency glossary](docs/glossary.md#term-dependency); [lease glossary](docs/glossary.md#term-lease); [memo glossary](docs/glossary.md#cache-and-memoization); [persistence glossary](docs/glossary.md#term-persistence))</span>
   [Checkpoint's v4 owner](docs/architecture/contracts/extensions-training.md#canonical-graph-model-version-4),
   and is implemented without granting execution, AD or migration capability.
-- Implemented coordinated all-[PURE](docs/glossary.md#term-pure) [Scan](docs/glossary.md#term-cumulative-scan) cutover: the
+- Implemented coordinated all-[PURE](docs/glossary.md#term-pure) Scan cutover: the
   [Scan semantic owner](docs/architecture/contracts/recurrent-scan.md#general-ordinary-unit-scan-cutover),
   [Compiler proof/component-eight boundary](docs/architecture/contracts/compiler-autograd.md#controlled-scan-derivative-metadata),
   [Planning carrier](docs/architecture/contracts/foundational-modules.md#general-scan-activity-transport),
@@ -747,12 +747,12 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | Model numerical semantics and allowed results | [Foundational modules — profile-free numerical semantics](docs/architecture/contracts/foundational-modules.md#profile-free-numerical-semantics)<span data-glossary-navigation="true"> ([profile-free numerical semantics glossary](docs/glossary.md#profile-free-numerical-semantics))</span> |
 | Config | [Foundational modules — `modules/config`](docs/architecture/contracts/foundational-modules.md#modulesconfig) |
 | [Planning](docs/glossary.md#term-planning) responsibility | [Foundational modules — `modules/planning`](docs/architecture/contracts/foundational-modules.md#modulesplanning) |
-| Fixed recurrent [scan](docs/glossary.md#term-cumulative-scan) | [Recurrent scan — fixed recurrent scan without graph regions](docs/architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions) |
+| Fixed recurrent scan | [Recurrent scan — fixed recurrent scan without graph regions](docs/architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions) |
 | Complete fixed/[general scan](docs/glossary.md#general-differentiable-scan) semantics, formals, residuals, traversal and exclusions | [Recurrent scan — general differentiable scan](docs/architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([general differentiable scan glossary](docs/glossary.md#general-differentiable-scan))</span>; `recurrent-scan.md` is the sole complete scan semantic [owner](docs/glossary.md#term-owner). Other scoped contracts own only their module boundaries and link to it. |
 | Implemented [CPU](docs/glossary.md#term-cpu) row-map/multiple-terminal [fusion](docs/glossary.md#term-fusion) mechanism and selective [identities](docs/glossary.md#term-identity-meanings) | [Backend execution — CPU0073 accepted row-map and multiple-terminal reduction fusion](docs/architecture/contracts/backend-execution.md#cpu0073-accepted-row-map-and-multiple-terminal-reduction-fusion); CPU-internal physical [lowering](docs/glossary.md#lowering) only, not a new semantic [graph](docs/glossary.md#graph) or [Runtime](docs/glossary.md#term-runtime) protocol. Scan semantics remain with the Scan owner. |
 | Implemented [scalar](docs/glossary.md#term-scalar) [invariant](docs/glossary.md#term-invariant) external-cell staging | [Backend execution — CPU0076 invariant external-cell load staging](docs/architecture/contracts/backend-execution.md#cpu0076-prospective-invariant-external-cell-load-staging); narrow load-placement/[identity](docs/glossary.md#term-identity-meanings) exception to CPU0075, not [carry](docs/glossary.md#term-carry) promotion, new capability or [lifecycle](docs/glossary.md#lifecycle) authority. |
 | Implemented and MAIN-accepted selected row-fusion [SIMD](docs/glossary.md#simd) and parallel execution | [Backend execution — CPU0074 selected row-region execution exception](docs/architecture/contracts/backend-execution.md#cpu0074-selected-row-region-execution-exception); exact internal seams/identities only. [Scan semantics](docs/architecture/contracts/recurrent-scan.md#cpu0074-selected-terminal-grouping-exception) and [run-owned reservation](docs/architecture/contracts/runtime-prepare-engine.md#cpu0074-run-owned-synchronous-reservation) remain with their respective owners. CPU0074 is Complete; steady-state profitability is not qualified and production defaults remain unchanged. |
-| Length-aware source/[IR](docs/glossary.md#term-intermediate-representation-ir), [Compiler](docs/glossary.md#term-compiler) first-order reverse, [Prepare](docs/glossary.md#prepare) projection and [F32](docs/glossary.md#floating-point-precision-and-rounding)/[F64](docs/glossary.md#floating-point-precision-and-rounding) CPU execution qualifications | [Recurrent scan — length-aware whole-batch scan](docs/architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan); Model0044 source and Compiler0015 [inference](docs/glossary.md#term-inference)/actual [AD](docs/glossary.md#autograd)/scoped all-port [binding](docs/glossary.md#term-binding) are implemented. CPU0042 implements fixed geometry; Prepare0015 implements the one-B combined path, with root [validation](docs/glossary.md#term-validation) and the sole bounded probe completed (evidence and limits: [Prepare0015 Result](docs/planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result)); final MAIN acceptance remains pending. No cold/[persistence](docs/glossary.md#term-persistence)/[NN](docs/glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training [admission](docs/glossary.md#term-admission). |
+| Length-aware source/[IR](docs/glossary.md#term-intermediate-representation-ir), [Compiler](docs/glossary.md#term-compiler) first-order reverse, [Prepare](docs/glossary.md#prepare) projection and [F32](docs/glossary.md#floating-point-precision-and-rounding)/[F64](docs/glossary.md#floating-point-precision-and-rounding) CPU execution qualifications | [Recurrent scan — length-aware whole-batch scan](docs/architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan); Model0044 source and Compiler0015 [inference](docs/glossary.md#term-inference-meanings)/actual [AD](docs/glossary.md#autograd)/scoped all-port [binding](docs/glossary.md#term-binding) are implemented. CPU0042 implements fixed geometry; Prepare0015 implements the one-B combined path, with root [validation](docs/glossary.md#term-validation) and the sole bounded probe completed (evidence and limits: [Prepare0015 Result](docs/planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result)); final MAIN acceptance remains pending. No cold/[persistence](docs/glossary.md#term-persistence)/[NN](docs/glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training [admission](docs/glossary.md#term-admission). |
 | Implemented per-value typed length-aware Model source | [Recurrent scan — accepted per-value typed length-aware source](docs/architecture/contracts/recurrent-scan.md#accepted-per-value-typed-length-aware-source); Model0045 Complete, source only, MAIN accepted 2026-11-01 after independent APPROVE, retained coverage and three approved test-only recoveries ([Result](docs/planning/modules/model/tasks/0045-per-value-typed-length-scan-source.md#result)). No clean root PASS; existing consumer domains and fixed/[unrolled](docs/glossary.md#backpropagation-through-time-and-recurrent-state) APIs remain unchanged. |
 | Implemented empty-carry and explicit length-mode source | [Recurrent scan — accepted empty-carry and explicit length-mode source](docs/architecture/contracts/recurrent-scan.md#accepted-empty-carry-and-explicit-length-mode-source); Model0046 source/caller/[guard](docs/glossary.md#term-guard) cutover is integrated and source-qualified. Compiler/Prepare/CPU/cold/raw-[codec](docs/glossary.md#term-codec) guards, old qualified CPU [artifact](docs/glossary.md#term-artifact) bytes and current capability rows remain independently bounded; no typed execution or persistence [widening](docs/glossary.md#term-widening). |
 | Implemented ordinary per-output Scan [coordinate](docs/glossary.md#axis-rank-scalar-vector-and-matrix) semantics | [Recurrent scan — bounded row-role analysis](docs/architecture/contracts/recurrent-scan.md#bounded-row-role-analysis); Model0048 shares [descriptor](docs/glossary.md#term-descriptor)-only semantic recomputation, [canonical](docs/glossary.md#term-canonical-form) value/control dependencies and completely proved intermediate [axes](docs/glossary.md#term-axis)/ranks without a new math whitelist. Descriptor inference and downstream effective admission remain independent. |
@@ -807,7 +807,7 @@ This compact routing summary does not replace the linked details:
 | Prepared schedules, [residency](docs/glossary.md#residency), publication, and per-[run](docs/glossary.md#term-run) [mutable](docs/glossary.md#term-mutable) state | [Runtime](docs/glossary.md#term-runtime) |
 | Explicit composition and public [lifecycle](docs/glossary.md#lifecycle) | [Engine](docs/glossary.md#term-engine) |
 | Typed diagnostics | [Trace](docs/glossary.md#trace) |
-| [Host](docs/glossary.md#term-host) numeric sequence preparation, without execution or new storage-lifecycle ownership | Data (`extensions/data`); [INT64](docs/glossary.md#data-type--datatype) batching and opt-in [scan](docs/glossary.md#term-cumulative-scan)-length export implemented, broader numeric/[sample](docs/glossary.md#term-sample-machine-learning-and-hyperparameters) batching deferred |
+| [Host](docs/glossary.md#term-host) numeric sequence preparation, without execution or new storage-lifecycle ownership | Data (`extensions/data`); [INT64](docs/glossary.md#data-type--datatype) batching and opt-in scan-length export implemented, broader numeric/[sample](docs/glossary.md#term-sample-machine-learning-and-hyperparameters) batching deferred |
 | Frozen vocabulary, whitespace [tokenization](docs/glossary.md#frozen-whitespace-tokenizer) and text-to-Data adaptation | Text (`extensions/text`); no [NN](docs/glossary.md#neural-network-module-parameter-buffer-and-forward-context) or execution responsibility |
 | Stateful modules, [parameters](docs/glossary.md#term-parameter), [buffers](docs/glossary.md#term-buffer), train/eval behavior, declarative and owned [tensor](docs/glossary.md#tensor) Models, model [persistence](docs/glossary.md#term-persistence) | NN; composes public Engine/Training/[Checkpoint](docs/glossary.md#term-checkpoint) owners, never another execution pipeline |
 | Generic live parameter [admission](docs/glossary.md#term-admission), [optimizer](docs/glossary.md#term-optimizer) algorithms, explicit pre-session native parameter copies, and training orchestration | Training (`modules/training`, [Gradle](docs/glossary.md#term-gradle) `:extensions:training`); NN owns its live Module adapter |
@@ -984,7 +984,7 @@ Do not add these unless this document is updated first:
 - a second low-level [gradient](docs/glossary.md#term-gradient) algebra language
 - a public [compiler](docs/glossary.md#term-compiler) gradient-rule [registry](docs/glossary.md#term-registry) or [facade](docs/glossary.md#term-facade)
 - arbitrary graph regions, if/while control flow, recursion, nested scans, or parallel/associative
-  general scan; the bounded fixed-count scan exception above grants none of these<span data-glossary-navigation="true"> ([graph glossary](docs/glossary.md#graph); [general scan glossary](docs/glossary.md#general-differentiable-scan); [scan glossary](docs/glossary.md#term-cumulative-scan))</span>
+  general scan; the bounded fixed-count scan exception above grants none of these<span data-glossary-navigation="true"> ([graph glossary](docs/glossary.md#graph); [general scan glossary](docs/glossary.md#general-differentiable-scan))</span>
 
 ## Future extensions allowed only with architecture update
 

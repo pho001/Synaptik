@@ -50,7 +50,7 @@ reproduced/source-confirmed bugs, coverage regressions, [planning](../glossary.m
 and unmeasured risks. All ten scoped repairs below are independently reviewed and Complete;
 the final source-matched `test javadoc` checkpoint passed. G1's stable [finite](../glossary.md#term-finite)-[softmax](../glossary.md#softmax--log-softmax) contract is
 now Complete after a separate implementation, bounded v2 performance diagnostic and independent
-review; the bounded [vector](../glossary.md#term-vector) [ERF](../glossary.md#term-erf) [shape](../glossary.md#shape) follow-up remains Draft.
+review; the bounded [vector](../glossary.md#term-vector) [ERF](../glossary.md#term-erf) shape follow-up remains Draft.
 
 | Workstream | Completed repair | Current state | [Dependency](../glossary.md#term-dependency) / integration |
 |---|---|---|---|
@@ -92,7 +92,7 @@ delivers bounded in-memory copy/[rebind](../glossary.md#capture-graph-ports-and-
 Euclid's definitive code/docs APPROVE and main's source-matched root gate (2026-10-19).
 Authorized Training frontier: None; [NN0028](extensions/nn/tasks/0028-owned-model-compute-training-and-persistence.md)
 is Complete, accepted 2026-10-19. [NN0029](extensions/nn/tasks/0029-fluent-model-builder-and-checkpoint-independent-execution.md)
-is Complete after Planck final APPROVE, zero findings, and main's source-matched native root gate (2026-10-19), including independently reviewed [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) and [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md). [CPU0026 diagnostic](backends/cpu/tasks/0026-stacked-lstm-cold-preparation-diagnostic.md), [CPU0027 unit topology fix](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md)<span data-glossary-navigation="true"> ([topology glossary](../glossary.md#term-topology))</span> and CPU0028/NN0021B bounded [scan](../glossary.md#term-cumulative-scan) execution are also Complete. NN/[Compiler](../glossary.md#term-compiler) frontiers: None; current [CPU](../glossary.md#term-cpu) [planning](../glossary.md#term-planning) frontier is indexed below. CPU0030 bounded milestone and Compiler0011 completion are below. CPU0029 [scalar](../glossary.md#term-scalar) coverage is Complete below. NN0022B is Complete.
+is Complete after Planck final APPROVE, zero findings, and main's source-matched native root gate (2026-10-19), including independently reviewed [Compiler0009](modules/compiler/tasks/0009-static-select-and-slice-logical-layout-closure.md) and [CPU0025](backends/cpu/tasks/0025-scatter-validation-coordinate-rank.md). [CPU0026 diagnostic](backends/cpu/tasks/0026-stacked-lstm-cold-preparation-diagnostic.md), [CPU0027 unit topology fix](backends/cpu/tasks/0027-unit-topology-adjacency-ordering.md)<span data-glossary-navigation="true"> ([topology glossary](../glossary.md#term-topology))</span> and CPU0028/NN0021B bounded scan execution are also Complete. NN/[Compiler](../glossary.md#term-compiler) frontiers: None; current [CPU](../glossary.md#term-cpu) [planning](../glossary.md#term-planning) frontier is indexed below. CPU0030 bounded milestone and Compiler0011 completion are below. CPU0029 [scalar](../glossary.md#term-scalar) coverage is Complete below. NN0022B is Complete.
 Engine0020's completed [layout](../glossary.md#layout) cutover is below.
 The user revised the primary product to automatic usable-[model](../glossary.md#term-model) load and a choice of [inference](../glossary.md#term-inference) or
 Training-owned [resume](../glossary.md#schema-serialization-and-checkpoint), without routine callbacks/manual construction/digests/[Arena](../glossary.md#term-arena).
@@ -178,7 +178,7 @@ CPU0025 is locally accepted after independent APPROVE, zero
 findings (2026-10-19), with no [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [dependency](../glossary.md#term-dependency); CPU0023 remains Draft.
 [DAG](../glossary.md#term-directed-acyclic-graph-dag): Compiler0006B11 + Compiler0008 + CPU0025 → Compiler0009 (all Complete) →
 NN0029 → main's single shared native root [checkpoint](../glossary.md#term-checkpoint): all Complete; at that checkpoint NN/[Compiler](../glossary.md#term-compiler) frontiers None.
-User approved bounded exact logical-[view](../glossary.md#term-view-meanings) [inference](../glossary.md#term-inference) after [MATMUL](../glossary.md#matrix-multiplication--matmul)/CONCAT: SELECT uses IndexingInference,
+User approved bounded exact logical-[view](../glossary.md#term-view-meanings) [inference](../glossary.md#term-inference-meanings) after [MATMUL](../glossary.md#matrix-multiplication--matmul)/CONCAT: SELECT uses IndexingInference,
 [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) [SLICE](../glossary.md#slice) uses LayoutInference. No forced NN [contiguous](../glossary.md#term-contiguous) copies or [scope](../glossary.md#term-scope) reduction; existing
 contracts suffice, with negative-step/empty/unproved [layouts](../glossary.md#layout) unchanged. No extra plan-review cycle.
 Main verified NN [resume](../glossary.md#schema-serialization-and-checkpoint) on 2026-10-19: actual brief, user approval, unchanged authority, Complete
@@ -197,7 +197,7 @@ private [leaf](../glossary.md#term-leaf) acquisition and retained ordinary cold 
 Main accepted the root/owning NN authority cutover before the existing partial implementation.
 Compiler0009 needs no further authority cutover. Parallel group None; main owns serial integration/shared documents and one final
 native root gate, now passed after final implementation/review. Exact evidence lives in the brief.
-[Scan](../glossary.md#term-cumulative-scan) [BPTT](../glossary.md#term-backpropagation-through-time-bptt), [Conv3d](../glossary.md#conv3d--ncdhw) [gradients](../glossary.md#term-gradient), [backend](../glossary.md#backend)/[codec](../glossary.md#term-codec) changes, Compiler work beyond 0009 and held recurrent-[persistence](../glossary.md#term-persistence) plans stay outside scope.
+Scan [BPTT](../glossary.md#term-backpropagation-through-time-bptt), [Conv3d](../glossary.md#conv3d--ncdhw) [gradients](../glossary.md#term-gradient), [backend](../glossary.md#backend)/[codec](../glossary.md#term-codec) changes, Compiler work beyond 0009 and held recurrent-[persistence](../glossary.md#term-persistence) plans stay outside scope.
 
 ## Bounded [CPU](../glossary.md#term-cpu) cold preparation diagnostic
 
@@ -216,7 +216,7 @@ same bounded public probe passed. Main accepted the unchanged reviewed source at
 The brief owns timings and single-probe limits; no root suite or benchmark campaign was added.
 The [CP0010 CNN/static-recurrent packet](extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md)
 and [CP0011 flat-scan supplement](extensions/checkpoint/tasks/0011-flat-recurrent-scan-persistence.md)
-are jointly Complete on 2026-10-20: bounded [CNN](../glossary.md#term-convolutional-neural-network-cnn)/static recurrence and multi-output v3 cold [scan](../glossary.md#term-cumulative-scan)
+are jointly Complete on 2026-10-20: bounded [CNN](../glossary.md#term-convolutional-neural-network-cnn)/static recurrence and multi-output v3 cold scan
 [persistence](../glossary.md#term-persistence) accepted after independent APPROVE and main's focused/native root gates;
 [CP0010 Result](extensions/checkpoint/tasks/0010-fluent-cnn-and-static-recurrent-graph-persistence.md#result) owns evidence.
 Completed Compiler0008/0009 + Checkpoint0008/0009 + Training0008 + NN0028/0029 and
@@ -226,7 +226,7 @@ no successor authorized by that persistence checkpoint. It grants no execution/[
 [resume](../glossary.md#schema-serialization-and-checkpoint); the subsequently completed CPU0028 route is recorded below.
 Parallel group None; main owns serialized integration and shared documents.
 
-## Completed [CPU](../glossary.md#term-cpu) recurrent [scan](../glossary.md#term-cumulative-scan) execution
+## Completed [CPU](../glossary.md#term-cpu) recurrent scan execution
 
 [CPU0028](backends/cpu/tasks/0028-fixed-recurrent-scan-forward-execution.md) and
 [NN0021B](extensions/nn/tasks/0021b-fixed-recurrent-scan-implementation-program.md) are Complete,
@@ -272,7 +272,7 @@ the brief owns exact commands/counts, reviews and [hashes](../glossary.md#term-h
 integration assumption skip. Execution remains inference-only/canonical FLOAT32 CPU; no BPTT, Data,
 [dtype](../glossary.md#data-type--datatype), backend or format widening. No capability follow-up or automatic successor launch.
 
-## Completed [CPU](../glossary.md#term-cpu) [scalar](../glossary.md#term-scalar) [scan](../glossary.md#term-cumulative-scan) coverage expansion
+## Completed [CPU](../glossary.md#term-cpu) [scalar](../glossary.md#term-scalar) scan coverage expansion
 
 User-selected [CPU0029](backends/cpu/tasks/0029-recurrent-scan-scalar-type-and-layout-coverage.md)
 is Complete, accepted 2026-10-21 after Raman's final independent Class C code/docs APPROVE,
@@ -323,7 +323,7 @@ The comprehensive operation audit replayed all 115 ordinary kinds/137 legal [sig
 CPU completed 804 forward/736 actual [AD](../glossary.md#autograd) runs and Metal 744/494, with zero execution-stage gaps.
 Selection exclusions, [Model](../glossary.md#term-model)-illegal projections, nondifferentiable/deferred roles and numerical
 proof remain separate. Independent installed replay passed CPU178/Metal93 all-role cases and
-136 exact-domain cases; full workflows and Pool3d [Scan](../glossary.md#term-cumulative-scan) cold replay passed in a fresh nn-only
+136 exact-domain cases; full workflows and Pool3d Scan cold replay passed in a fresh nn-only
 [Maven](../glossary.md#term-maven) consumer and independently compiled no-Git source.
 
 [Compiler0017](modules/compiler/tasks/0017-per-value-typed-length-scan-inference-and-ad.md) and
@@ -354,7 +354,7 @@ Metal identity39/schema20/ABI7 is source-matched freshly built, ad-hoc signed an
 The initial reserved-identifier [shader](../glossary.md#term-shader) [compile](../glossary.md#compile) failure was corrected by source rename and a
 reauthenticated rebuild before passing Metal execution; this is not hosted [CI](../glossary.md#term-continuous-integration-ci) or a released prebuilt.
 At that checkpoint, ordinary public CPU named-B Conv3d, the low-arithmetic lock, [Pool3d](../glossary.md#pool3d--ncdhw-pooling)'s
-no-[gradient](../glossary.md#term-gradient) CPU gate, Metal overlap/[Scan](../glossary.md#term-cumulative-scan) and cold/wire inventories were unchanged. The current
+no-[gradient](../glossary.md#term-gradient) CPU gate, Metal overlap/Scan and cold/wire inventories were unchanged. The current
 Pool3d and [operation](../glossary.md#operation)-audit completion above supersedes those then-current implementation limits;
 it does not widen the retained [dtype](../glossary.md#data-type--datatype), named-B or higher-order exclusions.
 
@@ -445,7 +445,7 @@ Earlier closed-frontier statements below remain historical, not automatic succes
 [Prepare0015 symbolic-length Scan CPU vertical](modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result)
 is Complete, MAIN accepted 2026-10-27 after independent code/docs APPROVE (0 P1/P2), owning [validation](../glossary.md#term-validation),
 one bounded timing campaign and the configured root test/Javadoc PASS. Complete Model0044 +
-Compiler0015 + CPU0042/Prepare0014 and retained predecessors feed the delivered fixed-T/[features](../glossary.md#term-software-feature),
+Compiler0015 + CPU0042/Prepare0014 and retained predecessors feed the delivered fixed-T/[features](../glossary.md#term-feature),
 named-B + [INT64](../glossary.md#data-type--datatype)[B] length F32/F64 forward/actual reverse capability, including bounded typed outer
 prerequisites. Active [Prepare](../glossary.md#prepare)/Engine frontiers: None; CPU0044's bounded repair is Complete below.
 [CPU0045](backends/cpu/tasks/0045-symbolic-length-scan-equivalent-java.md#result) is Complete,
@@ -574,7 +574,7 @@ CPU source/authority frontiers None; no fifth/retry, [rollback](../glossary.md#t
 Other frontiers and historical records stay held.
 
 The user approved the next cohesive [Compiler0015 symbolic-length capability](modules/compiler/tasks/0015-symbolic-length-scan-inference-ad-and-binding.md):
-one named B plus runtime discrete INT64[B] lengths, fixed T/[features](../glossary.md#term-feature), [homogeneous](../glossary.md#term-homogeneous) F32/F64 [inference](../glossary.md#term-inference),
+one named B plus runtime discrete INT64[B] lengths, fixed T/[features](../glossary.md#term-feature), [homogeneous](../glossary.md#term-homogeneous) F32/F64 [inference](../glossary.md#term-inference-meanings),
 actual first-order sibling AD and complete fresh scoped all-port binding together. Compiler0015 is
 Complete, MAIN accepted 2026-10-26 after independent source/docs APPROVE and recorded final gates.
 The worker is closed; source/Ready frontiers None, Parallel group None. Binder production is unchanged;
@@ -730,7 +730,7 @@ The user's “ok, pust se do prace” historically authorized source implementat
 PlanningAuthorized=true; ImplementationAuthorized=true. Complete Model0041/0042 + Compiler0011/0013
 and Planning0008 + Prepare0013 ordinary [binding](../glossary.md#term-binding) baseline satisfy dependencies; MAIN verified accepted
 base/contracts/inactive conflicts and sole frontier before launch. Independent plan APPROVE, zero open P1/P2. Existing owners,
-no new type/[signature](../glossary.md#term-signature) selected; [Model](../glossary.md#term-model) [PURE](../glossary.md#term-pure)/[dtype](../glossary.md#data-type--datatype) [inference](../glossary.md#term-inference), bounded F32/[F64](../glossary.md#floating-point-precision-and-rounding) [AD](../glossary.md#autograd) and later initial CPU
+no new type/[signature](../glossary.md#term-signature) selected; [Model](../glossary.md#term-model) [PURE](../glossary.md#term-pure)/[dtype](../glossary.md#data-type--datatype) [inference](../glossary.md#term-inference-meanings), bounded F32/[F64](../glossary.md#floating-point-precision-and-rounding) [AD](../glossary.md#autograd) and later initial CPU
 F32 [qualification](../glossary.md#term-qualification) remain separate. Parallel group None; MAIN owns serial integration; exact [metadata](../glossary.md#term-metadata),
 files and named compatibility gate are in the brief. [Compiler](../glossary.md#term-compiler) source/tests/docs and the explicitly
 admitted Model support-status Javadoc correction only; no downstream launch.
@@ -749,7 +749,7 @@ Standalone authority-only frontier: None; Model0044 includes its bounded source 
 is Complete after the user's “ok, pokracuj tedy” authorized the contract-first next step on 2026-10-25.
 Complete Model0039/0040 designs plus retained Model0038/Compiler0013/Prepare0013/CPU0037 satisfy
 admission; MAIN verified unchanged accepted dirty base and inactive conflicts. AuthorityAuthorized=true;
-ImplementationAuthorized=false. Accepted-but-unimplemented [Scan](../glossary.md#term-cumulative-scan) semantics and exact Engine metadata
+ImplementationAuthorized=false. Accepted-but-unimplemented Scan semantics and exact Engine metadata
 memo exception, coordinated boundaries, ADR0051, glossary and future workflow are enacted.
 Independent frozen read-only Class C APPROVE, zero open P1/P2; MAIN accepted 2026-10-25. No new type/signature
 or atomic mechanism is selected. No Java, executable capability, commit/push or successor launch.
@@ -1001,7 +1001,7 @@ Checkpoint 0005 prerequisite is Complete, not authorization for the Draft durabl
 Step 4 closes Data0001–0003 and Text0001; Data/Text/Vision frontiers None, broader successors Draft.
 The subsequently completed NN0022A above is numeric-only; no fluent Text pipeline or BPTT.
 The approved NN-only NN0022B capability is Complete.
-An independent performance/[shape](../glossary.md#shape) follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
+An independent performance/shape follow-up, [CPU 0023](backends/cpu/tasks/0023-vector-erf-direct-java-shape.md),
 is also Draft: the bounded vector [ERF](../glossary.md#term-erf) diagnostic did not demonstrate parity with direct Java.
 It is not a prerequisite for unrelated Training/Checkpoint decisions or a new broad campaign.
 

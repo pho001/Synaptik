@@ -213,7 +213,7 @@ The fixed output is
 `modules/backend/metal/build/distributions/synaptik-metal-macos-arm64-local.zip`. It is unversioned and
 contains only the exact verified package beneath `macos-arm64/`, with reproducible order and
 timestamps and modes `0755` for the directory/[dylib](../../../../docs/glossary.md#term-dylib) and `0644` for the [metadata](../../../../docs/glossary.md#term-metadata). It contains no
-source path, product version, [provenance](../../../../docs/glossary.md#provenance), license placeholder, or [publication](../../../../docs/glossary.md#term-publication) [coordinates](../../../../docs/glossary.md#axis-rank-scalar-vector-and-matrix).
+source path, product version, [provenance](../../../../docs/glossary.md#provenance), license placeholder, or [publication](../../../../docs/glossary.md#term-publication) coordinates.
 
 Extraction and [lifetime](../../../../docs/glossary.md#term-lifetime) remain caller-owned. Use a permission-preserving extractor, rerun the
 same verifier, and pass the extracted dylib's explicit absolute path to
@@ -502,7 +502,7 @@ capability [narrowing](../../../../docs/glossary.md#term-narrowing), tuning, fal
 
 ## Shared exact custom whole-program execution
 
-Any schema22 program containing a custom-only [node](../../../../docs/glossary.md#node) or native [Scan](../../../../docs/glossary.md#term-cumulative-scan) uses its retained custom-
+Any schema22 program containing a custom-only [node](../../../../docs/glossary.md#node) or native Scan uses its retained custom-
 program handle. Creation authenticates 23 reviewed fixed-[kernel](../../../../docs/glossary.md#kernel) components and their ordered
 188,490-byte total. The sole production [pointwise](../../../../docs/glossary.md#term-pointwise) emitter first traverses a structured
 no-allocation count sink, validates unit, instruction, per-function, generated, and total caps,
@@ -570,7 +570,7 @@ package-private structural regressions and never replace the production custom r
 
 `src/task0053_candidate.metal`, `src/task0053_integer_core.h`, and the deterministic header
 generator remain evidence [artifacts](../../../../docs/glossary.md#term-artifact) for the proposed raw-word integer/[fixed-point](../../../../docs/glossary.md#fixed-point-arithmetic) [`EXP`](../../../../docs/glossary.md#term-expx) and stable
-[`SIGMOID`](../../../../docs/glossary.md#term-sigmoid) algorithms. Production does not import the candidate header, [carry](../../../../docs/glossary.md#term-carry) a Task-0053 gate,
+[`SIGMOID`](../../../../docs/glossary.md#term-sigmoid) algorithms. Production does not import the candidate header, carry a Task-0053 gate,
 append that source to the [runtime](../../../../docs/glossary.md#term-runtime) library, or expose Task-0053 function/[dispatch](../../../../docs/glossary.md#term-dispatch) [metadata](../../../../docs/glossary.md#term-metadata). Java
 capability and route availability remain false, so ordinary preparation cannot [compile](../../../../docs/glossary.md#compile) or execute
 the candidate. Reintroducing it requires a separately approved production cutover rather than a

@@ -41,7 +41,7 @@ logical sequence [axes](../../glossary.md#term-axis), not Model physical [layout
 
 Counts are position independent: `PaddingSide` has exactly `LEFT` and `RIGHT`, with no custom
 methods. At extent T and count L, RIGHT declares valid positions `[0,L)` and LEFT `[T-L,T)`.
-There are no holes, value-sentinel [inference](../../glossary.md#term-inference), stored [padding](../../glossary.md#padding) lengths or stored dense [mask](../../glossary.md#term-boolean-mask).
+There are no holes, value-sentinel [inference](../../glossary.md#term-inference-meanings), stored [padding](../../glossary.md#padding) lengths or stored dense [mask](../../glossary.md#term-boolean-mask).
 
 `PaddedSequenceBatch(Tensor values, ValidSequenceLengths validLengths, SequenceAxisOrder axisOrder,
 PaddingSide paddingSide)` is a record retaining the exact four references. This is an explicit
@@ -116,7 +116,7 @@ Host metadata is not a [runtime](../../glossary.md#term-runtime) [graph](../../g
 exactly `public Tensor toScanLengthsTensor()`. It checks
 `paddingSide == RIGHT` first, then `axisOrder == TIME_MAJOR`, throwing `IllegalArgumentException`
 for LEFT or BATCH_MAJOR before Tensor creation, output allocation or storage access. It does not
-convert either representation or widen [scan](../../glossary.md#term-cumulative-scan) semantics.
+convert either representation or widen scan semantics.
 
 Each successful call allocates through public `TensorFactory.allocate` and fills writable public
 Model host storage directly from immutable valid counts in original row order. The result is a
@@ -177,7 +177,7 @@ using tokenizer.paddingId(). Text never reimplements [padding](../../glossary.md
 empty and all-empty input inherit Data semantics. Callers coordinate list mutation during batch.
 No new execution/[lifetime](../../glossary.md#term-lifetime) is introduced. PAD is an ordinary Embedding row: no row freezing,
 zeroing, [gradient](../../glossary.md#term-gradient) suppression or masking is added. LEFT batch support does not change the current
-[scan](../../glossary.md#term-cumulative-scan)'s right-valid-prefix contract, add runtime [host](../../glossary.md#term-host)-length [binding](../../glossary.md#term-binding) or extend [BPTT](../../glossary.md#term-backpropagation-through-time-bptt).
+scan's right-valid-prefix contract, add runtime [host](../../glossary.md#term-host)-length [binding](../../glossary.md#term-binding) or extend [BPTT](../../glossary.md#term-backpropagation-through-time-bptt).
 
 ## `extensions/nn`
 
@@ -226,7 +226,7 @@ Symbolic `Model.graph`/`defineTensor` acquisition additionally needs [Compiler](
 and [Checkpoint](../../glossary.md#term-checkpoint) copy support; symbolic save/load needs separate wire qualification. Builder
 acquisition qualifies independently rather than inheriting cold or execution support. These
 [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/cold/wire/builder gates do not block ordinary low-level Engine+[CPU](../../glossary.md#term-cpu) forward/actual-backward
-qualification. All current static saved Models/readers and fixed/general-[scan](../../glossary.md#term-cumulative-scan) policies remain.
+qualification. All current static saved Models/readers and fixed/general-scan policies remain.
 
 All-valid [general-scan](recurrent-scan.md#general-differentiable-scan) owned Models use existing
 `Model.graph`/`defineTensor`, `compute` and `configureTraining`/`train`, one private state set and
@@ -932,7 +932,7 @@ The user-authorized [Pool3d](../../glossary.md#pool3d--ncdhw-pooling) completion
 graph source boundary with ordinary maximum and average Pool3d expressions. Their mathematical
 and [gradient](../../glossary.md#term-gradient) [owners](../../glossary.md#term-owner) remain Model and [Compiler](../../glossary.md#term-compiler). A new append-only graph-model.v6 wire admits these
 two exact typed [operation](../../glossary.md#operation) kinds/attributes, including qualified body placement through the existing
-bounded [Scan](../../glossary.md#term-cumulative-scan) protocol. Preserve every already accepted v1-v5 file and choose the smallest sufficient
+bounded Scan protocol. Preserve every already accepted v1-v5 file and choose the smallest sufficient
 format for sources without the new operations. A v6 marker must not admit unrelated constructors,
 change stored roles/[aliases](../../glossary.md#aliasing-and-arena)/payloads, restore [optimizer](../../glossary.md#term-optimizer)/[runtime](../../glossary.md#term-runtime) state or bypass cold [metadata](../../glossary.md#term-metadata) checks.
 
@@ -973,7 +973,7 @@ Operations revalidate. Inputs are ordered unique [provenance](../../glossary.md#
 empty. Outputs are nonempty and distinct. Named provenance-free state is disjoint from inputs;
 every reachable non-input leaf is named and every named [identity](../../glossary.md#term-identity-meanings) is reachable. Names use strict
 [UTF-8](../../glossary.md#term-utf-8), nonblank dot segments without normalization, duplicates or prefix collisions; registration
-order is retained. Aliases [mean](../../glossary.md#term-mean) exact Tensor [identity](../../glossary.md#term-reference-identity) and identical role, not equal bytes or
+order is retained. Aliases mean exact Tensor [identity](../../glossary.md#term-reference-identity) and identical role, not equal bytes or
 physical overlap. PARAMETER requires floating gradient eligibility. BUFFER and CONSTANT preserve
 requiresGrad without inferring roles.
 
@@ -1074,12 +1074,12 @@ readers remain unchanged; no public version selector, [registry](../../glossary.
 
 Version 3 is one closed successor for the selected [CNN](../../glossary.md#term-convolutional-neural-network-cnn)/static recurrent source [slice](../../glossary.md#slice) and fixed
 flat scans. It uses ArtifactFile v1 kind `graph-model.v3`, eight [ASCII](../../glossary.md#term-ascii) bytes `SYNGRF03`, and i32
-version 3. No intermediate one-output v3 or separate [scan](../../glossary.md#term-cumulative-scan) format is defined. It retains the
+version 3. No intermediate one-output v3 or separate scan format is defined. It retains the
 [version-1](#canonical-graph-model-version-1) section order, input/state/registration/output
 fields, [descriptor](../../glossary.md#term-descriptor)/role/[dtype](../../glossary.md#data-type--datatype) IDs, raw payloads and envelope [framing](../../glossary.md#term-framing). The [node](../../glossary.md#node) section alone
 changes as specified below; all integers remain [big-endian](../../glossary.md#text-encoding-and-file-boundaries) with no [padding](../../glossary.md#padding) or trailing fields.
 
-In version 3, scan wire records [mean](../../glossary.md#term-mean) only the existing fixed [RNN](../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../glossary.md#term-long-short-term-memory-lstm) family. [General scan](../../glossary.md#general-differentiable-scan)
+In version 3, scan wire records mean only the existing fixed [RNN](../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../glossary.md#term-long-short-term-memory-lstm) family. [General scan](../../glossary.md#general-differentiable-scan)
 source/compiled body attachments and [residual](../../glossary.md#scan-residual-port-and-history-demand) protocols are not encodable by v1/v2/v3. Low-level
 [AD](../../glossary.md#autograd) or in-memory cold-copy acceptance grants no new [opcode](../../glossary.md#term-opcode), field, version or Model.save/load
 capability. The wire inventory stays closed independently of [Compiler](../../glossary.md#term-compiler) source [admission](../../glossary.md#term-admission).
@@ -1163,7 +1163,7 @@ native/[backend](../../glossary.md#backend)/[runtime](../../glossary.md#term-run
 
 ### [Canonical](../../glossary.md#term-canonical-form) [graph](../../glossary.md#graph)-[model](../../glossary.md#term-model) version 4
 
-This successor persists ordinary general [`Scan`](../../glossary.md#term-cumulative-scan) source and named raw values, not a
+This successor persists ordinary general `Scan` source and named raw values, not a
 compiled executable or [runtime](../../glossary.md#term-runtime) history. The [codec](../../glossary.md#term-codec) is implemented with focused wire, cold-source
 and consumer evidence; main accepted final [module](../../glossary.md#term-module)/[Javadoc](../../glossary.md#term-javadoc), integration, architecture and configured
 root gates in [CP0013](../../planning/extensions/checkpoint/tasks/0013-general-scan-graph-persistence-decision.md#result).
@@ -1179,7 +1179,7 @@ flat constructors minus scans and Pool3d, with body-only arithmetic, SUM, [layou
 overrides/additions, opcodes at most32 and unchanged narrow indexing/[CNN](../../glossary.md#term-convolutional-neural-network-cnn)/[MATMUL](../../glossary.md#matrix-multiplication--matmul) guards. This is neither an [RNN](../../glossary.md#term-recurrent-neural-network-rnn)-only
 subset nor arbitrary [PURE](../../glossary.md#term-pure) [serialization](../../glossary.md#term-serialization). Applicable low/integral/[BOOL](../../glossary.md#data-type--datatype) Model [signatures](../../glossary.md#term-signature) remain
 eligible independently of [CPU](../../glossary.md#term-cpu) [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) execution; cross-dtype CAST remains unsupported.
-[Compiler](../../glossary.md#term-compiler) retains all family [inference](../../glossary.md#term-inference) and constructor ownership; Scan semantics remain with
+[Compiler](../../glossary.md#term-compiler) retains all family [inference](../../glossary.md#term-inference-meanings) and constructor ownership; Scan semantics remain with
 [their sole owner](recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([owner glossary](../../glossary.md#term-owner))</span>.
 
 ArtifactFile v1 kind is `graph-model.v4`, with eight [ASCII](../../glossary.md#term-ascii) bytes `SYNGRF04` and i32 version 4.
@@ -1287,7 +1287,7 @@ positional [aliases](../../glossary.md#aliasing-and-arena), descriptors and raw 
 
 Sources needing neither length mode nor Pool3d continue selecting byte-identical v1–v4 with exact
 old tuples, opcodes and header interpretation. Pool3d in either [scope](../../glossary.md#term-scope) requires v6; v4/v5 reject
-opcodes34/35. New readers default old [Scan](../../glossary.md#term-cumulative-scan) records to all-valid; old readers
+opcodes34/35. New readers default old Scan records to all-valid; old readers
 reject v5. Existing ArtifactLimits/defaults and [atomic](../../glossary.md#resource-transaction-and-rollback)-live-publication/failure behavior remain.
 Extend complete dry-size/count/descriptor/role checks before allocation/import, including
 late/dead/T=0 occurrences; [cold reconstruction](../../glossary.md#term-cold-reconstruction) must first support the same roles without [unrolling](../../glossary.md#term-unrolling).
@@ -1312,12 +1312,12 @@ Its attribute record is twelve [big-endian](../../glossary.md#text-encoding-and-
 depth/height/width, symmetric [padding](../../glossary.md#padding) depth/height/width, then [dilation](../../glossary.md#term-dilation) depth/height/width;
 one canonical u8 ceil flag follows (0=floor, 1=ceil; all other values reject).
 Positive kernel/stride/dilation, nonnegative padding and literal floor/ceil output geometry remain
-Model-owned, checked through exact [Compiler](../../glossary.md#term-compiler) [inference](../../glossary.md#term-inference); this is not a default-geometry restriction.
+Model-owned, checked through exact [Compiler](../../glossary.md#term-compiler) [inference](../../glossary.md#term-inference-meanings); this is not a default-geometry restriction.
 
 These two opcodes are legal in the outer graph and otherwise-qualified all-valid or length-aware
 inline bodies. Length bodies add only these two constructors to their whitelist and retain static
 geometry, ROW/SHARED, terminal-SHARED and all existing role/[axis](../../glossary.md#term-axis) restrictions. The low-[precision](../../glossary.md#term-precision)
-cutover extends Model-legal floating roles separately; no nested [Scan](../../glossary.md#term-cumulative-scan), other [CNN](../../glossary.md#term-convolutional-neural-network-cnn) constructor or [Metal](../../glossary.md#term-metal) Scan grant follows.
+cutover extends Model-legal floating roles separately; no nested Scan, other [CNN](../../glossary.md#term-convolutional-neural-network-cnn) constructor or [Metal](../../glossary.md#term-metal) Scan grant follows.
 Version selection examines outer and contained occurrences: either Pool3d opcode requires at least
 v6 even when it occurs only inside a body; [FP8](../../glossary.md#term-fp8) requires v7. Other sources retain their byte-identical
 smallest sufficient old format; old exact tuples, opcodes and Scan records remain unchanged.

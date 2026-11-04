@@ -75,7 +75,7 @@ Allowed:
 - [topological](../../glossary.md#term-topological-order) sorting
 - [producer](../../glossary.md#term-producer)/use indexing
 - [canonicalization](../../glossary.md#occurrence-identity-and-canonical-form)
-- [shape](../../glossary.md#shape) [inference](../../glossary.md#term-inference)
+- [shape](../../glossary.md#shape) [inference](../../glossary.md#term-inference-meanings)
 - [data type](../../glossary.md#data-type--datatype) inference
 - [validation](../../glossary.md#term-validation)
 - [dead-code elimination](../../glossary.md#term-dead-code-elimination-dce)
@@ -120,7 +120,7 @@ bodies, without new Compiler rules. CPU0033 implements homogeneous [FLOAT64](../
 bounded declared algebra and actual first-order reverse closure. Whole-[occurrence](../../glossary.md#term-occurrence) [qualification](../../glossary.md#term-qualification)
 and resource/binder limits still apply; execution is not inferred from Compiler [AD](../../glossary.md#autograd) [admission](../../glossary.md#term-admission). The complete
 source/[residual](../../glossary.md#scan-residual-port-and-history-demand)/[primal](../../glossary.md#term-primal)-binding semantics are owned by
-[the scan contract](recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-cumulative-scan))</span>.
+[the scan contract](recurrent-scan.md#general-differentiable-scan).
 
 ## [Compile artifacts](../../glossary.md#compile-artifacts)
 
@@ -135,7 +135,7 @@ components, in current record order:
 6. the complete graph-input source classification in `CompileConstantPlan`;
 7. successful-compile deferred diagnostics in `CompileDiagnostics`; and
 8. the exact-graph [derivative](../../glossary.md#term-derivative) [metadata](../../glossary.md#term-metadata) in `DerivativeGraphMetadata`, including derivative orders
-   and the separately qualified optional containing-Scan activity plans below.<span data-glossary-navigation="true"> ([Scan glossary](../../glossary.md#term-cumulative-scan))</span>
+   and the separately qualified optional containing-Scan activity plans below.
 
 These components are logical compile output, not physical, prepared, [backend](../../glossary.md#backend)-executable, or
 [runtime](../../glossary.md#term-runtime) state.
@@ -152,7 +152,7 @@ These components are logical compile output, not physical, prepared, [backend](.
 - [Tensor](../../glossary.md#tensor), [producer](../../glossary.md#term-producer), [provenance](../../glossary.md#provenance), or source-[capture](../../glossary.md#term-capture-meanings) sidecars; `CompiledGraphModel` also remains
   Tensor-free
 
-### Controlled [Scan](../../glossary.md#term-cumulative-scan) [derivative](../../glossary.md#term-derivative) [metadata](../../glossary.md#term-metadata)
+### Controlled Scan [derivative](../../glossary.md#term-derivative) [metadata](../../glossary.md#term-metadata)
 
 Implemented coordinated Class C cutover, accepted with Compiler0017/CPU0081 after independent
 authority/interface and exact-source implementation reviews, actual selected-backward consumers
@@ -176,7 +176,7 @@ and real expansion consume the same positional pair selection. Retained Tensor s
 to metadata and real construction over the consuming occurrence's legal prefixes; qualify both
 FC and aggregate [ND](../../glossary.md#term-nd)-only obligations, not only global source reachability. Correlated source
 prefixes require proved row correspondence through existing semantic owners. No external
-activity sideband, numerical-zero [inference](../../glossary.md#term-inference) or global sparse AD follows.
+activity sideband, numerical-zero [inference](../../glossary.md#term-inference-meanings) or global sparse AD follows.
 Observed Scan construction also applies the scoped four-[argument](../../glossary.md#term-argument) [Model](../../glossary.md#term-model) ordinary [guard](../../glossary.md#term-guard) with the
 exact optional declared [symbol](../../glossary.md#term-symbol) to every created [canonical](../../glossary.md#term-canonical-form) [operation](../../glossary.md#operation), including [eager](../../glossary.md#term-eager-evaluation) unused
 temporaries, before derivative IDs. Reuse its factored symbolic/deferred proof; the unobserved
@@ -258,7 +258,7 @@ declared named-[axis](../../glossary.md#term-axis) [occurrence](../../glossary.m
 must agree. Match [rank](../../glossary.md#term-rank)/fixed axes/[dtype](../../glossary.md#data-type--datatype)/requiresGrad and admitted [layout](../../glossary.md#layout) exactly; fixed [parameters](../../glossary.md#term-parameter)
 and [seeds](../../glossary.md#commit-release-distribution-log-and-seed-meanings) stay fixed. Only B/[constants](../../glossary.md#term-constant) may determine expressions; unsupported expressions,
 output-only symbols and anonymous unknowns reject at [prepare](../../glossary.md#prepare). Unsatisfied predicates or negative
-bound extents reject before [borrowing](../../glossary.md#term-borrowing). No per-[run](../../glossary.md#term-run) [graph](../../glossary.md#graph) traversal, [operation](../../glossary.md#operation) [inference](../../glossary.md#term-inference), recapture,
+bound extents reject before [borrowing](../../glossary.md#term-borrowing). No per-[run](../../glossary.md#term-run) [graph](../../glossary.md#graph) traversal, [operation](../../glossary.md#operation) [inference](../../glossary.md#term-inference-meanings), recapture,
 optimization or [backend](../../glossary.md#backend) selection. Actual layout/storage policy belongs to
 [Engine admission](runtime-prepare-engine.md#public-reusable-prepared-execution).
 
@@ -278,7 +278,7 @@ every local declaration in its exact body [scope](../../glossary.md#term-scope).
 occurrence/scope, never bare coincident local ValueIds.
 Every invocation must evaluate those scoped private obligations during its complete fresh bind;
 numeric Engine [memo](../../glossary.md#cache-and-memoization) coverage cannot stand in for Compiler's proof. Preindex all-port [canonical](../../glossary.md#term-canonical-form) actual-layout
-recipes for the exact body-bearing [SCAN](../../glossary.md#term-cumulative-scan) case: every final-[carry](../../glossary.md#term-carry), emission and [residual port](../../glossary.md#scan-residual-port-and-history-demand),
+recipes for the exact body-bearing SCAN case: every final-[carry](../../glossary.md#term-carry), emission and [residual port](../../glossary.md#scan-residual-port-and-history-demand),
 including undemanded siblings. Unknown symbolic multi-output kinds still reject. Dynamic templates
 remain numerically unresolved; `StaticResultLogicalLayoutClosure` must not fabricate static
 layouts for them. Preserve role multiplicity, scope/demand after rewrites and exact saved sites.
@@ -328,7 +328,7 @@ state and never become graph [nodes](../../glossary.md#node) or values.
 
 Backends execute prepared regions only.
 
-The accepted generic-body path constructs an ordinary reverse sibling [scan](../../glossary.md#term-cumulative-scan) before that combined
+The accepted generic-body path constructs an ordinary reverse sibling scan before that combined
 [capture](../../glossary.md#term-capture-meanings); it does not differentiate captured [IR](../../glossary.md#term-intermediate-representation-ir) or retrofit a captured forward [producer](../../glossary.md#term-producer). Scoped
 body capture is part of the one combined capture, not a second outer capture. Fixed recurrent
 operations remain forward-only and do not acquire [BPTT](../../glossary.md#term-backpropagation-through-time-bptt) from the general-scan exception.
@@ -354,7 +354,7 @@ predicates allow zero gives empty Y/dX, [scalar](../../glossary.md#term-scalar) 
 typed-zero `[4,3]` dW empty [contraction](../../glossary.md#contraction-dimension). Preserve constituent static empty/special-value behavior;
 do not skip the whole [run](../../glossary.md#term-run) or read nonexistent dY. Prepare0013 implements and tests this bounded
 ordinary [CPU](../../glossary.md#term-cpu) forward/actual first-order closure; its linked Result records evidence and MAIN's
-2026-10-24 acceptance after final reviews and integration. Dynamic higher-order and [Scan](../../glossary.md#term-cumulative-scan) qualification remain separate.
+2026-10-24 acceptance after final reviews and integration. Dynamic higher-order and Scan qualification remain separate.
 
 The required [compile](../../glossary.md#compile)-time flow is:
 
@@ -410,7 +410,7 @@ is not a separate Scan backward exclusion.
 
 Before constructing any backward expression, the compiler must inventory every
 backward-reachable operation occurrence and its exact attributes and derivative policies. Any
-unsupported or ambiguous occurrence fails closed. Full [inference](../../glossary.md#term-inference) and [validation](../../glossary.md#term-validation) still occur only
+unsupported or ambiguous occurrence fails closed. Full [inference](../../glossary.md#term-inference-meanings) and [validation](../../glossary.md#term-validation) still occur only
 after the one combined capture, so a later construction, capture, inference, validation, or
 optimization failure may consume temporary model-level [`TensorId`](../../glossary.md#tensorid) values. Tensor IDs are [opaque](../../glossary.md#term-opaque)
 and are never rolled back or reused.
@@ -570,12 +570,12 @@ The supported `GraphCompilationPort` also owns a cold source boundary independen
 at first input-ID assignment; `reconstructSource` substitutes [descriptor](../../glossary.md#term-descriptor)-compatible [Tensors](../../glossary.md#tensor) by
 [graph](../../glossary.md#graph)-input position. The source is the raw graph, not optimized `CompileArtifacts.graph()`.
 Both operations admit only fully static FORWARD sources. The unchanged **flat outer-source**
-inventory is the following closed [slice](../../glossary.md#slice), plus the explicit general-[SCAN](../../glossary.md#term-cumulative-scan) exception below. The
+inventory is the following closed [slice](../../glossary.md#slice), plus the explicit general-SCAN exception below. The
 original eight kinds remain ADD/MUL/NEG/[MATMUL](../../glossary.md#matrix-multiplication--matmul)/RELU/[TANH](../../glossary.md#term-tanh)/[SIGMOID](../../glossary.md#term-sigmoid) with
 `NoOperationAttrs.INSTANCE` and [rank-two](../../glossary.md#axis-rank-scalar-vector-and-matrix) PERMUTE with exactly `[1,0]`. [Activations](../../glossary.md#term-activation) retain [Model](../../glossary.md#term-model)'s
 floating-only guards and reconstruct through `Tensor.relu/tanh/sigmoid`, without [decomposition](../../glossary.md#term-decomposition).
 
-The additional kinds have these exact source [signatures](../../glossary.md#term-signature). Model guards and family [inference](../../glossary.md#term-inference) still
+The additional kinds have these exact source [signatures](../../glossary.md#term-signature). Model guards and family [inference](../../glossary.md#term-inference-meanings) still
 apply; an [operation](../../glossary.md#operation) outside these attributes or arities is unsupported, even if executable.
 
 | Kind | Inputs and attributes | Public family reconstruction |
@@ -601,7 +601,7 @@ sizes remain positive. Cold [admission](../../glossary.md#term-admission) reads 
 execution owns their value bounds. Cold admission itself grants no execution or gradients;
 those require independent Compiler AD and complete [backend](../../glossary.md#backend)-closure [qualification](../../glossary.md#term-qualification).
 
-### Bounded general-[scan](../../glossary.md#term-cumulative-scan) [cold reconstruction](../../glossary.md#term-cold-reconstruction)
+### Bounded general-scan [cold reconstruction](../../glossary.md#term-cold-reconstruction)
 
 The implemented cold inventory includes the all-valid constructors below and the fully static
 floating length-mode intersection specified here.
@@ -610,7 +610,7 @@ records the original [homogeneous](../../glossary.md#term-homogeneous) [F32](../
 floating cutover below extends source [admission](../../glossary.md#term-admission); it does not claim new [backend](../../glossary.md#backend)/[runtime](../../glossary.md#term-runtime) qualification.
 Preserve the [scan header and roles](recurrent-scan.md#header-bindings-and-source-admission), with
 complete [preflight](../../glossary.md#term-preflight) of late/dead/zero-time scans before any formal/[producer](../../glossary.md#term-producer) IDs or [host](../../glossary.md#term-host) copy/import.
-Compiler0013's ordinary length-mode [inference](../../glossary.md#term-inference)/first-order reverse construction is separate:
+Compiler0013's ordinary length-mode [inference](../../glossary.md#term-inference-meanings)/first-order reverse construction is separate:
 inference success is necessary but is not the independent cold admission predicate.
 
 [General SCAN](../../glossary.md#general-differentiable-scan) uses existing `ScanAttrs`, `CompiledScanBody`, `ScanBody` and `Scan.apply`; no new
@@ -783,7 +783,7 @@ Compile must not create:
 <a id="numerical-profile-compile-identity"></a>
 
 The compile port, capability queries, and
-`CompileArtifacts` [carry](../../glossary.md#term-carry) no numerical-profile selector or replacement identity. [Compiler](../../glossary.md#term-compiler) retains
+`CompileArtifacts` carry no numerical-profile selector or replacement identity. [Compiler](../../glossary.md#term-compiler) retains
 its semantic guards, [graph](../../glossary.md#graph)-phase and [derivative](../../glossary.md#term-derivative) [metadata](../../glossary.md#term-metadata), and complete [occurrence](../../glossary.md#term-occurrence) facts. It does
 not convert test-only arithmetic tolerances into optimization permissions or provider capability.
 

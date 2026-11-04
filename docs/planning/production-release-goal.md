@@ -2,7 +2,7 @@
 
 ## Purpose and status
 
-[Prepare](../glossary.md#prepare) Synaptik's first public production [release](../glossary.md#term-release) for Java [CPU](../glossary.md#term-cpu) [inference](../glossary.md#term-inference) and training, with
+Prepare Synaptik's first public production [release](../glossary.md#term-release) for Java [CPU](../glossary.md#term-cpu) [inference](../glossary.md#term-inference) and training, with
 equally supported [FLOAT32](../glossary.md#term-float32) ([F32](../glossary.md#floating-point-precision-and-rounding)) and [FLOAT64](../glossary.md#term-float64) ([F64](../glossary.md#floating-point-precision-and-rounding)), trainable networks, reliable [model](../glossary.md#term-model) save/load
 and production-supported [Metal](../glossary.md#term-metal). The current technical [checkpoint](../glossary.md#term-checkpoint) completed framework-wide audit,
 preserving repairs, independent review and source-matched local candidate [qualification](../glossary.md#term-qualification).
@@ -37,7 +37,7 @@ diagnostic or native repairs. The coordinator records final audit receipts after
 The user explicitly requires straightforward code that human programmers can read, maintain and
 extend. Reuse existing constructors, semantic rules, [validation](../glossary.md#term-validation) [owners](../glossary.md#term-owner), [lowering](../glossary.md#lowering) and emitters
 where their contracts apply; do not duplicate mathematics or introduce a second execution path.
-Keep necessary independent boundary checks, but reuse their existing [inference](../glossary.md#term-inference)/validation owners
+Keep necessary independent boundary checks, but reuse their existing [inference](../glossary.md#term-inference-meanings)/validation owners
 rather than copying algorithms. Add a helper or abstraction only for a concrete responsibility.
 No special-case workaround, hidden fallback, suppressed error or weakened contract/test may stand
 in for a complete implementation. Independent code review must assess these criteria explicitly.
@@ -110,7 +110,7 @@ their distinct working/[publication](../glossary.md#term-publication) semantics;
 
 General Scan must compose all ordinary pure operations supported by the [backend](../glossary.md#backend) when [bindings](../glossary.md#term-binding),
 geometry and stable [carry](../glossary.md#term-carry) [shape](../glossary.md#shape)/[dtype](../glossary.md#data-type--datatype) are legal. Pure means no hidden mutation or stateful effects.
-[Scan](../glossary.md#term-cumulative-scan) supplies traversal, bindings and activity, not a second mathematical implementation whitelist.
+Scan supplies traversal, bindings and activity, not a second mathematical implementation whitelist.
 Reuse ordinary [lowering](../glossary.md#lowering) and emitters, arranging scratch before [run](../glossary.md#term-run); no separate Scan mathematical
 implementation, [runtime](../glossary.md#term-runtime) interpreter, per-[operation](../glossary.md#operation) [lookup](../glossary.md#term-lookup), repeated plan/resource rebuilding or
 avoidable per-step allocation. This does not prohibit direct calls to existing prepared [kernel](../glossary.md#kernel)
@@ -139,7 +139,7 @@ current boundaries, unchanged here; successors are not thereby implemented or [R
 
 ## Project order and current frontier
 
-The earlier project order delivered practical [runtime](../glossary.md#term-runtime)-length [RNN](../glossary.md#term-recurrent-neural-network-rnn), [CPU](../glossary.md#term-cpu) [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) and [Scan](../glossary.md#term-cumulative-scan) closure,
+The earlier project order delivered practical [runtime](../glossary.md#term-runtime)-length [RNN](../glossary.md#term-recurrent-neural-network-rnn), [CPU](../glossary.md#term-cpu) [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) and Scan closure,
 [Conv3d](../glossary.md#conv3d--ncdhw)/[Pool3d](../glossary.md#pool3d--ncdhw-pooling) training, then bounded production [Metal](../glossary.md#term-metal). Optional [oneDNN](../glossary.md#term-onednn) and the approved CPU
 low-parity cutover now have their own source and evidence; the old “oneDNN later” and CPU0078
 lock decisions are not current implementation restrictions. Completed task rows and their
@@ -211,7 +211,7 @@ checklist, a claim of unrun repair acceptance or public redistribution permissio
 
 ## Later [scope](../glossary.md#term-scope) and open choices
 
-Full higher-order [Scan](../glossary.md#term-cumulative-scan), nested control flow/arbitrary while, all generic dynamic [dimensions](../glossary.md#dimension),
+Full higher-order Scan, nested control flow/arbitrary while, all generic dynamic [dimensions](../glossary.md#dimension),
 exact full training [resume](../glossary.md#schema-serialization-and-checkpoint), broader [autotuning](../glossary.md#autotuning--model-autotuning) and [backends](../glossary.md#backend) beyond required Java [CPU](../glossary.md#term-cpu) and [Metal](../glossary.md#term-metal)
 are not automatic [release](../glossary.md#term-release) prerequisites. Existing compatibility gates remain in force. [CNN](../glossary.md#term-convolutional-neural-network-cnn),
 [F64](../glossary.md#floating-point-precision-and-rounding) parity and ordinary-[operation](../glossary.md#operation) Scan composition do not move into optional later work; their

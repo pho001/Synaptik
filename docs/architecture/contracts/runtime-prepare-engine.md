@@ -52,13 +52,13 @@ Runtime executes prepared schedules.
 
 [General scan](../../glossary.md#general-differentiable-scan) adds no Runtime [graph](../../glossary.md#graph)/body interpreter or nested execution [owner](../../glossary.md#term-owner). Its concrete loop
 is already prepared; Runtime retains exactly one RunState for the whole logical [run](../../glossary.md#term-run), not one per
-step or body. Complete [scan](../../glossary.md#term-cumulative-scan) semantics belong to [the scan owner](recurrent-scan.md#general-differentiable-scan).
+step or body. Complete scan semantics belong to [the scan owner](recurrent-scan.md#general-differentiable-scan).
 
 One `PreparedExecution` retains exactly one [immutable](../../glossary.md#term-immutable) `PreparedMemoryPlan` and one same-plan
 `PreparedSchedule`. The schedule is an ordered list of `PreparedSchedule.Step` occurrences: an
 optional `RepresentationCreationStep` may occur only first, followed by executable and explicit
 [buffer](../../glossary.md#term-buffer)-transfer occurrences, with publication occurrences forming the dense final suffix.
-Repeated executable or transfer occurrences [mean](../../glossary.md#term-mean) repeated work and create no additional resource
+Repeated executable or transfer occurrences mean repeated work and create no additional resource
 [ownership](../../glossary.md#term-ownership). Runtime uses no additional aggregate between a schedule [occurrence](../../glossary.md#term-occurrence) and its recipe.
 
 Runtime does not decide how graph partitions should be lowered.
@@ -119,7 +119,7 @@ size/[alignment](../../glossary.md#term-alignment) creator migration for the bou
 retain fixed-size construction/accessors; their creators also receive exact bytes and alignment.
 Final independent reviews and MAIN's native-enabled integration gate passed;
 MAIN accepted the capability on 2026-10-24.
-Prepare0015 implements combined one-B/fixed-T/[features](../../glossary.md#term-software-feature) FLOAT32/[FLOAT64](../../glossary.md#term-float64) length-[Scan](../../glossary.md#term-cumulative-scan) through this
+Prepare0015 implements combined one-B/fixed-T/[features](../../glossary.md#term-feature) FLOAT32/[FLOAT64](../../glossary.md#term-float64) length-Scan through this
 existing protocol, including the separately bounded CPU outer typed/control prerequisite. Owning
 [validation](../../glossary.md#term-validation) and independent code/structural review passed; root validation and the sole bounded probe completed;
 [Prepare0015 Result](../../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result)
@@ -336,7 +336,7 @@ Preserve named-[axis](../../glossary.md#term-axis) obligations and qualified ran
 read predicates or re-proving the body's semantic algebra. Set `requiresBatchSize` even for
 constant-byte symbolic plans. Shared Prepare transports exact fixed/run-size declarations and
 stable coverage/slots; it does not evaluate CPU recipes, choose B-specific [topology](../../glossary.md#term-topology) or infer
-[Scan](../../glossary.md#term-cumulative-scan) capability. Prepare0014 implements this symbolic projection and the separately qualified
+Scan capability. Prepare0014 implements this symbolic projection and the separately qualified
 [homogeneous](../../glossary.md#term-homogeneous) [FLOAT32](../../glossary.md#term-float32) CPU/[Engine](../../glossary.md#term-engine) execution [slice](../../glossary.md#slice); its
 [task](../../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md) tracks final [qualification](../../glossary.md#term-qualification).
 Static Scan projection remains unchanged.
@@ -413,7 +413,7 @@ semantics; [Planning](foundational-modules.md#general-scan-activity-transport)<s
 [immutable](../../glossary.md#term-immutable) [carrier](../../glossary.md#term-storage-carrier). Shared [Prepare](../../glossary.md#prepare) does not interpret [derivative](../../glossary.md#term-derivative) mathematics or [CPU](../../glossary.md#term-cpu) pack [layouts](../../glossary.md#layout).
 
 [PrepareContext](../../glossary.md#prepare-context-preparecontext) adds sixth [canonical](../../glossary.md#term-canonical-form) component `Map<NodeId, ScanActivityPlan> scanActivityPlans`
-after backendInputs. [GraphPreparation](../../glossary.md#graph-preparation--graphpreparation) projects only containing [Scan](../../glossary.md#term-cumulative-scan) entries from component eight
+after backendInputs. [GraphPreparation](../../glossary.md#graph-preparation--graphpreparation) projects only containing Scan entries from component eight
 of CompileArtifacts. Context copies/subsets preserve/filter exact associations; intentional
 ordinary/synthetic construction has an empty map, never a silent drop of annotated [metadata](../../glossary.md#term-metadata).
 Validate [partition](../../glossary.md#partition) membership, exact local-body [graph](../../glossary.md#graph) [identity](../../glossary.md#term-identity-meanings), complete typed declarations,
@@ -426,7 +426,7 @@ communication field or additional [resource owner](../../glossary.md#ownership-b
 Before backend analysis, use the scoped four-[argument](../../glossary.md#term-argument) [Model](../../glossary.md#term-model) ordinary [guard](../../glossary.md#term-guard) with the exact sole
 declared optional [symbol](../../glossary.md#term-symbol), then check all declared canonical siblings. Do not choose a [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters) B,
 ignore extra/foreign symbols, copy symbolic family rules or impose length ROW locality on
-all-valid whole-[Tensor](../../glossary.md#tensor) reshape. Ordinary three-argument [inference](../../glossary.md#term-inference) may defer these equalities.
+all-valid whole-[Tensor](../../glossary.md#tensor) reshape. Ordinary three-argument [inference](../../glossary.md#term-inference-meanings) may defer these equalities.
 
 For the qualified CPU continuation, the single backend owner may construct an internal context
 from the EXACT contained graph, derive its local [DAG](../../glossary.md#term-directed-acyclic-graph-dag)/logical requirements and reuse its ordinary
@@ -498,7 +498,7 @@ then constructs the [Runtime](../../glossary.md#term-runtime) `PreparedExecution
 schedule, and acquisition-ordered persistent resources. Successful construction transfers unique
 [ownership](../../glossary.md#term-ownership-meanings) of those resources to that Runtime aggregate.
 
-General-[scan](../../glossary.md#term-cumulative-scan) analysis declares checked exact output, staging, [carry](../../glossary.md#term-carry)-bank, body-temporary and live
+General-scan analysis declares checked exact output, staging, [carry](../../glossary.md#term-carry)-bank, body-temporary and live
 history bytes before slot assignment, with zero history bytes/stores for undemanded [residual](../../glossary.md#scan-residual-port-and-history-demand) ports
 including reverse residuals. Revalidate demand against the projected roles and logical requirements.
 Only finalization after exact slot/representation assignment may emit the selected CPU time loop
@@ -542,7 +542,7 @@ Under the accepted future [memo exception](#accepted-engine-geometry-memo), [imm
 numeric facts may be shared, not those working arrays or any resource. Runtime performs no [memo](../../glossary.md#cache-and-memoization)
 [lookup](../../glossary.md#term-lookup)/[publication](../../glossary.md#term-publication); the exception adds no lease, execution lock or late outward-close rejection.
 [Shape](../../glossary.md#shape)/byte [admission](../../glossary.md#term-admission) never reads lengths: length VALUE checks remain after their [producers](../../glossary.md#term-producer) and
-before that [Scan](../../glossary.md#term-cumulative-scan)'s first writes, including all B lengths and T=0/B=0. CPU0042 implements those
+before that Scan's first writes, including all B lengths and T=0/B=0. CPU0042 implements those
 checks inside the existing [CPU](../../glossary.md#term-cpu) scan invocation for fixed T/B/[features](../../glossary.md#term-feature) and [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64)
 forward/actual reverse. All-valid [symbolic Scan](../../glossary.md#symbolic-scan) retains its separate [qualification](../../glossary.md#term-qualification). Prepare0015's
 implemented one-B length-Scan path follows the same sequence: every call performs fresh
@@ -648,7 +648,7 @@ prebound range calls and all [mutable](../../glossary.md#term-mutable) scratch. 
 and [borrowed](../../glossary.md#ownership-borrowing-and-lease) [CPU](../../glossary.md#term-cpu) group/budget references only. Ordinary [Runtime](../../glossary.md#term-runtime) cold [binding](../../glossary.md#term-binding) still precedes
 schedule execution; [producer](../../glossary.md#term-producer)-sensitive value [preflight](../../glossary.md#term-preflight) still follows producers before writes.
 
-For a selected parallel [Scan](../../glossary.md#term-cumulative-scan), cold run binding computes actual participant count N from the
+For a selected parallel Scan, cold run binding computes actual participant count N from the
 fixed prepared numeric [partition](../../glossary.md#partition) rule. Acquire max(1,N) permits from the exact coordinated
 finalizer budget before the generated entry. Caller setup/merge/[carry](../../glossary.md#term-carry) uses this same reservation.
 At synchronous [dispatch](../../glossary.md#term-dispatch), lend it exclusively to the prebound worker submission: validate exact
@@ -712,7 +712,7 @@ compose them.
 
 ### Public explicit composition
 
-The selected public declaration [shape](../../glossary.md#shape) is:
+The selected public declaration shape is:
 
 ```java
 public final class Engine implements AutoCloseable {
@@ -939,7 +939,7 @@ same public [API](../../glossary.md#term-application-programming-interface-api):
 [bounded symbolic Scan contract](recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([symbolic Scan glossary](../../glossary.md#symbolic-scan))</span> is implemented by
 Prepare0014 for homogeneous FLOAT32 forward and actual first-order reverse, fixed T/features/state
 widths, generated scalar and single-range execution. Its task tracks final [qualification](../../glossary.md#term-qualification).
-Prepare0015 implements bounded combined length-[Scan](../../glossary.md#term-cumulative-scan) for one named B, fixed T/features, homogeneous
+Prepare0015 implements bounded combined length-Scan for one named B, fixed T/features, homogeneous
 FLOAT32/[FLOAT64](../../glossary.md#term-float64) forward and actual Compiler reverse, including bounded outer typed/control/ROW(1)
 closure. Owning [validation](../../glossary.md#term-validation) and independent code/structural review passed; root validation and the sole bounded
 probe completed (evidence and limits:
@@ -1050,7 +1050,7 @@ Accepted future direction on 2026-10-25, unimplemented; Model0041's authority de
 MAIN accepted 2026-10-25 after independent APPROVE. This is the sole [metadata](../../glossary.md#term-metadata)-only
 exception to prepared immutability and invocation-private numeric facts above. It applies only
 at the exact [Engine](../../glossary.md#term-engine) [`PreparedExecution`](../../glossary.md#prepared-execution--preparedexecution) entry for a separately qualified symbolic-[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) plan,
-including the separately qualified [Scan](../../glossary.md#term-cumulative-scan) vertical. It does not change current static behavior or add a [cache](../../glossary.md#term-cache)
+including the separately qualified Scan vertical. It does not change current static behavior or add a [cache](../../glossary.md#term-cache)
 to [Runtime](../../glossary.md#term-runtime). Prepared [graph](../../glossary.md#graph) meaning, routes, code, recipes, slots, representation positions and
 persistent resource [identities](../../glossary.md#term-identity-meanings) never change.
 
@@ -1075,7 +1075,7 @@ input's B is not admission. A hit avoids only covered Engine pure numeric/size [
 template-only non-input descriptor reconstruction; it never skips Compiler work or unrelated checks.
 
 Preparation preindexes complete numeric checks for all outer and scoped local domains and latent
-ports, including unused/[scalar](../../glossary.md#term-scalar)-backed values; no per-[run](../../glossary.md#term-run) graph walk/[inference](../../glossary.md#term-inference) or synthetic Tensor
+ports, including unused/[scalar](../../glossary.md#term-scalar)-backed values; no per-[run](../../glossary.md#term-run) graph walk/[inference](../../glossary.md#term-inference-meanings) or synthetic Tensor
 construction is allowed. For the initially qualified [CPU](../../glossary.md#term-cpu) domain, counts/extents/[element](../../glossary.md#term-element)
 strides/offsets/referenced spans fit CPU int. Checked bytes, aligned offsets and
 representation-multiplied aggregate bounds fit long. Other [backends](../../glossary.md#backend) require separately qualified
@@ -1107,7 +1107,7 @@ Failed admission publishes nothing and preserves a prior good entry. Later alloc
 execution failure may retain valid metadata only, never resources/results/failures; reverse
 cleanup is unchanged. Retry repeats all current input/storage checks and creates fresh resources.
 
-Close clears the slot and prevents late republishing. [Coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) [atomic](../../glossary.md#resource-transaction-and-rollback) replacement versus close
+Close clears the slot and prevents late republishing. Coordinate [atomic](../../glossary.md#resource-transaction-and-rollback) replacement versus close
 through the existing [lifecycle](../../glossary.md#lifecycle), with a bounded mechanism chosen in a later exact scoped brief.
 After existing inward-delegate admission, concurrent close suppresses/clears publication; it must
 not add a new late outward-close rejection. Admitted calls retain local immutable facts and
@@ -1163,7 +1163,7 @@ It must not become a runtime hot-path mechanism.
 
 Engine construction offers no
 numerical-profile selection or replacement mode. [Compiler](../../glossary.md#term-compiler) [artifacts](../../glossary.md#term-artifact) and [`PrepareContext`](../../glossary.md#prepare-context-preparecontext)
-projections [carry](../../glossary.md#term-carry) no profile field; [backend](../../glossary.md#backend) preparation uses complete [occurrence](../../glossary.md#term-occurrence) facts, actual
+projections carry no profile field; [backend](../../glossary.md#backend) preparation uses complete [occurrence](../../glossary.md#term-occurrence) facts, actual
 provider capability, qualified routes, and versioned non-profile compatibility [identity](../../glossary.md#term-identity-meanings).
 [Runtime](../../glossary.md#term-runtime) and [Trace](../../glossary.md#trace) remain numerical-policy-free and perform no per-[run](../../glossary.md#term-run) [tolerance](../../glossary.md#term-tolerance), [certificate](../../glossary.md#formal-proof-certificate-and-trusted-assumptions),
 capability, or route [lookup](../../glossary.md#term-lookup). Removing the selector does not change Engine [ownership](../../glossary.md#term-ownership-meanings), Prepare

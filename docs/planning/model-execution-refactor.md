@@ -94,7 +94,7 @@ Independent review and coordinator acceptance are complete. Model/Training [auto
 Engine0021 delivered prepared [ownership](../glossary.md#term-ownership-meanings) and fresh [binding](../glossary.md#term-binding) with mechanical Training/benchmark/test
 migration. Training0007 completed generic live admission, native copy and the atomic reverse-edge/
 consumer cutover. Its brief records final approval and coordinator [validation](../glossary.md#term-validation). It did not wait on recurrent recipes,
-fixed-[scan](../glossary.md#term-cumulative-scan) [backpropagation through time](../glossary.md#term-backpropagation-through-time-bptt) ([BPTT](../glossary.md#backpropagation-through-time-and-recurrent-state)), Data or all [operation](../glossary.md#operation) codecs.
+fixed-scan [backpropagation through time](../glossary.md#term-backpropagation-through-time-bptt) ([BPTT](../glossary.md#backpropagation-through-time-and-recurrent-state)), Data or all [operation](../glossary.md#operation) codecs.
 
 ## Selected public surface
 
@@ -215,7 +215,7 @@ Concrete old-to-new imports/calls and consumer dependencies are recorded in
 The nine-class move is the unavoidable package exception: placing NN semantics in a package named
 generic checkpoint would obscure the new [owner](../glossary.md#term-owner). Do not create a compatibility project.
 Engine0021 separately removed a public type/factory, a deliberate source/[binary](../glossary.md#term-binary-descriptor-and-metadata) break; the brief
-includes all Java consumers, API-[shape](../glossary.md#shape) tests, benchmark and test hooks. Engine's outward prepared
+includes all Java consumers, API-shape tests, benchmark and test hooks. Engine's outward prepared
 wrapper and [Runtime](../glossary.md#term-runtime)'s inward unique [lease](../glossary.md#term-lease) boundary remain intentionally separate.
 
 <a id="target-dependencies-not-current-permission"></a>

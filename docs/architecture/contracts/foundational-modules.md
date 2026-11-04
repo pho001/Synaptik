@@ -12,7 +12,7 @@ This contract owns the detailed responsibilities and prohibitions for [Trace](..
 [Model](../../glossary.md#term-model), Config, and [Planning](../../glossary.md#term-planning). Model's scope includes the sole [normative](../../glossary.md#term-normative) definition of profile-free
 [operation](../../glossary.md#operation)-family numerical semantics and allowed results. Planning scope here is the [module](../../glossary.md#term-module)
 boundary and [ownership](../../glossary.md#term-ownership-meanings) question; the detailed [partition](../../glossary.md#partition)-scoring algorithm boundary belongs to the
-[compiler](../../glossary.md#term-compiler)/[autograd](../../glossary.md#autograd) contract. This file does not own recurrent-[scan](../../glossary.md#term-cumulative-scan) semantics, compiler behavior,
+[compiler](../../glossary.md#term-compiler)/[autograd](../../glossary.md#autograd) contract. This file does not own recurrent-scan semantics, compiler behavior,
 execution lifecycles, [concrete backend](../../glossary.md#concrete-backend) implementation, or extensions.
 
 ## [Module](../../glossary.md#term-module) responsibilities
@@ -131,7 +131,7 @@ pre-[capture](../../glossary.md#term-capture-meanings) model relationship is not
 
 The accepted [general Scan](../../glossary.md#general-differentiable-scan) continuation adds a context-qualified overload on the existing Model
 [owner](../../glossary.md#term-owner): `ScanBody.describeOrdinary(Operation, List<TensorDescriptor>, int, Optional<DynamicDimension>)`.
-It reuses ordinary [inference](../../glossary.md#term-inference) and the same factored source/deferred symbolic proof with the exact
+It reuses ordinary [inference](../../glossary.md#term-inference-meanings) and the same factored source/deferred symbolic proof with the exact
 declared [symbol](../../glossary.md#term-symbol). The three-[argument](../../glossary.md#term-argument) ordinary [API](../../glossary.md#term-application-programming-interface-api) keeps its deferred semantics. This is descriptor
 proof, not [Compiler](../../glossary.md#term-compiler) inference, ROW provenance, backend [admission](../../glossary.md#term-admission) or a new public type; the
 [Scan owner](recurrent-scan.md#general-ordinary-unit-scan-cutover) defines its semantic obligations.
@@ -142,7 +142,7 @@ The reviewed logical-layout prerequisite adds two [metadata](../../glossary.md#t
 static computed results through the moved ordinary closure and existing family layout helpers;
 the latter preserves the exact generic [materialization](../../glossary.md#materialization) fact also consumed by Compiler symbolic
 [binding](../../glossary.md#term-binding). Specialized [convolution](../../glossary.md#term-channels-first-convolution-layers) completion does not widen that classifier. Neither operation
-changes ordinary construction, performs independent type/Shape inference or grants [PURE](../../glossary.md#term-pure)/[Scan](../../glossary.md#term-cumulative-scan)/
+changes ordinary construction, performs independent type/Shape inference or grants [PURE](../../glossary.md#term-pure)/Scan/
 backend admission. Preserve resolved layouts, exact affine [views](../../glossary.md#term-view-meanings) and unresolved unproved cases.
 No new production type, Tensor/ID allocation or cross-[module](../../glossary.md#term-module) [dependency edge](../../glossary.md#term-dependency-edge) is selected.
 
@@ -328,11 +328,11 @@ and [finite](../../glossary.md#term-finite) test [qualification](../../glossary.
 
 [General scan](../../glossary.md#general-differentiable-scan) composition inherits these same family arithmetic and exact saved-value rules; it
 introduces no numerical selector, alternative [derivative](../../glossary.md#term-derivative) numerics or blanket [dtype](../../glossary.md#data-type--datatype) capability.
-The [scan owner](recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-cumulative-scan); [owner glossary](../../glossary.md#term-owner))</span> defines its
+The [scan owner](recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([owner glossary](../../glossary.md#term-owner))</span> defines its
 bounded algebra and qualification sequence, not a replacement family formula.
 
 The recursive sites for every current first-class composite formula are closed as follows. An
-exact typed attribute or stored input is an exact [leaf](../../glossary.md#term-leaf). A formula-named real [constant](../../glossary.md#term-constant) is rounded
+exact typed attribute or stored input is an exact leaf. A formula-named real [constant](../../glossary.md#term-constant) is rounded
 once to nearest-even [`FLOAT32`](../../glossary.md#term-float32) before its first use and is not an approximation site.
 
 | Formula family | Complete recursive sites |
@@ -362,7 +362,7 @@ its incidental [overflow](../../glossary.md#term-overflow) to turn an otherwise 
 
 The shifted-exponential sum may use compensated accumulation, including Kahan's rounded
 sum/[residual](../../glossary.md#scan-residual-port-and-history-demand) update, as an explicit softmax-family exception to the ordinary rounded-[binary](../../glossary.md#term-binary-descriptor-and-metadata)-tree
-[evaluation](../../glossary.md#term-evaluation) [shape](../../glossary.md#shape). The compensation is [rounding](../../glossary.md#term-rounding)-error state, not an additional slice contributor;
+[evaluation](../../glossary.md#term-evaluation) shape. The compensation is [rounding](../../glossary.md#term-rounding)-error state, not an additional slice contributor;
 each shifted exponential still enters the aggregate exactly once. Compensation arithmetic uses
 the same working dtype and named arithmetic-site permissions. It may not move an exact guard,
 alter contributor membership, or cross a public or saved-value boundary.
@@ -400,7 +400,7 @@ an algebraic rewrite, omitted contributor, or new provider capability.
 The Model-level [FLOAT16](../../glossary.md#term-float16), [BFLOAT16](../../glossary.md#term-bfloat16) and [OFP8](../../glossary.md#term-ofp8) types own value, promotion, cast and factory
 semantics independently of native availability. [CPU](../../glossary.md#term-cpu) low-precision parity is authorized by the
 user; [Metal](../../glossary.md#term-metal) retains its independently qualified BFLOAT16/FLOAT16 domain and rejects [FP8](../../glossary.md#term-fp8).
-This subsection defines allowed results, not an [inference](../../glossary.md#term-inference) of support from another [dtype](../../glossary.md#data-type--datatype) or a
+This subsection defines allowed results, not an [inference](../../glossary.md#term-inference-meanings) of support from another [dtype](../../glossary.md#data-type--datatype) or a
 permission to replace [Compiler](../../glossary.md#term-compiler)-owned [derivatives](../../glossary.md#term-derivative) with vendor [AD](../../glossary.md#autograd).
 
 FLOAT16, BFLOAT16, FLOAT8_E4M3 and FLOAT8_E5M2 are distinct storage types. An [operation](../../glossary.md#operation)
@@ -481,7 +481,7 @@ including empty floating [extrema](../../glossary.md#saturation-pole-and-extremu
 original represented winner; an unrepresentable infinity [identity](../../glossary.md#term-identity-meanings) must not poison that selection.
 [Masks](../../glossary.md#term-boolean-mask), indices, comparison, [RNG state](../../glossary.md#graph-rng-state--graphrngstate) and raw paths do not acquire arithmetic latitude.
 
-Existing [Compiler](../../glossary.md#term-compiler) [AD](../../glossary.md#autograd), [Scan](../../glossary.md#term-cumulative-scan) and fixed recurrent [owners](../../glossary.md#term-owner) are reused with their original rounding
+Existing [Compiler](../../glossary.md#term-compiler) [AD](../../glossary.md#autograd), Scan and fixed recurrent [owners](../../glossary.md#term-owner) are reused with their original rounding
 boundaries. FP8 coefficients for [precision](../../glossary.md#term-precision)-sensitive [normalization](../../glossary.md#term-normalization)/attention metadata may use
 FLOAT32, just as FLOAT16 metadata does. Training uses FLOAT32 masters for all low [parameter](../../glossary.md#term-parameter)
 types and rejects nonfinite represented candidates transactionally. Its [objective](../../glossary.md#term-objective) remains an
@@ -575,12 +575,12 @@ Which concrete kernel, executable, BLAS route, MPSGraph route, or CUDA implement
 
 For a [general scan](../../glossary.md#general-differentiable-scan), Planning selects one owner for the complete body, never mixed-owner body
 partitions. Logical memory planning carries ordinary-use [residual](../../glossary.md#scan-residual-port-and-history-demand) demand, not source [Tensors](../../glossary.md#tensor) or
-an [opaque](../../glossary.md#term-opaque) saved workspace. Complete [scan](../../glossary.md#term-cumulative-scan) semantics remain with the
+an [opaque](../../glossary.md#term-opaque) saved workspace. Complete scan semantics remain with the
 [scan owner](recurrent-scan.md#canonical-residual-ports-and-demand).
 
 Compiler0013 emits length-mode queries with the entire header, ordered row roles and body/demand
 without treating the extra lengths actual as a body formal. Existing transport and [Compiler](../../glossary.md#term-compiler)
-[inference](../../glossary.md#term-inference)/[AD](../../glossary.md#autograd) alone grant no execution capability; providers reject until their complete binder/body is qualified under
+[inference](../../glossary.md#term-inference-meanings)/[AD](../../glossary.md#autograd) alone grant no execution capability; providers reject until their complete binder/body is qualified under
 the [scan owner's gates](recurrent-scan.md#runtime-preflight-and-implementation-gates).
 
 ## Profile-free capability queries
@@ -592,7 +592,7 @@ retains complete [operation](../../glossary.md#operation), attribute, ordered [d
 profile. Its deterministic [boolean](../../glossary.md#data-type--datatype) provider answer cannot be inferred from a family formula,
 another [dtype](../../glossary.md#data-type--datatype), [device](../../glossary.md#term-device) [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters), or the removed selector.
 
-The accepted general-[scan](../../glossary.md#term-cumulative-scan) query extends OperationCapabilityQuery with
+The accepted general-scan query extends OperationCapabilityQuery with
 `Optional<CompiledScanBody>` while retaining the three-[argument](../../glossary.md#term-argument) empty-body construction. [Compiler](../../glossary.md#term-compiler)
 supplies the validated complete scoped body, role/port descriptors and demanded outer-port indices;
 queries remain [Tensor](../../glossary.md#tensor)-free. Propagate and revalidate demand after rewrites through [Prepare](../../glossary.md#prepare).
@@ -601,7 +601,7 @@ The deterministic provider boolean must qualify the header, every body [occurren
 child queries are necessary but insufficient. Missing/malformed bodies or unsupported binders
 reject; [Planning](../../glossary.md#term-planning) forwards semantic facts without interpreting [backend](../../glossary.md#backend) routes or implementing [AD](../../glossary.md#autograd).
 Planning0008 implements the optional-body transport and provider contract tests. Compiler0011
-implements body-bearing query emission, scoped [capture](../../glossary.md#term-capture-meanings)/[inference](../../glossary.md#term-inference) and first-order AD/demand propagation.
+implements body-bearing query emission, scoped [capture](../../glossary.md#term-capture-meanings)/[inference](../../glossary.md#term-inference-meanings) and first-order AD/demand propagation.
 Prepare0010 implements scoped projection and static [binding](../../glossary.md#term-binding)/demand [validation](../../glossary.md#term-validation). CPU0030 adds a
 bounded [FLOAT32](../../glossary.md#term-float32) same-[shape](../../glossary.md#shape) [pointwise](../../glossary.md#term-pointwise) provider predicate; both the forward body and its actual
 Compiler-generated reverse must independently qualify. CPU0031 extends that predicate to
@@ -637,12 +637,12 @@ public record ScanActivityPlan(
 positions are declaration positions, not deduplicated actual [identities](../../glossary.md#term-identity-meanings). Every executable local
 [node](../../glossary.md#node) has a scope; merge keys identify actual local ordinary ADDs. Intrinsic constructor checks
 cover complete membership, root/scope ranges, unique positions, deterministic immutable maps and
-valid local merge [shapes](../../glossary.md#shape). Containing-[occurrence](../../glossary.md#term-occurrence) consumers independently check header/formal/
+valid local merge shapes. Containing-[occurrence](../../glossary.md#term-occurrence) consumers independently check header/formal/
 [binding](../../glossary.md#term-binding) applicability, scopes/[dataflow](../../glossary.md#term-dataflow) and ordinary predicates. No [Tensor](../../glossary.md#tensor), [producer](../../glossary.md#term-producer), numerical
 [cotangent](../../glossary.md#cotangent), derivative formula, address, physical slot or [mutable](../../glossary.md#term-mutable) runtime object is retained.
 The carrier is strictly local: it contains no external presence/length references and does not
 transport activity through ordinary Tensor publications. Root initialization follows the
-[Scan](../../glossary.md#term-cumulative-scan) [owner](../../glossary.md#term-owner)'s materialized-boundary semantics; the selected record [signatures](../../glossary.md#term-signature) remain unchanged.
+Scan [owner](../../glossary.md#term-owner)'s materialized-boundary semantics; the selected record [signatures](../../glossary.md#term-signature) remain unchanged.
 
 [OperationCapabilityQuery](../../glossary.md#operation-capability-query--operationcapabilityquery) becomes `(operation, inputs, outputs, Optional<CompiledScanBody> scanBody,
 Optional<ScanActivityPlan> scanActivityPlan)`. A plan applies only to a body-bearing Scan and

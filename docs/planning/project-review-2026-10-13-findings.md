@@ -8,7 +8,7 @@ acceptance. Findings refer to production baseline `728680eaabc44a485da9f32050914
 source line numbers below are baseline locations and move after repairs unless a later inspected
 revision is explicitly identified.
 
-Six independent review areas covered all 22 [Gradle](../glossary.md#term-gradle) [leaf](../glossary.md#term-leaf) projects, native [Metal](../glossary.md#term-metal)/[CUDA](../glossary.md#term-cuda) sources,
+Six independent review areas covered all 22 [Gradle](../glossary.md#term-gradle) leaf projects, native [Metal](../glossary.md#term-metal)/[CUDA](../glossary.md#term-cuda) sources,
 build wiring and all 23 area master plans. Review combined source tracing, existing focused-test
 inspection, small reproductions, contract comparison and [dependency](../glossary.md#term-dependency)/frontier reconciliation.
 Nontrivial repairs use isolated implementation contexts and independent code/documentation review.
@@ -34,7 +34,7 @@ formal security classification.
 
 All sixteen implementation findings and the test/documentation defects were repaired in ten
 independently reviewed packages. Their integrated [checkpoint](../glossary.md#term-checkpoint) passed. G1 remains open by the
-owner's explicit decision to discuss it after this report; the [vector](../glossary.md#term-vector) [ERF](../glossary.md#term-erf) timing/[shape](../glossary.md#shape) follow-up
+owner's explicit decision to discuss it after this report; the [vector](../glossary.md#term-vector) [ERF](../glossary.md#term-erf) timing/shape follow-up
 also remains Draft. This is review-[scope](../glossary.md#term-scope) closure, not a claim of universal numerical or performance
 closure.
 
@@ -119,7 +119,7 @@ body plus [scalar tail](../glossary.md#term-scalar-tail) over five identical `1e
 [GELU](../glossary.md#gaussian-error-linear-unit--gelu) inherits the tail problem. The reference shared the defect, so agreement with it was weak evidence.
 
 Repair [scope](../glossary.md#term-scope): a mathematically justified [saturation](../glossary.md#term-saturation) [guard](../glossary.md#term-guard) before unsafe [evaluation](../glossary.md#term-evaluation), independent
-special-value tests, consistent body/tail behavior, generated/direct Java [shape](../glossary.md#shape) inspection and
+special-value tests, consistent body/tail behavior, generated/direct Java shape inspection and
 a generated compatibility [identity](../glossary.md#term-identity-meanings) change. Existing NaN/[infinity](../glossary.md#term-infinity)/zero contracts must remain intact.
 
 ### [C2](../glossary.md#term-c2) — [FLOAT16](../glossary.md#term-float16) [softmax](../glossary.md#softmax--log-softmax) is decoded with the wrong [carrier](../glossary.md#term-storage-carrier) width
@@ -139,7 +139,7 @@ Do not claim expanded [infinity](../glossary.md#term-infinity)/[NaN](../glossary
 Locations: `CpuPreparedExecutable.java:1663` and `CpuPreparedPartitionExecutable.java:194`
 under `backends/cpu/src/main/java/.../backend/cpu/internal/`.
 
-The composite [partition](../glossary.md#partition) binds children before executing any of them. A [softmax](../glossary.md#softmax--log-softmax)/[loss](../glossary.md#loss)/[mask](../glossary.md#term-boolean-mask) [scan](../glossary.md#term-cumulative-scan)
+The composite [partition](../glossary.md#partition) binds children before executing any of them. A [softmax](../glossary.md#softmax--log-softmax)/[loss](../glossary.md#loss)/[mask](../glossary.md#term-boolean-mask) scan
 performed during [binding](../glossary.md#term-binding) therefore reads an intermediate [buffer](../glossary.md#term-buffer) before its [producer](../glossary.md#term-producer) has written
 the current [run](../glossary.md#term-run)'s values. `[0,1000].exp().softmax()` returned NaNs while direct `[1,Infinity]`
 softmax correctly rejected the [backend](../glossary.md#backend)'s [finite](../glossary.md#term-finite)-input domain. Reused storage can similarly
@@ -274,7 +274,7 @@ Location: `extensions/nn/build.gradle.kts:2`.
 
 NN exposes [Model](../glossary.md#term-model) [`Tensor`](../glossary.md#tensor), [`Shape`](../glossary.md#shape) and [`DataType`](../glossary.md#data-type--datatype) in public [signatures](../glossary.md#term-signature), but declared the Model
 [dependency](../glossary.md#term-dependency) as `implementation`. A [Gradle](../glossary.md#term-gradle) consumer depending only on NN fails to [compile](../glossary.md#compile) with
-“cannot access Tensor”; adding Model manually [masks](../glossary.md#term-boolean-mask) the [API](../glossary.md#term-application-programming-interface-api) [metadata](../glossary.md#term-metadata) error.
+“cannot access Tensor”; adding Model manually masks the [API](../glossary.md#term-application-programming-interface-api) [metadata](../glossary.md#term-metadata) error.
 
 Repair: use `api` for the already permitted NN→Model edge. An isolated NN-only consumer now
 compiles as part of architecture [validation](../glossary.md#term-validation); the existing Training-only [fixture](../glossary.md#term-fixture) remains separate.
@@ -402,14 +402,14 @@ not interchangeable support totals. CPU support similarly must be queried for th
    quadratically. A valid concern for large index sets, not evidence of a measured regression.<span data-glossary-navigation="true"> ([regression glossary](../glossary.md#term-regression))</span>
 4. **Static recurrent expansion:** bidirectional sequence alignment can construct work
    proportional to sequence length times squared batch size. Runtime scan adoption is already
-   a separate backend-dependent program; this audit does not silently replace it.<span data-glossary-navigation="true"> ([alignment glossary](../glossary.md#term-alignment); [batch glossary](../glossary.md#term-batch-machine-learning-and-hyperparameters); [Runtime glossary](../glossary.md#term-runtime); [scan glossary](../glossary.md#term-cumulative-scan))</span>
+   a separate backend-dependent program; this audit does not silently replace it.<span data-glossary-navigation="true"> ([alignment glossary](../glossary.md#term-alignment); [batch glossary](../glossary.md#term-batch-machine-learning-and-hyperparameters); [Runtime glossary](../glossary.md#term-runtime))</span>
 5. **Large implementation [owners](../glossary.md#term-owner):** CPU prepared execution and native Metal remain large,
    multi-branch files. Extract responsibilities only at a demonstrated seam with focused tests;
    avoid a broad cosmetic rewrite during correctness repair.<span data-glossary-navigation="true"> ([prepared execution glossary](../glossary.md#prepared-execution--preparedexecution); [Metal glossary](../glossary.md#term-metal))</span>
 6. **Platform confidence:** actual Apple-device tests and source/package authentication do not
    prove other GPU/OS behavior. Optional BF16 OpenBLAS remains blocked on ABI/full-accumulation
    semantics; that does not block current FLOAT32/FLOAT64 routes.<span data-glossary-navigation="true"> ([device glossary](../glossary.md#term-device); [authentication glossary](../glossary.md#term-authentication); [GPU glossary](../glossary.md#term-gpu); [BF16 glossary](../glossary.md#floating-point-precision-and-rounding); [OpenBLAS glossary](../glossary.md#term-openblas); [ABI glossary](../glossary.md#term-application-binary-interface-abi); [FLOAT64 glossary](../glossary.md#term-float64))</span>
-7. **[Vector](../glossary.md#term-vector) [ERF](../glossary.md#term-erf) [shape](../glossary.md#shape)/performance:** CPU 0022's bounded diagnostic recorded about 3.28× FLOAT32
+7. **[Vector](../glossary.md#term-vector) [ERF](../glossary.md#term-erf) shape/performance:** CPU 0022's bounded diagnostic recorded about 3.28× FLOAT32
    and 3.51× FLOAT64 generated/direct time. Both are vector implementations of the same numerical
    algorithm, with 4,097 elements, one tail, one process, 3,000 warm-up pairs and seven measured
    pairs. Production retains preexisting helper calls and coefficient loops; the direct Java
@@ -553,5 +553,5 @@ timings or certify every generated form. The original three user-side local [com
 Changes are local commits; no push is part of this review request.
 
 Status: Complete — review and bounded repairs.
-Open follow-up: [Model](../glossary.md#term-model) 0033's [owner](../glossary.md#term-owner)-deferred numerical decision, [CPU](../glossary.md#term-cpu) 0023 Draft [shape](../glossary.md#shape)/performance
+Open follow-up: [Model](../glossary.md#term-model) 0033's [owner](../glossary.md#term-owner)-deferred numerical decision, [CPU](../glossary.md#term-cpu) 0023 Draft shape/performance
 work and the explicitly listed architecture/product/coverage risks remain outside repaired [scope](../glossary.md#term-scope).

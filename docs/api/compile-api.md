@@ -26,10 +26,10 @@ This reference now lives in topic-sized [canonical](../glossary.md#term-canonica
 - [Current cold source capture and reconstruction](../reference/compiler/cold-source.md#current-cold-source-capture-and-reconstruction)
 
 <a id="current-package-private-verification-inference"></a>
-- [Current package-private verification inference](../reference/compiler/verification-scan.md#current-package-private-verification-inference)<span data-glossary-navigation="true"> ([inference glossary](../glossary.md#term-inference))</span>
+- [Current package-private verification inference](../reference/compiler/verification-scan.md#current-package-private-verification-inference)<span data-glossary-navigation="true"> ([inference glossary](../glossary.md#term-inference-meanings))</span>
 
 <a id="current-scoped-scan-capture-and-first-order-ad"></a>
-- [Current scoped scan capture and first-order AD](../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad)<span data-glossary-navigation="true"> ([capture glossary](../glossary.md#term-capture-meanings))</span><span data-glossary-navigation="true"> ([scan glossary](../glossary.md#term-cumulative-scan); [AD glossary](../glossary.md#autograd))</span>
+- [Current scoped scan capture and first-order AD](../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad)<span data-glossary-navigation="true"> ([capture glossary](../glossary.md#term-capture-meanings))</span><span data-glossary-navigation="true"> ([AD glossary](../glossary.md#autograd))</span>
 
 <a id="current-package-private-canonicalization-and-whole-graph-optimization"></a>
 - [Current package-private canonicalization and whole-graph optimization](../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization)<span data-glossary-navigation="true"> ([canonicalization glossary](../glossary.md#occurrence-identity-and-canonical-form); [graph optimization glossary](../glossary.md#forward-graph-optimization))</span>

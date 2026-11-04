@@ -26,7 +26,7 @@ This reference now lives in topic-sized [canonical](../glossary.md#term-canonica
 - [Validation failures and borrowing](../reference/data/sequences.md#validation-failures-and-borrowing)<span data-glossary-navigation="true"> ([Validation glossary](../glossary.md#term-validation); [borrowing glossary](../glossary.md#term-borrowing))</span>
 
 <a id="explicit-runtime-scan-lengths"></a>
-- [Explicit runtime scan lengths](../reference/data/sequences.md#explicit-runtime-scan-lengths)<span data-glossary-navigation="true"> ([runtime glossary](../glossary.md#term-runtime); [scan glossary](../glossary.md#term-cumulative-scan))</span>
+- [Explicit runtime scan lengths](../reference/data/sequences.md#explicit-runtime-scan-lengths)<span data-glossary-navigation="true"> ([runtime glossary](../glossary.md#term-runtime))</span>
 
 <a id="complete-numeric-inference-example"></a>
 - [Complete numeric inference example](../reference/data/sequences.md#complete-numeric-inference-example)<span data-glossary-navigation="true"> ([inference glossary](../glossary.md#term-inference))</span>

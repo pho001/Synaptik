@@ -18,9 +18,9 @@ defects, and leave a coherent [dependency](../glossary.md#term-dependency) map w
 ## [Scope](../glossary.md#term-scope)
 
 - Review correctness, state/lifecycle, numerical boundaries, generated-code shape, native safety,
-  capability truthfulness, test coverage, build/CI, and active-plan consistency.<span data-glossary-navigation="true"> ([lifecycle glossary](../glossary.md#lifecycle); [shape glossary](../glossary.md#shape); [CI glossary](../glossary.md#term-continuous-integration-ci))</span>
+  capability truthfulness, test coverage, build/CI, and active-plan consistency.<span data-glossary-navigation="true"> ([lifecycle glossary](../glossary.md#lifecycle); [CI glossary](../glossary.md#term-continuous-integration-ci))</span>
 - Inventory every production module. Trace risky paths in depth and state coverage limitations;
-  a passing suite or a sampled audit is not a proof that every source line is correct.<span data-glossary-navigation="true"> ([module glossary](../glossary.md#term-module); [Trace glossary](../glossary.md#trace))</span>
+  a passing suite or a sampled audit is not a proof that every source line is correct.<span data-glossary-navigation="true"> ([module glossary](../glossary.md#term-module))</span>
 - Preserve completed task records. Reconcile current frontiers, contradictory status, stale
   prerequisites, and duplicated historical roadmap prose using current source as evidence.
 - Implement confirmed fixes under existing contracts; architectural choices remain explicit
@@ -34,7 +34,7 @@ Only the listed scoped headings relevant to their assigned paths are required:
 
 | Review area | Code and plan [scope](../glossary.md#term-scope) | Owning scoped headings |
 |---|---|---|
-| A | [Model](../glossary.md#term-model), [Compiler](../glossary.md#term-compiler), [Planning](../glossary.md#term-planning) | `foundational-modules.md`: Model, [profile-free numerical semantics](../glossary.md#profile-free-numerical-semantics), Planning, capability queries; `compiler-autograd.md`: all headings; `recurrent-scan.md`: fixed recurrent [scan](../glossary.md#term-cumulative-scan) |
+| A | [Model](../glossary.md#term-model), [Compiler](../glossary.md#term-compiler), [Planning](../glossary.md#term-planning) | `foundational-modules.md`: Model, [profile-free numerical semantics](../glossary.md#profile-free-numerical-semantics), Planning, capability queries; `compiler-autograd.md`: all headings; `recurrent-scan.md`: fixed recurrent scan |
 | B | [Runtime](../glossary.md#term-runtime), [Prepare](../glossary.md#prepare), [Engine](../glossary.md#term-engine) | `runtime-prepare-engine.md`: all [lifecycle](../glossary.md#lifecycle) and [module](../glossary.md#term-module) headings |
 | C | [CPU](../glossary.md#term-cpu) and [OpenBLAS](../glossary.md#term-openblas) provider | `backend-execution.md`: concrete [backends](../glossary.md#backend), CPU routes, OpenBLAS, profile-free capability/[identity](../glossary.md#term-identity-meanings) |
 | D | [Metal](../glossary.md#term-metal), [CUDA](../glossary.md#term-cuda), native | `backend-execution.md`: concrete backends, low [precision](../glossary.md#term-precision), Metal, profile-free capability/identity |
@@ -83,7 +83,7 @@ independent of their author. No architecture rule changes are authorized merely 
 
 ## Result
 
-Completed the risk-focused review of all 22 [Gradle](../glossary.md#term-gradle) [leaf](../glossary.md#term-leaf) projects, native sources and 23 area
+Completed the risk-focused review of all 22 [Gradle](../glossary.md#term-gradle) leaf projects, native sources and 23 area
 master plans. The [detailed finding/repair report](project-review-2026-10-13-findings.md) records
 six P1 and ten P2 implementation findings, all repaired through ten independently reviewed
 packages, plus test/documentation repairs, area inventory, evidence and coverage limitations.
@@ -98,7 +98,7 @@ or push was performed. Existing user [commits](../glossary.md#commit-release-dis
 Plans now distinguish delivered capability from markers, missing [modules](../glossary.md#term-module), architecture decisions,
 historical failed probes and actual current gates. Model 0033 remains Draft/open because the [owner](../glossary.md#term-owner)
 explicitly deferred the [softmax](../glossary.md#softmax--log-softmax) decision until after the final report. CPU 0023 records the bounded
-[vector](../glossary.md#term-vector) [ERF](../glossary.md#term-erf) [shape](../glossary.md#shape)/timing gap without claiming its cause or performance parity. Training 0003A and
+[vector](../glossary.md#term-vector) [ERF](../glossary.md#term-erf) shape/timing gap without claiming its cause or performance parity. Training 0003A and
 Checkpoint/Data decisions remain proposals, not newly authorized implementation work.
 
 Independent code/documentation reviews approved every repair; independent [planning](../glossary.md#term-planning) review approved

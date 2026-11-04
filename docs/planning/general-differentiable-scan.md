@@ -34,7 +34,7 @@ and the named compatibility [checkpoint](../glossary.md#term-checkpoint).
 accepted by main 2026-10-22 after final independent Feynman APPROVE and exact compatibility gates,
 for tested body-bearing capability transport only.
 [Compiler0011](modules/compiler/tasks/0011-general-scan-capture-and-first-order-ad.md) is Complete:
-scoped capture/[inference](../glossary.md#term-inference), joint first-order AD and final body queries/demand, accepted by main
+scoped capture/[inference](../glossary.md#term-inference-meanings), joint first-order AD and final body queries/demand, accepted by main
 2026-10-22 after independent Class C code/docs APPROVE and compatibility checkpoint.
 [Prepare0010](modules/prepare/tasks/0010-general-scan-projection-and-resource-handoff.md) is Complete:
 exact scoped body/roles/demand [validation](../glossary.md#term-validation) and resource [handoff](../glossary.md#term-handoff), accepted by main 2026-10-22 after
@@ -121,7 +121,7 @@ step storage geometry. Actual bindings may repeat exact identities across roles;
 positions. Body [leaves](../glossary.md#term-leaf) must equal the declared formal set by identity, except unused formals are
 allowed; hidden [scalar](../glossary.md#term-scalar) Tensor [constants](../glossary.md#term-constant) must become explicit invariants (scalar [operation](../glossary.md#operation) attrs remain
 ordinary algebra). Reject free leaves, [host](../glossary.md#term-host)-backed constants, [RNG](../glossary.md#graph-rng-state--graphrngstate), mutation and nested/recursive bodies.
-The same immutable ScanBody template and its [producers](../glossary.md#term-producer) may serve multiple [scan](../glossary.md#term-cumulative-scan) occurrences, each
+The same immutable ScanBody template and its [producers](../glossary.md#term-producer) may serve multiple scan occurrences, each
 captured independently. Reject [producer](../glossary.md#term-producer) escape into the outer [graph](../glossary.md#graph) or sharing across DIFFERENT
 lexical templates, not reuse of one template.
 No outer [ValueId](../glossary.md#logical-valueid-versus-physical-memory-slot) appears inside a body. [Capture](../glossary.md#term-capture-meanings) assigns IDs once per [scope](../glossary.md#term-scope); numeric IDs may coincide
@@ -199,7 +199,7 @@ allocated history; ordinary users write body algebra and do not manually select 
 
 Accepted `compiler.ScanBodyInference` independently validates scoped [descriptors](../glossary.md#term-descriptor)/roles. Residual
 ports preserve true [gradient](../glossary.md#term-gradient) eligibility; reject differentiation rooted at residual ports, unsupported
-body rules and every [scan](../glossary.md#term-cumulative-scan) higher-order/createGraph request before [derivative](../glossary.md#term-derivative) allocations, including
+body rules and every scan higher-order/createGraph request before [derivative](../glossary.md#term-derivative) allocations, including
 unsupported occurrences on otherwise unrelated original branches. Initial first-order support does
 not admit fixed [RNN](../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../glossary.md#term-long-short-term-memory-lstm) to [BPTT](../glossary.md#term-backpropagation-through-time-bptt). Missing output [seeds](../glossary.md#commit-release-distribution-log-and-seed-meanings) use explicit typed zeros, both [carry](../glossary.md#term-carry) and
 sequence seeds may coexist. T=0 executes no body: empty emissions/residuals, exact initial final
@@ -243,7 +243,7 @@ state. No new [Engine](../glossary.md#term-engine)/Runtime owner or runtime tape
 Future CPU brief names every added type; no speculative generic control-flow infrastructure.
 Direct static helpers are allowed when technically needed with clean Java [oracle](../glossary.md#term-test-oracle) rationale, not a
 one-giant-method mandate or hidden fallback overhead. Generic no-copy/[JIT](../glossary.md#term-just-in-time-compilation-jit)/performance parity is unproved.
-CpuKernelIr [identity](../glossary.md#term-identity-meanings) excludes extents/slots/[run](../glossary.md#term-run) bindings: distinguish baked/runtime [scan](../glossary.md#term-cumulative-scan) facts and
+CpuKernelIr [identity](../glossary.md#term-identity-meanings) excludes extents/slots/[run](../glossary.md#term-run) bindings: distinguish baked/runtime scan facts and
 key every baked fact (including body/roles/saved-port demand); reject stale format/meaning [artifacts](../glossary.md#term-artifact).
 CPU0030 implements the bounded [F32](../glossary.md#floating-point-precision-and-rounding) pointwise family at global/family identity 71; no broader type support follows.
 
@@ -286,14 +286,14 @@ Class C APPROVE, zero open P1/P2, and MAIN acceptance on 2026-10-24.
 is Complete, MAIN-accepted 2026-10-24 after independent Class C/[API](../glossary.md#term-application-programming-interface-api)/docs APPROVE, zero open P1/P2,
 and combined [compile](../glossary.md#compile)/architecture/root retry PASS after a test-only ledger repair. Model frontier None;
 Compiler0013 below is Complete, MAIN accepted 2026-10-24. The
-[sole scan owner](../architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan)<span data-glossary-navigation="true"> ([scan glossary](../glossary.md#term-cumulative-scan))</span> defines
+[sole scan owner](../architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan) defines
 accepted future semantics; [ADR0049](../design/decisions/0049-length-aware-general-scan.md) records
 the decision. Model0038 implements source header/API/roles/attachments and explicit old-[owner](../glossary.md#term-owner)
 rejection only, not length-mode compile/[AD](../glossary.md#autograd)/[runtime](../glossary.md#term-runtime)/cold/wire capability. Beyond the immediate
 [Compiler](../glossary.md#term-compiler) packet below, owner phases remain separately gated coarse dependencies, not a task cascade.
 The immediate successor is [Compiler0013](modules/compiler/tasks/0013-length-aware-scan-capture-and-first-order-ad.md),
 launched after Popper final APPROVE (0 P1/P2) and MAIN [dependency](../glossary.md#term-dependency)/Ready acceptance 2026-10-24. Complete
-Model0037/0038 + Compiler0011 + Planning0008 feed this existing-owner [inference](../glossary.md#term-inference)/first-order
+Model0037/0038 + Compiler0011 + Planning0008 feed this existing-owner [inference](../glossary.md#term-inference-meanings)/first-order
 AD/query/demand [scope](../glossary.md#term-scope). No new type/layer; user “ok, pokracuj dal” authorizes this implementation.
 MAIN recorded [admission](../glossary.md#term-admission) before executor launch: ImplementationAuthorized=true. Implementation is
 now frozen; independent code/docs APPROVE (0 P1/P2), worker [module](../glossary.md#term-module), MAIN compatibility and final
@@ -352,7 +352,7 @@ independent code/docs APPROVE and compatibility checkpoint; Compiler0012 Complet
 | Model0034 decision/cutover | Complete declared baseline + user-approved concrete proposal | Complete: authority/explanations/[ADR](../glossary.md#term-architecture-decision-record-adr), final independent Class C APPROVE and main acceptance on 2026-10-21; no Java. |
 | [Model0035 source/IR](modules/model/tasks/0035-general-scan-source-and-compiled-body.md) | Model0034 Complete; Ready verification 2026-10-22 | Complete: bounded source/IR foundation accepted by main 2026-10-22 after independent authority/code/docs approval and compatibility checkpoint; no downstream execution. |
 | [Planning0008 query](modules/planning/tasks/0008-general-scan-body-capability-query.md) | Planning0001–0007 + Model0034/0035 Complete | Complete: optional compiled-body transport, old-query compatibility and [fail-closed](../glossary.md#term-fail-closed) contract tests; final independent APPROVE and main compatibility gates accepted 2026-10-22; no real [backend](../glossary.md#backend) support/execution. |
-| [Compiler0011 AD/capture](modules/compiler/tasks/0011-general-scan-capture-and-first-order-ad.md) | Model0034/0035 + Planning0008 Complete; existing [Compiler](../glossary.md#term-compiler) baseline | Complete: scoped [capture](../glossary.md#term-capture-meanings)/[inference](../glossary.md#term-inference), joint first-order [AD](../glossary.md#autograd) and final body queries/demand; main acceptance 2026-10-22 after independent code/docs APPROVE and compatibility checkpoint. |
+| [Compiler0011 AD/capture](modules/compiler/tasks/0011-general-scan-capture-and-first-order-ad.md) | Model0034/0035 + Planning0008 Complete; existing [Compiler](../glossary.md#term-compiler) baseline | Complete: scoped [capture](../glossary.md#term-capture-meanings)/[inference](../glossary.md#term-inference-meanings), joint first-order [AD](../glossary.md#autograd) and final body queries/demand; main acceptance 2026-10-22 after independent code/docs APPROVE and compatibility checkpoint. |
 | [Prepare0010 projection](modules/prepare/tasks/0010-general-scan-projection-and-resource-handoff.md) | Prepare0001–0009/0003A + Model0034/0035 + Planning0008 + Compiler0011 Complete | Complete: exact scoped body/roles/demand [validation](../glossary.md#term-validation) and existing resource [handoff](../glossary.md#term-handoff); Huygens final Class C code/docs APPROVE and main exact compatibility checkpoint accepted 2026-10-22; no new type or real execution. |
 | [CPU0030 vertical milestone](backends/cpu/tasks/0030-general-scan-f32-pointwise-vertical.md) | Model0034/0035 + Planning0008 + Compiler0011 + Prepare0010; CPU0022/0027/0028/0029 Complete | Complete: bounded [F32](../glossary.md#floating-point-precision-and-rounding) [pointwise](../glossary.md#term-pointwise) forward/actual automatic reverse, accepted by main 2026-10-22 after independent review and focused checkpoint PASS. |
 | [CPU0031 F32 broadcast/SUM/layout closure](backends/cpu/tasks/0031-general-scan-f32-broadcast-sum-layout-closure.md#result) | CPU0030 and accepted predecessor baseline Complete | Complete: main accepted 2026-10-22, 14:38+ UTC after final independent code/docs APPROVE (0 P1/P2), module and named checkpoint PASS. |
@@ -363,7 +363,7 @@ independent code/docs APPROVE and compatibility checkpoint; Compiler0012 Complet
 | [Compiler0012 cold reconstruction](modules/compiler/tasks/0012-general-scan-cold-source-reconstruction.md#result)<span data-glossary-navigation="true"> ([cold reconstruction glossary](../glossary.md#term-cold-reconstruction))</span> | Approved NN0030 + Complete Compiler0011/foundation | Complete: bounded cold body reconstruction, independent code/docs APPROVE and main final gates accepted 2026-10-23; Checkpoint/NN still fail-closed. |
 | [CP0012 in-memory copy/rebind](extensions/checkpoint/tasks/0012-general-scan-in-memory-copy-and-rebind.md#result)<span data-glossary-navigation="true"> ([rebind glossary](../glossary.md#capture-graph-ports-and-reconstruction))</span> | NN0030; Compiler0012; accepted cold/low-level baseline Complete | Complete: attachments and independent body IDs preserved, wires closed, independent review/scoped gates accepted; unrestricted root not green. |
 | [NN0031 owned workflow](extensions/nn/tasks/0031-general-scan-owned-model-workflow.md#result) | NN0030; Compiler0012; CP0012; accepted CPU domain/low-level join and owned Model/[Engine](../glossary.md#term-engine)/Training baseline Complete | Complete: bounded owned [graph](../glossary.md#graph)/defineTensor compute/first-order train, clean implementation, independent Class C review and final module/Javadoc passed. |
-| Owned-workflow program join | NN0031 reviewed/documented and final NN module gate | Complete: main's single configured native-enabled root PASS, both [scan](../glossary.md#term-cumulative-scan) performance flags false, required Metal [TrainingSession](../glossary.md#training-session--trainingsession)/native cases unskipped/pass; no native builds/gating fixes. Evidence in NN0031 Result. |
+| Owned-workflow program join | NN0031 reviewed/documented and final NN module gate | Complete: main's single configured native-enabled root PASS, both scan performance flags false, required Metal [TrainingSession](../glossary.md#training-session--trainingsession)/native cases unskipped/pass; no native builds/gating fixes. Evidence in NN0031 Result. |
 | [CP0013 general-body persistence](extensions/checkpoint/tasks/0013-general-scan-graph-persistence-decision.md#result) | Compiler0012; CP0010/0011/0012; NN0031/CPU0030–0036/joins Complete; proposal/authority accepted | Complete: selective v4/scoped cold bodies and loaded consumer proof, final Cicero APPROVE and main module/Javadoc/consumer/architecture/configured-root PASS. No successor. |
 | [CPU0037 dense actual read views](backends/cpu/tasks/0037-general-scan-dense-read-views.md#result) | CPU0036 and accepted foundation/low-level join Complete | Complete; main accepted Newton final APPROVE and CPU/Javadoc, named and configured-root gates on 2026-10-24. CPU0036 limits retained; no NN migration. |
 | [Model0037 length-aware authority](modules/model/tasks/0037-length-aware-general-scan-authority.md) | Model0036 Complete + subsequent user design approval | Complete authority only; Hume final overall Class C APPROVE, zero open P1/P2; MAIN accepted 2026-10-24. |

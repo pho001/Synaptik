@@ -17,7 +17,7 @@ This reference now lives in topic-sized [canonical](../glossary.md#term-canonica
 - [Inputs, outputs and identity](../reference/checkpoint/graph.md#inputs-outputs-and-identity)<span data-glossary-navigation="true"> ([identity glossary](../glossary.md#term-identity-meanings))</span>
 
 <a id="general-scan-in-memory-copy-and-rebind"></a>
-- [General-scan in-memory copy and rebind](../reference/checkpoint/graph.md#general-scan-in-memory-copy-and-rebind)<span data-glossary-navigation="true"> ([scan glossary](../glossary.md#term-cumulative-scan); [rebind glossary](../glossary.md#capture-graph-ports-and-reconstruction))</span>
+- [General-scan in-memory copy and rebind](../reference/checkpoint/graph.md#general-scan-in-memory-copy-and-rebind)<span data-glossary-navigation="true"> ([rebind glossary](../glossary.md#capture-graph-ports-and-reconstruction))</span>
 
 <a id="fp8-graph-persistence"></a>
 - [FP8 graph persistence](../reference/checkpoint/graph-formats.md#fp8-graph-persistence)<span data-glossary-navigation="true"> ([FP8 glossary](../glossary.md#term-fp8); [persistence glossary](../glossary.md#term-persistence))</span>

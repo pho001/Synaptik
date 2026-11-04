@@ -22,7 +22,7 @@ Read `AGENTS.md`, documentation general style and the matching user-guide/archit
 
 - docs/architecture/contracts/[backend](../../../glossary.md#backend)-execution.md: Metal backend
 - docs/architecture/contracts/[runtime](../../../glossary.md#term-runtime)-[prepare](../../../glossary.md#prepare)-[engine](../../../glossary.md#term-engine).md: Prepare [lifecycle](../../../glossary.md#lifecycle); [Run](../../../glossary.md#term-run) lifecycle
-- docs/architecture/contracts/recurrent-[scan](../../../glossary.md#term-cumulative-scan).md: [General differentiable scan](../../../glossary.md#general-differentiable-scan)
+- docs/architecture/contracts/recurrent-scan.md: [General differentiable scan](../../../glossary.md#general-differentiable-scan)
 
 ## Shared interfaces
 

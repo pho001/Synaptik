@@ -131,8 +131,8 @@ An executor works toward a complete result. On a contract ambiguity, architectur
 
 ## Progressive [planning](../glossary.md#term-planning) and ordering
 
-Create master plans early enough to make [ownership](../glossary.md#term-ownership-meanings) and sequencing visible. [Model](../glossary.md#term-model) unfinished work
-as an explicit [dependency](../glossary.md#term-dependency) [directed acyclic graph](../glossary.md#term-directed-acyclic-graph-dag) ([DAG](../glossary.md#intermediate-representation-dag-and-ssa)). [Prepare](../glossary.md#prepare) detailed briefs for authorized
+Create master plans early enough to make [ownership](../glossary.md#term-ownership-meanings) and sequencing visible. Model unfinished work
+as an explicit [dependency](../glossary.md#term-dependency) [directed acyclic graph](../glossary.md#term-directed-acyclic-graph-dag) ([DAG](../glossary.md#intermediate-representation-dag-and-ssa)). Prepare detailed briefs for authorized
 frontiers and, when their contracts and dependencies are stable, immediate successors. Do not
 speculate farther ahead.
 
@@ -190,7 +190,7 @@ an independent rerun.
 
 Each worker runs focused tests during development and one final affected-[module](../glossary.md#term-module) [run](../glossary.md#term-run) after
 executable code stabilizes. It validates its owned documentation after final edits. Add reflection,
-[bytecode](../glossary.md#term-bytecode), [ABI](../glossary.md#term-application-binary-interface-abi), import, manual [API](../glossary.md#term-application-programming-interface-api)-[shape](../glossary.md#shape), or performance checks only for a named risk not covered by
+[bytecode](../glossary.md#term-bytecode), [ABI](../glossary.md#term-application-binary-interface-abi), import, manual [API](../glossary.md#term-application-programming-interface-api)-shape, or performance checks only for a named risk not covered by
 ordinary [compilation](../glossary.md#compiler-engine-and-execution-stage-names) and tests.
 
 ### Integration [checkpoint](../glossary.md#term-checkpoint)
@@ -226,7 +226,7 @@ acceptance where applicable.
 
 A master plan is a concise [dependency](../glossary.md#term-dependency) map, not a duplicate task archive. Keep current [ownership](../glossary.md#term-ownership-meanings),
 package direction, [DAG](../glossary.md#term-directed-acyclic-graph-dag) edges, authorized frontiers, integration [metadata](../glossary.md#term-metadata), milestones, and risks
-visible. Completed rows [carry](../glossary.md#term-carry) a one-line result summary and link to the task; evidence stays in the
+visible. Completed rows carry a one-line result summary and link to the task; evidence stays in the
 task brief.
 
 ~~~markdown
@@ -378,7 +378,7 @@ The task brief is the single home for compact result evidence. Record the exact 
 outcome, important test counts or skips when meaningful, and limitations. Detailed [logs](../glossary.md#commit-release-distribution-log-and-seed-meanings) belong in
 [CI](../glossary.md#term-continuous-integration-ci) or tool [artifacts](../glossary.md#term-artifact). Do not paste full build logs.
 
-Master plans and the roadmap [carry](../glossary.md#term-carry) status, a one-line result, and links. They do not duplicate
+Master plans and the roadmap carry status, a one-line result, and links. They do not duplicate
 task narratives, context IDs, command transcripts, or completion evidence.
 
 ## Follow-up and architecture impact

@@ -21,7 +21,7 @@ Exclusive writes: `docs/explanation/packages/model.md`. Exactly the 28 [modules]
 Read `AGENTS.md`, documentation general style and the matching user-guide/architecture/[API](../../../glossary.md#term-application-programming-interface-api) profile, example-format where relevant. Root `ARCHITECTURE.md` scope index and exact relevant headings:
 
 - docs/architecture/contracts/foundational-modules.md: modules/model; [Profile-free numerical semantics](../../../glossary.md#profile-free-numerical-semantics)
-- docs/architecture/contracts/recurrent-[scan](../../../glossary.md#term-cumulative-scan).md: Fixed recurrent scan without graph regions; [General differentiable scan](../../../glossary.md#general-differentiable-scan)
+- docs/architecture/contracts/recurrent-scan.md: Fixed recurrent scan without graph regions; [General differentiable scan](../../../glossary.md#general-differentiable-scan)
 
 ## Shared interfaces
 

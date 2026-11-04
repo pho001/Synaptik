@@ -187,7 +187,7 @@ completed task specifications remain historical records, need no retrospective r
 not current authority.
 
 Master plans are explicit [dependency](docs/glossary.md#term-dependency) directed acyclic [graphs](docs/glossary.md#graph) (DAGs). Each independent workstream
-may expose one [authorized frontier](docs/glossary.md#term-authorized-frontier), so planners may [prepare](docs/glossary.md#prepare) and [run](docs/glossary.md#term-run) multiple [`Ready`](docs/glossary.md#term-ready) tasks when
+may expose one [authorized frontier](docs/glossary.md#term-authorized-frontier), so planners may prepare and run multiple [`Ready`](docs/glossary.md#term-ready) tasks when
 their dependencies are satisfied. Every such task records `Depends on`, `Conflicts with`,
 `Parallel group`, `Common base revision`, `Integration order`, `Integration validation`, and
 `Shared-document integration owner` [metadata](docs/glossary.md#term-metadata). Parallel work requires a stable common contract and
@@ -239,7 +239,7 @@ Treat performance as a design priority, especially on [runtime](docs/glossary.md
 
 Avoid unnecessary allocation, boxing, reflection, string [dispatch](docs/glossary.md#term-dispatch), map [lookup](docs/glossary.md#term-lookup), [synchronization](docs/glossary.md#term-synchronization), and virtual indirection in hot paths. Do not obscure code for speculative optimization; document necessary optimizations that reduce readability and add tests or benchmarks when appropriate.
 
-For every generated-code implementation, use a well-written, optimal clean Java implementation of the same specialized case as the design and review [oracle](docs/glossary.md#term-test-oracle). Directly generated [bytecode](docs/glossary.md#term-bytecode) must preserve that reference's semantic algorithm, hot-loop and [dataflow](docs/glossary.md#term-dataflow) [shape](docs/glossary.md#shape), and avoidable-overhead profile. This does not require generating Java source and invoking `javac`, literal byte-for-byte Class-File [identity](docs/glossary.md#term-identity-meanings), or guaranteed identical just-in-time [compiler](docs/glossary.md#term-compiler) assembly. Any deviation requires an explicit technical reason and supporting evidence.
+For every generated-code implementation, use a well-written, optimal clean Java implementation of the same specialized case as the design and review [oracle](docs/glossary.md#term-test-oracle). Directly generated [bytecode](docs/glossary.md#term-bytecode) must preserve that reference's semantic algorithm, hot-loop and [dataflow](docs/glossary.md#term-dataflow) shape, and avoidable-overhead profile. This does not require generating Java source and invoking `javac`, literal byte-for-byte Class-File [identity](docs/glossary.md#term-identity-meanings), or guaranteed identical just-in-time [compiler](docs/glossary.md#term-compiler) assembly. Any deviation requires an explicit technical reason and supporting evidence.
 
 Validate generated code proportionately with semantic tests, generated Class-File or [decompilation](docs/glossary.md#term-decompilation) inspection, checks for hidden helper calls and avoidable allocation, boxing, reflection, or dispatch, and generated-versus-direct performance evidence for hot paths. A safe generic fallback may remain when [specialization](docs/glossary.md#term-specialization) cannot be proved, but a proved specialized [hot path](docs/glossary.md#term-hot-path) must not silently inherit the fallback's avoidable overhead.
 

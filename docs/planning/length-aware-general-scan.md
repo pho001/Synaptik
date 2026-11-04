@@ -36,7 +36,7 @@ waiver, later [owner](../glossary.md#term-owner) execution, [commit](../glossary
 After the accepted [planning](../glossary.md#term-planning) review, user “ok, pokracuj dal” authorizes only
 [Compiler0013 implementation](modules/compiler/tasks/0013-length-aware-scan-capture-and-first-order-ad.md).
 MAIN recorded launch [admission](../glossary.md#term-admission) 2026-10-24 after Popper final APPROVE (0 P1/P2).
-The frozen implementation delivers [inference](../glossary.md#term-inference), existing first-order protocol extensions and final
+The frozen implementation delivers [inference](../glossary.md#term-inference-meanings), existing first-order protocol extensions and final
 role/demand queries. Independent code/docs APPROVE (0 P1/P2), worker [module](../glossary.md#term-module), MAIN compatibility
 and final docs/[Javadoc](../glossary.md#term-javadoc) PASS; MAIN accepted Complete 2026-10-24.
 At that Compiler0013 [checkpoint](../glossary.md#term-checkpoint), cold [capture](../glossary.md#term-capture-meanings)/reconstruction, [CPU](../glossary.md#term-cpu) and [codec](../glossary.md#term-codec) support remained closed;
@@ -90,7 +90,7 @@ CPU loop → existing Checkpoint and owned NN workflows. No module edge or execu
 
 ## Proposed symbolic-B plus lengths integration
 
-Active frontier: None. [Prepare0015 symbolic-length Scan CPU vertical](modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result)<span data-glossary-navigation="true"> ([Scan glossary](../glossary.md#term-cumulative-scan))</span>
+Active frontier: None. [Prepare0015 symbolic-length Scan CPU vertical](modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result)
 is Complete, MAIN accepted 2026-10-27 after independent code/docs APPROVE (0 P1/P2), owning [validation](../glossary.md#term-validation),
 the sole bounded probe and configured root test/[Javadoc](../glossary.md#term-javadoc) PASS. Complete Model0044/Compiler0015 and
 retained [Prepare](../glossary.md#prepare)/[CPU](../glossary.md#term-cpu)/[lifecycle](../glossary.md#lifecycle) predecessors feed the delivered [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) capability, including bounded
@@ -106,7 +106,7 @@ That design delivery itself approved none of these capabilities. Subsequent user
 delivered Model0044's static/one-B source foundation, including coordinated source wording
 before Java and explicit downstream rejection. Model0044 source is Complete after independent
 source/docs review, configured root test/Javadoc PASS and MAIN acceptance on 2026-10-26.
-The separately approved Compiler0015 implements [inference](../glossary.md#term-inference)/actual [AD](../glossary.md#autograd)/all-port [binding](../glossary.md#term-binding) and is
+The separately approved Compiler0015 implements [inference](../glossary.md#term-inference-meanings)/actual [AD](../glossary.md#autograd)/all-port [binding](../glossary.md#term-binding) and is
 Complete after MAIN acceptance. Prepare0015 now implements the bounded real Prepare/CPU/Engine path
 under the accepted pre-Java gate above; MAIN accepted the completed vertical on 2026-10-27.
 The later cold/v5/[NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) phases elsewhere in this document are not dependencies of this low-level [slice](../glossary.md#slice).
@@ -138,7 +138,7 @@ empty, nonempty final shared [accumulator](../glossary.md#accumulator-type) outp
 executes. Required other graph work still executes. A separate fixed-T=0 preparation checks every
 L is zero before writes and preserves [carry](../glossary.md#term-carry)/dInitialCarry [identities](../glossary.md#term-identity-meanings); also cover T=0/B=0 together.
 Add invalid-last-length, wrong B/type, F=B/H=B, [signed-zero](../glossary.md#nan-infinity-and-signed-zero)/[NaN payload](../glossary.md#nan-infinity-and-signed-zero) carry and poisoned padded
-sequence/emission-seed cases; failures are [Scan](../glossary.md#term-cumulative-scan)-local, not [rollback](../glossary.md#term-rollback) of already executed producers.
+sequence/emission-seed cases; failures are Scan-local, not [rollback](../glossary.md#term-rollback) of already executed producers.
 
 Keep existing length semantics: original-source AD requires every carry and every original sequence
 ROW(0), including unused/non-gradient positions; broader forward validity does not grant AD.
@@ -163,16 +163,16 @@ No new production type/[API](../glossary.md#term-application-programming-interfa
 
 | Seam / source evidence | Existing reusable facts and required change |
 |---|---|
-| [Scan](../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Scan.java) `validateRows`; [ScanBodyInference](../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ScanBodyInference.java) `infer/validateRows/rowResult` | Model0044 source and Compiler0015 [inference](../glossary.md#term-inference) now use exact named-[dimension](../glossary.md#dimension)/role checks for the [homogeneous](../glossary.md#term-homogeneous) [F32](../glossary.md#floating-point-precision-and-rounding)/F64 intersection. Static [canonical](../glossary.md#term-canonical-form) [layouts](../glossary.md#layout), unresolved symbolic templates, the bounded source algebra and unrelated guards remain. ScanAttrs/header/overload are unchanged. |
+| [Scan](../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Scan.java) `validateRows`; [ScanBodyInference](../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ScanBodyInference.java) `infer/validateRows/rowResult` | Model0044 source and Compiler0015 [inference](../glossary.md#term-inference-meanings) now use exact named-[dimension](../glossary.md#dimension)/role checks for the [homogeneous](../glossary.md#term-homogeneous) [F32](../glossary.md#floating-point-precision-and-rounding)/F64 intersection. Static [canonical](../glossary.md#term-canonical-form) [layouts](../glossary.md#layout), unresolved symbolic templates, the bounded source algebra and unrelated guards remain. ScanAttrs/header/overload are unchanged. |
 | [ScanGradientRules](../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ScanGradientRules.java), [BatchBindingPlan](../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/BatchBindingPlan.java), [PrepareContext](../../modules/prepare/src/main/java/io/github/pho001/synaptik/prepare/analysis/PrepareContext.java)<span data-glossary-navigation="true"> ([PrepareContext glossary](../glossary.md#prepare-context-preparecontext))</span> | Compiler0015 retains the actual sibling/[primal](../glossary.md#term-primal)-[binding](../glossary.md#term-binding) protocol, pruned mixed roles, all latent ports and [occurrence](../glossary.md#term-occurrence)-scoped obligations. Existing binder production passes complete fresh [admission](../glossary.md#term-admission), including unused/tied inputs and [INT64](../glossary.md#data-type--datatype) L, without a production edit. [Prepare](../glossary.md#prepare) still deliberately rejects the combination; its future projection change needs separate [qualification](../glossary.md#term-qualification). |
 | [CpuGeneralScanLowering](../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuGeneralScanLowering.java) `analyzeSymbolic/lowerSymbolic/Facts.pack`; CpuGeneralScanReductionEmitter (historical source path: `../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuGeneralScanReductionEmitter.java`; no longer present in this checkout) `emitSymbolicFold` | Symbolic analysis fixes F32 values/[scalars](../glossary.md#term-scalar)/casts and four-byte sequence/frame/cut/[carry](../glossary.md#term-carry) packing; symbolic folds emit `0f/fadd`. Parameterize by the proved floating [dtype](../glossary.md#data-type--datatype)/width and emit double folds for F64. Existing typed scalar/[carrier](../glossary.md#term-storage-carrier)/[MATMUL](../glossary.md#matrix-multiplication--matmul) and fixed-length emitters are reusable, not sufficient qualification of this new combination. |
 | [CpuPartitionLowering](../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuPartitionLowering.java) `supportsOrdinaryBatch/batchByteSizes/lowerOrdinaryBatch`; [CpuPartitionPreparer](../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionPreparer.java) `analyzeOrdinaryBatch/analyzeGeneralScan` | Ordinary symbolic admission/[IR](../glossary.md#term-intermediate-representation-ir)/[specialization](../glossary.md#term-specialization) fix F32, four-byte spans/[alignment](../glossary.md#term-alignment) and float-array-or-segment carriers. Qualify only actual outer closure occurrences below with per-value dtype/width, checked-segment carriers for added cases, and separate eight-byte INT64 control. Existing initialized-[buffer](../glossary.md#term-buffer) recipes already fill typed F64/INT64 spans. No [heap](../glossary.md#term-heap)-carrier or ordinary-op-wide [widening](../glossary.md#term-widening) is required. |
-| [CpuAggregateLowering](../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuAggregateLowering.java) `BatchGeometry/stateLimbCount`; [CpuExactSumEmitter](../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuExactSumEmitter.java) | Static exact reductions/emission are typed; symbolic SUM/[MEAN](../glossary.md#term-mean) is F32-only, five limbs/48 bytes. A real F64 prerequisite is dtype-qualified exact numeric geometry/state and compatible specialization, not [FLOAT32](../glossary.md#term-float32) reduction followed by cast. [Scan](../glossary.md#term-cumulative-scan)'s producing-site SUM stays its distinct typed sequential algorithm. |
+| [CpuAggregateLowering](../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuAggregateLowering.java) `BatchGeometry/stateLimbCount`; [CpuExactSumEmitter](../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuExactSumEmitter.java) | Static exact reductions/emission are typed; symbolic SUM/[MEAN](../glossary.md#term-mean) is F32-only, five limbs/48 bytes. A real F64 prerequisite is dtype-qualified exact numeric geometry/state and compatible specialization, not [FLOAT32](../glossary.md#term-float32) reduction followed by cast. Scan's producing-site SUM stays its distinct typed sequential algorithm. |
 | [CpuGeneralScanIr](../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/ir/CpuGeneralScanIr.java) `Stages`; [CpuGeneralScanPreparedExecutable](../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/executable/CpuGeneralScanPreparedExecutable.java) `executeBound` | Stages forbids length+symbolic; the length recheck uses static hooks/fixed [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters). Replace mutual exclusion only after proving combined control/roles/recipes. Recheck with [run](../glossary.md#term-run)-aware exact spans/type/alignment/overlap after [producers](../glossary.md#term-producer), then validate all actual B values before ANY output/[padding](../glossary.md#padding)/history/scratch write. Static hook rejection must not be removed wholesale. |
 
 Select the outer prerequisite from the **actual generated closure**, not every [backend](../glossary.md#backend) [operation](../glossary.md#operation):
 F32/F64 registered [seed](../glossary.md#term-seed)/zero/one splats; ADD for tied/cross-occurrence terms; required MUL/DIV and
-SUM/MEAN/sumToShape; expand, [feature](../glossary.md#term-software-feature)-only reshape/[rank](../glossary.md#term-rank) edits, [transpose](../glossary.md#term-transpose)/[contiguous](../glossary.md#term-contiguous) and same-dtype
+SUM/MEAN/sumToShape; expand, [feature](../glossary.md#term-feature)-only reshape/[rank](../glossary.md#term-rank) edits, [transpose](../glossary.md#term-transpose)/[contiguous](../glossary.md#term-contiguous) and same-dtype
 CAST where that closure uses them. In-body [rank-two](../glossary.md#axis-rank-scalar-vector-and-matrix) MATMUL remains in the typed Scan emitter;
 this witness needs no new ordinary symbolic MATMUL capability. No other ordinary family gains F64.
 For both dtypes, `ScanGradientRules.rowConstant/stackedShape` also produces ROW(1) literal/zero
@@ -204,7 +204,7 @@ Use current staged declarations/creators, typed access recipes, [RunMemoryGeomet
 Geometry admission reads [descriptors](../glossary.md#term-descriptor) only; [Engine](../glossary.md#term-engine)'s current semantic/byte admission and [publication](../glossary.md#term-publication)
 are [dtype](../glossary.md#data-type--datatype)-generic, not a reason for an Engine [memo](../glossary.md#cache-and-memoization) or new [handoff](../glossary.md#term-handoff). Preindex every outer/scoped
 domain and latent port; bind exact checked numeric facts before [borrowing](../glossary.md#term-borrowing), including empty leading
-domains with overflowing trailing [features](../glossary.md#term-software-feature). [Carry](../glossary.md#term-carry) B explicitly in the combined [run](../glossary.md#term-run)-owned numeric
+domains with overflowing trailing [features](../glossary.md#term-feature). Carry B explicitly in the combined [run](../glossary.md#term-run)-owned numeric
 pack, not `firstFrame/H`: `[B,0]` still requires B and all B length checks. All changing arrays,
 addresses, banks and results remain invocation-owned. Reuse fixed symbolic time offsets B×F and
 row frames B×H, separately width-scaled; [INT64](../glossary.md#data-type--datatype) L is eight bytes per row, never a floating formal.
@@ -231,7 +231,7 @@ Source and [Compiler](../glossary.md#term-compiler) authority now qualify the bo
 architecture requirement is needed. Source/Compiler and Prepare0015's bounded execution are implemented.
 The following records the coordinated [qualification](../glossary.md#term-qualification) delta, not new semantics or a successor plan:
 
-- recurrent-[scan](../glossary.md#term-cumulative-scan) `Header, bindings and source admission`: retain static T/features but permit one
+- recurrent-scan `Header, bindings and source admission`: retain static T/features but permit one
   exact named B for length-mode row axes/L, with unresolved templates and static actual runs.<span data-glossary-navigation="true"> ([features glossary](../glossary.md#term-feature); [axes glossary](../glossary.md#term-axis))</span>
   `Bounded row-role analysis` compares identified [dimensions](../glossary.md#dimension)/[provenance](../glossary.md#provenance), not sampled numeric sizes.
   `Accepted symbolic-batch scan`/`Qualification and mechanism gates` records the combined F32/F64
@@ -252,7 +252,7 @@ Read the following as coarse capabilities, not authorized tasks:
 | Serial phase | Complete capability / entry condition |
 |---|---|
 | Source | Model0044 is Complete for static/one-B length source and existing overloads. Independent source/docs APPROVE and MAIN root test/[Javadoc](../glossary.md#term-javadoc) PASS; MAIN accepted 2026-10-26. Source alone grants no downstream capability. |
-| Compiler | Compiler0015 is Complete for symbolic length [inference](../glossary.md#term-inference), actual first-order sibling [AD](../glossary.md#autograd) and fresh scoped all-port [binding](../glossary.md#term-binding) together. Mixed generated roles/[constants](../glossary.md#term-constant) and old AD restrictions are preserved. |
+| Compiler | Compiler0015 is Complete for symbolic length [inference](../glossary.md#term-inference-meanings), actual first-order sibling [AD](../glossary.md#autograd) and fresh scoped all-port [binding](../glossary.md#term-binding) together. Mixed generated roles/[constants](../glossary.md#term-constant) and old AD restrictions are preserved. |
 | Prepare→[CPU](../glossary.md#term-cpu)→Engine vertical | Prepare0015 Complete: bounded outer [F64](../glossary.md#floating-point-precision-and-rounding)/control/ROW(1), combined typed projection/resources, generated forward/actual reverse and Engine [admission](../glossary.md#term-admission)/[publication](../glossary.md#term-publication); independent reviews/configured [checkpoint](../glossary.md#term-checkpoint) PASS, MAIN accepted 2026-10-27. |
 
 Model0044 is Complete; active [Model](../glossary.md#term-model) frontiers are None. Its bounded authority was accepted before
@@ -268,7 +268,7 @@ MAIN-owned; successful proposal delivery itself accepts neither new semantics no
 Extend existing ScanSymbolicBatchSource/LengthAwareScan*/SymbolicScan* [Compiler](../glossary.md#term-compiler) tests and
 CpuGeneralScan*/CpuSymbolicScan*/CpuOrdinaryDynamicBatch* focused tests; add no validation framework.
 Use raw-[IR](../glossary.md#term-intermediate-representation-ir)/[descriptor](../glossary.md#term-descriptor) bypasses to exercise each independent validator, not source guards alone.
-Ordinary provider tests must accept identical qualifying occurrences inside/outside the [Scan](../glossary.md#term-cumulative-scan) closure
+Ordinary provider tests must accept identical qualifying occurrences inside/outside the Scan closure
 and reject cases outside the explicit [dtype](../glossary.md#data-type--datatype)/family/[rank](../glossary.md#term-rank)/[axis](../glossary.md#term-axis)/attribute/access predicates, including
 unsupported casts, unproved [layouts](../glossary.md#layout) and independent symbols; never consult an [AD](../glossary.md#autograd)-origin tag.
 Require actual reverse for both dtypes, both traversals/joint [seeds](../glossary.md#commit-release-distribution-log-and-seed-meanings), ROW(1) [constants](../glossary.md#term-constant)/shared [transpose](../glossary.md#term-transpose)
@@ -341,7 +341,7 @@ ScanResult Scan.apply(List<Tensor> initialCarry, List<Tensor> sequences,
 For an ordinary [RNN](../glossary.md#term-recurrent-neural-network-rnn)-shaped body, let [canonical](../glossary.md#term-canonical-form) storage-free formals be h `[B,H]`, x `[B,F]`,
 w `[H,F]`, u `[H,H]`, [bias](../glossary.md#term-bias) `[H]`, with matching actual h0, values `[T,B,F]`, W/U/b and lengths.
 The existing [Tensor](../glossary.md#tensor) operations remain the algebra; the call below constructs source metadata
-only. Compiler0013 supports bounded [inference](../glossary.md#term-inference)/first-order [AD](../glossary.md#autograd), Prepare0011 transports static
+only. Compiler0013 supports bounded [inference](../glossary.md#term-inference-meanings)/first-order [AD](../glossary.md#autograd), Prepare0011 transports static
 [bindings](../glossary.md#term-binding) and CPU0042 separately qualifies fixed-geometry [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) execution. Cold [capture](../glossary.md#term-capture-meanings)/
 reconstruction and encoding still reject length mode:
 
@@ -355,15 +355,15 @@ ScanResult result = Scan.apply(List.of(h0), List.of(values), List.of(W, U, b),
 ```
 
 The selected result is dense `[T,B,H]` emissions and `[B,H]` final carry, with no [callback](../glossary.md#term-callback).
-Execution rejects lengths outside `[0,T]` after [producers](../glossary.md#term-producer) and before [scan](../glossary.md#term-cumulative-scan)-local writes;
+Execution rejects lengths outside `[0,T]` after [producers](../glossary.md#term-producer) and before scan-local writes;
 [descriptor](../glossary.md#term-descriptor)-only construction does not read values or grant a [backend capability](../glossary.md#backend-capability) answer.
 
 ## Closed row-eligibility rules
 
-Derive/check domains inside existing [Scan](../glossary.md#term-cumulative-scan) source [validation](../glossary.md#term-validation) and `compiler.ScanBodyInference`;
+Derive/check domains inside existing Scan source [validation](../glossary.md#term-validation) and `compiler.ScanBodyInference`;
 derive corresponding [backend](../glossary.md#backend) facts in `CpuGeneralScanLowering`. Keep no general proof [artifact](../glossary.md#term-artifact).
 Recheck complete bodies, [canonical](../glossary.md#term-canonical-form) siblings and actual reverse closure, even for zero lengths/T.
-The implemented length-mode source/[inference](../glossary.md#term-inference) domain is [homogeneous](../glossary.md#term-homogeneous) [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) over the bounded
+The implemented length-mode source/[inference](../glossary.md#term-inference-meanings) domain is [homogeneous](../glossary.md#term-homogeneous) [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) over the bounded
 declared algebra, further restricted by these rules; ordinary all-valid source [admission](../glossary.md#term-admission) is not
 narrowed. CPU0042 independently qualifies this fixed-geometry F32/F64 algebra and actual reverse.
 
@@ -391,7 +391,7 @@ narrowed. CPU0042 independently qualifies this fixed-geometry F32/F64 algebra an
 [Model](../glossary.md#term-model) and [Compiler](../glossary.md#term-compiler) validate these rules with focused positive/negative tests; CPU0042 independently
 proves row/terminal facts before activity-dominated emission.
 The [owning bounded row analysis](../architecture/contracts/recurrent-scan.md#bounded-row-role-analysis)
-pins exact broadcast, row-leading [feature](../glossary.md#term-software-feature)-reshape and terminal-contribution legality. New length-mode
+pins exact broadcast, row-leading [feature](../glossary.md#term-feature)-reshape and terminal-contribution legality. New length-mode
 Model source is homogeneous F32/F64 over that closed algebra; this is semantic admission, not a
 backend predicate. Old all-valid [PURE](../glossary.md#term-pure)/type admission remains unchanged. A supported child alone is insufficient.
 
@@ -435,7 +435,7 @@ its existing [graph](../glossary.md#graph)/role/demand representation.
 Current `ScanGradientRules.apply` [seeds](../glossary.md#commit-release-distribution-log-and-seed-meanings) leading reverse carries from final-[carry](../glossary.md#term-carry) cotangents,
 appends [invariant](../glossary.md#term-invariant)-shaped zeros, and constructs `carry.get(c+i).add(gradients.get(c+s+i))`.
 It binds original step/invariant/retained [Tensors](../glossary.md#tensor) through `primalBindings`, calls
-`FirstOrderAutograd.expandBody`, and creates the opposite-traversal sibling [Scan](../glossary.md#term-cumulative-scan).
+`FirstOrderAutograd.expandBody`, and creates the opposite-traversal sibling Scan.
 
 For initial first-order [qualification](../glossary.md#term-qualification), require every **original length-aware source** to have
 `rowCarryCount == carryCount` AND every original `sequenceRowAxes` entry present and equal to 0
@@ -462,7 +462,7 @@ operand loads and each SUM contributor's dependent arithmetic. A per-output redu
 the family's typed zero, uses its existing represented multiply/accumulation/result boundaries,
 then the existing shared carry ADD rounds once at its own [dtype](../glossary.md#data-type--datatype) site for that time. Do not
 silently fuse that ADD into the [contraction](../glossary.md#contraction-dimension) or replace it with per-row updates. At nonactive(t),
-the shared [accumulator](../glossary.md#accumulator-type) is unchanged, not `old + 0`. [Feature](../glossary.md#term-software-feature) contractions/reductions still use
+the shared [accumulator](../glossary.md#accumulator-type) is unchanged, not `old + 0`. [Feature](../glossary.md#term-feature) contractions/reductions still use
 ordinary constituent domains; this active-row restriction belongs only to length-aware Scan.
 
 Thus dW for x @ W uses active terms in x-[transpose](../glossary.md#term-transpose) @ dZ; [bias](../glossary.md#term-bias) uses active-row sumToShape.
@@ -495,7 +495,7 @@ the [INT64](../glossary.md#data-type--datatype) lengths read is distinct from th
 `CpuGeneralScanPreparedExecutable` binds ordered boundary [dtypes](../glossary.md#data-type--datatype) and separate eight-byte control,
 not a fabricated floating [invariant](../glossary.md#term-invariant).
 
-Reuse the fixed [scan](../glossary.md#term-cumulative-scan)'s **ordering principle**, not its executor: after length [producers](../glossary.md#term-producer) execute,
+Reuse the fixed scan's **ordering principle**, not its executor: after length [producers](../glossary.md#term-producer) execute,
 recheck accessible typed spans/[alignment](../glossary.md#term-alignment)/overlap, then validate all B length values against [0,T]
 before this scan's first output, [padding](../glossary.md#padding), history or scratch write. A bad last length rejects
 before earlier rows write; T=0 still validates every length. This is scan-local rejection, not
@@ -530,12 +530,12 @@ not possible for this design. **Selected future format:** selective `graph-model
 `SYNGRF05`, version 5, new outer opcode 33 (verified free after current 1..32) for the changed
 actual/header roles and existing inline body. Exact new field encoding belongs to the later [codec](../glossary.md#term-codec) task.
 Preserve ordered optional step-axis entries explicitly; length values are [runtime](../glossary.md#term-runtime) input payloads,
-never serialized snapshots. Preserve existing body inventory and no nested [scan](../glossary.md#term-cumulative-scan).
+never serialized snapshots. Preserve existing body inventory and no nested scan.
 
 Continue selecting byte-identical v1–v4 for sources needing no length mode. Old readers reject v5;
 new readers retain exact old tuples/opcodes and default old Scan records to all-valid. Preserve
 the old ScanAttrs constructor as a source/[binary](../glossary.md#term-binary-descriptor-and-metadata)-call bridge, but acknowledge new record components
-and overloads as public [API](../glossary.md#term-application-programming-interface-api)/record-[shape](../glossary.md#shape) changes needing compatibility review. Do not derive [cache](../glossary.md#term-cache)
+and overloads as public [API](../glossary.md#term-application-programming-interface-api)/record-shape changes needing compatibility review. Do not derive [cache](../glossary.md#term-cache)
 [identity](../glossary.md#term-identity-meanings) from changed default record text and accidentally invalidate unchanged old paths.
 Dry-size/count/descriptor/role checks include the new fields before allocation/import; no new
 limits default or runtime histories/compiled state in the file. Wire and [CPU](../glossary.md#term-cpu) generator identities
@@ -543,7 +543,7 @@ are separate versioning duties, not one shared version number.
 
 ## [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) boundary and future [dependency](../glossary.md#term-dependency) map
 
-Generic length-aware [Scan](../glossary.md#term-cumulative-scan) comes first. Later owned [graph](../glossary.md#graph)/list Models would use existing
+Generic length-aware Scan comes first. Later owned [graph](../glossary.md#graph)/list Models would use existing
 `Model.graph`, compute, configureTraining/train and save/loadGraph [owners](../glossary.md#term-owner) with explicit length
 inputs. No new [RNN](../glossary.md#term-recurrent-neural-network-rnn) [API](../glossary.md#term-application-programming-interface-api), manager, executor or runner. Current public `.rnn`, `.rnnScan`,
 `buildWithLengths`, fixed [inference](../glossary.md#term-inference)-only rejection, [GRU](../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../glossary.md#term-long-short-term-memory-lstm) and low-type routes remain unchanged.
@@ -575,7 +575,7 @@ no Metal, low-type, higher-order, if/while/regions or [vector](../glossary.md#te
 
 Adapt existing focused tests, rather than creating another [validation](../glossary.md#term-validation) framework:
 
-- [Model](../glossary.md#term-model) `ScanBodyTest`, `ScanExpressionTest`, [scan semantic tests](../../modules/model/src/test/java/io/github/pho001/synaptik/model/operation/scan/ScanSemanticsTest.java)<span data-glossary-navigation="true"> ([scan glossary](../glossary.md#term-cumulative-scan))</span>, `CompiledScanBodyTest`: binding
+- [Model](../glossary.md#term-model) `ScanBodyTest`, `ScanExpressionTest`, [scan semantic tests](../../modules/model/src/test/java/io/github/pho001/synaptik/model/operation/scan/ScanSemanticsTest.java), `CompiledScanBodyTest`: binding
   roles, equal-size role ambiguity, row-coupling rejection, old constructor/default compatibility.<span data-glossary-navigation="true"> ([binding glossary](../glossary.md#term-binding))</span>
 - [Compiler](../glossary.md#term-compiler) [ScanGradientRulesTest](../../modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/ScanGradientRulesTest.java), `GeneralScanCompilerTest`, `ScanBodyInferenceTest`,
   `SourceGraphReconstructionTest`: both traversals/seeds, false-flag carry, shared W-transpose
@@ -586,7 +586,7 @@ Adapt existing focused tests, rather than creating another [validation](../gloss
 - [CPU](../glossary.md#term-cpu) `CpuGeneralScanCapabilityTest`, `CpuGeneralScanLoweringTest`, `CpuGeneralScanPreparationTest`,
   `CpuGeneralScanExecutionTest`, [CpuGeneralScanGeneratedKernelTest](../../modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuGeneralScanGeneratedKernelTest.java) and clean-Java oracle:
   F32/F64 active SUM/MATMUL, NaN/Inf padding/seeds, zero/full/mixed lengths, T/B/features empty,
-  invalid last length before writes, hoisting/history guards, reuse/concurrency/overlap and identities.<span data-glossary-navigation="true"> ([identities glossary](../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([oracle glossary](../glossary.md#term-test-oracle); [F32 glossary](../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../glossary.md#floating-point-precision-and-rounding); [MATMUL glossary](../glossary.md#matrix-multiplication--matmul); [NaN glossary](../glossary.md#term-nan); [padding glossary](../glossary.md#padding); [features glossary](../glossary.md#term-software-feature); [concurrency glossary](../glossary.md#term-concurrency))</span>
+  invalid last length before writes, hoisting/history guards, reuse/concurrency/overlap and identities.<span data-glossary-navigation="true"> ([identities glossary](../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([oracle glossary](../glossary.md#term-test-oracle); [F32 glossary](../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../glossary.md#floating-point-precision-and-rounding); [MATMUL glossary](../glossary.md#matrix-multiplication--matmul); [NaN glossary](../glossary.md#term-nan); [padding glossary](../glossary.md#padding); [features glossary](../glossary.md#term-feature); [concurrency glossary](../glossary.md#term-concurrency))</span>
 - [Checkpoint](../glossary.md#term-checkpoint) `GraphArtifactCodecTest`, [GraphCheckpointGeneralScanTest](../../modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpointGeneralScanTest.java): selective old byte
   fixtures, v5 roles, old-reader rejection, bounds/late-invalid/import/ID probes, no lengths payload.<span data-glossary-navigation="true"> ([payload glossary](../glossary.md#artifact-envelope-and-atomic-publication))</span>
 - `CpuGeneralScanConformanceTest`, [EngineCpuGeneralScanIntegrationTest](../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineCpuGeneralScanIntegrationTest.java),
@@ -605,7 +605,7 @@ Complete; MAIN accepted Model0038 Complete on 2026-10-24 after the combined name
 architecture/existing-native root test/[Javadoc](../glossary.md#term-javadoc) retry passed. Attempt one failed solely test-ledger
 [serialization](../glossary.md#term-serialization); the bounded test-only repair preserved fixtures/production. Both performance flags
 stayed false, successful/cached work was reused, and no native rebuild/campaign occurred.
-Compiler0013 now delivers bounded [inference](../glossary.md#term-inference)/first-order reverse construction/query/demand,
+Compiler0013 now delivers bounded [inference](../glossary.md#term-inference-meanings)/first-order reverse construction/query/demand,
 with independent code/docs APPROVE and worker module, MAIN compatibility and final docs/Javadoc
 PASS. MAIN accepted Complete 2026-10-24; no execution/[persistence](../glossary.md#term-persistence) grant follows.
 Prepare0011 is Complete, MAIN accepted 2026-10-24 13:00:15 UTC after Tesla [planning](../glossary.md#term-planning) APPROVE, zero open P1/P2, and launch
