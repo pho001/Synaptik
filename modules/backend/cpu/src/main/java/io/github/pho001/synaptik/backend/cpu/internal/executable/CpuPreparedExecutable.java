@@ -2696,8 +2696,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         MemorySegment leftSegment = selectedSegment(left);
         MemorySegment rightSegment = selectedSegment(right);
         if (leftSegment.asOverlappingSlice(rightSegment).isEmpty()) return false;
-        int leftWidth = dataType(left).byteWidth();
-        int rightWidth = dataType(right).byteWidth();
+        int leftWidth = elementWidth(left);
+        int rightWidth = elementWidth(right);
         long leftStart = Math.addExact(leftSegment.address(),
                 Math.multiplyExact(leftBinding.accessedElementStart(), leftWidth));
         long leftEnd = Math.addExact(leftSegment.address(),
@@ -2910,15 +2910,19 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 ? representation.segmentArgument() : representation.argument();
     }
 
-    private static io.github.pho001.synaptik.model.datatype.DataType dataType(
-            CpuBufferArgument argument) {
-        if (argument instanceof CpuBufferArgument.Doubles) return io.github.pho001.synaptik.model.datatype.DataType.FLOAT64;
-        if (argument instanceof CpuBufferArgument.Floats) return io.github.pho001.synaptik.model.datatype.DataType.FLOAT32;
-        if (argument instanceof CpuBufferArgument.Shorts) return io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16;
-        if (argument instanceof CpuBufferArgument.Ints) return io.github.pho001.synaptik.model.datatype.DataType.INT32;
-        if (argument instanceof CpuBufferArgument.Longs) return io.github.pho001.synaptik.model.datatype.DataType.INT64;
-        if (argument instanceof CpuBufferArgument.Bytes) return io.github.pho001.synaptik.model.datatype.DataType.BOOL;
-        return ((CpuBufferArgument.Segment) argument).dataType();
+    /**
+     * Returns physical carrier width without inferring a logical dtype from shared raw storage.
+     * @param argument non-null already classified direct carrier or typed segment
+     * @return positive represented element width in bytes
+     */
+    private static int elementWidth(CpuBufferArgument argument) {
+        if (argument instanceof CpuBufferArgument.Doubles) return Double.BYTES;
+        if (argument instanceof CpuBufferArgument.Floats) return Float.BYTES;
+        if (argument instanceof CpuBufferArgument.Shorts) return Short.BYTES;
+        if (argument instanceof CpuBufferArgument.Ints) return Integer.BYTES;
+        if (argument instanceof CpuBufferArgument.Longs) return Long.BYTES;
+        if (argument instanceof CpuBufferArgument.Bytes) return Byte.BYTES;
+        return ((CpuBufferArgument.Segment) argument).dataType().byteWidth();
     }
 
     /**

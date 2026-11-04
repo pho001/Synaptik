@@ -6,6 +6,9 @@
  * assignments identify resources without allocating them. Cold binding converts assigned runtime
  * representations into typed direct references before execution; generated kernels receive those
  * references and perform no storage classification or lookup in their hot loop.
+ * FP8 values retain byte carriers and exact represented bits, independently of BOOL's canonical
+ * zero/one validation. The declared logical dtype controls validation and snapshot publication;
+ * a shared physical byte carrier never implies BOOL semantics.
  * {@code CpuContiguousWorkspace} is one run-owned aligned shared-arena byte workspace. A selected
  * FLOAT64 materialization uses it as a canonical contiguous copy that the invoking thread writes
  * before selected workers read. A floating-product scatter instead partitions it into exact

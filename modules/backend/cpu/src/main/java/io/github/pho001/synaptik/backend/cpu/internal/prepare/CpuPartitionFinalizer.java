@@ -16,6 +16,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.Cpu
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnLibrary;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnPreparedExecutable;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnOutputNarrowing;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizationResult;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizer;
@@ -56,9 +57,12 @@ import java.util.LinkedHashMap;
  * <p>Selected oneDNN units reuse the same composite topology, even for one unit. After every
  * assignment is validated, finalization authenticates the retained library session and compiles
  * only the exact selected API and descriptor. Scratch size and implementation must match analysis.
- * Native units never enter the generated artifact store. Acquired kernels transfer to Runtime in
- * acquisition order; any failure rolls back that call's resources in reverse order, with no
- * route retry, reranking, or portable fallback.</p>
+ * Native computation never enters the generated artifact store. A low logical output instead
+ * retains its separately declared F32 staging span and realizes one typed generated final CAST;
+ * the logical buffer is checked at its own byte width, not the staging width. Unchanged F32 units
+ * acquire no narrowing artifact. Acquired kernels transfer to Runtime in acquisition order; any
+ * failure rolls back that call's resources in reverse order, with no route retry, reranking, or
+ * portable fallback.</p>
  */
 public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<CpuPartitionPreparationPlan> {
     private final CpuGeneratedKernelArtifactStore artifactStore;
@@ -176,8 +180,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      *     acquisition-ordered persistent native kernels whose ownership transfers to Runtime;
      *     portable and OpenBLAS results retain no newly owned persistent resources
      * @throws NullPointerException if {@code finalization} is {@code null}
-     * @throws IllegalArgumentException if current CPU numerical admission rejects semantic or
-     *     represented units, or ownership, assignments, specialization or realization disagree
+     * @throws IllegalArgumentException if ownership, assignments, typed specialization or retained
+     *     realization facts disagree
      * @throws IllegalStateException if a required native owner is not open, native compilation
      *     fails, or coordinated configuration, verification, or restoration fails
      * @throws CpuConcurrencyBudget.CpuCoordinationException if interrupted while waiting for a
@@ -213,28 +217,6 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             List<PreparedResource> resources) {
         Objects.requireNonNull(finalization, "finalization");
         var plan = finalization.analysis().plan();
-        for (var unit : plan.units()) {
-            unit.runtimeFacts().recurrentScan().ifPresent(scan -> {
-                var type = scan.geometry().dataType();
-                if (type != io.github.pho001.synaptik.model.datatype.DataType.FLOAT32
-                        && type != io.github.pho001.synaptik.model.datatype.DataType.FLOAT64)
-                    throw new IllegalArgumentException("CPU low recurrent computation is temporarily unsupported");
-            });
-            if (unit.portablePlan() != null) {
-                var route = unit.portablePlan();
-                io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
-                        .requirePermittedLowPrecisionUse(route.portableKernelIr());
-                io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
-                        .requirePermittedLowPrecisionUse(route.specialization(), route.kernelIr());
-            }
-        }
-        for (var represented : plan.representationUnits()) {
-            var route = represented.portablePlan();
-            io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
-                    .requirePermittedLowPrecisionUse(route.portableKernelIr());
-            io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
-                    .requirePermittedLowPrecisionUse(route.specialization(), route.kernelIr());
-        }
         if (!finalization.analysis().partition().owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)) {
             throw new IllegalArgumentException("partition owner must be CPU");
         }
@@ -462,7 +444,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 }
                 validateNativeBuffer(finalization, buffers.get(projection.outputBoundaryPosition()),
                         Math.addExact(projection.byteOffsets().getLast(),
-                                projection.spec().output().byteSize()));
+                                projection.logicalOutputByteSize()));
             }
         }
         var children = new ArrayList<PreparedExecutable>();
@@ -501,10 +483,17 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                             + kernel.implementation() + ", same spec="
                             + kernel.spec().equals(nativeUnit.projection().spec()));
                 }
+                Optional<io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel>
+                        outputNarrowing = Optional.empty();
+                if (nativeUnit.projection().requiresOutputNarrowing()) {
+                    var recipe = CpuOneDnnOutputNarrowing.from(nativeUnit.projection());
+                    outputNarrowing = Optional.of(artifactStore.loadOrGenerate(
+                            recipe.specialization(), recipe.ir()));
+                }
                 children.add(new CpuOneDnnPreparedExecutable(finalization.memoryPlan(),
                         localSelections.get(index), nativeUnit.workspaceRequirements().stream()
                                 .map(workspaceSelections::get).toList(),
-                        nativeUnit, kernel, concurrencyBudget.orElseThrow()));
+                        nativeUnit, kernel, concurrencyBudget.orElseThrow(), outputNarrowing));
                 continue;
             }
             if (unit.runtimeFacts().recurrentScan().isPresent()) {

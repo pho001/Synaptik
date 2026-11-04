@@ -10,6 +10,8 @@ import java.util.Objects;
  * Cold-binds canonical BOOL scans to direct byte storage and private traversal state.
  * Scans read current values before consumer writes, allocate nothing on success, and may be
  * repeated sequentially after either success or failure within the carrier's borrowed lifetime.
+ * Callers select these scans only for declared BOOL boundaries: a byte-array carrier alone does
+ * not establish BOOL, because FP8 values use the same physical carrier without canonicalization.
  */
 public final class CpuBooleanInputValidator {
     private CpuBooleanInputValidator() { }

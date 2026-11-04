@@ -145,8 +145,8 @@ public final class CpuRepresentationRecipes {
      * Creates a deferred recipe for a fresh aligned CPU buffer initialized as a scalar splat.
      *
      * <p>Each invocation writes the exact represented scalar value to every complete element of
-     * its new buffer. If initialization fails, the new buffer is closed before the failure is
-     * propagated.</p>
+     * its new buffer, including all FP8 NaN encodings and signed zeros without numeric conversion.
+     * If initialization fails, the new buffer is closed before the failure is propagated.</p>
      *
      * @param type the non-null represented element type
      * @param entry the non-null prepared buffer geometry; its byte size must contain a whole
@@ -220,6 +220,10 @@ public final class CpuRepresentationRecipes {
                             value.bfloat16Bits());
                     case FLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index,
                             value.float16Bits());
+                    case FLOAT8_E4M3 -> segment.setAtIndex(ValueLayout.JAVA_BYTE, index,
+                            value.float8E4m3Bits());
+                    case FLOAT8_E5M2 -> segment.setAtIndex(ValueLayout.JAVA_BYTE, index,
+                            value.float8E5m2Bits());
                     case INT64 -> segment.setAtIndex(ValueLayout.JAVA_LONG, index,
                             value.int64Value());
                     case INT32 -> segment.setAtIndex(ValueLayout.JAVA_INT, index,

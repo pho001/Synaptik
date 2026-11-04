@@ -43,6 +43,29 @@ final class CpuHostSnapshotExporterTest {
     }
 
     @Test
+    void exportsEveryFp8EncodingExactlyFromHeapNativeAndStridedSlices() {
+        byte[] values = new byte[256];
+        for (int index = 0; index < values.length; index++) values[index] = (byte) index;
+        for (var type : new DataType[] {DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2}) {
+            assertArrayEquals(values, copy(type, values, values.length));
+            try (var nativeBuffer = CpuNativeBuffer.allocate(type, values.length, 64)) {
+                MemorySegment.copy(MemorySegment.ofArray(values), 0,
+                        nativeBuffer.segment(), 0, values.length);
+                var shape = Shape.of(256);
+                assertArrayEquals(values, CpuHostSnapshotExporter.copy(nativeBuffer,
+                        descriptor(type, shape, LayoutDescriptor.contiguous(shape)), 256));
+            }
+            var slice = MemorySegment.ofArray(values).asSlice(1, 254).asReadOnly();
+            var borrowed = CpuBorrowedBuffer.borrow(new MemorySegmentStorage(type, 254, slice));
+            var shape = Shape.of(2, 2);
+            var view = descriptor(type, shape,
+                    LayoutDescriptor.of(shape, new long[] {0, 2}, 125, true));
+            assertArrayEquals(new byte[] {126, (byte) 128, 126, (byte) 128},
+                    CpuHostSnapshotExporter.copy(borrowed, view, 4));
+        }
+    }
+
+    @Test
     void exportsEveryTypeFromNativeOrderSegmentStorage() {
         assertNative(DataType.FLOAT64, 8, segment -> segment.set(
                 ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.nativeOrder()), 0,

@@ -9,6 +9,8 @@
  * current softmax inputs/shifts, index-loss targets, and canonical BOOL inputs or masks after
  * producers and before its prologue, output writes, or worker submission. Scan geometry, typed
  * storage readers, and traversal state are captured cold; successful scans allocate nothing.
+ * BOOL validation is selected from declared logical boundary types, never from a byte carrier
+ * alone; FP8 numeric and raw values share that carrier without zero/one normalization.
  * Static movement recipes additionally retain compact immutable output/input layout geometry and
  * family mapping facts. Cold binding packs only the selected invocation range's coordinate and
  * address state; it retains no per-output-element selector or address table.

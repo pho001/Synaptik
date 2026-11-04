@@ -12,9 +12,10 @@ import java.util.Objects;
  *
  * <p>The representation retains exact data type, byte size, and segment identity. Construction
  * performs the cold storage classification once. A prepared segment-form route can also borrow
- * the exact selected heap segment without erasing an incompatible observable carrier. Accessors
- * remain valid only while the concrete owning or borrowed representation is open and accessible
- * to the calling thread.</p>
+ * the exact selected heap segment without erasing an incompatible observable carrier. Both FP8
+ * types retain raw byte-array carriers; the logical data type, not that shared carrier, distinguishes
+ * them from BOOL. Accessors remain valid only while the concrete owning or borrowed representation
+ * is open and accessible to the calling thread.</p>
  */
 public abstract class CpuBufferRepresentation implements BufferRepresentation {
     private final DataType dataType;
@@ -192,7 +193,7 @@ public abstract class CpuBufferRepresentation implements BufferRepresentation {
                     ? new CpuBufferArgument.Ints(values, offset, size, readOnly) : mismatch();
             case INT64 -> base instanceof long[] values
                     ? new CpuBufferArgument.Longs(values, offset, size, readOnly) : mismatch();
-            case BOOL -> base instanceof byte[] values
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> base instanceof byte[] values
                     ? new CpuBufferArgument.Bytes(values, offset, size, readOnly) : mismatch();
         };
     }

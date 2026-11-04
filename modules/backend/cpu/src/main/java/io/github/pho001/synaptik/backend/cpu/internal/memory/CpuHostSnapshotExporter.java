@@ -39,8 +39,8 @@ public final class CpuHostSnapshotExporter {
      *
      * <p>The fully static resolved layout supplies a non-negative storage offset and positive or
      * zero element strides. Rank zero reads its offset element; a zero-element shape returns a fresh
-     * empty array without accessing an element. All seven current data types preserve represented
-     * bits without conversion, including floating NaN payloads and signed zeros; BOOL additionally
+     * empty array without accessing an element. Every data type preserves represented bits without
+     * conversion, including FP8 bytes, floating NaN payloads and signed zeros; only BOOL additionally
      * requires each logical value to be exactly {@code 0} or {@code 1}.</p>
      *
      * <p>The call is synchronous and changes no source ownership, validity, content, or lifetime.
@@ -189,7 +189,8 @@ public final class CpuHostSnapshotExporter {
                 case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(memory.get(NATIVE_SHORT, relativeBytes));
                 case INT64 -> memory.get(NATIVE_LONG, relativeBytes);
                 case INT32 -> Integer.toUnsignedLong(memory.get(NATIVE_INT, relativeBytes));
-                case BOOL -> Byte.toUnsignedLong(memory.get(ValueLayout.JAVA_BYTE, relativeBytes));
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 ->
+                        Byte.toUnsignedLong(memory.get(ValueLayout.JAVA_BYTE, relativeBytes));
             };
         }
 
@@ -206,7 +207,7 @@ public final class CpuHostSnapshotExporter {
                     .carrier()[arrayIndex(carrierBytes, width)];
             case INT32 -> Integer.toUnsignedLong(((CpuBufferArgument.Ints) argument)
                     .carrier()[arrayIndex(carrierBytes, width)]);
-            case BOOL -> Byte.toUnsignedLong(((CpuBufferArgument.Bytes) argument)
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> Byte.toUnsignedLong(((CpuBufferArgument.Bytes) argument)
                     .carrier()[arrayIndex(carrierBytes, width)]);
         };
     }

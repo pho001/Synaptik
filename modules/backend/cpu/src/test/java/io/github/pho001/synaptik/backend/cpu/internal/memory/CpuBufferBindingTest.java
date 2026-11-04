@@ -44,6 +44,31 @@ class CpuBufferBindingTest {
                 () -> assertFalse(maskArgument.readOnly()));
     }
 
+    @Test void fp8HeapSlicesRetainRawBytesAndReadOnlyAccessWithoutBoolNormalization() {
+        for (var type : new DataType[] {DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2}) {
+            byte[] values = {11, (byte) 0x80, (byte) 0xff, 0x7f, 22};
+            var slice = MemorySegment.ofArray(values).asSlice(1, 3).asReadOnly();
+            var buffer = borrowed(type, slice, 3);
+            var argument = assertInstanceOf(CpuBufferArgument.Bytes.class, buffer.argument());
+            assertAll(() -> assertSame(values, argument.carrier()),
+                    () -> assertEquals(1, argument.byteOffset()),
+                    () -> assertEquals(3, argument.byteSize()),
+                    () -> assertTrue(argument.readOnly()),
+                    () -> assertSame(slice, buffer.segmentArgument().segment()),
+                    () -> assertEquals(type, buffer.segmentArgument().dataType()));
+            buffer.close();
+            assertEquals((byte) 0xff, buffer.segment().get(java.lang.foreign.ValueLayout.JAVA_BYTE, 1));
+        }
+    }
+
+    @Test void fp8RejectsObservableShortCarrierInsteadOfReinterpretingIt() {
+        for (var type : new DataType[] {DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2}) {
+            var buffer = borrowed(type, MemorySegment.ofArray(new short[1]), 2);
+            assertThrows(IllegalArgumentException.class, buffer::argument);
+            assertThrows(IllegalArgumentException.class, buffer::segmentArgument);
+        }
+    }
+
     private static CpuBorrowedBuffer borrowed(DataType type, MemorySegment segment, long count) {
         return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(type, count, segment));
     }
