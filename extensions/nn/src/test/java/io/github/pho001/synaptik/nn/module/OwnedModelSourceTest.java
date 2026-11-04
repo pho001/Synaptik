@@ -219,6 +219,81 @@ final class OwnedModelSourceTest {
         }
     }
 
+    @Test void controlNamesRoundtripUnchangedButInvalidationDiagnosticsStaySingleLine() throws Exception {
+        String name = "encoder\n\r\t\u0000\u0085\u2028\u2029\"\\end";
+        String shown = "encoder" + "?".repeat(9) + "end";
+        for (String mutation : List.of("mode", "tensor")) {
+            Tensor external = scalar(2, true);
+            var child = new MutableSourceModule(external);
+            Path saved = directory.resolve("controls-" + mutation);
+            try (var model = Model.defineTensor(prototype().descriptor(), topology -> {
+                topology.addModule(name, child);
+                return x -> x.mul(external);
+            })) {
+                assertEquals(name + ".weight", model.stateDictionary().entries().getFirst().path());
+                model.save(saved);
+                try (var loaded = Model.loadGraph(saved)) {
+                    assertEquals(name + ".weight", loaded.stateDictionary().entries().getFirst().path());
+                    Tensor input = prototype();
+                    assertSame(input, loaded.forward(List.of(input)).getFirst()
+                            .provenance().orElseThrow().inputs().getFirst());
+                    Path again = directory.resolve("controls-again-" + mutation);
+                    loaded.save(again);
+                    assertArrayEquals(java.nio.file.Files.readAllBytes(saved),
+                            java.nio.file.Files.readAllBytes(again));
+                }
+                String category, location;
+                if (mutation.equals("mode")) {
+                    child.train();
+                    category = "mode";
+                    location = shown;
+                } else {
+                    child.weight.replace(scalar(5, true));
+                    category = "Tensor binding";
+                    location = shown + ".weight";
+                }
+                var failure = assertThrows(IllegalStateException.class, () -> model.forward(prototype()));
+                assertEquals("owned Model source changed: " + category + " at " + location
+                        + "; construct a replacement Model", failure.getMessage());
+                child.eval();
+                assertThrows(IllegalStateException.class, () -> model.forward(prototype()));
+            }
+        }
+    }
+
+    @Test void deepValidNamespaceInvalidationBoundsModuleAndStatePathsWithoutSplittingSurrogates() {
+        String prefix = "a.".repeat(79) + "x🦉." + "b.".repeat(12_000);
+        String path = prefix + "weight";
+        String shown = "a.".repeat(79) + "x...";
+        for (String mutation : List.of("mode", "tensor")) {
+            Tensor input = prototype(), weight = scalar(2, true);
+            try (var model = Model.graph(List.of(input), List.of(input.mul(weight)),
+                    List.of(parameter(path, weight)))) {
+                assertEquals(path, model.stateDictionary().entries().getFirst().path());
+                assertNotSame(weight, model.stateDictionary().entries().getFirst().value());
+                Tensor replacement = prototype();
+                assertSame(replacement, model.forward(List.of(replacement)).getFirst()
+                        .provenance().orElseThrow().inputs().getFirst());
+                String category;
+                Module deepest = model;
+                while (!deepest.children().isEmpty()) deepest = deepest.children().values().iterator().next();
+                if (mutation.equals("mode")) {
+                    deepest.train();
+                    category = "mode";
+                } else {
+                    model.parametersRecursively().get(path).replace(scalar(5, true));
+                    category = "Tensor binding";
+                }
+                var failure = assertThrows(IllegalStateException.class,
+                        () -> model.forward(List.of(prototype())));
+                assertEquals("owned Model source changed: " + category + " at " + shown
+                        + "; construct a replacement Model", failure.getMessage());
+                deepest.eval();
+                assertThrows(IllegalStateException.class, () -> model.forward(List.of(prototype())));
+            }
+        }
+    }
+
     private static final class MutableSourceModule extends Module {
         final Parameter weight;
         MutableSourceModule(Tensor tensor) { weight = parameter("weight", tensor); }

@@ -205,9 +205,10 @@ final class OwnedModelSource {
 
     /**
      * Checks all frozen modes, topology, wrappers, Tensor bindings and storage associations.
-     * The first failing guard identifies its category and captured module/state path; module
-     * paths are assembled only on failure, keeping deep-tree guard metadata linear.
-     * @throws IllegalStateException if the source was externally mutated, with category and path
+     * The first failing guard identifies its category and a bounded, single-line prefix of its
+     * captured module/state path. Canonical names remain unchanged. Module path prefixes are
+     * assembled only on failure, keeping deep-tree guard metadata linear.
+     * @throws IllegalStateException if the source was externally mutated, with category and path prefix
      */
     void validate() {
         for (int i = 0; i < modules.size(); i++) {
@@ -284,15 +285,23 @@ final class OwnedModelSource {
     }
 
     /**
-     * Formats a captured module location only after a failing guard.
+     * Formats only the diagnostic prefix of a captured module location after a failing guard.
+     * One extra character lets the final renderer detect truncation without joining the full path.
      * @param index captured module ordinal
-     * @return exact dot path, or {@code <root>} for the root
+     * @return at most 161 path characters, or {@code <root>} for the root
      */
     private String modulePath(int index) {
         var segments = new ArrayDeque<String>();
         for (int i = index; modules.get(i).parent() >= 0; i = modules.get(i).parent())
             segments.addFirst(modules.get(i).name());
-        return segments.isEmpty() ? "<root>" : String.join(".", segments);
+        if (segments.isEmpty()) return "<root>";
+        var prefix = new StringBuilder(161);
+        for (String segment : segments) {
+            if (!prefix.isEmpty()) prefix.append('.');
+            prefix.append(segment, 0, Math.min(segment.length(), 161 - prefix.length()));
+            if (prefix.length() == 161) break;
+        }
+        return prefix.toString();
     }
 
     /**
@@ -312,12 +321,23 @@ final class OwnedModelSource {
 
     /**
      * Reports the existing producer's precise failure without recapturing mutable state.
+     * Only the displayed path is sanitized and limited to 160 UTF-16 code units plus an ellipsis,
+     * without splitting a surrogate pair. Stored names, source admission and guards are unchanged.
      * @param category failing association category
-     * @param path stable captured module or state path
+     * @param path stable captured state path or diagnostic module path prefix
      * @throws IllegalStateException always: the capability requires replacement
      */
     private static void changed(String category, String path) {
-        throw new IllegalStateException("owned Model source changed: " + category + " at " + path
+        int end = Math.min(path.length(), 160);
+        if (end < path.length() && Character.isHighSurrogate(path.charAt(end - 1))) end--;
+        var shown = new StringBuilder(end + 3);
+        for (int i = 0; i < end; i++) {
+            char ch = path.charAt(i);
+            shown.append(Character.isISOControl(ch) || ch == '\u2028' || ch == '\u2029'
+                    || ch == '"' || ch == '\\' ? '?' : ch);
+        }
+        if (end < path.length()) shown.append("...");
+        throw new IllegalStateException("owned Model source changed: " + category + " at " + shown
                 + "; construct a replacement Model");
     }
 
