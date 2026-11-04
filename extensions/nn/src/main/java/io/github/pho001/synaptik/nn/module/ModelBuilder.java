@@ -62,7 +62,9 @@ import java.util.random.RandomGeneratorFactory;
  * recipes also remain fixed scans with their broader resolved read domain. Fixed and mixed
  * fixed/general sources may configure first-order training through existing owners; low outputs
  * need an explicit FLOAT32/FLOAT64 objective. No implicit recipe conversion or backend fallback
- * widens occurrence-specific qualification.
+ * widens occurrence-specific qualification. All four low storage formats are retained by parameters,
+ * initial states and outputs, including both FP8 byte formats; optimizer masters and slots
+ * remain FLOAT32 in Training.
  * {@link #finalHidden()} selects the
  * immediately preceding scan's existing final state, whereas {@link #lastTimeStep()} selects a
  * dense time index. Ordinary bias and activations remain dense and do not acquire automatic

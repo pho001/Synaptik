@@ -17,8 +17,8 @@ import java.util.function.BiConsumer;
  * Explicitly prepares a complete live parameter source for the native-storage training domain.
  *
  * <p>This backend-neutral operation copies the exact represented bytes of finite values,
- * including signed zero, into fresh caller-owned shared native memory. It changes only each
- * existing Tensor's borrowed host-storage association: membership and Tensor identity, descriptor,
+ * including signed zero and all four low formats, into fresh caller-owned shared native memory.
+ * It changes only each existing Tensor's borrowed host-storage association: membership and Tensor identity, descriptor,
  * and graph provenance stay fixed. It does not open a session or transfer values to a backend. A
  * caller must give the operation exclusive use of the source and parameter storage and must never
  * call it while a {@link TrainingSession} is open on that source.</p>
@@ -103,8 +103,7 @@ public final class TrainingParameterStorage {
             String path = entry.path();
             Tensor tensor = entry.tensor();
             DataType type = tensor.descriptor().dataType();
-            if (type != DataType.FLOAT64 && type != DataType.FLOAT32
-                    && type != DataType.BFLOAT16 && type != DataType.FLOAT16) {
+            if (!type.isFloating()) {
                 throw new IllegalArgumentException("unsupported training parameter type at path "
                         + path + ": " + type);
             }

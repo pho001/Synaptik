@@ -18,7 +18,7 @@ import java.util.Objects;
  * <p>The positive-rank, fully static Shape of {@code scale} identifies the trailing input axes
  * normalized by this layer. {@code bias} has the same structural Shape and exact floating data
  * type. The layer retains the selected exact Shape and one exact positive epsilon with the
- * parameter arithmetic type: the parameter type except FLOAT32 for FLOAT16 parameters. It
+ * parameter arithmetic type: FLOAT32 for FLOAT16/FP8, otherwise the exact parameter type. It
  * declares the parameters under stable local names {@code scale} then {@code bias}. Both affine
  * parameters are mandatory because the Model layer-normalization operation accepts either no
  * affine state or the exact ordered pair.</p>
@@ -63,7 +63,7 @@ public final class LayerNorm extends UnaryTensorModule {
      * parameters must be floating, gradient-eligible, structurally Shape-equal, and have the same
      * exact data type. The Shape must have positive rank, be fully static, and have a positive
      * extent on every axis. Epsilon must satisfy the Model finite-positive contract and have the
-     * parameter arithmetic type: the parameter type except FLOAT32 for FLOAT16 parameters. All
+     * parameter arithmetic type: FLOAT32 for FLOAT16/FP8, otherwise the exact parameter type. All
      * validation completes before either parameter is declared. The supplied Tensor references,
      * scale Shape reference, and epsilon reference are retained without copying, mutation, or
      * evaluation.</p>
@@ -115,9 +115,9 @@ public final class LayerNorm extends UnaryTensorModule {
      *
      * @param normalizedShape non-null positive-rank fully static Shape with every extent positive;
      *     retained exactly and used for both parameters
-     * @param dataType non-null floating parameter type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
+     * @param dataType non-null floating parameter type, including all four low storage formats
      * @param epsilon non-null finite strictly positive floating value with the parameter arithmetic
-     *     type: exact parameter type except FLOAT32 for FLOAT16 parameters; retained exactly
+     *     type: FLOAT32 for FLOAT16/FP8, otherwise the exact parameter type; retained exactly
      * @throws NullPointerException if {@code normalizedShape}, {@code dataType}, or
      *     {@code epsilon} is null, checked in that order
      * @throws IllegalArgumentException if the Shape has rank zero, is not fully static, or has a
@@ -261,8 +261,10 @@ public final class LayerNorm extends UnaryTensorModule {
     }
 
     private static void validateEpsilonType(ScalarValue epsilon, DataType parameterType) {
-        DataType expectedType =
-                parameterType == DataType.FLOAT16 ? DataType.FLOAT32 : parameterType;
+        DataType expectedType = switch (parameterType) {
+            case FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> DataType.FLOAT32;
+            default -> parameterType;
+        };
         if (epsilon.dataType() != expectedType) {
             throw new IllegalArgumentException(
                     "layer normalization epsilon data type must equal parameter arithmetic type: "

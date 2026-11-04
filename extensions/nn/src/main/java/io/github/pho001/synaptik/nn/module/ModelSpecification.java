@@ -188,7 +188,7 @@ public final class ModelSpecification {
      *
      * @param normalizedShape non-null positive fully static trailing Shape, retained unchanged
      * @param dataType non-null floating affine parameter type
-     * @param epsilon non-null exact finite positive arithmetic-typed epsilon, retained without conversion
+     * @param epsilon non-null exact finite positive arithmetic-typed epsilon (FLOAT32 for FLOAT16/FP8)
      */
     public record LayerNormStep(Shape normalizedShape, DataType dataType, ScalarValue epsilon) implements Step {
         /**
@@ -196,7 +196,7 @@ public final class ModelSpecification {
          *
          * @param normalizedShape non-null positive fully static trailing Shape, retained unchanged
          * @param dataType non-null floating affine parameter type
-         * @param epsilon non-null exact finite positive arithmetic-typed epsilon, retained without conversion
+         * @param epsilon non-null exact finite positive arithmetic-typed epsilon (FLOAT32 for FLOAT16/FP8)
          * @throws NullPointerException if {@code normalizedShape}, {@code dataType} or {@code epsilon} is null
          * @throws IllegalArgumentException if the Shape is not positive fully static with positive
          *     rank, the type is not floating, or epsilon is not finite, positive and arithmetic-typed
@@ -205,7 +205,10 @@ public final class ModelSpecification {
         public LayerNormStep {
             parameterShape(dataType, normalizedShape, false);
             new AffineLayerNormAttrs(normalizedShape, Objects.requireNonNull(epsilon, "epsilon"));
-            DataType expected = dataType == DataType.FLOAT16 ? DataType.FLOAT32 : dataType;
+            DataType expected = switch (dataType) {
+                case FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> DataType.FLOAT32;
+                default -> dataType;
+            };
             if (epsilon.dataType() != expected)
                 throw new IllegalArgumentException("LayerNormStep epsilon must match parameter arithmetic type");
         }

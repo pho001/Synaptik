@@ -391,8 +391,7 @@ public final class TrainingState {
         /**
          * Returns the exact logical parameter element type.
          *
-         * @return {@link DataType#FLOAT64}, {@link DataType#FLOAT32},
-         *     {@link DataType#BFLOAT16}, or {@link DataType#FLOAT16}
+         * @return the declared floating storage type, including any of the four low formats
          */
         public DataType dataType() {
             return dataType;

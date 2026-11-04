@@ -6,7 +6,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  * One parameter assignment's validated adaptive coefficients in its optimizer arithmetic domain.
  *
  * <p>{@link #forParameter(Optimizer, DataType)} resolves the algorithm once at session open.
- * FLOAT64 assignments retain binary64 values; FLOAT32, BFLOAT16, and FLOAT16 assignments store
+ * FLOAT64 assignments retain binary64 values; FLOAT32 and all four low parameter types store
  * values narrowed to binary32. The decoupled flag distinguishes AdamW's parameter scaling from
  * Adam's gradient-coupled decay without selecting an algorithm inside the element loop.</p>
  *

@@ -33,7 +33,8 @@ final class TrainingSessionFailureContractTest {
     @Test
     void boundsSnapshotPayloadsAtCaptureWithoutAllocatingParameterStorage() {
         for (DataType type : List.of(
-                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
             int optimizerWidth = type == DataType.FLOAT64 ? Double.BYTES : Float.BYTES;
             long lastRepresentableCount = Integer.MAX_VALUE / optimizerWidth;
             Binding atBoundary = new NamedParameters(

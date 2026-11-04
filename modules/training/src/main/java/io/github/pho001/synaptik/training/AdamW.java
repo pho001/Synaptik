@@ -6,7 +6,7 @@ package io.github.pho001.synaptik.training;
  * <p>On each successful global optimizer step, moments use the selected gradient without decay.
  * The master parameter first receives the factor {@code 1 - learningRate * weightDecay}, then
  * the bias-corrected adaptive subtraction. A session owns the moments; this shareable value owns
- * none. FLOAT32, BFLOAT16, and FLOAT16 parameters use coefficients narrowed once to FLOAT32 at
+ * none. FLOAT32 and all four low parameter types use coefficients narrowed once to FLOAT32 at
  * open; FLOAT64 parameters use the configured binary64 coefficients. Equality requires the same
  * algorithm and exact configured binary64 coefficient bits, including the sign of zero.</p>
  */

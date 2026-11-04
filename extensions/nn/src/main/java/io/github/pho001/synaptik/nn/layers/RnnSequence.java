@@ -250,7 +250,7 @@ public final class RnnSequence extends Module {
      * are reused without initialization. Current weights are snapshotted once in declaration
      * order; replacement affects later occurrences only and requires caller coordination.
      * The body shares ordinary forward's exact projection, bias, ADD and TANH equation,
-     * including observable BFLOAT16/FLOAT16 rounding at each ordinary operation result.
+     * including observable rounding for all four low formats at each ordinary operation result.
      * This differs from fixed low scans, which retain FLOAT32 working projections and narrow
      * only the next state; this explicit method does not redirect those fixed recipes.
      * Storage-free canonical formals preserve actual dtype and gradient flags. No actual
@@ -264,8 +264,8 @@ public final class RnnSequence extends Module {
      * use their existing owners and independently qualified domains; this method creates no Engine.
      * General CPU reads require canonical dense zero-offset geometry (dense views and proved
      * scalar broadcasts have their existing exceptions), not fixed scan's broader read layouts.
-     * No implicit conversion, copy or backend fallback is inserted. CPU BFLOAT16/FLOAT16
-     * arithmetic remains unavailable. Low-output training objectives must explicitly cast to
+     * No implicit conversion, copy or backend fallback is inserted. CPU low arithmetic uses the
+     * existing execution owners. Low-output training objectives must explicitly cast to
      * FLOAT32 (or FLOAT64) under the existing Training objective contract.</p>
      *
      * @param input non-null configured floating static {@code [T,B,F]}, with T/B

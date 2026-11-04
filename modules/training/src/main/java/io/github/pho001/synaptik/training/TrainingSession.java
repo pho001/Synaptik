@@ -42,8 +42,8 @@ import java.util.OptionalLong;
  * <p>The initial update domain is non-empty, connected floating parameters with finite initial
  * values, fully static dense-contiguous offset-zero non-view descriptors, and exact-capacity
  * writable, shareable native host storage. Each parameter's declared-width and optimizer-width
- * snapshot payload must independently fit a Java byte array. {@code BFLOAT16} and
- * {@code FLOAT16} parameters retain private {@code FLOAT32} master values and publish one rounded
+ * snapshot payload must independently fit a Java byte array. {@code BFLOAT16}, {@code FLOAT16},
+ * {@code FLOAT8_E4M3}, and {@code FLOAT8_E5M2} retain private {@code FLOAT32} masters and publish one rounded
  * logical value per successful update. Unsupported parameter capture fails before private seed
  * allocation or compilation.
  * Tensor identities remain stable. The caller grants this session exclusive use of the live source's

@@ -39,7 +39,8 @@ import org.junit.jupiter.api.Test;
 /** Exercises detached reconstruction exclusively through the public API from another package. */
 final class TrainingStateReconstructionTest {
     private static final List<DataType> TYPES = List.of(
-            DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
+            DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
+            DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2);
 
     @Test
     void reconstructsEveryTypeAndDefaultAlgorithmAndMixedOrderedGroups() {
@@ -313,6 +314,10 @@ final class TrainingStateReconstructionTest {
                 segment.setAtIndex(ValueLayout.JAVA_SHORT, 0, (short) 0x8000);
                 segment.setAtIndex(ValueLayout.JAVA_SHORT, 1, (short) 0x4000);
             }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> {
+                segment.setAtIndex(ValueLayout.JAVA_BYTE, 0, (byte) 0x80);
+                segment.setAtIndex(ValueLayout.JAVA_BYTE, 1, (byte) 0x40);
+            }
             default -> throw new AssertionError(type);
         }
         Shape shape = Shape.of(2);
@@ -348,8 +353,8 @@ final class TrainingStateReconstructionTest {
 
         private Tensor objective() {
             DataType type = values.getFirst().descriptor().dataType();
-            boolean lowPrecision = type == DataType.BFLOAT16 || type == DataType.FLOAT16;
-            // Low types remain parameter storage; promote before CPU arithmetic, not after it.
+            boolean lowPrecision = type.byteWidth() < Float.BYTES;
+            // The scalar objective's FLOAT32 conversion remains explicit in the graph.
             Tensor sum = lowPrecision ? values.getFirst().cast(DataType.FLOAT32) : values.getFirst();
             for (int index = 1; index < values.size(); index++) {
                 Tensor value = values.get(index);

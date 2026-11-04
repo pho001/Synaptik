@@ -107,7 +107,7 @@
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.LayerNorm} owns mandatory equal-Shape scale and
  * bias parameters over one positive-rank fully static normalized Shape, plus one exact
- * parameter-typed positive epsilon. It delegates to the affine
+ * arithmetic-typed positive epsilon (FLOAT32 for FLOAT16/FP8, otherwise the parameter type). It delegates to the affine
  * {@link io.github.pho001.synaptik.model.tensor.Tensor#layerNorm(
  * io.github.pho001.synaptik.model.shape.Shape,
  * io.github.pho001.synaptik.model.tensor.Tensor,
@@ -136,7 +136,8 @@
  *
  * <p>{@link io.github.pho001.synaptik.nn.layers.BatchNorm} owns mandatory rank-one
  * {@code scale}, {@code bias}, {@code runningMean}, and {@code runningVariance} state for one
- * explicit logical channel axis. Its immutable
+ * explicit logical channel axis. Momentum and epsilon use FLOAT32 for FLOAT16/FP8 state,
+ * otherwise the exact state type. Its immutable
  * {@link io.github.pho001.synaptik.nn.module.ForwardContext} selects exact Model inference or
  * training composition. Evaluation preserves both buffers; successful training installs the
  * pure producer's next mean and then next variance expressions into their stable wrappers. This

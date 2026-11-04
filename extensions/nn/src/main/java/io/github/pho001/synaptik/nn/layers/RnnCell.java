@@ -31,7 +31,7 @@ import java.util.random.RandomGeneratorFactory;
  * <p>Forward construction is fixed to
  * {@code tanh((input @ inputWeight^T + bias?) + (hidden @ hiddenWeight^T))}.
  * Each ordinary operation result keeps its promoted carrier and observable rounding, including
- * BFLOAT16/FLOAT16; this is not the fixed recurrent low-storage FLOAT32 working-site recipe.
+ * all four low formats; this is not the fixed recurrent low-storage FLOAT32 working-site recipe.
  * Leading input and hidden Dimensions are ordinary right-broadcastable batch metadata; none
  * is interpreted or traversed as time. This two-input contract makes the cell a direct {@link Module}, not a
  * {@link io.github.pho001.synaptik.nn.module.UnaryTensorModule}, so it cannot participate in
@@ -146,7 +146,7 @@ public final class RnnCell extends Module {
      * @param inputSize strictly positive input-feature count
      * @param hiddenSize strictly positive hidden-feature count
      * @param bias whether to create and declare one deterministic typed-zero shared bias
-     * @param dataType non-null floating parameter type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
+     * @param dataType non-null floating parameter type, including all four low storage formats
      * @param randomGenerator non-null transient caller-owned source used by both weight
      *     initializers and never retained
      * @throws NullPointerException if {@code dataType} or {@code randomGenerator} is null, checked

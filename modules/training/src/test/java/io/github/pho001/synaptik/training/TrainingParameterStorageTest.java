@@ -251,6 +251,8 @@ final class TrainingParameterStorageTest {
         assertWidth(DataType.FLOAT16,
                 ByteBuffer.allocate(4).order(ByteOrder.nativeOrder())
                         .putShort((short) 0x8000).putShort((short) 0x0001).array(), 2);
+        assertWidth(DataType.FLOAT8_E4M3, new byte[] {(byte) 0x80, 0x01}, 2);
+        assertWidth(DataType.FLOAT8_E5M2, new byte[] {(byte) 0x80, 0x01}, 2);
     }
 
     @Test

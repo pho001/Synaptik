@@ -4,6 +4,8 @@ import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
@@ -30,6 +32,11 @@ import java.util.Objects;
  * that stages them. Successful accumulation clearing releases its inactive candidate. A restored
  * negative-zero momentum slot under zero configured momentum is retained exactly until the next
  * successful update, when it is normalized without a pass on ordinary zero-momentum steps.</p>
+ *
+ * <p>All four low storage types retain FLOAT32 master/optimizer values. Logical FP8
+ * candidates and rollback use exact bytes. Narrowing validates the represented result before
+ * any parameter write, including E4M3 overflow to NaN; failed writes restore logical bits and
+ * masters without publishing staged optimizer slots.</p>
  */
 final class TrainingParameter {
     private final String path;
@@ -46,6 +53,8 @@ final class TrainingParameter {
     private float[] masterRollback32;
     private short[] parameterCandidate16;
     private short[] parameterRollback16;
+    private byte[] parameterCandidate8;
+    private byte[] parameterRollback8;
 
     private float[] gradient32;
     private float[] accumulated32;
@@ -106,8 +115,13 @@ final class TrainingParameter {
                 master32 = new float[elementCount];
                 masterCandidate32 = new float[elementCount];
                 masterRollback32 = new float[elementCount];
-                parameterCandidate16 = new short[elementCount];
-                parameterRollback16 = new short[elementCount];
+                if (dataType.byteWidth() == 1) {
+                    parameterCandidate8 = new byte[elementCount];
+                    parameterRollback8 = new byte[elementCount];
+                } else {
+                    parameterCandidate16 = new short[elementCount];
+                    parameterRollback16 = new short[elementCount];
+                }
                 initializeMaster();
             }
         }
@@ -135,10 +149,7 @@ final class TrainingParameter {
 
     private void initializeMaster() {
         for (int index = 0; index < elementCount; index++) {
-            short bits = segment.get(ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
-            master32[index] = dataType == DataType.BFLOAT16
-                    ? BFloat16Bits.toFloat(bits)
-                    : Float16Bits.toFloat(bits);
+            master32[index] = decodeLow(readLowBits(index));
         }
     }
 
@@ -343,7 +354,7 @@ final class TrainingParameter {
             }
         } else {
             for (int index = 0; index < elementCount; index++) {
-                gradient32[index] = decodeLow(bytes.getShort());
+                gradient32[index] = decodeLow(readLowBits(bytes));
             }
         }
         for (int index = 0; index < elementCount; index++) {
@@ -385,7 +396,7 @@ final class TrainingParameter {
      * {@code (learningRate * correctedFirstMoment) / (sqrt(correctedSecondMoment) + epsilon)}:
      * the scaled numerator must be finite before division, and the update must be finite before
      * subtraction. This multiply-before-divide order applies in FLOAT64 and in the FLOAT32 path
-     * shared by FLOAT32, BFLOAT16, and FLOAT16 parameters; reassociation can change rounding and
+     * shared by FLOAT32 and all four low parameter types; reassociation can change rounding and
      * which updates overflow. A positive configured SGD momentum that narrows to binary32 zero
      * still stages a zero
      * candidate, preserving the existing swap behavior. Exactly zero configured momentum instead
@@ -464,9 +475,9 @@ final class TrainingParameter {
             parameterValue = segment.get(ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES);
             parameterRollback32[index] = parameterValue;
         } else {
-            short bits = segment.get(ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
+            int bits = readLowBits(index);
             requireFinite(decodeLow(bits), "current logical parameter", path, index);
-            parameterRollback16[index] = bits;
+            saveLowRollback(index, bits);
             parameterValue = master32[index];
             masterRollback32[index] = parameterValue;
         }
@@ -618,21 +629,7 @@ final class TrainingParameter {
         float[] selected = useAccumulatedCandidate ? accumulatedCandidate32 : gradient32;
         boolean firstMomentumStep = completedSteps == 0;
         for (int index = 0; index < elementCount; index++) {
-            float parameterValue;
-            if (dataType == DataType.FLOAT32) {
-                parameterValue = segment.get(
-                        ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES);
-                parameterRollback32[index] = parameterValue;
-            } else {
-                short logicalBits = segment.get(
-                        ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
-                requireFinite(
-                        decodeLow(logicalBits), "current logical parameter", path, index);
-                parameterRollback16[index] = logicalBits;
-                parameterValue = master32[index];
-                masterRollback32[index] = parameterValue;
-            }
-            requireFinite(parameterValue, "current parameter", path, index);
+            float parameterValue = readParameter32ForUpdate(index);
             float decayTerm = weightDecay * parameterValue;
             requireFinite(decayTerm, "weight-decay term", path, index);
             float adjusted = selected[index] + decayTerm;
@@ -722,13 +719,18 @@ final class TrainingParameter {
         }
     }
 
+    /** Narrows once and rejects nonfinite logical candidates before transaction installation. */
     void prepareParameterCandidate() {
-        if (dataType == DataType.FLOAT16 || dataType == DataType.BFLOAT16) {
+        if (master32 != null) {
             for (int index = 0; index < elementCount; index++) {
-                short narrowed = encodeLow(masterCandidate32[index]);
+                int narrowed = encodeLow(masterCandidate32[index]);
                 requireFinite(
                         decodeLow(narrowed), "logical parameter candidate", path, index);
-                parameterCandidate16[index] = narrowed;
+                if (parameterCandidate8 != null) {
+                    parameterCandidate8[index] = (byte) narrowed;
+                } else {
+                    parameterCandidate16[index] = (short) narrowed;
+                }
             }
         }
     }
@@ -750,10 +752,12 @@ final class TrainingParameter {
             }
         } else {
             for (int index = 0; index < elementCount; index++) {
-                segment.set(
-                        ValueLayout.JAVA_SHORT,
-                        (long) index * Short.BYTES,
-                        parameterCandidate16[index]);
+                if (parameterCandidate8 != null) {
+                    segment.set(ValueLayout.JAVA_BYTE, index, parameterCandidate8[index]);
+                } else {
+                    segment.set(ValueLayout.JAVA_SHORT, (long) index * Short.BYTES,
+                            parameterCandidate16[index]);
+                }
             }
             System.arraycopy(masterCandidate32, 0, master32, 0, elementCount);
         }
@@ -776,10 +780,12 @@ final class TrainingParameter {
             }
         } else {
             for (int index = 0; index < elementCount; index++) {
-                segment.set(
-                        ValueLayout.JAVA_SHORT,
-                        (long) index * Short.BYTES,
-                        parameterRollback16[index]);
+                if (parameterRollback8 != null) {
+                    segment.set(ValueLayout.JAVA_BYTE, index, parameterRollback8[index]);
+                } else {
+                    segment.set(ValueLayout.JAVA_SHORT, (long) index * Short.BYTES,
+                            parameterRollback16[index]);
+                }
             }
             System.arraycopy(masterRollback32, 0, master32, 0, elementCount);
         }
@@ -855,10 +861,8 @@ final class TrainingParameter {
                             segment.get(ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES),
                             "current parameter", index);
                 } else {
-                    short logicalBits = segment.get(
-                            ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
                     requireFiniteState(
-                            decodeLow(logicalBits), "current logical parameter", index);
+                            decodeLow(readLowBits(index)), "current logical parameter", index);
                     requireFiniteState(master32[index], "master parameter", index);
                 }
                 requireFiniteState(momentum32[index], "momentum slot", index);
@@ -918,8 +922,12 @@ final class TrainingParameter {
             }
         } else {
             for (int index = 0; index < elementCount; index++) {
-                parameterBuffer.putShort(segment.get(
-                        ValueLayout.JAVA_SHORT, (long) index * Short.BYTES));
+                if (parameterCandidate8 != null) {
+                    parameterBuffer.put(segment.get(ValueLayout.JAVA_BYTE, index));
+                } else {
+                    parameterBuffer.putShort(segment.get(
+                            ValueLayout.JAVA_SHORT, (long) index * Short.BYTES));
+                }
                 masterBuffer.putFloat(master32[index]);
                 momentumBuffer.putFloat(momentum32[index]);
                 if (secondBuffer != null) secondBuffer.putFloat(secondMoment32[index]);
@@ -1017,10 +1025,13 @@ final class TrainingParameter {
             }
         } else {
             for (int index = 0; index < elementCount; index++) {
-                parameterRollback16[index] = segment.get(
-                        ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
+                saveLowRollback(index, readLowBits(index));
                 masterRollback32[index] = master32[index];
-                parameterCandidate16[index] = parameterBuffer.getShort();
+                if (parameterCandidate8 != null) {
+                    parameterCandidate8[index] = parameterBuffer.get();
+                } else {
+                    parameterCandidate16[index] = parameterBuffer.getShort();
+                }
                 masterCandidate32[index] = masterBuffer.getFloat();
                 float restoredMomentum = momentumBuffer.getFloat();
                 momentumCandidate32[index] = restoredMomentum;
@@ -1162,7 +1173,7 @@ final class TrainingParameter {
                 requireFinitePayload(accumulatedBytes.getFloat(), "accumulated gradient", index);
             } else {
                 requireFinitePayload(
-                        decodeLow(parameterBytes.getShort()), "logical parameter", index);
+                        decodeLow(readLowBits(parameterBytes)), "logical parameter", index);
                 requireFinitePayload(masterBytes.getFloat(), "master parameter", index);
                 requireFinitePayload(momentumBytes.getFloat(), "momentum", index);
                 if (secondBytes != null) requireSecondMoment(secondBytes.getFloat(), index);
@@ -1206,16 +1217,46 @@ final class TrainingParameter {
         return false;
     }
 
-    private float decodeLow(short bits) {
-        return dataType == DataType.BFLOAT16
-                ? BFloat16Bits.toFloat(bits)
-                : Float16Bits.toFloat(bits);
+    private int readLowBits(int index) {
+        return dataType.byteWidth() == 1
+                ? segment.get(ValueLayout.JAVA_BYTE, index)
+                : segment.get(ValueLayout.JAVA_SHORT, (long) index * Short.BYTES);
     }
 
-    private short encodeLow(float value) {
-        return dataType == DataType.BFLOAT16
-                ? BFloat16Bits.fromFloat(value)
-                : Float16Bits.fromFloat(value);
+    private int readLowBits(ByteBuffer bytes) {
+        return dataType.byteWidth() == 1 ? bytes.get() : bytes.getShort();
+    }
+
+    private void saveLowRollback(int index, int bits) {
+        if (parameterRollback8 != null) {
+            parameterRollback8[index] = (byte) bits;
+        } else {
+            parameterRollback16[index] = (short) bits;
+        }
+    }
+
+    private float decodeLow(int bits) {
+        return decodeLow(dataType, bits);
+    }
+
+    private static float decodeLow(DataType type, int bits) {
+        return switch (type) {
+            case BFLOAT16 -> BFloat16Bits.toFloat((short) bits);
+            case FLOAT16 -> Float16Bits.toFloat((short) bits);
+            case FLOAT8_E4M3 -> Float8E4M3Bits.toFloat((byte) bits);
+            case FLOAT8_E5M2 -> Float8E5M2Bits.toFloat((byte) bits);
+            default -> throw new IllegalArgumentException("not a low floating type: " + type);
+        };
+    }
+
+    private int encodeLow(float value) {
+        return switch (dataType) {
+            case BFLOAT16 -> BFloat16Bits.fromFloat(value);
+            case FLOAT16 -> Float16Bits.fromFloat(value);
+            case FLOAT8_E4M3 -> Float8E4M3Bits.fromFloat(value);
+            case FLOAT8_E5M2 -> Float8E5M2Bits.fromFloat(value);
+            default -> throw new IllegalStateException("not a low floating type: " + dataType);
+        };
     }
 
     /**
@@ -1238,12 +1279,10 @@ final class TrainingParameter {
                 finite = Float.isFinite(segment.get(
                         ValueLayout.JAVA_FLOAT_UNALIGNED, (long) index * Float.BYTES));
             } else {
-                short bits = segment.get(
-                        ValueLayout.JAVA_SHORT_UNALIGNED, (long) index * Short.BYTES);
-                float value = dataType == DataType.BFLOAT16
-                        ? BFloat16Bits.toFloat(bits)
-                        : Float16Bits.toFloat(bits);
-                finite = Float.isFinite(value);
+                int bits = dataType.byteWidth() == 1
+                        ? segment.get(ValueLayout.JAVA_BYTE, index)
+                        : segment.get(ValueLayout.JAVA_SHORT_UNALIGNED, (long) index * Short.BYTES);
+                finite = Float.isFinite(decodeLow(dataType, bits));
             }
             if (!finite) {
                 throw new IllegalArgumentException(

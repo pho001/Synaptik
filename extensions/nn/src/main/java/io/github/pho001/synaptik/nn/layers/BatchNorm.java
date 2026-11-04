@@ -25,7 +25,7 @@ import java.util.Optional;
  * {@code bias}; persistent state is declared under {@code runningMean} then
  * {@code runningVariance}. Momentum is a finite new-batch weight in {@code [0, 1]}, and epsilon
  * is finite and strictly positive. Both scalars retain their exact supplied representation and
- * have the state arithmetic type: the exact state type except FLOAT32 for FLOAT16 state.</p>
+ * have the state arithmetic type: FLOAT32 for FLOAT16/FP8, otherwise the exact state type.</p>
  *
  * <p>{@link #forward(Tensor, ForwardContext)} treats the immutable context snapshot as
  * authoritative. Evaluation delegates once to Model batch-normalization inference and leaves
@@ -61,7 +61,7 @@ public final class BatchNorm extends Module {
      * positive rank-one Shape. Scale and bias require gradient eligibility; the two initially
      * supplied running statistics must not be gradient-eligible. Momentum and epsilon must satisfy
      * the Model intrinsic training-attribute contract and exactly match the state arithmetic type:
-     * the state type except FLOAT32 for FLOAT16 state. Complete validation precedes every state
+     * FLOAT32 for FLOAT16/FP8, otherwise the exact state type. Complete validation precedes every state
      * declaration and creates no Tensor or producer. The exact four Tensor references and two
      * scalar references are retained without copying, mutation, or evaluation.</p>
      *
@@ -139,7 +139,7 @@ public final class BatchNorm extends Module {
      * @param featureCount positive static number of channel features
      * @param channelAxis non-negative logical input channel axis, validated against each input
      *     rank during forward construction
-     * @param dataType non-null floating state type: FLOAT64, FLOAT32, BFLOAT16, or FLOAT16
+     * @param dataType non-null floating state type, including all four low storage formats
      * @param momentum non-null finite floating new-batch weight in {@code [0, 1]} with the state
      *     arithmetic type, retained exactly
      * @param epsilon non-null finite strictly positive floating stabilizer with the state
@@ -407,7 +407,10 @@ public final class BatchNorm extends Module {
             ScalarValue epsilon,
             DataType stateType) {
         new BatchNormTrainingAttrs(channelAxis, momentum, epsilon);
-        DataType expectedType = stateType == DataType.FLOAT16 ? DataType.FLOAT32 : stateType;
+        DataType expectedType = switch (stateType) {
+            case FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> DataType.FLOAT32;
+            default -> stateType;
+        };
         if (momentum.dataType() != expectedType) {
             throw new IllegalArgumentException(
                     "batch normalization momentum data type must equal state arithmetic type: "

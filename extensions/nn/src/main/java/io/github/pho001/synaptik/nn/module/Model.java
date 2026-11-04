@@ -40,9 +40,9 @@ import java.util.function.BiFunction;
  * general recurrent sources use the existing cached Engine and Training owners when their
  * actual forward and derivative graphs qualify. Fixed low working/publication boundaries
  * remain distinct from general low operation-result rounding. Bounded all-valid bodies
- * persist through Checkpoint v4; the static homogeneous FLOAT32/FLOAT64 length-aware intersection
- * uses v5; maximum/average Pool3d occurrences select append-only v6, including inside otherwise
- * qualified bodies. Persistence is independent of execution qualification. All-valid scans execute every static time
+ * persist through Checkpoint v4; static length-aware sources use v5; maximum/average Pool3d
+ * occurrences select v6, including inside otherwise qualified bodies. FP8 selects v7 without
+ * changing older dtype encodings. Persistence is independent of execution qualification. All-valid scans execute every static time
  * step, without runtime lengths or padding. Persistence stores cold semantics
  * and current named values, not executable state, histories or optimizer continuation.
  * Those Models serialize high-level operations
@@ -178,11 +178,11 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * The static source uses {@link GraphCheckpoint}'s closed admission, including selected
      * CNN/static recurrent compositions, cold fixed scans and bounded general-scan bodies.
      * Cold signatures and dtypes are independent of execution support. Canonical static homogeneous
-     * FLOAT32/FLOAT64 general scans may compute and train when their actual bodies and bindings
+     * floating general scans may compute and train when their actual bodies and bindings
      * qualify through the existing cached owners. Fixed recurrent sources use the same
      * first-order training lifecycle without conversion into general-scan recipes. Bounded
-     * general bodies save/load through the smallest sufficient Checkpoint version (v4/v5, or
-     * v6 for Pool3d), without restoring objectives, optimizer state or backend eligibility.
+     * general bodies save/load through the smallest sufficient Checkpoint version (v4/v5/v6,
+     * or v7 for FP8), without restoring objectives, optimizer state or backend eligibility.
      * @param inputSignature non-null fully static exact input descriptor
      * @param definition non-null one-shot definition; its adopted modules must not be mutated later
      * @return owned eval Model with private state and cold symbolic forward
@@ -325,9 +325,9 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Loads list boundaries under explicit artifact ceilings without creating an Engine.
-     * Closed graph-model.v1/v2/v3/v4/v5/v6 sources are accepted without numerical conversion.
-     * V4 retains bounded all-valid general bodies; v5 adds the static homogeneous FLOAT32/FLOAT64
-     * length intersection; v6 adds typed maximum/average Pool3d, also in otherwise-qualified bodies.
+     * Closed graph-model.v1/v2/v3/v4/v5/v6/v7 sources are accepted without numerical conversion.
+     * V4 retains bounded all-valid general bodies; v5 adds static length-aware sources;
+     * v6 adds typed maximum/average Pool3d, and v7 adds both FP8 storage formats.
      * Load restores neither preparations nor objective/optimizer state.
      * @param path non-null graph artifact
      * @param limits non-null artifact bounds
@@ -442,12 +442,12 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * A successful configuration is final; failed setup may retry on the frozen Engine choice.
      * General scans use the same session and retain independent Compiler/backend admission;
      * connected, nonempty parameter requirements still apply at zero time count.
-     * Fixed-scan-containing sources reject after lifecycle/live-source admission, before arity, arguments,
-     * freeze, callback, Engine creation, inference-cache closure or native storage admission.
+     * Fixed and general recurrent sources retain their original arithmetic boundaries and use
+     * the same session. Low outputs require an explicit FLOAT32/FLOAT64 objective conversion.
      * @param targetSignature non-null fully static target descriptor
      * @param objectiveBuilder non-null pure builder returning a scalar gradient-eligible FLOAT32/FLOAT64 expression
      * @param optimizer non-null immutable Training optimizer configuration
-     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a fixed scan
+     * @throws UnsupportedOperationException if tensor capability is absent
      * @throws IllegalStateException if closed, busy, invalid, already configured or storage unusable
      * @throws IllegalArgumentException if boundaries, objective, native parameter or source admission rejects
      * @throws NullPointerException if an argument or objective result is null

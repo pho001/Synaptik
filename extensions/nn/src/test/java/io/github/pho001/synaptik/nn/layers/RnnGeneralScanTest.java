@@ -33,7 +33,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 /** Direct additive composition and the existing cell's initialization/publication contract. */
 @Execution(ExecutionMode.SAME_THREAD)
 final class RnnGeneralScanTest {
-    @ParameterizedTest @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64", "BFLOAT16", "FLOAT16"})
+    @ParameterizedTest @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64", "BFLOAT16", "FLOAT16", "FLOAT8_E4M3", "FLOAT8_E5M2"})
     void suppliedEagerAutomaticAndStrictLoadedBindingsKeepRolesAndSnapshots(DataType type) {
         for (boolean biased : List.of(false, true)) for (String binding : List.of("supplied", "eager", "automatic", "loaded"))
             for (RecurrentDirection direction : RecurrentDirection.values()) {
@@ -105,7 +105,7 @@ final class RnnGeneralScanTest {
         before = ids().get();
         assertThrows(IllegalArgumentException.class, () -> sequence.forwardGeneralScan(wrongWidth, l, h, RecurrentDirection.FORWARD));
         assertEquals(before, ids().get());
-        for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+        for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
             var lowSequence = sequence(low, true, "automatic");
             Tensor lowX = formal(low, Shape.of(3, 2, 3), false), lowH = formal(low, Shape.of(2, 2), false);
             Tensor wrongType = formal(DataType.FLOAT32, Shape.of(3, 2, 3), false);
@@ -117,7 +117,7 @@ final class RnnGeneralScanTest {
         }
     }
 
-    @ParameterizedTest @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64", "BFLOAT16", "FLOAT16"})
+    @ParameterizedTest @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64", "BFLOAT16", "FLOAT16", "FLOAT8_E4M3", "FLOAT8_E5M2"})
     void emptyDescriptorsInitializeWithTheSameSeedBytesAndBoundCellIsReusable(DataType type) {
         for (long[] geometry : List.of(new long[]{0, 2}, new long[]{3, 0}, new long[]{0, 0})) {
             var sequence = sequence(type, true, "automatic");
@@ -134,7 +134,7 @@ final class RnnGeneralScanTest {
         }
     }
 
-    @ParameterizedTest @EnumSource(value = DataType.class, names = {"BFLOAT16", "FLOAT16"})
+    @ParameterizedTest @EnumSource(value = DataType.class, names = {"BFLOAT16", "FLOAT16", "FLOAT8_E4M3", "FLOAT8_E5M2"})
     void lowGeneralBodyKeepsOrdinaryCellRoundingRatherThanFixedWorkingSites(DataType type) {
         for (boolean biased : List.of(false, true)) for (RecurrentDirection direction : RecurrentDirection.values()) {
             var sequence = sequence(type, biased, "supplied");
