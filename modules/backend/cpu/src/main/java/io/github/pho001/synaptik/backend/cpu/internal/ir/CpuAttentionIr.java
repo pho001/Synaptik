@@ -81,6 +81,8 @@ public record CpuAttentionIr(
 
   /**
    * Encodes every generated-code fact and no cold geometry.
+   * BFLOAT16 results append publication version two for disjoint narrowing/address locals;
+   * every other result representation retains its existing family identity unchanged.
    *
    * @return a new immutable generic kernel identity for the same attention specialization; never
    *     {@code null}
@@ -117,6 +119,7 @@ public record CpuAttentionIr(
             + ":acc="
             + (resultType == DataType.FLOAT64 ? "F64" : "F32")
             + ":scratch=ATTENTION_ROW_STATE:realization=DIRECT_SCALAR";
+    if (resultType == DataType.BFLOAT16) identity += ":bf16-publication=2";
     return new CpuKernelIr(
         values, List.of(), new CpuKernelIr.Loop("start", "end"), stores, identity);
   }
