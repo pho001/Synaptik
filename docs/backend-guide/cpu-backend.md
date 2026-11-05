@@ -839,12 +839,34 @@ whereas a [heuristic](../glossary.md#term-heuristic) is a rule-based estimate ra
 
 `CpuBackendIntegration.localWorkloadTuning()` returns the same retained
 `CpuLocalWorkloadTuning` collaboration while the integration is open. This is a supported
-composition [SPI](../glossary.md#term-service-provider-interface-spi) for the current exact/default [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) bare-[MATMUL](../glossary.md#matrix-multiplication--matmul) tuning slice, not an
-application tuning runner. Given the exact stable [`PrepareContext`](../glossary.md#prepare-context-preparecontext) for the supported sole
-non-empty [CPU](../glossary.md#term-cpu) [partition](../glossary.md#partition), `candidateHandoff(...)` performs fresh CPU analysis and returns a [handoff](../glossary.md#term-handoff) only
-when that analysis finds the complete eligible [OpenBLAS](../glossary.md#term-openblas)-versus-portable [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters). A valid but
-non-tunable [artifact](../glossary.md#term-artifact) returns an empty optional; unsupported partition [shapes](../glossary.md#shape) fail under the same
-domain rules as ordinary preparation.
+composition [SPI](../glossary.md#term-service-provider-interface-spi), not an application tuning runner.
+Given the exact stable [`PrepareContext`](../glossary.md#prepare-context-preparecontext) for the sole
+non-empty CPU partition, `candidateHandoff(...)` analyzes a bare single MATMUL with only
+absorbed PERMUTE prerequisites and intrinsically singleton topology/representation. It offers
+the legal direct and fixed-2-by-2 scalar forms for all 40 Model-valid promoted numeric tuples,
+plus qualified homogeneous F32/F64/I32/I64 Vector API forms and every legal configured range
+count. Vector physical-layout, epilogue and species proofs still apply; an absent optional Vector
+module prunes those forms rather than disabling public CPU tuning. This is not arbitrary species,
+tile or unroll search, and ordinary production defaults remain scalar and single-threaded.
+
+Qualified OpenBLAS alternatives enumerate legal mask/configured-thread combinations fitting
+resources, but only for the existing positive, bare rank-two homogeneous F32/F64 route with
+$K>1$, where $K$ is the contraction extent in elements. OpenBLAS is a whole-unit alternative,
+not arbitrary per-unit native placement. oneDNN offers each qualified permitted Primitive or
+Graph API (up to two per unit for AUTO, at most one for forced policy), under its existing
+Model and staged-dtype rules, not native support for all 40 tuples. CPU remains the backend
+owner; OpenBLAS and oneDNN are routes. The
+[oneDNN Primitive and Graph APIs](../glossary.md#onednn-primitive-and-graph-apis) execute CPU
+numeric work: they are neither Model automatic differentiation nor Apple's MPSGraph.
+
+Caller inputs remain storage-unknown. A native candidate must declare its legal ingress/copy
+workspaces and fit current resources; enumeration never relabels caller buffers as native.
+Generated OpenBLAS segment copies may accept exactly matching primitive heap segments after
+intrinsic dtype/carrier classification; uncopied provider buffers remain native-only. Empty read
+domains require no meaningful materialization (zero direct scoring cost uses the established
+basis-zero convention); zero-contraction MATMUL remains portable, not newly native-qualified.
+A valid but locally non-tunable artifact returns an empty optional; this does not imply that
+complete-plan tuning is unavailable. Unsupported partitions still fail ordinary domain checks.
 
 The handoff contains the exact partition and [opaque](../glossary.md#term-opaque) typed batch, while candidates and selected
 decisions remain CPU-owned opaque values. Enumeration is [immutable](../glossary.md#term-immutable), complete, and stable in the
@@ -906,17 +928,28 @@ persistent CPU model-plan [cache](../glossary.md#term-cache) reuse remain unimpl
 `candidateHandoff(context, phaseOneDecision)` first authenticates the exact projected context and
 integration association. When the projection has an eligible Phase-1 local workload, the caller
 must supply the exact selected `CpuLocalWorkloadTuning.SelectedDecision`; when it does not, the
-optional must be empty. Phase 2 keeps that state fixed. Fresh [validation](../glossary.md#term-validation) may regenerate the
-Phase-1 batch to prove compatibility, but it does not enumerate, [rank](../glossary.md#term-ranking), time, or substitute local
-route candidates. Thus Phase 2 never repeats Phase-1 search.
+optional must be empty. With a local decision, Phase 2 freezes intrinsic topology/representation
+and does not repeat local enumeration, ranking or timing. Authentication transports only the four
+copy/direct/contiguous scoring cost terms. Current execution configuration, capacity,
+minimum-worker-work and all non-scoring materialization fields remain authoritative:
+`enabled`, `expectedRunCount`, `maximumAdditionalBytes`, `minimumNetBenefitCostUnits` and
+`minimumBenefitBasisPoints` must match.
 
-The returned batch contains every retained legal [topology](../glossary.md#term-topology)/representation combination in stable
-order, or no batch when completeness cannot be proved or fewer than two alternatives exist. For
-a partition above eight compiled nodes, ordinary CPU preparation still executes a retained common
-plan (including eligible [oneDNN](../glossary.md#term-onednn) comparison), but complete-plan candidates are unavailable: the
-internal candidate result has no [identities](../glossary.md#term-identity-meanings)
-and reports incomplete, and an explicit selected-plan [identity](../glossary.md#term-identity-meanings) is rejected. Phase 2 therefore
-does not tune or select such a partition.
+Without a local handoff, Engine bypasses the generic workload request, local tuner and local
+cache entirely; evidence has `workloads=[]`. Phase 2 can still capture a reference, check every
+candidate, warm up, time, select and freshly prepare production. This complete-only path retains
+legal topology/representation and typed per-unit portable/qualified oneDNN alternatives.
+
+The returned batch contains the complete retained legal alternatives in stable order; a singleton
+batch is legal. Comparing the reference to that same sole candidate is not an independent Model
+oracle. Local and complete batches are bounded at 8,192 before expansion, all-or-nothing;
+canonical identity streams are bounded at 1 MiB. Existing bounds of eight compiled nodes,
+64 topologies and 256 representation-pair attempts still apply. Native assignments are bounded
+at 6,560 for at most eight units with at most two qualified APIs each; native-replaced units do
+not multiply unused portable forms. Symbolic, Scan, larger or resource-bounded exclusions are
+protocol exclusions, not claims that CPU architecture cannot execute those graphs. Ordinary
+preparation can remain supported when complete tuning is unavailable; no truncated prefix is
+published as a complete candidate batch.
 
 Candidate-only copied representations remain explicit alternatives for this collaboration; their
 presence does not promote them into ordinary [heuristic](../glossary.md#term-heuristic) preparation, which continues to select

@@ -43,8 +43,14 @@ collaborations. It performs [cache](../glossary.md#term-cache)-first deduplicati
 opaque roles or interpreting backend fields. The [CPU](../glossary.md#term-cpu) backend supplies the current adapter and
 candidate collaborations. `Engine.prepareTuned(...)` composes them into a bounded two-phase
 CPU-only workflow from an explicit `ModelAutotuningRequest` carrying Config-owned policy and
-representative inputs: Phase 1 selects local workload decisions, and Phase 2 compares complete
-prepared CPU plans.
+representative inputs: Phase 1 selects an eligible local workload decision, and Phase 2 compares
+complete prepared CPU plans. Without a local handoff, CPU bypasses the local request, tuner and
+cache, reports `workloads=[]`, and may still measure a complete-only Phase 2; a singleton complete
+batch is legal. Absence of local tuning is not automatic fallback. The
+[CPU collaboration contract](cpu-backend.md#cold-complete-plan-candidate-collaboration) describes
+the bounded candidates and resource checks; the
+[strict public example](../reference/engine/lifecycle.md#supply-representative-values-for-bounded-tuning)
+shows caller-owned inputs and close order.
 
 Public `GraphPreparation.prepare(...)` coordinates package-internal assignment and validates one
 complete schedule supplied by an explicit assembler. CPU and [Metal](../glossary.md#term-metal) integrations currently supply

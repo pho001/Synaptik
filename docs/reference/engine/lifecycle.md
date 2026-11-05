@@ -125,13 +125,15 @@ See the [fresh-value example](../../user-guide/running-models.md#run-fresh-value
 
 ### Supply representative values for bounded tuning
 
-Optional `prepareTuned(...)` is a [cache](../../glossary.md#term-cache)-first preparation path for eligible single-owner CPU plans
-and exact [singleton](../../glossary.md#term-singleton)-NEG Metal plans. This CPU example uses a [`CONTIGUOUS`](../../glossary.md#term-contiguous) expression, which has no
-eligible local tuning [handoff](../../glossary.md#term-handoff) in the current standard composition, so the allowed policy
-deterministically demonstrates explicit safe fallback:
+Optional `prepareTuned(...)` is a cache-first preparation path for eligible single-owner CPU
+plans and exact singleton-NEG Metal plans. This strict public CPU example tunes a bare
+FLOAT32 `[2,2]` MATMUL. It needs JDK 26, the Engine dependencies and
+`--enable-native-access=ALL-UNNAMED`; the optional Vector module is not required. Candidate
+budgets admit the bounded CPU space rather than silently truncating it. These sampling counts
+demonstrate the lifecycle, not a statistically reliable performance recommendation.
 
 ```java
-// CONTIGUOUS has no eligible tuning handoff here; allowed fallback stays with the selected CPU owner.
+// Main class: BoundedCpuMatmul; no program arguments. Use the Engine dependency classpath.
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.engine.CompiledGraph;
 import io.github.pho001.synaptik.engine.Engine;
@@ -150,48 +152,65 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
-try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
-    Shape shape = Shape.of(2);
-    TensorDescriptor descriptor = new TensorDescriptor(
-            DataType.FLOAT32, shape,
+public final class BoundedCpuMatmul {
+  private static Tensor matrix(Arena arena, float[] values) {
+    Shape shape = Shape.of(2, 2);
+    TensorDescriptor descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
             Optional.of(LayoutDescriptor.contiguous(shape)), false);
-    MemorySegment storage = arena.allocate(2L * Float.BYTES, Float.BYTES);
-    storage.setAtIndex(java.lang.foreign.ValueLayout.JAVA_FLOAT, 0, 1.0f);
-    storage.setAtIndex(java.lang.foreign.ValueLayout.JAVA_FLOAT, 1, 2.0f);
-    Tensor input = TensorFactory.create(descriptor, Optional.empty(), Optional.of(
-            new MemorySegmentStorage(DataType.FLOAT32, 2, storage)));
-    CompiledGraph graph = engine.compile(List.of(input.contiguous()));
+    MemorySegment storage = arena.allocate(4L * Float.BYTES, Float.BYTES);
+    for (int i = 0; i < values.length; i++) {
+      storage.setAtIndex(java.lang.foreign.ValueLayout.JAVA_FLOAT, i, values[i]);
+    }
+    return TensorFactory.create(descriptor, Optional.empty(), Optional.of(
+            new MemorySegmentStorage(DataType.FLOAT32, 4, storage)));
+  }
+
+  public static void main(String[] args) throws Exception {
+   // The application owns input storage; it outlives all tuning trials and production runs.
+   try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    Tensor left = matrix(arena, new float[] {1, 2, 3, 4});
+    Tensor right = matrix(arena, new float[] {5, 6, 7, 8});
+    CompiledGraph graph = engine.compile(List.of(left.matmul(right)));
 
     ModelAutotuningConfig config = new ModelAutotuningConfig(
             ModelAutotuningConfig.Objective.MIN_MEDIAN_ELAPSED_NANOS,
-            new ModelAutotuningConfig.Budget(1, 2, 1, 3),
+            new ModelAutotuningConfig.Budget(1, 8192, 1, 3),
             new ModelAutotuningConfig.RepresentativeProfileIdentity(
                     1, new byte[] {0x01}),
-            ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC,
-            Path.of("build", "example-workload-cache.bin"),
-            new ModelAutotuningConfig.CompletePlanBudget(1, 0, 1, 1L, 0L),
-            Path.of("build", "unused-model-plan-cache.bin"));
+            ModelAutotuningConfig.FallbackPolicy.REQUIRE_TUNED_RESULT,
+            Path.of("example-workload-cache.bin"),
+            // Up to 8192 plans; reference/check/warmup/three samples fit these ceilings.
+            new ModelAutotuningConfig.CompletePlanBudget(8192, 1, 3, 65536L, 1048576L),
+            Path.of("unused-model-plan-cache.bin"));
     ModelAutotuningRequest request = new ModelAutotuningRequest(
             config,
             new ModelAutotuningRequest.ModelIdentity(1, new byte[] {0x42}),
-            List.of(input));
+            List.of(left, right));
 
     ModelAutotuningPreparation preparation = engine.prepareTuned(graph, request);
-    assert preparation.outcome()
-            == ModelAutotuningPreparation.Outcome.SAFE_HEURISTIC_FALLBACK;
-    assert preparation.evidence().isEmpty();
-    try (var prepared = preparation.preparedExecution();
-            var result = engine.run(prepared, List.of(input))) {
-        assert result.publications().size() == 1;
+    if (preparation.outcome() != ModelAutotuningPreparation.Outcome.TUNED) {
+      throw new AssertionError("Strict tuning must produce a tuned preparation");
     }
+    // Close each result before its prepared owner, then Engine, then caller-owned input arena.
+    try (var prepared = preparation.preparedExecution();
+            var result = engine.run(prepared, List.of(left, right))) {
+      if (result.publications().size() != 1) {
+        throw new AssertionError("Expected one matrix publication");
+      }
+    }
+   }
+  }
 }
 ```
 
-The request snapshots the list and identity bytes but retains the live caller-owned Tensor and
-storage. Phase 1 reuses or measures the sole eligible local workload. Its authenticated winner is
-then fixed while Phase 2 considers the [backend](../../glossary.md#backend)-owned complete candidates. For CPU those are the
-retained complete [topology](../../glossary.md#term-topology) and representation alternatives; for Metal there is one complete
-candidate fixed to the Phase-1-selected route. Phase 2 performs every exact correctness action
+The request snapshots the list and identity bytes but borrows live caller-owned Tensors and
+storage. Phase 1 reuses or measures an eligible local workload; its authenticated winner freezes
+intrinsic topology/representation for Phase 2. CPU plans without a local handoff bypass the local
+request, tuner and cache and report `workloads=[]`; they may still perform genuine complete-only
+Phase 2. Thus `CONTIGUOUS` or another locally ineligible expression does not by itself imply
+fallback. A complete batch may contain one candidate; checking it against the same reference is
+not an independent Model oracle. For Metal there is one complete candidate fixed to the local
+winner. Phase 2 performs every exact correctness action
 before timing; correctness, [warmup](../../glossary.md#term-warmup), and timed executions each use a fresh preparation and fresh
 Runtime state. After winner [authentication](../../glossary.md#term-authentication) and representative cleanup, the returned production
 handle is prepared afresh. Every trial closes its result before its temporary preparation on every
@@ -204,11 +223,22 @@ winner identity and summary, plus one correctness-and-[sample](../../glossary.md
 persistent hit has no candidate rows because compact reusable cache records do not contain rich
 per-call correctness actions or raw samples. Current CPU and Metal complete-plan evidence is
 always `SESSION` and measured, and its explicit [model](../../glossary.md#term-model)-plan path receives no filesystem access.
-Metal workload evidence is also always `SESSION` and measured. Model and representative-profile
-identities are caller-defined tuning-evidence labels, not a numerical selector or workload-[cache
-key](../../glossary.md#term-cache-key). Current scope excludes multiple
-workloads or occurrences, Compiler graph alternatives, [Planning](../../glossary.md#term-planning) owner or [partition](../../glossary.md#partition) alternatives,
-multiple partitions, and mixed backends.
+CPU local evidence can be `PERSISTENT` when a qualified stable binary and workload have the
+required projection: a first `MEASURED` call can be followed by a compatible `CACHE_HIT`.
+Otherwise local scope is session-bound; this does not change complete-plan `SESSION` scope.
+Metal workload evidence is always `SESSION` and measured. Model and representative-profile
+identities label evidence, not numerical selection or workload cache keys. Current scope
+excludes multiple local workloads, Compiler graph alternatives, Planning owner or partition
+alternatives, multiple partitions and mixed backends. NN Model/TrainingModel autotuning is not
+integrated; this is the separate advanced Engine API.
+
+`REQUIRE_TUNED_RESULT` fails when a complete tuning result cannot be produced.
+`ALLOW_SAFE_HEURISTIC` may instead return `SAFE_HEURISTIC_FALLBACK` with no tuning evidence and
+an ordinary freshly prepared recipe for the already selected owner; it does not authorize
+changing backends or accepting an incomplete candidate prefix. Neither outcome promises a
+global optimum or a speedup. See
+[CPU candidate ownership](../../backend-guide/cpu-backend.md#cold-local-workload-tuning-collaboration)
+and the [backend execution contract](../../architecture/contracts/backend-execution.md#cpu-backend-routes).
 
 ### Get detached values with one-shot compute
 

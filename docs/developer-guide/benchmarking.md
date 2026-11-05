@@ -184,6 +184,14 @@ Current CPU complete-plan [candidate batches](../glossary.md#candidate-batch) de
 persistent model-plan cache. The explicit path is still passed unchanged, keeping Engine's mapping
 valid for a future `PERSISTENT` producer without claiming current persistent CPU reuse.
 
+CPU local reuse is separate: when a qualified stable binary and workload have a persistent
+projection, an actual first call can report `PERSISTENT`/`MEASURED` and a compatible later call
+`PERSISTENT`/`CACHE_HIT`. Otherwise local reuse is session-bound; neither persistent reuse nor
+session scope is universal. A CPU plan with no local handoff bypasses the local tuner and cache,
+reports no workload rows and can still execute a measured, session-scoped Phase 2, even for a
+singleton complete batch. Reference agreement with the same sole candidate is not an independent
+Model oracle. See the [public strict example](../reference/engine/lifecycle.md#supply-representative-values-for-bounded-tuning).
+
 ## Current declarative Config request
 
 `modules/config` now provides [`ModelAutotuningConfig`](../glossary.md#model-autotuning-request-facade--modelautotuningconfig), an [immutable](../glossary.md#term-immutable) request [facade](../glossary.md#term-facade) separate from
@@ -327,10 +335,14 @@ appropriate generator, but [cache](../glossary.md#term-cache) reuse uses a [cano
 semantics and attributes, data types, [shapes](../glossary.md#shape), [layouts](../glossary.md#layout), relevant policies, and [target](../glossary.md#term-target)
 compatibility. A single family-wide thread or [vector](../glossary.md#term-vector) value is not a valid general cache contract.
 
-Hardware and supported [JDK](../glossary.md#term-java-development-kit-jdk) [Vector API](../glossary.md#term-vector-api) species constrain physical vector [lanes](../glossary.md#term-lane). A [CPU](../glossary.md#term-cpu) [candidate
-generator](../glossary.md#candidate-generator) may return complete valid species/strategy, unroll, tile, parallelism, and [OpenBLAS](../glossary.md#term-openblas)
-thread configurations. It cannot promise an arbitrary lane count or expose private knobs through
-a generic [parameter](../glossary.md#term-parameter) map.
+Hardware and supported JDK Vector API species constrain physical lanes. Current CPU local
+enumeration is bounded: direct/fixed-2-by-2 scalar forms for the 40 promoted numeric tuples,
+qualified homogeneous F32/F64/I32/I64 vector forms, legal configured range counts, and qualified
+native alternatives fitting current resources. It does not search arbitrary species, tiles or
+unroll factors. Optional Vector absence prunes vector forms; it does not prevent public CPU
+tuning. OpenBLAS remains the qualified positive bare rank-two F32/F64 whole-unit route with
+contraction extent greater than one; oneDNN alternatives retain their own API/dtype qualification.
+See [CPU candidate and ownership details](../backend-guide/cpu-backend.md#cold-local-workload-tuning-collaboration).
 
 ## Current benchmark commands
 
