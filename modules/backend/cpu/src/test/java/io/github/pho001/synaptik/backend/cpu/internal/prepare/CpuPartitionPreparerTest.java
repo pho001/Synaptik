@@ -348,7 +348,7 @@ public class CpuPartitionPreparerTest {
                 plan.publicationBoundaryPositions(), plan.materializations(),
                 plan.representationUnits(), plan.representationDecisions(),
                 plan.partialReductionRecipe(), plan.openBlasPlan(),
-                plan.openBlasTuningBatch(), plan.selectedOpenBlasTuningCandidate(),
+                plan.localTuningBatch(), plan.selectedLocalTuningCandidate(),
                 binding, plan.oneDnnPlan());
     }
 

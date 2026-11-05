@@ -2598,6 +2598,41 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void metalWithoutSingletonNegLocalBatchCannotEnterCompletePlanTuning(@TempDir Path directory) {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                Tensor input = nativeTensor(
+                        descriptor(Shape.of(2)), arena, 1.25f, -2.5f);
+                var compiled = engine.compile(List.of(input.floor()));
+                assertEquals(List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                var strict = tuningRequest(directory, input,
+                        ModelAutotuningConfig.FallbackPolicy.REQUIRE_TUNED_RESULT);
+
+                var rejection = assertThrows(IllegalStateException.class,
+                        () -> engine.prepareTuned(compiled, strict));
+
+                assertEquals("no eligible complete-plan tuning handoff", rejection.getMessage());
+                assertFalse(Files.exists(strict.config().workloadCache()));
+                assertFalse(Files.exists(strict.config().modelPlanCache()));
+                var fallback = engine.prepareTuned(compiled, tuningRequest(directory, input,
+                        ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC));
+                assertEquals(ModelAutotuningPreparation.Outcome.SAFE_HEURISTIC_FALLBACK,
+                        fallback.outcome());
+                assertEquals(Optional.empty(), fallback.evidence());
+                try (var prepared = fallback.preparedExecution();
+                        var result = engine.run(prepared, List.of(input))) {
+                    assertCanonical(result.materialize(
+                            result.publications().getFirst(), 8L).bytes(), 1.0f, -3.0f);
+                }
+            }
+        }
+    }
+
+    @Test
     void cpuFreeMetalRunsRankTwoMatmulLinearAndSeededGradients() {
         Path library = configuredMetalLibrary();
         float[] leftValues = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};

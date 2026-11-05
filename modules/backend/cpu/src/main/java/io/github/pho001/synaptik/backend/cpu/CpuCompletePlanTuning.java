@@ -6,7 +6,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFusionDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuBackendComposition;
-import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningDecision;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuCompletePlanIdentity;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningBatch;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningDecision;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
@@ -33,7 +35,11 @@ import java.util.zip.CRC32;
  * projected sole non-empty CPU partition, each candidate fixes one
  * already-retained legal fusion/split topology, one direct, single-copy, or eligible
  * disjoint-two-copy representation, and the exact authenticated Phase-1 local route and
- * configuration when that workload is eligible. Upstream graph and publication semantics remain
+ * configuration when that workload is eligible. Local admission requires an intrinsically
+ * singleton canonical MATMUL topology, so Phase 2 never drops prior fusion/representation choices.
+ * Without Phase 1, each retained complete topology additionally enumerates legal fixed MATMUL
+ * unit configurations and qualified native assignments; native-replaced units do not multiply
+ * unused portable choices. A single complete survivor is a legitimate tuning batch. Upstream semantics remain
  * outside this collaboration; the supplied Planning ownership, partition boundary, and logical
  * memory remain fixed.</p>
  *
@@ -52,11 +58,11 @@ import java.util.zip.CRC32;
  * neither mechanism is a hostile-input security boundary.</p>
  */
 public final class CpuCompletePlanTuning {
-    private static final int VALUE_SCHEMA = 4;
+    private static final int VALUE_SCHEMA = 5;
     private static final int DECISION_MAGIC = 0x53435032;
     private static final int MAXIMUM_DECISION_BYTES = 2_048;
     private static final int CPU_BACKEND_TAG = 0x435055;
-    private static final int CANDIDATE_SCHEMA = 4;
+    private static final int CANDIDATE_SCHEMA = 5;
 
     private final CpuBackendComposition composition;
     private final CpuLocalWorkloadTuning localWorkloadTuning;
@@ -85,8 +91,8 @@ public final class CpuCompletePlanTuning {
      * @param context exact non-null stable one-partition projection retained by a successful batch
      * @param phaseOneDecision non-null optional exact Phase-1 decision; required precisely when
      *     the projection has an eligible local tuning batch
-     * @return an associated batch in stable topology/representation order, or empty when fewer
-     *     than two complete alternatives exist or completeness cannot be proved
+     * @return an associated batch in stable topology/representation order, or empty when no
+     *     complete alternatives exist or completeness cannot be proved
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if the projection or Phase-1 association is invalid
      * @throws IllegalStateException if the owning integration is closed
@@ -97,15 +103,14 @@ public final class CpuCompletePlanTuning {
         requireOpen();
         Objects.requireNonNull(context, "context");
         phaseOneDecision = Objects.requireNonNull(phaseOneDecision, "phaseOneDecision");
-        Optional<CpuOpenBlasTuningDecision> internalPhaseOne = localWorkloadTuning
+        Optional<CpuLocalTuningDecision> internalPhaseOne = localWorkloadTuning
                 .authenticateCompletePlanPhaseOne(context, phaseOneDecision);
         byte[] phaseOneFingerprint = localWorkloadTuning
                 .completePlanPhaseOneFingerprint(phaseOneDecision);
         CpuPartitionPreparer.CompletePlanCandidates retained = composition
                 .completePlanCandidates(context, internalPhaseOne);
-        List<CpuRepresentationDecision.VariantIdentity> identities = retained.identities().stream()
-                .distinct().toList();
-        if (!retained.complete() || identities.size() < 2) return Optional.empty();
+        List<CpuCompletePlanIdentity> identities = retained.identities();
+        if (!retained.complete() || identities.isEmpty()) return Optional.empty();
         Association association = new Association(this, context,
                 context.partition(), identities, phaseOneDecision,
                 internalPhaseOne, phaseOneFingerprint);
@@ -122,7 +127,7 @@ public final class CpuCompletePlanTuning {
      * Returns the immutable stable candidate list for an exact owned batch.
      *
      * @param batch non-null batch issued by this collaboration
-     * @return retained immutable list with at least two opaque candidates
+     * @return retained immutable list with at least one opaque candidate
      * @throws NullPointerException if {@code batch} is {@code null}
      * @throws IllegalArgumentException if the batch has another owner
      * @throws IllegalStateException if the owning integration is closed
@@ -276,7 +281,7 @@ public final class CpuCompletePlanTuning {
      * @param decision non-null decision associated with exactly {@code batch}
      * @return the immutable CPU-owned partition preparation for the selected decision
      * @throws NullPointerException if an argument is {@code null}
-     * @throws IllegalArgumentException if association, Phase-1 state, candidate set, or fresh
+     * @throws IllegalArgumentException if association, Phase-1 state, retained candidate membership, or fresh
      *     exact selection fails
      * @throws IllegalStateException if the owning integration is closed
      */
@@ -287,16 +292,11 @@ public final class CpuCompletePlanTuning {
         if (decision.association != association) {
             throw new IllegalArgumentException("decision does not belong to batch");
         }
-        Optional<CpuOpenBlasTuningDecision> phaseOne = localWorkloadTuning
-                .authenticateCompletePlanPhaseOne(association.context,
-                        association.phaseOneDecision);
+        Optional<CpuLocalTuningDecision> phaseOne = association.phaseOneDecision.isPresent()
+                ? localWorkloadTuning.authenticateCompletePlanPhaseOne(association.context,
+                        association.phaseOneDecision) : Optional.empty();
         if (!phaseOne.equals(association.internalPhaseOne)) {
             throw new IllegalArgumentException("CPU Phase-1 decision association changed");
-        }
-        CpuPartitionPreparer.CompletePlanCandidates fresh = composition.completePlanCandidates(
-                association.context, phaseOne);
-        if (!fresh.complete() || !fresh.identities().equals(association.identities)) {
-            throw new IllegalArgumentException("CPU complete-plan candidate set changed");
         }
         var selected = new CpuPartitionPreparer.SelectedCompletePlan(VALUE_SCHEMA,
                 association.identities.get(decision.index), unsigned(
@@ -342,23 +342,62 @@ public final class CpuCompletePlanTuning {
         return value;
     }
 
+    /**
+     * Reuses the complete-plan canonical topology encoding for opaque local realization identity.
+     * @param identity exact graph-identity-free retained topology and representation identity
+     * @return defensive SHA-256 digest of its canonical typed projection
+     */
+    static byte[] topologyFingerprint(CpuRepresentationDecision.VariantIdentity identity) {
+        CanonicalSink sink = new CanonicalSink();
+        encodeVariant(sink, identity);
+        return sink.digest();
+    }
+    private static byte[] completeIdentityFingerprint(CpuCompletePlanIdentity identity) {
+        CanonicalSink sink = new CanonicalSink();
+        encodeCompleteIdentity(sink, identity);
+        return sink.digest();
+    }
+
+    private static void encodeCompleteIdentity(CanonicalSink sink, CpuCompletePlanIdentity identity) {
+        encodeVariant(sink, identity.topology());
+        sink.integer(identity.units().size());
+        for (var unit : identity.units()) sink.integer(unit.unitPosition()).tag(unit.realization())
+                .integer(unit.rangeCount()).integer(unit.vectorSpeciesBits());
+        sink.bool(identity.nativeAssignment().isPresent());
+        identity.nativeAssignment().ifPresent(assignment -> sink.text(assignment.fingerprint()));
+        sink.bool(identity.openBlasAssignment().isPresent());
+        identity.openBlasAssignment().ifPresent(assignment -> {
+            var route = assignment.identity();
+            sink.tag(route.representation()).integer(route.threadCount()).integer(route.permitDemand())
+                    .integer(route.configuredThreadOrder()).longs(route.workspaceRequirementIds())
+                    .longValue(route.workspaceBytes()).longValue(route.inputCopiedElements())
+                    .longValue(route.outputCopiedElements());
+        });
+    }
     private CandidateIdentity identity(Association association, int index) {
         CanonicalSink sink = new CanonicalSink();
         sink.integer(VALUE_SCHEMA).bytes(compatibility(association).encoded)
                 .bytes(association.phaseOneFingerprint);
-        encodeVariant(sink, association.identities.get(index));
+        encodeCompleteIdentity(sink, association.identities.get(index));
         byte[] digest = sink.digest();
         return new CandidateIdentity(ByteBuffer.allocate(8 + digest.length)
                 .putInt(VALUE_SCHEMA).putInt(digest.length).put(digest).array());
     }
 
     private Compatibility compatibility(Association association) {
+        return association.compatibility;
+    }
+
+    private Compatibility computeCompatibility(Association association) {
         CanonicalSink sink = new CanonicalSink();
         sink.integer(VALUE_SCHEMA).integer(CANDIDATE_SCHEMA).integer(CPU_BACKEND_TAG)
+                .integer(CpuLocalTuningBatch.SCHEMA_VERSION)
+                .integer(CpuLocalTuningBatch.ROUTE_POLICY_VERSION)
+                .integer(CpuLocalTuningBatch.COST_POLICY_VERSION)
                 .bytes(sessionNonce).text(composition.oneDnnPolicyFingerprint())
                 .integer(association.identities.size());
         encodeProjection(sink, association.context, association.partition);
-        association.identities.forEach(identity -> encodeVariant(sink, identity));
+        association.identities.forEach(identity -> sink.bytes(completeIdentityFingerprint(identity)));
         encodeEnumerationDefaults(sink);
         sink.bytes(association.phaseOneFingerprint);
         byte[] digest = sink.digest();
@@ -646,15 +685,16 @@ public final class CpuCompletePlanTuning {
         private final CpuCompletePlanTuning owner;
         private final PrepareContext<?> context;
         private final PlannedPartition partition;
-        private final List<CpuRepresentationDecision.VariantIdentity> identities;
+        private final List<CpuCompletePlanIdentity> identities;
         private final Optional<CpuLocalWorkloadTuning.SelectedDecision> phaseOneDecision;
-        private final Optional<CpuOpenBlasTuningDecision> internalPhaseOne;
+        private final Optional<CpuLocalTuningDecision> internalPhaseOne;
         private final byte[] phaseOneFingerprint;
+        private final Compatibility compatibility;
         private Association(CpuCompletePlanTuning owner, PrepareContext<?> context,
                 PlannedPartition partition,
-                List<CpuRepresentationDecision.VariantIdentity> identities,
+                List<CpuCompletePlanIdentity> identities,
                 Optional<CpuLocalWorkloadTuning.SelectedDecision> phaseOneDecision,
-                Optional<CpuOpenBlasTuningDecision> internalPhaseOne,
+                Optional<CpuLocalTuningDecision> internalPhaseOne,
                 byte[] phaseOneFingerprint) {
             this.owner = owner;
             this.context = context;
@@ -663,11 +703,14 @@ public final class CpuCompletePlanTuning {
             this.phaseOneDecision = phaseOneDecision;
             this.internalPhaseOne = internalPhaseOne;
             this.phaseOneFingerprint = phaseOneFingerprint.clone();
+            this.compatibility = owner.computeCompatibility(this);
         }
     }
 
     private static final class CanonicalSink {
         private final MessageDigest digest;
+        private final byte[] scalar = new byte[Long.BYTES];
+        private int sourceBytes;
         private CanonicalSink() {
             try { digest = MessageDigest.getInstance("SHA-256"); }
             catch (NoSuchAlgorithmException impossible) {
@@ -676,23 +719,36 @@ public final class CpuCompletePlanTuning {
         }
         private CanonicalSink bool(boolean value) { return integer(value ? 1 : 0); }
         private CanonicalSink tag(Enum<?> value) { return integer(value.ordinal() + 1); }
+        private void reserve(int count) {
+            if (count < 0 || sourceBytes > 1_048_576 - count)
+                throw new IllegalArgumentException("CPU canonical complete identity exceeds 1 MiB");
+            sourceBytes += count;
+        }
         private CanonicalSink integer(int value) {
-            digest.update(ByteBuffer.allocate(4).putInt(value).array());
+            reserve(Integer.BYTES);
+            for (int index = 0; index < Integer.BYTES; index++) scalar[index] = (byte) (value >>> (24 - 8 * index));
+            digest.update(scalar, 0, Integer.BYTES);
             return this;
         }
         private CanonicalSink longValue(long value) {
-            digest.update(ByteBuffer.allocate(8).putLong(value).array());
+            reserve(Long.BYTES);
+            for (int index = 0; index < Long.BYTES; index++) scalar[index] = (byte) (value >>> (56 - 8 * index));
+            digest.update(scalar, 0, Long.BYTES);
             return this;
         }
         private CanonicalSink text(String value) {
-            byte[] bytes = Objects.requireNonNull(value, "value")
-                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            Objects.requireNonNull(value, "value");
+            if (value.length() > 65_536) throw new IllegalArgumentException("canonical text too long");
+            byte[] bytes = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            if (bytes.length > 65_536) throw new IllegalArgumentException("canonical text too long");
             integer(bytes.length);
+            reserve(bytes.length);
             digest.update(bytes);
             return this;
         }
         private CanonicalSink bytes(byte[] values) {
             integer(values.length);
+            reserve(values.length);
             digest.update(values);
             return this;
         }

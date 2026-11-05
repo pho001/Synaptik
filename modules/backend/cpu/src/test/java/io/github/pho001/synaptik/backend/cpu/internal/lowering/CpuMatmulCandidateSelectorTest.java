@@ -35,6 +35,14 @@ final class CpuMatmulCandidateSelectorTest {
         }
     }
 
+    @Test void tinyLegalTilesRemainCandidatesWithoutChangingProductionThresholds() {
+        var tiny = selector.select(new CpuMatmulCandidateSelector.Facts(DataType.FLOAT32,
+                DataType.FLOAT32, DataType.FLOAT32, 1, 2, 1, 16, 1, 1, 8, Terminal.NONE, 1),
+                ComputePreference.SCALAR);
+        assertEquals(java.util.List.of(Realization.DIRECT_SCALAR, Realization.DIRECT_N_VECTOR,
+                Realization.TILED_SCALAR_2X2, Realization.TILED_N_VECTOR_2X2), tiny.candidates());
+        assertEquals(Realization.DIRECT_SCALAR, tiny.selected());
+    }
     @Test void appliesExactBoundedThresholdsAndAlwaysRetainsScalar() {
         assertEquals(Realization.DIRECT_SCALAR, select(1, 4096, 1, true).selected());
         assertEquals(Realization.DIRECT_N_VECTOR, select(2, 16, 128, true).selected());

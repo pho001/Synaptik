@@ -1,6 +1,9 @@
-package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas;
+package io.github.pho001.synaptik.backend.cpu.internal.route;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasQualification;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
@@ -11,13 +14,19 @@ import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
 
 /**
- * Immutable CPU-owned candidate batch for one exact/default FLOAT32 or FLOAT64 OpenBLAS-eligible
- * MATMUL workload. The first candidate is always the complete portable alternative. Remaining
- * candidates are complete OpenBLAS representation/thread plans in deterministic copy-mask and
- * configured-thread order. This unsupported internal value contains no measurements, cache I/O,
- * provider handle, native address, physical workspace, or runtime state.
+ * Immutable CPU-owned finite realization batch for a resolved common CPU partition. Portable
+ * numeric MATMUL needs no native provider; qualified OpenBLAS mask/thread plans and oneDNN
+ * primitive/Graph assignments are additional typed alternatives. The ordinary production portable
+ * realization is first, followed by legal fixed portable forms/ranges, OpenBLAS mask/thread order,
+ * and canonical-topology oneDNN assignment order. The local handoff requires one intrinsically
+ * singleton bare-MATMUL topology/representation; fusion and nonlocal complete choices remain
+ * exclusively Phase 2. Local discovery admits one MATMUL and at most two absorbed permutations, and
+ * 8192 aggregate alternatives, rejecting excess before realization expansion rather than tuning
+ * a prefix. Cold plans own no executable, native handle, physical workspace, or Runtime state.
  *
  * <p>Its method-free {@link BackendTuningCandidateBatch} role permits shared Prepare code to
  * transport the exact batch opaquely without changing or exposing its CPU-owned schema.</p>
@@ -26,23 +35,25 @@ import java.util.Optional;
  * @param workload canonical immutable workload and compatibility signature
  * @param candidates immutable non-empty ordered candidates, beginning with portable
  */
-public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature workload,
+public record CpuLocalTuningBatch(int schemaVersion, WorkloadSignature workload,
         List<Candidate> candidates) implements BackendTuningCandidateBatch {
     /** Current meaning of the candidate and decision values in this package. */
-    public static final int SCHEMA_VERSION = 3;
-    /** Current CPU OpenBLAS route-policy meaning. */
-    public static final int ROUTE_POLICY_VERSION = 2;
+    public static final int SCHEMA_VERSION = 4;
+    /** All-or-nothing aggregate local candidate ceiling, checked before realization expansion. */
+    public static final int MAXIMUM_CANDIDATES = 8_192;
+    /** Current CPU local-realization route-policy meaning. */
+    public static final int ROUTE_POLICY_VERSION = 3;
     /** Current checked whole-plan cost-policy meaning. */
     public static final int COST_POLICY_VERSION = 1;
 
     /** Candidate route kind. */
     public enum RouteKind { /** Existing generated portable route. */ PORTABLE,
-        /** Qualified OpenBLAS SGEMM/DGEMM route. */ OPENBLAS }
-    /** Locked operation meaning for this first schema. */
+        /** Qualified OpenBLAS SGEMM/DGEMM route. */ OPENBLAS, /** Qualified oneDNN primitive or Graph assignment. */ ONEDNN }
+    /** Typed semantic projection discriminator. */
     public enum OperationKind { /** Bare rank-two matrix multiplication. */ MATMUL }
-    /** Locked fixed-attribute meaning for bare MATMUL. */
+    /** Additional attributes are carried by the typed common-IR semantic fingerprint. */
     public enum OperationAttributes { /** MATMUL has no configurable operation attributes. */ NONE }
-    /** Locked determinism request for this first schema. */
+    /** Fixed production determinism request. */
     public enum DeterminismMode { /** Current default execution determinism contract. */ DEFAULT }
 
     /**
@@ -192,15 +203,12 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
      * Canonical CPU-owned workload signature. It deliberately retains every policy input that can
      * change candidate meaning, even when two current values happen to produce equal costs.
      *
-     * @param operationKind exact bare operation kind
-     * @param operationAttributes fixed no-attribute value
-     * @param leftType exact left input type
-     * @param rightType exact right input type
-     * @param accumulationType exact contraction accumulation type
-     * @param outputType exact output type
-     * @param boundaries exact left, right, output boundary signatures
+     * @param operationKind exact bare MATMUL semantics discriminator
+     * @param operationAttributes no additional attributes outside the canonical semantic projection
+     * @param boundaries exact typed materialized boundaries in declaration order
      * @param determinismMode default determinism contract
-     * @param qualification exact provider target, binary/session, ABI, and numerical proof scope
+     * @param qualification optional qualified OpenBLAS target, binary/session, ABI and numerical scope;
+     *     absent for portable-only or oneDNN-only domains
      * @param hardware caller-supplied canonical CPU hardware identity
      * @param cpuConcurrencyCapacity positive shared CPU capacity snapshot
      * @param portableExecution exact configured portable execution inputs
@@ -214,17 +222,18 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
      * @param portableCosts exact portable cost coefficients
      * @param representationCosts exact representation cost coefficients
      * @param openBlasThreadCandidates all exact configured thread/cost values in caller order
-     * @param minimumNetBenefitCostUnits existing non-negative heuristic threshold
-     * @param minimumBenefitBasisPoints existing heuristic threshold from zero through 10,000
+     * @param minimumNetBenefitCostUnits exact optional non-negative heuristic threshold
+     * @param minimumBenefitBasisPoints exact optional heuristic threshold from zero through 10,000
      * @param generatedArtifactSchema exact selected portable generated-artifact schema
-     * @param routePolicyVersion exact CPU OpenBLAS route-policy version
+     * @param routePolicyVersion exact CPU local-realization route-policy version
      * @param costPolicyVersion exact checked cost-policy version
+     * @param semanticsFingerprint graph-identity-free common IR, unit membership, dependencies and
+     *     ordered boundary associations; operation attributes remain bound by typed IR identity
      */
     public record WorkloadSignature(OperationKind operationKind,
             OperationAttributes operationAttributes,
-            DataType leftType, DataType rightType, DataType accumulationType, DataType outputType,
             List<BoundarySignature> boundaries, DeterminismMode determinismMode,
-            QualificationScope qualification,
+            Optional<QualificationScope> qualification,
             HardwareIdentity hardware, int cpuConcurrencyCapacity,
             CpuPartitionAnalysisInputs.PortableExecutionConfig portableExecution,
             CpuPartitionPreparationPlan.ExecutionStrategy portableStrategy,
@@ -235,8 +244,9 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
             CpuPartitionAnalysisInputs.RepresentationCostTerms representationCosts,
             List<CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate>
                     openBlasThreadCandidates,
-            long minimumNetBenefitCostUnits, int minimumBenefitBasisPoints,
-            int generatedArtifactSchema, int routePolicyVersion, int costPolicyVersion) {
+            OptionalLong minimumNetBenefitCostUnits, OptionalInt minimumBenefitBasisPoints,
+            int generatedArtifactSchema, int routePolicyVersion, int costPolicyVersion,
+            String semanticsFingerprint) {
         /**
          * Validates and snapshots the complete compatibility signature. All lists become
          * unmodifiable snapshots; other components are immutable values retained by reference.
@@ -248,11 +258,8 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
          */
         public WorkloadSignature {
             Objects.requireNonNull(operationKind, "operationKind");
+            Objects.requireNonNull(semanticsFingerprint, "semanticsFingerprint");
             Objects.requireNonNull(operationAttributes, "operationAttributes");
-            Objects.requireNonNull(leftType, "leftType");
-            Objects.requireNonNull(rightType, "rightType");
-            Objects.requireNonNull(accumulationType, "accumulationType");
-            Objects.requireNonNull(outputType, "outputType");
             boundaries = List.copyOf(boundaries);
             Objects.requireNonNull(determinismMode, "determinismMode");
             Objects.requireNonNull(qualification, "qualification");
@@ -263,14 +270,15 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
             Objects.requireNonNull(cohort, "cohort");
             Objects.requireNonNull(materializationPolicy, "materializationPolicy");
             Objects.requireNonNull(portableCosts, "portableCosts");
+            Objects.requireNonNull(minimumNetBenefitCostUnits, "minimumNetBenefitCostUnits");
+            Objects.requireNonNull(minimumBenefitBasisPoints, "minimumBenefitBasisPoints");
             Objects.requireNonNull(representationCosts, "representationCosts");
             openBlasThreadCandidates = List.copyOf(openBlasThreadCandidates);
-            if (boundaries.size() != 3
-                    || leftType != rightType || leftType != accumulationType
-                    || leftType != outputType
-                    || leftType != DataType.FLOAT32 && leftType != DataType.FLOAT64
+
+            if (semanticsFingerprint.isBlank() || boundaries.isEmpty()
+                    || operationKind == OperationKind.MATMUL && boundaries.size() != 3
                     || cpuConcurrencyCapacity <= 0 || portableRangeCount <= 0
-                    || portableVectorSpeciesBits < 0 || openBlasThreadCounts.isEmpty()
+                    || portableVectorSpeciesBits < 0
                     || openBlasThreadCounts.stream().anyMatch(value -> value <= 0)
                     || openBlasThreadCounts.stream().distinct().count()
                             != openBlasThreadCounts.size()
@@ -278,11 +286,13 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
                             .map(CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate
                                     ::threadCount).toList())
                     || cohort.expectedRunCount() != materializationPolicy.expectedRunCount()
-                    || minimumNetBenefitCostUnits < 0 || minimumBenefitBasisPoints < 0
-                    || minimumBenefitBasisPoints > 10_000 || generatedArtifactSchema <= 0
+                    || minimumNetBenefitCostUnits.isPresent() && minimumNetBenefitCostUnits.getAsLong() < 0
+                    || minimumBenefitBasisPoints.isPresent() && (minimumBenefitBasisPoints.getAsInt() < 0
+                        || minimumBenefitBasisPoints.getAsInt() > 10_000)
+                    || generatedArtifactSchema <= 0
                     || routePolicyVersion != ROUTE_POLICY_VERSION
                     || costPolicyVersion != COST_POLICY_VERSION) {
-                throw new IllegalArgumentException("OpenBLAS workload-signature facts disagree");
+                throw new IllegalArgumentException("CPU local workload-signature facts disagree");
             }
         }
 
@@ -291,7 +301,7 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
          * @return immutable persistent projection, or empty for session-only qualification
          */
         public Optional<PersistentWorkloadSignature> persistentProjection() {
-            return qualification.persistentIdentity().map(identity ->
+            return qualification.flatMap(QualificationScope::persistentIdentity).map(identity ->
                     new PersistentWorkloadSignature(this, identity));
         }
     }
@@ -326,7 +336,7 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
     }
 
     /** Deterministic candidate identity independent of live objects and native addresses. */
-    public sealed interface CandidateIdentity permits PortableIdentity, OpenBlasIdentity { }
+    public sealed interface CandidateIdentity permits PortableIdentity, OpenBlasIdentity, OneDnnIdentity { }
 
     /**
      * Graph-identity-free exact resource shape.
@@ -357,11 +367,13 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
      * @param generatedArtifactSchema exact generated-artifact schema
      * @param structuralKey non-blank structural generated-kernel key
      * @param resources ordered graph-identity-free portable buffer/resource shapes
+     * @param topology optional exact retained canonical topology; absent only on ordinary route decoration
      */
     public record PortableIdentity(CpuPartitionPreparationPlan.ExecutionStrategy strategy,
             int rangeCount, long minimumElementsPerWorker, int vectorSpeciesBits,
             int generatedArtifactSchema, String structuralKey,
-            List<ResourceIdentity> resources) implements CandidateIdentity {
+            List<ResourceIdentity> resources,
+            Optional<CpuRepresentationDecision.VariantIdentity> topology) implements CandidateIdentity {
         /**
          * Validates complete portable identity facts and snapshots {@code resources}.
          *
@@ -374,6 +386,7 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
             Objects.requireNonNull(strategy, "strategy");
             Objects.requireNonNull(structuralKey, "structuralKey");
             resources = List.copyOf(resources);
+            Objects.requireNonNull(topology, "topology");
             if (rangeCount <= 0 || minimumElementsPerWorker <= 0 || vectorSpeciesBits < 0
                     || generatedArtifactSchema <= 0 || structuralKey.isBlank()
                     || resources.isEmpty()) {
@@ -418,15 +431,69 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
     }
 
     /**
-     * One complete candidate. Portable has no native plan; OpenBLAS carries the exact immutable
-     * plan whose resource declarations and finalization behavior selection must preserve.
+     * Exact qualified oneDNN assignment, including its API choices and declared resources.
+     * @param fingerprint versioned descriptor, implementation and session fingerprint
+     * @param resources exact ordered buffer and workspace geometry
+     * @param topology exact retained canonical topology/representation identity
+     */
+    public record OneDnnIdentity(String fingerprint, List<ResourceIdentity> resources,
+            CpuRepresentationDecision.VariantIdentity topology)
+            implements CandidateIdentity {
+        /** Validates immutable native assignment facts without acquiring native resources. */
+        public OneDnnIdentity {
+            Objects.requireNonNull(fingerprint, "fingerprint");
+            resources = List.copyOf(resources);
+            Objects.requireNonNull(topology, "topology");
+            if (fingerprint.isBlank()) throw new IllegalArgumentException("blank native identity");
+        }
+    }
+
+    /**
+     * Canonicalizes common generated semantics and logical boundary associations without graph IDs.
+     * @param plan immutable complete common plan
+     * @return stable ordered per-unit specialization, membership, dependency and boundary key
+     */
+    public static String portableStructuralKey(CpuPartitionPreparationPlan plan) {
+        return plan.units().stream().map(unit -> unit.portablePlan().specialization().structuralKey()
+                + ":" + unit.memberNodeOrdinals() + ":" + unit.dependencies()
+                + ":" + unit.selectedRangeCount() + ":" + unit.minimumElementsPerWorker()
+                + ":" + unit.vectorSpeciesBitSize()
+                + ":" + unit.boundaryValues().stream().map(plan.boundaryValues()::indexOf).toList())
+                .collect(java.util.stream.Collectors.joining("|"));
+    }
+
+    /**
+     * Projects exact ordered declarations without physical storage or executable ownership.
+     * @param plan immutable complete realized plan
+     * @return ordered buffer geometry followed by distinct common and native workspace geometry
+     */
+    public static List<ResourceIdentity> resourceIdentities(CpuPartitionPreparationPlan plan) {
+        var resources = new java.util.ArrayList<ResourceIdentity>();
+        for (var buffer : plan.bufferDeclarations())
+            resources.add(new ResourceIdentity(buffer.byteSize(), buffer.byteAlignment()));
+        var workspaces = new java.util.LinkedHashMap<Long,
+                io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement.Workspace>();
+        plan.workspaceDeclaration().ifPresent(workspace -> workspaces.put(workspace.requirementId(), workspace));
+        for (var unit : plan.units()) unit.runtimeFacts().workspaceDeclaration()
+                .ifPresent(workspace -> workspaces.putIfAbsent(workspace.requirementId(), workspace));
+        plan.oneDnnPlan().ifPresent(nativePlan -> nativePlan.workspaceRequirements().forEach(
+                workspace -> workspaces.putIfAbsent(workspace.requirementId(), workspace)));
+        for (var workspace : workspaces.values())
+            resources.add(new ResourceIdentity(workspace.byteSize(), workspace.byteAlignment()));
+        return List.copyOf(resources);
+    }
+    /**
+     * One exact cold realization. Portable and oneDNN retain immutable preparation plans;
+     * OpenBLAS retains its route-local plan. No executable or native handle is retained.
      *
      * @param route route kind
      * @param identity deterministic typed identity
      * @param openBlasPlan plan present exactly for an OpenBLAS candidate
+     * @param realization complete cold plan present exactly for portable and oneDNN
      */
     public record Candidate(RouteKind route, CandidateIdentity identity,
-            Optional<CpuOpenBlasRoutePlan> openBlasPlan) {
+            Optional<CpuOpenBlasRoutePlan> openBlasPlan,
+            Optional<CpuPartitionPreparationPlan> realization) {
         /**
          * Validates route, identity, and executable-plan agreement. The immutable identity and
          * optional plan are retained without acquiring executable or native-resource ownership.
@@ -439,10 +506,36 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
             Objects.requireNonNull(route, "route");
             Objects.requireNonNull(identity, "identity");
             openBlasPlan = Objects.requireNonNull(openBlasPlan, "openBlasPlan");
+            realization = Objects.requireNonNull(realization, "realization");
             if ((route == RouteKind.OPENBLAS) != openBlasPlan.isPresent()
                     || (route == RouteKind.PORTABLE) != (identity instanceof PortableIdentity)
-                    || (route == RouteKind.OPENBLAS) != (identity instanceof OpenBlasIdentity)) {
+                    || (route == RouteKind.OPENBLAS) != (identity instanceof OpenBlasIdentity)
+                    || (route == RouteKind.ONEDNN) != (identity instanceof OneDnnIdentity)
+                    || (route != RouteKind.OPENBLAS) != realization.isPresent()) {
                 throw new IllegalArgumentException("candidate route facts disagree");
+            }
+            if (realization.isPresent()) {
+                var plan = realization.orElseThrow();
+                if (plan.localTuningBatch().isPresent()
+                        || plan.route() != switch (route) {
+                            case PORTABLE -> CpuPartitionPreparationPlan.Route.PORTABLE;
+                            case OPENBLAS -> CpuPartitionPreparationPlan.Route.OPENBLAS;
+                            case ONEDNN -> CpuPartitionPreparationPlan.Route.ONEDNN;
+                        })
+                    throw new IllegalArgumentException("cold realization route or tuning state disagrees");
+                if (identity instanceof PortableIdentity portable
+                        && (!portable.strategy().equals(plan.executionStrategy())
+                            || portable.rangeCount() != plan.selectedRangeCount()
+                            || portable.minimumElementsPerWorker() != plan.minimumElementsPerWorker()
+                            || portable.vectorSpeciesBits() != plan.vectorSpeciesBitSize()
+                            || portable.generatedArtifactSchema() != plan.units().getFirst()
+                                .portablePlan().specialization().classIdentitySchema()
+                            || !portable.structuralKey().equals(portableStructuralKey(plan))
+                            || !portable.resources().equals(resourceIdentities(plan))))
+                    throw new IllegalArgumentException("portable realization identity disagrees");
+                if (identity instanceof OneDnnIdentity nativeIdentity
+                        && !nativeIdentity.resources().equals(resourceIdentities(plan)))
+                    throw new IllegalArgumentException("native realization resources disagree");
             }
             if (route == RouteKind.OPENBLAS) {
                 CpuOpenBlasRoutePlan plan = openBlasPlan.orElseThrow();
@@ -476,24 +569,23 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
      * @throws IllegalArgumentException if the schema, portable fallback, uniqueness, ordering, or
      *     candidate/workload agreement is invalid
      */
-    public CpuOpenBlasTuningBatch {
+    public CpuLocalTuningBatch {
         Objects.requireNonNull(workload, "workload");
+        if (candidates.size() > MAXIMUM_CANDIDATES) {
+            throw new IllegalArgumentException("CPU local candidate domain exceeds 8192 alternatives");
+        }
         candidates = List.copyOf(candidates);
         if (schemaVersion != SCHEMA_VERSION || candidates.isEmpty()
                 || candidates.getFirst().route() != RouteKind.PORTABLE
-                || candidates.stream().filter(value -> value.route() == RouteKind.PORTABLE)
-                        .count() != 1
                 || candidates.stream().map(Candidate::identity).distinct().count()
                         != candidates.size()) {
-            throw new IllegalArgumentException("invalid OpenBLAS tuning candidate batch");
+            throw new IllegalArgumentException("invalid CPU local tuning candidate batch");
         }
         int representationOrder = -1;
         int threadOrder = -1;
         for (int index = 1; index < candidates.size(); index++) {
             Candidate candidate = candidates.get(index);
-            if (!(candidate.identity() instanceof OpenBlasIdentity identity)) {
-                throw new IllegalArgumentException("portable candidate must be first and unique");
-            }
+            if (!(candidate.identity() instanceof OpenBlasIdentity identity)) continue;
             int currentRepresentation = identity.representation().ordinal();
             if (currentRepresentation < representationOrder
                     || currentRepresentation == representationOrder
@@ -503,12 +595,26 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
             representationOrder = currentRepresentation;
             threadOrder = identity.configuredThreadOrder();
             CpuOpenBlasRoutePlan plan = candidate.openBlasPlan().orElseThrow();
-            if (plan.dataType() != workload.outputType()
+            if (plan.dataType() != workload.boundaries().getLast().dataType()
+                    || identity.configuredThreadOrder() >= workload.openBlasThreadCandidates().size()
+                    || !plan.threadCandidate().equals(workload.openBlasThreadCandidates()
+                        .get(identity.configuredThreadOrder()))
+                    || plan.threadCount() > workload.cpuConcurrencyCapacity()
+                    || plan.workspaceBytes() > workload.materializationPolicy().maximumAdditionalBytes()
                     || plan.analysisCapacity() != workload.cpuConcurrencyCapacity()
                     || plan.expectedRunCount() != workload.cohort().expectedRunCount()
-                    || !new QualificationScope(plan.qualification().orElseThrow())
+                    || !Optional.of(new QualificationScope(plan.qualification().orElseThrow()))
                             .equals(workload.qualification())) {
                 throw new IllegalArgumentException("candidate and workload facts disagree");
+            }
+            for (int boundary = 0; boundary < 3; boundary++) {
+                boolean copied = boundary == 0 ? plan.representation().copiesLeft()
+                        : boundary == 1 ? plan.representation().copiesRight() : plan.representation().copiesOutput();
+                var fact = workload.boundaries().get(boundary);
+                if (!copied && (!fact.storage().nativeSegment()
+                        || fact.storage().byteAlignment() < plan.dataType().byteWidth()
+                        || fact.carrier() != CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT))
+                    throw new IllegalArgumentException("uncopied OpenBLAS boundary is not qualified native storage");
             }
         }
     }

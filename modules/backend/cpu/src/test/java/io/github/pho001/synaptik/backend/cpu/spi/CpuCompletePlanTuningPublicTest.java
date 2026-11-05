@@ -4,6 +4,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.cpu.CpuCompletePlanTuning;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
+import io.github.pho001.synaptik.prepare.PartitionPreparation;
+import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
+import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.compiler.CompileConstantPlan;
 import io.github.pho001.synaptik.compiler.CompileDiagnostics;
@@ -38,7 +42,6 @@ import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
 import io.github.pho001.synaptik.prepare.GraphPreparation;
-import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Constructor;
 import java.nio.file.Files;
@@ -142,7 +145,7 @@ final class CpuCompletePlanTuningPublicTest {
                     () -> tuning.selectedDecision(otherBatch, candidates.getFirst()));
             assertThrows(IllegalArgumentException.class,
                     () -> tuning.selectedPreparation(otherBatch, decision));
-            for (int staleVersion : List.of(2, 3)) {
+            for (int staleVersion : List.of(2, 3, 4)) {
                 byte[] stale = encoded.clone();
                 java.nio.ByteBuffer.wrap(stale).putInt(4, staleVersion);
                 var checksum = new java.util.zip.CRC32();
@@ -156,12 +159,74 @@ final class CpuCompletePlanTuningPublicTest {
     }
 
     @Test
-    void directOnlyWorkIsNotTunableAndClosedUseFails() {
+    void everyOrdinaryLocalChoiceSurvivesCompletePlanMaterializationPolicy() {
+        try (CpuBackendIntegration integration = CpuBackendIntegration.open()) {
+            Shape shape = Shape.of(2, 2);
+            Tensor left = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
+                    Optional.of(LayoutDescriptor.contiguous(shape)), false));
+            Tensor right = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
+                    Optional.of(LayoutDescriptor.contiguous(shape)), false));
+            CompileArtifacts artifacts = compile(integration, left.matmul(right));
+            var projection = context(integration, artifacts);
+            var local = integration.localWorkloadTuning();
+            var localBatch = local.candidateHandoff(projection).orElseThrow().candidateBatch();
+            var complete = integration.completePlanTuning();
+            for (var localCandidate : local.candidates(localBatch)) {
+                var localDecision = local.selectedDecision(localBatch, localCandidate);
+                var localPlan = analyzedPlan(artifacts,
+                        local.selectedPreparation(localBatch, localDecision));
+                var completeBatch = complete.candidateHandoff(projection,
+                        Optional.of(localDecision)).orElseThrow().candidateBatch();
+                for (var candidate : complete.candidates(completeBatch)) {
+                    var selected = complete.selectedDecision(completeBatch, candidate);
+                    var preparation = complete.selectedPreparation(completeBatch, selected);
+                    var completePlan = analyzedPlan(artifacts, preparation);
+                    assertAll(
+                            () -> assertEquals(localPlan.route(), completePlan.route()),
+                            () -> assertEquals(localPlan.selectedLocalTuningCandidate(),
+                                    completePlan.selectedLocalTuningCandidate()),
+                            () -> assertEquals(localPlan.executionStrategy(),
+                                    completePlan.executionStrategy()),
+                            () -> assertEquals(localPlan.selectedRangeCount(),
+                                    completePlan.selectedRangeCount()),
+                            () -> assertEquals(localPlan.vectorSpeciesBitSize(),
+                                    completePlan.vectorSpeciesBitSize()),
+                            () -> assertEquals(localPlan.openBlasPlan(),
+                                    completePlan.openBlasPlan()));
+                    try (var prepared = GraphPreparation.prepare(artifacts, List.of(preparation),
+                            integration.scheduleAssembler())) {
+                        assertFalse(prepared.schedule().steps().isEmpty());
+                    }
+                }
+            }
+        }
+    }
+
+    private static <I extends BackendAnalysisInputs, P extends BackendPreparationPlan>
+            CpuPartitionPreparationPlan analyzedPlan(CompileArtifacts artifacts,
+                    PartitionPreparation<I, P> preparation) {
+        var projection = GraphPreparation.project(artifacts, artifacts.partitions().getFirst(),
+                preparation.backendInputs());
+        return assertInstanceOf(CpuPartitionPreparationPlan.class,
+                preparation.preparer().analyze(projection).plan());
+    }
+
+    @Test
+    void ordinarySingletonCompletePlanIsTunableAndClosedUseFails() {
         CpuBackendIntegration integration = CpuBackendIntegration.open();
         CpuCompletePlanTuning tuning = integration.completePlanTuning();
         CompileArtifacts artifacts = compile(integration, leaf().contiguous());
-        assertTrue(tuning.candidateHandoff(
-                context(integration, artifacts), Optional.empty()).isEmpty());
+        var handoff = tuning.candidateHandoff(
+                context(integration, artifacts), Optional.empty()).orElseThrow();
+        var batch = handoff.candidateBatch();
+        assertEquals(1, tuning.candidates(batch).size());
+        var candidate = tuning.candidates(batch).getFirst();
+        var decision = tuning.selectedDecision(batch, candidate);
+        try (var prepared = GraphPreparation.prepare(artifacts,
+                List.of(tuning.selectedPreparation(batch, decision)),
+                integration.scheduleAssembler())) {
+            assertFalse(prepared.schedule().steps().isEmpty());
+        }
         integration.close();
         assertAll(
                 () -> assertThrows(IllegalStateException.class,
@@ -185,16 +250,10 @@ final class CpuCompletePlanTuningPublicTest {
     }
 
     private static CompileArtifacts compile(CpuBackendIntegration integration, Tensor output) {
-        BackendCapabilityProvider captureProvider = new BackendCapabilityProvider() {
-            @Override public io.github.pho001.synaptik.backend.contract.BackendId backendId() {
-                return integration.capabilityProvider().backendId();
-            }
-            @Override public boolean supports(
-                    io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery query) {
-                return true;
-            }
-        };
-        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(captureProvider), List.of(integration.availabilitySnapshot()));
+        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(output),
+                Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(), List.of(integration.capabilityProvider()),
+                List.of(integration.availabilitySnapshot()));
     }
 
     private static CompileArtifacts pointwiseArtifacts(int identityOffset) {

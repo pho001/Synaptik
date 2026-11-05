@@ -83,6 +83,45 @@ final class ModelAutotuningCompositionTest {
                         List.of(candidate), candidate.identity(), summary));
     }
 
+    @Test
+    void completeOnlyEvidenceAllowsEmptyLocalSnapshotButStillRequiresNonNullEvidence() {
+        var config = config();
+        var modelIdentity = new ModelAutotuningRequest.ModelIdentity(1, new byte[] {1});
+        var compatibility = new ModelAutotuningPreparation.CompatibilityIdentity(
+                1, new byte[] {7}, ModelAutotuningPreparation.ReuseScope.SESSION);
+        var winner = new ModelAutotuningPreparation.CandidateIdentity(new byte[] {4});
+        var summary = new ModelAutotuningPreparation.SampleSummary(3, 3, 3, 1);
+        var candidate = new ModelAutotuningPreparation.CompletePlanCandidateEvidence(
+                winner, ModelAutotuningPreparation.CorrectnessAction.REFERENCE_CAPTURED,
+                List.of(3L), summary);
+        var complete = new ModelAutotuningPreparation.CompletePlanEvidence(
+                compatibility, config.completePlanBudget(), ModelAutotuningPreparation.Source.MEASURED,
+                List.of(candidate), winner, summary);
+        var mutable = new ArrayList<ModelAutotuningPreparation.WorkloadEvidence>();
+
+        var evidence = new ModelAutotuningPreparation.Evidence(
+                modelIdentity, config.representativeProfile(), config.objective(), config.budget(),
+                mutable, complete);
+        mutable.add(null);
+
+        assertEquals(List.of(), evidence.workloads());
+        assertSame(complete, evidence.completePlan());
+        assertEquals(List.of(candidate), evidence.completePlan().candidates());
+        assertThrows(UnsupportedOperationException.class, () -> evidence.workloads().clear());
+        assertThrows(NullPointerException.class, () ->
+                new ModelAutotuningPreparation.Evidence(
+                        modelIdentity, config.representativeProfile(), config.objective(),
+                        config.budget(), null, complete));
+        assertThrows(NullPointerException.class, () ->
+                new ModelAutotuningPreparation.Evidence(
+                        modelIdentity, config.representativeProfile(), config.objective(),
+                        config.budget(), mutable, complete));
+        assertThrows(NullPointerException.class, () ->
+                new ModelAutotuningPreparation.Evidence(
+                        modelIdentity, config.representativeProfile(), config.objective(),
+                        config.budget(), List.of(), null));
+    }
+
     private static ModelAutotuningConfig config() {
         return new ModelAutotuningConfig(
                 ModelAutotuningConfig.Objective.MIN_MEDIAN_ELAPSED_NANOS,

@@ -33,10 +33,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/** Exercises actual public absent-handoff fallback, passive observation, and exact rejection. */
+/** Exercises no-local CPU complete-plan budget rejection, passive observation, and safe fallback. */
 final class EngineTuningDiagnosticsTest {
     @Test
-    void actualAbsentCpuHandoffReportsFallbackAndPreparedRunPreservesValues() {
+    void absentCpuLocalWorkloadReportsCompleteBudgetFallbackAndRunPreservesValues() {
         try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
             Tensor input = input(arena);
             CompiledGraph graph = engine.compile(List.of(input.contiguous()));
@@ -52,8 +52,8 @@ final class EngineTuningDiagnosticsTest {
             assertEquals(TraceLevel.WARN, event.level());
             assertEquals(new EngineTuningDiagnostic(
                     EngineTuningDiagnostic.Outcome.SAFE_HEURISTIC_FALLBACK,
-                    EngineTuningDiagnostic.TuningPhase.LOCAL_WORKLOAD,
-                    EngineTuningDiagnostic.Reason.NO_ELIGIBLE_HANDOFF), event.payload());
+                    EngineTuningDiagnostic.TuningPhase.COMPLETE_PLAN,
+                    EngineTuningDiagnostic.Reason.OTHER_TUNING_FAILURE), event.payload());
             // Running the returned owner does not emit per-run diagnostics.
             assertEquals(1, events.size());
         }
@@ -74,30 +74,30 @@ final class EngineTuningDiagnosticsTest {
 
             assertFallbackRuns(engine, input, preparation);
             assertEquals(1, events.size());
-            assertEquals(EngineTuningDiagnostic.Reason.NO_ELIGIBLE_HANDOFF,
+            assertEquals(EngineTuningDiagnostic.Reason.OTHER_TUNING_FAILURE,
                     events.getFirst().payload().reason());
             assertEquals(0, callbackFailure.getSuppressed().length);
         }
     }
 
     @Test
-    void actualAbsentCpuHandoffRequiredPolicyReportsRejection() {
+    void absentCpuLocalWorkloadRequiredPolicyReportsCompleteBudgetRejection() {
         try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
             Tensor input = input(arena);
             CompiledGraph graph = engine.compile(List.of(input.contiguous()));
             var events = new ArrayList<TraceEvent<EngineTuningDiagnostic>>();
 
-            var failure = assertThrows(IllegalStateException.class,
+            var failure = assertThrows(IllegalArgumentException.class,
                     () -> engine.prepareTuned(graph, request(input, false), events::add));
 
-            assertEquals("no eligible local-workload tuning handoff", failure.getMessage());
+            assertEquals("total plan executions exceed ceiling", failure.getMessage());
             assertEquals(0, failure.getSuppressed().length);
             assertEquals(1, events.size());
             assertEquals(TracePhase.PREPARE, events.getFirst().phase());
             assertEquals(TraceLevel.ERROR, events.getFirst().level());
             assertEquals(new EngineTuningDiagnostic(EngineTuningDiagnostic.Outcome.REJECTED,
-                    EngineTuningDiagnostic.TuningPhase.LOCAL_WORKLOAD,
-                    EngineTuningDiagnostic.Reason.NO_ELIGIBLE_HANDOFF),
+                    EngineTuningDiagnostic.TuningPhase.COMPLETE_PLAN,
+                    EngineTuningDiagnostic.Reason.OTHER_TUNING_FAILURE),
                     events.getFirst().payload());
         }
     }
@@ -230,7 +230,7 @@ final class EngineTuningDiagnosticsTest {
                 fallbackAllowed ? ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC
                         : ModelAutotuningConfig.FallbackPolicy.REQUIRE_TUNED_RESULT,
                 Path.of("unused-native-free-autotuning-cache.bin"),
-                new ModelAutotuningConfig.CompletePlanBudget(1, 0, 1, 1L, 0L),
+                new ModelAutotuningConfig.CompletePlanBudget(4096, 0, 1, 1L, 0L),
                 Path.of("unused-model-plan-cache.bin"));
         return new ModelAutotuningRequest(config,
                 new ModelAutotuningRequest.ModelIdentity(1, new byte[] {1}), List.of(input));

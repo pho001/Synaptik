@@ -31,6 +31,7 @@ public final class CpuOneDnnSelector {
     private static final long NATIVE_CONTROL_AND_DISPATCH = 100_000;
     private static final long PRIMITIVE_PREPARATION = 20_000;
     private static final long GRAPH_PREPARATION = 40_000;
+    private static final int MAX_FINITE_ALTERNATIVES = 6_560;
     private final CpuOneDnnLibrary library;
     private final CpuOneDnnRoutePlan.Api preference;
     private final CpuTraceProducer trace;
@@ -87,7 +88,7 @@ public final class CpuOneDnnSelector {
         if (trace != null) trace.compared();
         var plan = contractionCandidate.plan();
         if (context.requiresBatchSize() || plan.route() != CpuPartitionPreparationPlan.Route.PORTABLE
-                || plan.openBlasTuningBatch().isPresent() || plan.materialization().isPresent()
+                || plan.localTuningBatch().isPresent() || plan.materialization().isPresent()
                 || !plan.materializations().isEmpty() || plan.partialReductionRecipe().isPresent()) {
             if (trace != null) trace.rejected(-1, null, null, Reason.COMPARISON_SKIPPED,
                     "candidate topology is not eligible for native comparison", null);
@@ -102,6 +103,293 @@ public final class CpuOneDnnSelector {
                     "dimensionless native comparison cost is not representable", null);
             return baseline;
         }
+    }
+
+    private record Choice(int position, CpuOneDnnProjection projection,
+            CpuOneDnnRoutePlan.Api api, CpuOneDnnKernelMetadata metadata) { }
+
+    /**
+     * Enumerates every qualified native-containing assignment of this retained ordinary topology.
+     * Each unit independently retains its ordinary realization or uses an available concrete API
+     * allowed by the integration policy. Encounter order is ordinary, primitive, then Graph at each
+     * topological position; the all-ordinary assignment is supplied by the caller, not repeated.
+     * For unit API counts {@code a[i]}, this returns {@code product(1 + a[i]) - 1} analyses.
+     * Neither per-unit nor complete-plan heuristic costs prune this explicit tuning domain.
+     * Queries retain no handles; every analysis declares its exact ingress, staging and scratch.
+     * At most 6,560 native-containing assignments are admitted (the full eight-unit AUTO domain).
+     * A larger domain is rejected before constructing any alternatives, never silently prefixed.
+     *
+     * @param context non-null borrowed partition facts
+     * @param portable non-null ordinary common-unit analysis without preselected native routes,
+     *     materializations, partial reductions or local OpenBLAS batch
+     * @return immutable complete native-containing alternatives, empty for ineligible topology
+     * @throws NullPointerException if an argument is null
+     * @throws IllegalStateException if the library is closed or an unexpected native query fails
+     * @throws IllegalArgumentException if descriptors/declarations are inconsistent or the complete
+     *     supported assignment domain exceeds 6,560 alternatives
+     * @throws ArithmeticException if exact resource geometry is unrepresentable
+     */
+    public List<BackendPartitionAnalysis<CpuPartitionPreparationPlan>> alternatives(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(portable, "portable");
+        library.requireOpen();
+        if (!enumerable(context, portable.plan())) return List.of();
+        var domain = qualifiedDomain(portable.plan());
+        var result = new ArrayList<BackendPartitionAnalysis<CpuPartitionPreparationPlan>>(domain.count());
+        enumerate(context, portable, domain.choices(), 0, new ArrayList<>(), result);
+        return List.copyOf(result);
+    }
+
+    /**
+     * Preflights the exact supported assignment cardinality without constructing realization plans.
+     * This performs the same qualified native metadata queries as enumeration and retains no native
+     * handles. Callers can sum complete topology domains before allocating multiplied candidate
+     * lists. The all-ordinary assignment is not counted.
+     *
+     * @param context non-null borrowed partition facts
+     * @param portable non-null clean ordinary topology analysis, with enumeration's eligibility rules
+     * @return exact native-containing count in 0..6,560
+     * @throws NullPointerException if an argument is null
+     * @throws IllegalStateException if the library is closed or an unexpected native query fails
+     * @throws IllegalArgumentException if the full domain exceeds 6,560 or descriptor facts disagree
+     * @throws ArithmeticException if exact descriptor geometry is unrepresentable
+     */
+    public long alternativeCount(PrepareContext<CpuPartitionAnalysisInputs> context,
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(portable, "portable");
+        library.requireOpen();
+        return enumerable(context, portable.plan()) ? qualifiedDomain(portable.plan()).count() : 0;
+    }
+
+    /**
+     * Counts qualified available API choices at every retained common-unit position, without
+     * constructing assignment realizations. Ordinary implementations are deliberately not counted,
+     * so the CPU caller can preflight {@code product(portableChoices[i] + nativeChoices[i])}
+     * without multiplying portable forms that a native assignment would replace.
+     *
+     * @param context non-null borrowed partition facts
+     * @param portable non-null clean ordinary topology analysis
+     * @return immutable list matching the common-unit count; entries are 0..2 (0..1 for a concrete
+     *     API policy), all zero when the ordinary topology is ineligible
+     * @throws NullPointerException if an argument is null
+     * @throws IllegalStateException if the library is closed or an unexpected native query fails
+     * @throws IllegalArgumentException if the full native domain exceeds 6,560 or descriptors disagree
+     * @throws ArithmeticException if exact descriptor geometry is unrepresentable
+     */
+    public List<Integer> alternativeCountsByUnit(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(portable, "portable");
+        library.requireOpen();
+        var counts = new ArrayList<>(java.util.Collections.nCopies(portable.plan().units().size(), 0));
+        if (enumerable(context, portable.plan())) {
+            for (var choices : qualifiedDomain(portable.plan()).choices()) {
+                counts.set(choices.getFirst().position(), choices.size());
+            }
+        }
+        return List.copyOf(counts);
+    }
+
+    private record Domain(List<List<Choice>> choices, int count) { }
+
+    private Domain qualifiedDomain(CpuPartitionPreparationPlan plan) {
+        var domains = new ArrayList<List<Choice>>();
+        int assignmentCount = 1;
+        for (int position = 0; position < plan.units().size(); position++) {
+            var choices = new ArrayList<Choice>();
+            var projection = CpuOneDnnProjection.from(plan.units().get(position));
+            if (projection.isPresent() && CpuOneDnnCompiler.qualified(projection.orElseThrow().spec())) {
+                var projected = projection.orElseThrow();
+                for (var api : apis()) {
+                    var metadata = describe(position, projected.spec(), api);
+                    if (metadata.isPresent()) {
+                        choices.add(new Choice(position, projected, api, metadata.orElseThrow()));
+                    }
+                }
+            }
+            if (!choices.isEmpty()) {
+                int factor = choices.size() + 1;
+                if (assignmentCount > (MAX_FINITE_ALTERNATIVES + 1) / factor) {
+                    throw new IllegalArgumentException("complete oneDNN assignment domain exceeds "
+                            + MAX_FINITE_ALTERNATIVES + " alternatives");
+                }
+                assignmentCount *= factor;
+                domains.add(List.copyOf(choices));
+            }
+        }
+        return new Domain(List.copyOf(domains), assignmentCount - 1);
+    }
+
+    /**
+     * Reauthenticates a Phase-1 assignment without searching APIs or changing ordinary/native units.
+     * Only the selected concrete APIs are queried. A disappeared implementation, changed descriptor,
+     * ingress declaration, scratch size, session or policy is an error, never heuristic substitution.
+     * Finalization still compiles and checks the retained metadata under the existing protocol.
+     *
+     * @param context non-null fresh borrowed analysis facts
+     * @param portable non-null fresh ordinary analysis of the selected common topology
+     * @param selectedNativePlan non-null Phase-1 native realization from this selector's session
+     * @return fresh complete analysis with the identical frozen native assignment and declarations
+     * @throws NullPointerException if an argument is null
+     * @throws IllegalArgumentException if topology, session, policy or exact resources differ
+     * @throws IllegalStateException if a frozen realization is unavailable or a native query fails
+     * @throws ArithmeticException if exact resource geometry is unrepresentable
+     */
+    public BackendPartitionAnalysis<CpuPartitionPreparationPlan> freeze(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable,
+            CpuPartitionPreparationPlan selectedNativePlan) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(portable, "portable");
+        Objects.requireNonNull(selectedNativePlan, "selectedNativePlan");
+        library.requireOpen();
+        var selected = selectedNativePlan.oneDnnPlan().orElseThrow(
+                () -> new IllegalArgumentException("frozen plan has no oneDNN assignment"));
+        if (!enumerable(context, portable.plan())
+                || !library.sessionIdentity().equals(selected.sessionIdentity())) {
+            throw new IllegalArgumentException("frozen oneDNN topology or library session differs");
+        }
+        selected.validate(portable.plan().units());
+        var choices = new ArrayList<Choice>(selected.units().size());
+        for (var unit : selected.units()) {
+            if (!apis().contains(unit.api())
+                    || !CpuOneDnnCompiler.qualified(unit.projection().spec())) {
+                throw new IllegalArgumentException("frozen oneDNN API or qualification differs");
+            }
+            var metadata = describe(unit.unitPosition(), unit.projection().spec(), unit.api())
+                    .orElseThrow(() -> new IllegalStateException("frozen oneDNN realization is unavailable"));
+            choices.add(new Choice(unit.unitPosition(), unit.projection(), unit.api(), metadata));
+        }
+        var fresh = realize(context, portable, choices);
+        if (!fresh.plan().oneDnnPlan().orElseThrow().units().equals(selected.units())) {
+            throw new IllegalArgumentException("frozen oneDNN descriptors or resource declarations differ");
+        }
+        return fresh;
+    }
+
+    /**
+     * Identifies an exact native assignment for the CPU-owned session-scoped tuning envelope.
+     * Immutable descriptor records include literal constants, origins, boundary roles, logical low
+     * result types, implementation identities, shared-copy refresh owners and exact workspaces.
+     * Heuristic costs are deliberately absent: explicit alternatives are unscored (zero/zero).
+     * Typed fields are streamed into a bounded canonical SHA-256 encoding, without descriptor
+     * strings or an aggregate byte payload. The result is always 87 ASCII bytes; even the maximal
+     * domain contributes only 570,720 fingerprint bytes before outer envelope overhead.
+     *
+     * @param plan non-null plan containing a native assignment owned by this selector
+     * @return fixed 87-byte ASCII identity including library session and API policy
+     * @throws NullPointerException if plan is null
+     * @throws IllegalArgumentException if the plan is ordinary, belongs to another library session,
+     *     or its canonical identity source exceeds one MiB
+     */
+    public String candidateFingerprint(CpuPartitionPreparationPlan plan) {
+        Objects.requireNonNull(plan, "plan");
+        var route = plan.oneDnnPlan().orElseThrow(
+                () -> new IllegalArgumentException("candidate has no oneDNN assignment"));
+        if (!library.sessionIdentity().equals(route.sessionIdentity())) {
+            throw new IllegalArgumentException("candidate belongs to another oneDNN library session");
+        }
+        return CpuOneDnnCandidateIdentity.fingerprint(preference, route);
+    }
+
+    private static boolean enumerable(PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionPreparationPlan plan) {
+        return !context.requiresBatchSize() && plan.route() == CpuPartitionPreparationPlan.Route.PORTABLE
+                && plan.localTuningBatch().isEmpty() && plan.materialization().isEmpty()
+                && plan.materializations().isEmpty() && plan.partialReductionRecipe().isEmpty();
+    }
+
+    private void enumerate(PrepareContext<CpuPartitionAnalysisInputs> context,
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable,
+            List<List<Choice>> domains, int position, ArrayList<Choice> selected,
+            ArrayList<BackendPartitionAnalysis<CpuPartitionPreparationPlan>> result) {
+        if (position == domains.size()) {
+            if (!selected.isEmpty()) result.add(realize(context, portable, selected));
+            return;
+        }
+        enumerate(context, portable, domains, position + 1, selected, result);
+        for (var choice : domains.get(position)) {
+            selected.add(choice);
+            enumerate(context, portable, domains, position + 1, selected, result);
+            selected.removeLast();
+        }
+    }
+
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> realize(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable, List<Choice> choices) {
+        var plan = portable.plan();
+        Set<ValueId> nativeValues = new HashSet<>(context.constants().keySet());
+        context.memoryRequirements().stream()
+                .filter(requirement -> requirement.producerPartition().isPresent())
+                .forEach(requirement -> nativeValues.add(requirement.valueId()));
+        long nextWorkspace = plan.units().size();
+        for (var requirement : portable.requirements()) {
+            if (requirement instanceof PreparationResourceRequirement.Workspace workspace) {
+                nextWorkspace = Math.max(nextWorkspace, Math.incrementExact(workspace.requirementId()));
+            }
+        }
+        var selected = new ArrayList<CpuOneDnnRoutePlan.Unit>(choices.size());
+        var sharedCopies = new java.util.LinkedHashMap<CopyKey, PreparationResourceRequirement.Workspace>();
+        var replacedWorkspaces = new HashSet<PreparationResourceRequirement.Workspace>();
+        var selectedPositions = new HashSet<Integer>();
+        for (var choice : choices) {
+            var projected = choice.projection();
+            var unit = plan.units().get(choice.position());
+            var copiedInputs = new java.util.LinkedHashMap<CopyKey, List<Integer>>();
+            for (int input = 0; input < projected.inputBoundaryPositions().size(); input++) {
+                ValueId value = unit.boundaryValues().get(projected.inputBoundaryPositions().get(input));
+                if (!expectedNative(context, plan, value, nativeValues)) {
+                    var key = new CopyKey(value, projected.byteOffsets().get(input),
+                            projected.spec().inputs().get(input).byteSize());
+                    copiedInputs.computeIfAbsent(key, ignored -> new ArrayList<>()).add(input);
+                }
+            }
+            var copies = new ArrayList<CpuOneDnnRoutePlan.InputCopy>(copiedInputs.size());
+            for (var entry : copiedInputs.entrySet()) {
+                var workspace = sharedCopies.get(entry.getKey());
+                boolean refresh = workspace == null;
+                if (refresh) {
+                    workspace = new PreparationResourceRequirement.Workspace(nextWorkspace,
+                            entry.getKey().byteSize(), 64);
+                    nextWorkspace = Math.incrementExact(nextWorkspace);
+                    sharedCopies.put(entry.getKey(), workspace);
+                }
+                copies.add(new CpuOneDnnRoutePlan.InputCopy(entry.getValue(), workspace, refresh));
+            }
+            Optional<PreparationResourceRequirement.Workspace> outputStaging = Optional.empty();
+            if (projected.requiresOutputNarrowing()) {
+                outputStaging = Optional.of(new PreparationResourceRequirement.Workspace(nextWorkspace,
+                        projected.spec().output().byteSize(), 64));
+                nextWorkspace = Math.incrementExact(nextWorkspace);
+            }
+            var invocation = new PreparationResourceRequirement.Workspace(nextWorkspace,
+                    choice.metadata().scratchpadBytes(), 64);
+            nextWorkspace = Math.incrementExact(nextWorkspace);
+            selected.add(new CpuOneDnnRoutePlan.Unit(choice.position(), projected, choice.api(),
+                    choice.metadata().scratchpadBytes(), choice.metadata().implementation(),
+                    copies, invocation, outputStaging));
+            selectedPositions.add(choice.position());
+            unit.runtimeFacts().workspaceDeclaration().ifPresent(replacedWorkspaces::add);
+        }
+        for (int position = 0; position < plan.units().size(); position++) {
+            if (!selectedPositions.contains(position)) {
+                plan.units().get(position).runtimeFacts().workspaceDeclaration()
+                        .ifPresent(replacedWorkspaces::remove);
+            }
+        }
+        var requirements = new ArrayList<PreparationResourceRequirement>();
+        for (var requirement : portable.requirements()) {
+            if (!(requirement instanceof PreparationResourceRequirement.Workspace workspace)
+                    || !replacedWorkspaces.contains(workspace)) requirements.add(requirement);
+        }
+        var route = new CpuOneDnnRoutePlan(library.sessionIdentity(), selected, 0, 0);
+        requirements.addAll(route.workspaceRequirements());
+        return new BackendPartitionAnalysis<>(portable.partition(), plan.withOneDnn(route), requirements);
     }
 
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> selectChecked(

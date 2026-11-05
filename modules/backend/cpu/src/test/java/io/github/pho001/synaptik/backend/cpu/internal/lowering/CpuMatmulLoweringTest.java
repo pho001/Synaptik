@@ -258,7 +258,17 @@ public final class CpuMatmulLoweringTest {
         return linear(DataType.FLOAT32, 2, 3, 4, UnaryElementwiseKind.RELU, 1);
     }
 
-    private static PrepareContext<CpuPartitionAnalysisInputs> linear(DataType type, int m,
+    /**
+     * Builds the actual private MATMUL, ordered bias ADD and terminal graph for cold consumers.
+     * @param type exact represented numeric type accepted by the requested epilogue
+     * @param m non-negative row count
+     * @param k non-negative contributor count
+     * @param n non-negative column and bias count
+     * @param terminal exact supported terminal operation
+     * @param biasStride non-negative represented bias stride
+     * @return immutable complete CPU graph projection with only the terminal published
+     */
+    public static PrepareContext<CpuPartitionAnalysisInputs> linear(DataType type, int m,
             int k, int n, UnaryElementwiseKind terminal, long biasStride) {
         var nodes=List.of(new CompiledNode(new NodeId(0),new Operation(MatmulKind.MATMUL,
                         NoOperationAttrs.INSTANCE),List.of(new ValueId(0),new ValueId(1)),List.of(new ValueId(2))),

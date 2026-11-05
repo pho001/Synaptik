@@ -596,13 +596,28 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 facts.maskedReductionGeometry(), facts.advancedReductionGeometry(),
                 facts.softmaxGeometry(), facts.trailingNormalizationGeometry(),
                 facts.batchNormInferenceGeometry(), facts.batchNormTrainingGeometry(),
-                unit.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(),
+                unit.conv2dGeometry(), unit.conv3dGeometry(),
+                representedMatmulGeometry(unit, represented),
                 unit.pool2dGeometry(), unit.pool3dGeometry(), unit.attentionGeometry(),
                 lossGeometry(unit),
                 unit.outputCount(), Optional.empty(),
                 workers == null ? concurrencyBudget.orElse(null) : null);
     }
 
+    /**
+     * Binds packed matrix offsets/strides to the represented consumer, never the copied source.
+     * @param unit exact immutable logical unit
+     * @param represented selected representation route, or null for direct execution
+     * @return original geometry when unchanged, otherwise exact cold represented geometry
+     */
+    private static Optional<io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering.Geometry>
+            representedMatmulGeometry(CpuPartitionPreparationPlan.ExecutionUnitPlan unit,
+                    CpuPartitionPreparationPlan.RepresentationUnitPlan represented) {
+        if (represented == null || unit.matmulGeometry().isEmpty()
+                || represented.accessBindings().equals(unit.accessBindings())) return unit.matmulGeometry();
+        return Optional.of(io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering
+                .representedGeometry(unit.matmulGeometry().orElseThrow(), represented.accessBindings()));
+    }
     private static Optional<io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuLossLowering.Geometry>
             lossGeometry(CpuPartitionPreparationPlan.ExecutionUnitPlan unit) {
         return unit.portablePlan().portableKernelIr()

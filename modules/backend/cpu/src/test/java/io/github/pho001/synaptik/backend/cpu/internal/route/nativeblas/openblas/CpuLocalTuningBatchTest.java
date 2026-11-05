@@ -1,5 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas;
 
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningBatch;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningDecision;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
@@ -21,9 +23,9 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import org.junit.jupiter.api.Test;
 
-final class CpuOpenBlasTuningBatchTest {
+final class CpuLocalTuningBatchTest {
     private record WorkloadMutation(String component,
-            CpuOpenBlasTuningBatch.WorkloadSignature workload) { }
+            CpuLocalTuningBatch.WorkloadSignature workload) { }
 
     @Test void adoptsOpaquePrepareRolesWithoutChangingCpuValueShape() {
         var inputs = CpuOpenBlasRouteSelectorTest.maskInputs(DataType.FLOAT32, false, false,
@@ -31,25 +33,24 @@ final class CpuOpenBlasTuningBatchTest {
         var context = CpuOpenBlasRouteSelectorTest.context(
                 DataType.FLOAT32, dense(Shape.of(2, 3)), dense(Shape.of(3, 4)),
                 dense(Shape.of(2, 4)), inputs);
-        CpuOpenBlasTuningBatch batch = new CpuPartitionPreparer().analyze(context).plan()
-                .openBlasTuningBatch().orElseThrow();
-        CpuOpenBlasTuningDecision decision = new CpuOpenBlasTuningDecision(
-                batch.schemaVersion(), batch.workload(), batch.candidates().getFirst().identity());
-        Optional<CpuOpenBlasTuningDecision> present = Optional.of(decision);
-        BackendPartitionTuningHandoff<CpuOpenBlasTuningBatch, CpuOpenBlasTuningDecision> absent =
+        CpuLocalTuningBatch batch = new CpuPartitionPreparer().analyze(context).plan()
+                .localTuningBatch().orElseThrow();
+        CpuLocalTuningDecision decision = new CpuLocalTuningDecision(batch.schemaVersion(), batch.workload(), batch.candidates().getFirst().identity(), batch);
+        Optional<CpuLocalTuningDecision> present = Optional.of(decision);
+        BackendPartitionTuningHandoff<CpuLocalTuningBatch, CpuLocalTuningDecision> absent =
                 new BackendPartitionTuningHandoff<>(context.partition(), batch, Optional.empty());
-        BackendPartitionTuningHandoff<CpuOpenBlasTuningBatch, CpuOpenBlasTuningDecision> selected =
+        BackendPartitionTuningHandoff<CpuLocalTuningBatch, CpuLocalTuningDecision> selected =
                 new BackendPartitionTuningHandoff<>(context.partition(), batch, present);
 
         assertAll(
                 () -> assertEquals(List.of(BackendTuningCandidateBatch.class),
-                        List.of(CpuOpenBlasTuningBatch.class.getInterfaces())),
+                        List.of(CpuLocalTuningBatch.class.getInterfaces())),
                 () -> assertEquals(List.of(BackendTuningDecision.class),
-                        List.of(CpuOpenBlasTuningDecision.class.getInterfaces())),
-                () -> assertRecordComponents(CpuOpenBlasTuningBatch.class,
+                        List.of(CpuLocalTuningDecision.class.getInterfaces())),
+                () -> assertRecordComponents(CpuLocalTuningBatch.class,
                         "schemaVersion", "workload", "candidates"),
-                () -> assertRecordComponents(CpuOpenBlasTuningDecision.class,
-                        "candidateSchemaVersion", "workload", "selectedCandidate"),
+                () -> assertRecordComponents(CpuLocalTuningDecision.class,
+                        "candidateSchemaVersion", "workload", "selectedCandidate", "batch"),
                 () -> assertSame(context.partition(), absent.partition()),
                 () -> assertSame(batch, absent.candidateBatch()),
                 () -> assertTrue(absent.selectedDecision().isEmpty()),
@@ -68,20 +69,20 @@ final class CpuOpenBlasTuningBatchTest {
         var preparer = new CpuPartitionPreparer();
         CpuPartitionPreparationPlan first = preparer.analyze(strictContext).plan();
         CpuPartitionPreparationPlan repeated = preparer.analyze(strictContext).plan();
-        CpuOpenBlasTuningBatch firstBatch = first.openBlasTuningBatch().orElseThrow();
-        CpuOpenBlasTuningBatch repeatedBatch = repeated.openBlasTuningBatch().orElseThrow();
+        CpuLocalTuningBatch firstBatch = first.localTuningBatch().orElseThrow();
+        CpuLocalTuningBatch repeatedBatch = repeated.localTuningBatch().orElseThrow();
         assertAll(
-                () -> assertEquals(3, CpuOpenBlasTuningBatch.SCHEMA_VERSION),
-                () -> assertEquals(2, CpuOpenBlasTuningBatch.ROUTE_POLICY_VERSION),
+                () -> assertEquals(4, CpuLocalTuningBatch.SCHEMA_VERSION),
+                () -> assertEquals(3, CpuLocalTuningBatch.ROUTE_POLICY_VERSION),
                 () -> assertEquals(firstBatch.workload(), repeatedBatch.workload()),
                 () -> assertEquals(firstBatch.candidates().stream()
-                                .map(CpuOpenBlasTuningBatch.Candidate::route).toList(),
+                                .map(CpuLocalTuningBatch.Candidate::route).toList(),
                         repeatedBatch.candidates().stream()
-                                .map(CpuOpenBlasTuningBatch.Candidate::route).toList()),
+                                .map(CpuLocalTuningBatch.Candidate::route).toList()),
                 () -> assertEquals(firstBatch.candidates().stream()
-                                .map(CpuOpenBlasTuningBatch.Candidate::identity).toList(),
+                                .map(CpuLocalTuningBatch.Candidate::identity).toList(),
                         repeatedBatch.candidates().stream()
-                                .map(CpuOpenBlasTuningBatch.Candidate::identity).toList()),
+                                .map(CpuLocalTuningBatch.Candidate::identity).toList()),
                 () -> assertEquals(first.route(), repeated.route()));
     }
 
@@ -94,9 +95,9 @@ final class CpuOpenBlasTuningBatchTest {
         var inputs = replace(base, hardware("x86_64", "one"), cohort("training", 1),
                 Optional.empty(), 2);
         CpuPartitionPreparationPlan plan = analyze(inputs);
-        CpuOpenBlasTuningBatch batch = plan.openBlasTuningBatch().orElseThrow();
+        CpuLocalTuningBatch batch = plan.localTuningBatch().orElseThrow();
         assertAll(() -> assertEquals(17, batch.candidates().size()),
-                () -> assertEquals(CpuOpenBlasTuningBatch.RouteKind.PORTABLE,
+                () -> assertEquals(CpuLocalTuningBatch.RouteKind.PORTABLE,
                         batch.candidates().getFirst().route()),
                 () -> assertEquals(List.of(
                         CpuOpenBlasRoutePlan.Representation.DIRECT,
@@ -119,69 +120,52 @@ final class CpuOpenBlasTuningBatchTest {
         var base = CpuOpenBlasRouteSelectorTest.maskInputs(DataType.FLOAT32, false, false,
                 false, 1, CpuOpenBlasRouteSelectorTest.defaultConfig());
         var first = analyze(replace(base, hardware("x86_64", "one"),
-                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, Optional.empty(), 1));
-        CpuOpenBlasTuningBatch batch = first.openBlasTuningBatch().orElseThrow();
+                CpuLocalTuningBatch.WorkloadCohort.DEFAULT, Optional.empty(), 1));
+        CpuLocalTuningBatch batch = first.localTuningBatch().orElseThrow();
         var outputCopy = batch.candidates().stream().filter(value -> value.openBlasPlan()
                 .map(plan -> plan.representation() == CpuOpenBlasRoutePlan.Representation.COPY_OUTPUT)
                 .orElse(false)).findFirst().orElseThrow();
-        var decision = new CpuOpenBlasTuningDecision(batch.schemaVersion(), batch.workload(),
-                outputCopy.identity());
+        var decision = new CpuLocalTuningDecision(batch.schemaVersion(), batch.workload(), outputCopy.identity(), batch);
         var selected = analyze(replace(base, hardware("x86_64", "one"),
-                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, Optional.of(decision), 1));
-        var portableDecision = new CpuOpenBlasTuningDecision(batch.schemaVersion(),
-                batch.workload(), batch.candidates().getFirst().identity());
+                CpuLocalTuningBatch.WorkloadCohort.DEFAULT, Optional.of(decision), 1));
+        var portableDecision = new CpuLocalTuningDecision(batch.schemaVersion(), batch.workload(), batch.candidates().getFirst().identity(), batch);
         var portable = analyze(replace(base, hardware("x86_64", "one"),
-                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT,
+                CpuLocalTuningBatch.WorkloadCohort.DEFAULT,
                 Optional.of(portableDecision), 1));
         assertAll(() -> assertEquals(CpuOpenBlasRoutePlan.Representation.COPY_OUTPUT,
                         selected.openBlasPlan().orElseThrow().representation()),
                 () -> assertEquals(outputCopy.identity(),
-                        selected.selectedOpenBlasTuningCandidate().orElseThrow()),
+                        selected.selectedLocalTuningCandidate().orElseThrow()),
                 () -> assertEquals(CpuPartitionPreparationPlan.Route.PORTABLE, portable.route()),
                 () -> assertTrue(portable.openBlasPlan().isEmpty()),
-                () -> assertTrue(portable.openBlasTuningBatch().isPresent()));
+                () -> assertTrue(portable.localTuningBatch().isPresent()));
     }
 
-    @Test void incompatibleSchemaWorkloadScopeAndCandidateAreMissesUsingHeuristic() {
+    @Test void authenticatedStaleDecisionsRejectRatherThanSelectingAHeuristic() {
         var base = CpuOpenBlasRouteSelectorTest.maskInputs(DataType.FLOAT32, false, false,
                 false, 1, CpuOpenBlasRouteSelectorTest.defaultConfig());
         var initial = analyze(replace(base, hardware("x86_64", "one"),
-                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, Optional.empty(), 1));
-        CpuOpenBlasTuningBatch batch = initial.openBlasTuningBatch().orElseThrow();
-        var nativeIdentity = batch.candidates().stream()
-                .filter(value -> value.route() == CpuOpenBlasTuningBatch.RouteKind.OPENBLAS)
-                .findFirst().orElseThrow().identity();
-        var wrongSchema = new CpuOpenBlasTuningDecision(99, batch.workload(), nativeIdentity);
-        var wrongHardware = new CpuOpenBlasTuningDecision(batch.schemaVersion(), batch.workload(),
-                nativeIdentity);
-        var absent = new CpuOpenBlasTuningDecision(batch.schemaVersion(), batch.workload(),
-                new CpuOpenBlasTuningBatch.OpenBlasIdentity(
-                        CpuOpenBlasRoutePlan.Representation.DIRECT, 31, 31, 30, List.of(),
-                        0, 0, 0));
-        for (CpuPartitionAnalysisInputs inputs : List.of(
-                replace(base, hardware("x86_64", "one"),
-                        CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT,
-                        Optional.of(wrongSchema), 1),
-                replace(base, hardware("aarch64", "two"),
-                        CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT,
-                        Optional.of(wrongHardware), 1),
-                replace(base, hardware("x86_64", "one"),
-                        CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT,
-                        Optional.of(absent), 1))) {
-            var plan = analyze(inputs);
-            assertEquals(CpuOpenBlasRoutePlan.Representation.DIRECT,
-                    plan.openBlasPlan().orElseThrow().representation());
-        }
+                CpuLocalTuningBatch.WorkloadCohort.DEFAULT, Optional.empty(), 1));
+        var batch = initial.localTuningBatch().orElseThrow();
+        var identity = batch.candidates().getFirst().identity();
+        assertThrows(IllegalArgumentException.class,
+                () -> new CpuLocalTuningDecision(99, batch.workload(), identity, batch));
+        assertThrows(IllegalArgumentException.class, () -> new CpuLocalTuningDecision(
+                batch.schemaVersion(), batch.workload(), new CpuLocalTuningBatch.OpenBlasIdentity(
+                        CpuOpenBlasRoutePlan.Representation.DIRECT, 31, 31, 30, List.of(), 0, 0, 0), batch));
+        var decision = new CpuLocalTuningDecision(batch.schemaVersion(), batch.workload(), identity, batch);
+        assertThrows(IllegalArgumentException.class, () -> analyze(replace(base,
+                hardware("aarch64", "two"), CpuLocalTuningBatch.WorkloadCohort.DEFAULT,
+                Optional.of(decision), 1)));
     }
-
-    @Test void everyMutableWorkloadCompatibilityFactIndependentlyMissesToSafeHeuristic() {
+    @Test void everyMutableWorkloadCompatibilityFactIndependentlyRejectsStaleReplay() {
         var base = CpuOpenBlasRouteSelectorTest.maskInputs(DataType.FLOAT32, false, false,
                 false, 1, CpuOpenBlasRouteSelectorTest.defaultConfig());
         var inputs = replace(base, hardware("x86_64", "one"),
-                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, Optional.empty(), 1);
+                CpuLocalTuningBatch.WorkloadCohort.DEFAULT, Optional.empty(), 1);
         CpuPartitionPreparationPlan heuristic = analyze(inputs);
-        CpuOpenBlasTuningBatch batch = heuristic.openBlasTuningBatch().orElseThrow();
-        CpuOpenBlasTuningBatch.WorkloadSignature original = batch.workload();
+        CpuLocalTuningBatch batch = heuristic.localTuningBatch().orElseThrow();
+        CpuLocalTuningBatch.WorkloadSignature original = batch.workload();
         var mutations = new ArrayList<WorkloadMutation>();
 
         add(mutations, original, "hardware.architecture", "hardware",
@@ -239,9 +223,9 @@ final class CpuOpenBlasTuningBatchTest {
                 changed -> List.of(with(thread, "openBlasCosts", changed)),
                 "fixedCostUnits", "costUnitsPerOutput", "costUnitsPerMac");
         add(mutations, original, "minimumNetBenefitCostUnits", "minimumNetBenefitCostUnits",
-                original.minimumNetBenefitCostUnits() + 1);
+                original.minimumNetBenefitCostUnits().orElseThrow() + 1);
         add(mutations, original, "minimumBenefitBasisPoints", "minimumBenefitBasisPoints",
-                original.minimumBenefitBasisPoints() + 1);
+                original.minimumBenefitBasisPoints().orElseThrow() + 1);
         add(mutations, original, "generatedArtifactSchema", "generatedArtifactSchema",
                 original.generatedArtifactSchema() + 1);
 
@@ -250,9 +234,12 @@ final class CpuOpenBlasTuningBatchTest {
         }
         addSessionQualificationMutations(mutations, original);
 
-        assertEquals(97, mutations.size(), "every independently mutable session workload fact");
+        add(mutations, original, "semanticsFingerprint", "semanticsFingerprint", "different-semantics");
+        add(mutations, original, "minimumNetBenefitCostUnits.presence", "minimumNetBenefitCostUnits", OptionalLong.empty());
+        add(mutations, original, "minimumBenefitBasisPoints.presence", "minimumBenefitBasisPoints", java.util.OptionalInt.empty());
+        assertEquals(100, mutations.size(), "every independently mutable session workload fact");
         for (WorkloadMutation mutation : mutations) {
-            assertCompatibilityMissAndSafeFallback(inputs, heuristic, batch, mutation);
+            assertCompatibilityMissAndRejectsReplay(inputs, heuristic, batch, mutation);
         }
     }
 
@@ -260,33 +247,29 @@ final class CpuOpenBlasTuningBatchTest {
         var base = CpuOpenBlasRouteSelectorTest.maskInputs(DataType.FLOAT32, false, false,
                 false, 1, CpuOpenBlasRouteSelectorTest.defaultConfig());
         var inputs = replace(base, hardware("x86_64", "one"),
-                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, Optional.empty(), 1);
-        var workload = analyze(inputs).openBlasTuningBatch().orElseThrow().workload();
+                CpuLocalTuningBatch.WorkloadCohort.DEFAULT, Optional.empty(), 1);
+        var workload = analyze(inputs).localTuningBatch().orElseThrow().workload();
 
-        assertRecordComponents(CpuOpenBlasTuningBatch.WorkloadSignature.class,
-                "operationKind", "operationAttributes", "leftType", "rightType",
-                "accumulationType", "outputType", "boundaries",
+        assertRecordComponents(CpuLocalTuningBatch.WorkloadSignature.class,
+                "operationKind", "operationAttributes", "boundaries",
                 "determinismMode", "qualification", "hardware", "cpuConcurrencyCapacity",
                 "portableExecution", "portableStrategy", "portableRangeCount",
                 "portableVectorSpeciesBits", "openBlasThreadCounts", "cohort",
                 "materializationPolicy", "portableCosts", "representationCosts",
                 "openBlasThreadCandidates", "minimumNetBenefitCostUnits",
                 "minimumBenefitBasisPoints", "generatedArtifactSchema", "routePolicyVersion",
-                "costPolicyVersion");
+                "costPolicyVersion", "semanticsFingerprint");
         assertNestedCompatibilityComponentInventories();
 
-        assertClosedEnum(CpuOpenBlasTuningBatch.OperationKind.values(), "operationKind");
-        assertClosedEnum(CpuOpenBlasTuningBatch.OperationAttributes.values(),
+        assertEquals(List.of("MATMUL"), java.util.Arrays.stream(
+                CpuLocalTuningBatch.OperationKind.values()).map(Enum::name).toList());
+        assertClosedEnum(CpuLocalTuningBatch.OperationAttributes.values(),
                 "operationAttributes");
-        assertClosedEnum(CpuOpenBlasTuningBatch.DeterminismMode.values(), "determinismMode");
+        assertClosedEnum(CpuLocalTuningBatch.DeterminismMode.values(), "determinismMode");
         for (String component : List.of("operationKind", "operationAttributes",
                 "determinismMode")) {
             assertThrows(NullPointerException.class, () -> with(workload, component, null),
                     component + " rejects null and has no second valid schema value");
-        }
-        for (String type : List.of("leftType", "rightType", "accumulationType", "outputType")) {
-            assertConstructionRejected(workload, type, DataType.FLOAT64,
-                    type + " cannot differ independently because schema 3 requires one exact type");
         }
         assertConstructionRejected(workload, "openBlasThreadCounts", List.of(2),
                 "thread counts cannot differ independently from thread-candidate identities");
@@ -302,19 +285,19 @@ final class CpuOpenBlasTuningBatchTest {
                 with(workload.openBlasThreadCandidates().getFirst(), "threadCount", 2)),
                 "thread-candidate count cannot differ independently from the count list");
         assertConstructionRejected(workload, "routePolicyVersion",
-                CpuOpenBlasTuningBatch.ROUTE_POLICY_VERSION + 1,
+                CpuLocalTuningBatch.ROUTE_POLICY_VERSION + 1,
                 "routePolicyVersion has one supported schema-1 value");
         assertConstructionRejected(workload, "costPolicyVersion",
-                CpuOpenBlasTuningBatch.COST_POLICY_VERSION + 1,
+                CpuLocalTuningBatch.COST_POLICY_VERSION + 1,
                 "costPolicyVersion has one supported schema-1 value");
         assertThrows(IllegalArgumentException.class,
-                () -> new CpuOpenBlasTuningBatch.HardwareIdentity(2, "x86_64", "vendor",
+                () -> new CpuLocalTuningBatch.HardwareIdentity(2, "x86_64", "vendor",
                         "model", List.of()),
                 "hardware.schemaVersion has one supported value, so inequality is impossible");
         assertThrows(IllegalArgumentException.class,
-                () -> new CpuOpenBlasTuningBatch.WorkloadCohort(2, "ordinary", 1),
+                () -> new CpuLocalTuningBatch.WorkloadCohort(2, "ordinary", 1),
                 "cohort.schemaVersion has one supported value, so inequality is impossible");
-        assertQualificationConstructionRejections(workload.qualification());
+        assertQualificationConstructionRejections(workload.qualification().orElseThrow());
     }
 
     @Test void everyPersistentQualificationIdentityFactIndependentlyMissesOrRejects() {
@@ -326,11 +309,11 @@ final class CpuOpenBlasTuningBatchTest {
         var base = CpuOpenBlasRouteSelectorTest.maskInputs(DataType.FLOAT32, false, false,
                 false, 1, config);
         var inputs = replace(base, hardware("x86_64", "one"),
-                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, Optional.empty(), 1);
+                CpuLocalTuningBatch.WorkloadCohort.DEFAULT, Optional.empty(), 1);
         CpuPartitionPreparationPlan heuristic = analyze(inputs);
-        CpuOpenBlasTuningBatch batch = heuristic.openBlasTuningBatch().orElseThrow();
+        CpuLocalTuningBatch batch = heuristic.localTuningBatch().orElseThrow();
         var original = batch.workload();
-        var scope = original.qualification();
+        var scope = original.qualification().orElseThrow();
         var identity = scope.persistentIdentity().orElseThrow();
         var binary = identity.binaryIdentity();
         var mutations = new ArrayList<WorkloadMutation>();
@@ -359,7 +342,7 @@ final class CpuOpenBlasTuningBatchTest {
 
         assertEquals(6, mutations.size(), "every mutable persistent identity fact");
         for (WorkloadMutation mutation : mutations) {
-            assertCompatibilityMissAndSafeFallback(inputs, heuristic, batch, mutation);
+            assertCompatibilityMissAndRejectsReplay(inputs, heuristic, batch, mutation);
             assertNotEquals(original.persistentProjection(), mutation.workload()
                     .persistentProjection(), mutation.component() + " must alter persistence");
         }
@@ -389,7 +372,7 @@ final class CpuOpenBlasTuningBatchTest {
 
     @Test void sessionScopeCannotProjectPersistentlyButBinaryScopeCanReuseAcrossSessions() {
         var session = CpuOpenBlasRouteSelectorTest.qualification();
-        assertTrue(new CpuOpenBlasTuningBatch.QualificationScope(session)
+        assertTrue(new CpuLocalTuningBatch.QualificationScope(session)
                 .persistentIdentity().isEmpty());
         var binary = new CpuOpenBlasQualification.BinaryIdentity(1, "SHA-256", "a".repeat(64),
                 64, CpuOpenBlasQualification.ExecutableFormat.ELF_64,
@@ -401,12 +384,12 @@ final class CpuOpenBlasTuningBatchTest {
                 target, Optional.of(binary), new CpuOpenBlasQualification.SessionKey());
         var second = new CpuOpenBlasQualification(CpuOpenBlasQualification.Scope.PERSISTENT_BINARY,
                 target, Optional.of(binary), new CpuOpenBlasQualification.SessionKey());
-        assertAll(() -> assertEquals(new CpuOpenBlasTuningBatch.QualificationScope(first),
-                        new CpuOpenBlasTuningBatch.QualificationScope(second)),
-                () -> assertTrue(new CpuOpenBlasTuningBatch.QualificationScope(first)
+        assertAll(() -> assertEquals(new CpuLocalTuningBatch.QualificationScope(first),
+                        new CpuLocalTuningBatch.QualificationScope(second)),
+                () -> assertTrue(new CpuLocalTuningBatch.QualificationScope(first)
                         .persistentIdentity().isPresent()),
-                () -> assertNotEquals(new CpuOpenBlasTuningBatch.QualificationScope(session),
-                        new CpuOpenBlasTuningBatch.QualificationScope(
+                () -> assertNotEquals(new CpuLocalTuningBatch.QualificationScope(session),
+                        new CpuLocalTuningBatch.QualificationScope(
                                 CpuOpenBlasRouteSelectorTest.qualification())));
     }
 
@@ -414,12 +397,11 @@ final class CpuOpenBlasTuningBatchTest {
         assertAll(() -> assertThrows(IllegalArgumentException.class,
                         () -> hardware("x86_64", "z", "a")),
                 () -> assertThrows(IllegalArgumentException.class,
-                        () -> new CpuOpenBlasTuningBatch.WorkloadCohort(1, "", 1)),
+                        () -> new CpuLocalTuningBatch.WorkloadCohort(1, "", 1)),
                 () -> assertThrows(NullPointerException.class,
-                        () -> new CpuOpenBlasTuningDecision(0, null,
-                                new CpuOpenBlasTuningBatch.OpenBlasIdentity(
-                                        CpuOpenBlasRoutePlan.Representation.DIRECT, 1, 1, 0,
-                                        List.of(), 0, 0, 0))));
+                        () -> new CpuLocalTuningDecision(0, null, new CpuLocalTuningBatch.OpenBlasIdentity(
+                                CpuOpenBlasRoutePlan.Representation.DIRECT, 1, 1, 0,
+                                List.of(), 0, 0, 0), null)));
     }
 
     @Test void ineligibleBfloat16ProducesNoNativeCandidateOrTuningBatch() {
@@ -441,11 +423,11 @@ final class CpuOpenBlasTuningBatchTest {
                 dense(io.github.pho001.synaptik.model.shape.Shape.of(2, 4)), inputs)).plan();
         assertAll(() -> assertEquals(CpuPartitionPreparationPlan.Route.PORTABLE, plan.route()),
                 () -> assertTrue(plan.openBlasPlan().isEmpty()),
-                () -> assertTrue(plan.openBlasTuningBatch().isEmpty()));
+                () -> assertTrue(plan.localTuningBatch().isEmpty()));
     }
 
     private static void addBoundaryMutations(List<WorkloadMutation> mutations,
-            CpuOpenBlasTuningBatch.WorkloadSignature original, int index) {
+            CpuLocalTuningBatch.WorkloadSignature original, int index) {
         var boundary = original.boundaries().get(index);
         String prefix = "boundaries[" + index + "].";
         addBoundary(mutations, original, index, prefix + "dataType", "dataType",
@@ -515,8 +497,8 @@ final class CpuOpenBlasTuningBatchTest {
     }
 
     private static void addSessionQualificationMutations(List<WorkloadMutation> mutations,
-            CpuOpenBlasTuningBatch.WorkloadSignature original) {
-        var qualification = original.qualification();
+            CpuLocalTuningBatch.WorkloadSignature original) {
+        var qualification = original.qualification().orElseThrow();
         var target = qualification.targetFingerprint();
         add(mutations, original, "qualification.targetFingerprint.operatingSystem",
                 "qualification", with(qualification, "targetFingerprint", with(target,
@@ -525,13 +507,13 @@ final class CpuOpenBlasTuningBatchTest {
                 with(qualification, "targetFingerprint", with(target, "machine",
                         CpuOpenBlasQualification.Machine.AARCH64)));
         add(mutations, original, "qualification.sessionCredential", "qualification",
-                new CpuOpenBlasTuningBatch.QualificationScope(
+                new CpuLocalTuningBatch.QualificationScope(
                         CpuOpenBlasRouteSelectorTest.qualification()));
     }
 
     private static void addPersistentIdentityMutation(List<WorkloadMutation> mutations,
-            CpuOpenBlasTuningBatch.WorkloadSignature original,
-            CpuOpenBlasTuningBatch.QualificationScope scope,
+            CpuLocalTuningBatch.WorkloadSignature original,
+            CpuLocalTuningBatch.QualificationScope scope,
             CpuOpenBlasQualification.PersistentIdentity identity, String label,
             String identityComponent, Object value) {
         var changedIdentity = with(identity, identityComponent, value);
@@ -541,7 +523,7 @@ final class CpuOpenBlasTuningBatchTest {
     }
 
     private static void assertQualificationConstructionRejections(
-            CpuOpenBlasTuningBatch.QualificationScope qualification) {
+            CpuLocalTuningBatch.QualificationScope qualification) {
         assertThrows(IllegalArgumentException.class,
                 () -> with(qualification, "scope",
                         CpuOpenBlasQualification.Scope.PERSISTENT_BINARY),
@@ -571,7 +553,7 @@ final class CpuOpenBlasTuningBatchTest {
     }
 
     private static void addBoundary(List<WorkloadMutation> mutations,
-            CpuOpenBlasTuningBatch.WorkloadSignature original, int index, String label,
+            CpuLocalTuningBatch.WorkloadSignature original, int index, String label,
             String component, Object value) {
         var boundaries = new ArrayList<>(original.boundaries());
         boundaries.set(index, with(boundaries.get(index), component, value));
@@ -579,7 +561,7 @@ final class CpuOpenBlasTuningBatchTest {
     }
 
     private static void addLongComponents(List<WorkloadMutation> mutations,
-            CpuOpenBlasTuningBatch.WorkloadSignature original, String workloadComponent,
+            CpuLocalTuningBatch.WorkloadSignature original, String workloadComponent,
             Object nested, String... components) {
         for (String component : components) {
             long current = (long) component(nested, component);
@@ -589,14 +571,14 @@ final class CpuOpenBlasTuningBatchTest {
     }
 
     private static void addOptionalLongComponents(List<WorkloadMutation> mutations,
-            CpuOpenBlasTuningBatch.WorkloadSignature original, String workloadComponent,
+            CpuLocalTuningBatch.WorkloadSignature original, String workloadComponent,
             Object nested, String... components) {
         addOptionalLongComponents(mutations, original, workloadComponent, nested,
                 changed -> changed, components);
     }
 
     private static void addOptionalLongComponents(List<WorkloadMutation> mutations,
-            CpuOpenBlasTuningBatch.WorkloadSignature original, String labelPrefix,
+            CpuLocalTuningBatch.WorkloadSignature original, String labelPrefix,
             Object nested, java.util.function.UnaryOperator<Object> outer, String... components) {
         String workloadComponent = labelPrefix.startsWith("openBlasThreadCandidates")
                 ? "openBlasThreadCandidates" : labelPrefix;
@@ -609,18 +591,22 @@ final class CpuOpenBlasTuningBatchTest {
     }
 
     private static void add(List<WorkloadMutation> mutations,
-            CpuOpenBlasTuningBatch.WorkloadSignature original, String label,
+            CpuLocalTuningBatch.WorkloadSignature original, String label,
             String component, Object value) {
+        if (component.equals("qualification") && !(value instanceof Optional<?>)) value = Optional.of(value);
+        if (component.equals("minimumNetBenefitCostUnits") && value instanceof Long number)
+            value = OptionalLong.of(number);
+        if (component.equals("minimumBenefitBasisPoints") && value instanceof Integer number)
+            value = java.util.OptionalInt.of(number);
         mutations.add(new WorkloadMutation(label, with(original, component, value)));
     }
 
-    private static void assertCompatibilityMissAndSafeFallback(CpuPartitionAnalysisInputs inputs,
-            CpuPartitionPreparationPlan heuristic, CpuOpenBlasTuningBatch batch,
+    private static void assertCompatibilityMissAndRejectsReplay(CpuPartitionAnalysisInputs inputs,
+            CpuPartitionPreparationPlan heuristic, CpuLocalTuningBatch batch,
             WorkloadMutation mutation) {
         var portable = batch.candidates().getFirst();
-        var originalDecision = new CpuOpenBlasTuningDecision(batch.schemaVersion(),
-                batch.workload(), portable.identity());
-        var changedBatch = new CpuOpenBlasTuningBatch(batch.schemaVersion(), mutation.workload(),
+        var originalDecision = new CpuLocalTuningDecision(batch.schemaVersion(), batch.workload(), portable.identity(), batch);
+        var changedBatch = new CpuLocalTuningBatch(batch.schemaVersion(), mutation.workload(),
                 List.of(portable));
         assertAll(mutation.component(),
                 () -> assertNotEquals(batch.workload(), mutation.workload(),
@@ -628,20 +614,14 @@ final class CpuOpenBlasTuningBatchTest {
                 () -> assertTrue(originalDecision.match(changedBatch).isEmpty(),
                         mutation.component() + " must reject a decision carrying the original workload"));
 
-        var incompatible = new CpuOpenBlasTuningDecision(batch.schemaVersion(),
-                mutation.workload(), portable.identity());
-        var fallback = analyze(replace(inputs, inputs.cpuHardwareIdentity(), inputs.workloadCohort(),
-                Optional.of(incompatible), inputs.portableExecution().availableParallelism()));
-        assertAll(mutation.component() + " fallback",
-                () -> assertEquals(heuristic.route(), fallback.route()),
-                () -> assertEquals(heuristic.selectedOpenBlasTuningCandidate(),
-                        fallback.selectedOpenBlasTuningCandidate()),
-                () -> assertEquals(heuristic.openBlasPlan().map(CpuOpenBlasRoutePlan::representation),
-                        fallback.openBlasPlan().map(CpuOpenBlasRoutePlan::representation)));
+        var incompatible = new CpuLocalTuningDecision(changedBatch.schemaVersion(),
+                mutation.workload(), portable.identity(), changedBatch);
+        assertThrows(IllegalArgumentException.class, () -> analyze(replace(inputs,
+                inputs.cpuHardwareIdentity(), inputs.workloadCohort(), Optional.of(incompatible),
+                inputs.portableExecution().availableParallelism())), mutation.component());
     }
-
     private static void assertConstructionRejected(
-            CpuOpenBlasTuningBatch.WorkloadSignature workload, String component, Object value,
+            CpuLocalTuningBatch.WorkloadSignature workload, String component, Object value,
             String message) {
         assertThrows(IllegalArgumentException.class, () -> with(workload, component, value), message);
     }
@@ -652,17 +632,17 @@ final class CpuOpenBlasTuningBatchTest {
     }
 
     private static void assertNestedCompatibilityComponentInventories() {
-        assertRecordComponents(CpuOpenBlasTuningBatch.BoundarySignature.class, "dataType",
+        assertRecordComponents(CpuLocalTuningBatch.BoundarySignature.class, "dataType",
                 "shape", "layout", "carrier", "storage", "access");
         assertEquals(List.of("nativeSegment", "byteAlignment"), java.util.Arrays.stream(
                         CpuPartitionAnalysisInputs.BoundaryStorageFact.class.getRecordComponents())
                 .map(RecordComponent::getName).toList(),
                 "BoundaryStorageFact components must remain exactly nativeSegment and byteAlignment");
-        assertRecordComponents(CpuOpenBlasTuningBatch.HardwareIdentity.class, "schemaVersion",
+        assertRecordComponents(CpuLocalTuningBatch.HardwareIdentity.class, "schemaVersion",
                 "architecture", "vendor", "model", "features");
-        assertRecordComponents(CpuOpenBlasTuningBatch.WorkloadCohort.class, "schemaVersion",
+        assertRecordComponents(CpuLocalTuningBatch.WorkloadCohort.class, "schemaVersion",
                 "cohortId", "expectedRunCount");
-        assertRecordComponents(CpuOpenBlasTuningBatch.QualificationScope.class, "scope",
+        assertRecordComponents(CpuLocalTuningBatch.QualificationScope.class, "scope",
                 "targetFingerprint", "persistentIdentity", "sessionCredential");
         assertRecordComponents(CpuOpenBlasQualification.TargetFingerprint.class, "schemaVersion",
                 "operatingSystem", "machine", "addressWidthBits", "byteOrder");
@@ -775,9 +755,9 @@ final class CpuOpenBlasTuningBatchTest {
     }
 
     private static CpuPartitionAnalysisInputs replace(CpuPartitionAnalysisInputs source,
-            CpuOpenBlasTuningBatch.HardwareIdentity hardware,
-            CpuOpenBlasTuningBatch.WorkloadCohort cohort,
-            Optional<CpuOpenBlasTuningDecision> decision, int capacity) {
+            CpuLocalTuningBatch.HardwareIdentity hardware,
+            CpuLocalTuningBatch.WorkloadCohort cohort,
+            Optional<CpuLocalTuningDecision> decision, int capacity) {
         return new CpuPartitionAnalysisInputs(source.loweringManifestEnabled(),
                 source.carrierPattern(), new CpuPartitionAnalysisInputs.PortableExecutionConfig(
                         source.portableExecution().computePreference(), capacity, capacity,
@@ -787,14 +767,14 @@ final class CpuOpenBlasTuningBatchTest {
                 source.openBlasRoute(), hardware, cohort, decision);
     }
 
-    private static CpuOpenBlasTuningBatch.HardwareIdentity hardware(String architecture,
+    private static CpuLocalTuningBatch.HardwareIdentity hardware(String architecture,
             String... features) {
         var sorted = new ArrayList<>(List.of(features));
-        return new CpuOpenBlasTuningBatch.HardwareIdentity(1, architecture, "test-vendor",
+        return new CpuLocalTuningBatch.HardwareIdentity(1, architecture, "test-vendor",
                 "test-model", sorted);
     }
 
-    private static CpuOpenBlasTuningBatch.WorkloadCohort cohort(String id, long runs) {
-        return new CpuOpenBlasTuningBatch.WorkloadCohort(1, id, runs);
+    private static CpuLocalTuningBatch.WorkloadCohort cohort(String id, long runs) {
+        return new CpuLocalTuningBatch.WorkloadCohort(1, id, runs);
     }
 }

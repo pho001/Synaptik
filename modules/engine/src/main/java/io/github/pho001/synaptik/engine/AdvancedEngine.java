@@ -124,9 +124,10 @@ public final class AdvancedEngine implements AutoCloseable {
             PD extends BackendTuningDecision, PK> extends BackendWorkloadTuning<C, D, K> {
         /**
          * Obtains the optional backend-local candidate handoff for the exact compile artifacts.
+         * An absent batch skips local measurement and cache access; it does not determine whether
+         * this backend admits complete-plan tuning without a local decision.
          * @param artifacts non-null immutable artifacts for the admitted compiled graph
-         * @return a non-null optional containing the sole eligible handoff, or empty when tuning
-         *     is unavailable
+         * @return a non-null optional containing the sole eligible local handoff, or empty
          */
         Optional<BackendPartitionTuningHandoff<C, D>> candidateHandoff(CompileArtifacts artifacts);
         /**
@@ -140,13 +141,18 @@ public final class AdvancedEngine implements AutoCloseable {
         io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareTrial(
                 CompileArtifacts artifacts, C batch, K candidate)
                 throws Exception;
-        /** Obtains a decision-empty complete-plan batch around the exact Phase-1 decision.
+        /**
+         * Obtains a decision-empty complete-plan batch with the optional authenticated local
+         * selection frozen into its backend-owned identity. CPU may admit an absent local phase;
+         * Metal requires its complete singleton-NEG local batch and rejects an absent decision.
+         *
          * @param artifacts exact admitted compile artifacts
-         * @param phaseOneDecision exact authenticated Phase-1 decision
-         * @return the optional exact complete-plan handoff
+         * @param phaseOneDecision non-null optional exact authenticated Phase-1 decision, empty
+         *     only when the backend supplied no local candidate batch
+         * @return the optional exact complete-plan handoff, empty when this combination is ineligible
          */
         Optional<BackendPartitionTuningHandoff<PC, PD>> completePlanCandidateHandoff(
-                CompileArtifacts artifacts, D phaseOneDecision);
+                CompileArtifacts artifacts, Optional<D> phaseOneDecision);
         /** Enumerates the complete stable Phase-2 candidate set.
          * @param batch exact complete-plan batch
          * @return non-null stable candidate list
@@ -907,40 +913,41 @@ public final class AdvancedEngine implements AutoCloseable {
         boolean selectionAuthenticated = false;
         try {
             var optionalHandoff = tuning.candidateHandoff(compiledGraph.artifacts());
-            if (optionalHandoff.isEmpty()) {
-                if (producer != null) producer.noEligibleHandoff();
-                throw new IllegalStateException("no eligible local-workload tuning handoff");
-            }
-            var handoff = optionalHandoff.orElseThrow();
             byte[] context = ByteBuffer.allocate(8).putInt(0).putInt(0).array();
-            WorkloadTuningRequest<C, D> tuningRequest = tuningRequest(
-                            config, modelIdentity, handoff, context);
-            WorkloadTuningResult<C, D> result;
-            try {
-                result = WorkloadTuning.tune(tuningRequest, tuning,
-                        (batch, candidate) -> {
-                            io.github.pho001.synaptik.runtime.execution.PreparedExecution trial;
-                            try {
-                                trial = tuning.prepareTrial(
-                                        compiledGraph.artifacts(), batch, candidate);
-                            } catch (IOException failure) {
-                                if (producer != null) producer.trialIoFailure();
-                                throw failure;
-                            }
-                            session.execute(trial);
-                        });
-            } catch (RuntimeException failure) {
-                if (session.isRepresentativeExecutionFailure(failure)) throw failure;
-                throw failure;
-            } catch (IOException failure) {
-                if (producer != null) producer.cacheIoFailure();
-                throw new UncheckedIOException(failure);
-            } catch (Exception failure) {
-                throw new IllegalStateException("unexpected checked tuning failure", failure);
+            Optional<D> phaseOneDecision = Optional.empty();
+            List<WorkloadTuningResult.WorkloadEvidence> localEvidence = List.of();
+            if (optionalHandoff.isPresent()) {
+                var handoff = optionalHandoff.orElseThrow();
+                WorkloadTuningRequest<C, D> tuningRequest = tuningRequest(
+                        config, modelIdentity, handoff, context);
+                WorkloadTuningResult<C, D> result;
+                try {
+                    result = WorkloadTuning.tune(tuningRequest, tuning,
+                            (batch, candidate) -> {
+                                io.github.pho001.synaptik.runtime.execution.PreparedExecution trial;
+                                try {
+                                    trial = tuning.prepareTrial(
+                                            compiledGraph.artifacts(), batch, candidate);
+                                } catch (IOException failure) {
+                                    if (producer != null) producer.trialIoFailure();
+                                    throw failure;
+                                }
+                                session.execute(trial);
+                            });
+                } catch (RuntimeException failure) {
+                    if (session.isRepresentativeExecutionFailure(failure)) throw failure;
+                    throw failure;
+                } catch (IOException failure) {
+                    if (producer != null) producer.cacheIoFailure();
+                    throw new UncheckedIOException(failure);
+                } catch (Exception failure) {
+                    throw new IllegalStateException("unexpected checked tuning failure", failure);
+                }
+                BackendPartitionTuningHandoff<C, D> phaseOneSelected = authenticate(
+                        result, handoff, tuningRequest, context);
+                phaseOneDecision = Optional.of(phaseOneSelected.selectedDecision().orElseThrow());
+                localEvidence = result.evidence().workloads();
             }
-            BackendPartitionTuningHandoff<C, D> phaseOneSelected = authenticate(
-                            result, handoff, tuningRequest, context);
-            D phaseOneDecision = phaseOneSelected.selectedDecision().orElseThrow();
             if (producer != null) producer.completePlanPhase();
             var optionalCompleteHandoff = tuning.completePlanCandidateHandoff(
                     compiledGraph.artifacts(), phaseOneDecision);
@@ -989,7 +996,7 @@ public final class AdvancedEngine implements AutoCloseable {
             ModelAutotuningPreparation publicResult;
             try {
                 ModelAutotuningPreparation.Evidence evidence = translateEvidence(
-                        result.evidence(), completeResult, config, modelIdentity, context);
+                        localEvidence, completeResult, config, modelIdentity, context);
                 prepared = new io.github.pho001.synaptik.engine.PreparedExecution(
                         owner,
                         compiledGraph,
@@ -2645,14 +2652,25 @@ public final class AdvancedEngine implements AutoCloseable {
         }
     }
 
+    /**
+     * Publishes only observed local workloads alongside the authenticated complete-plan result.
+     * An empty local list denotes a skipped phase, not a measured or cache-hit workload.
+     *
+     * @param inward non-null actual local workload evidence, empty when no local batch was supplied
+     * @param completeResult non-null authenticated complete-plan tuning result
+     * @param config non-null exact requested tuning configuration
+     * @param modelIdentity non-null caller-supplied model identity
+     * @param context non-null expected local occurrence context
+     * @return non-null outward evidence retaining an empty workload list for a skipped local phase
+     */
     private static ModelAutotuningPreparation.Evidence translateEvidence(
-            WorkloadTuningResult.Evidence inward,
+            List<WorkloadTuningResult.WorkloadEvidence> inward,
             CompletePlanTuningResult<?, ?> completeResult,
             ModelAutotuningConfig config,
             ModelAutotuningRequest.ModelIdentity modelIdentity,
             byte[] context) {
         var workloads = new ArrayList<ModelAutotuningPreparation.WorkloadEvidence>();
-        for (Object value : inward.workloads()) {
+        for (Object value : inward) {
             var workload = (WorkloadTuningResult.WorkloadEvidence) value;
             var compatibility = workload.compatibility();
             var occurrences = new ArrayList<ModelAutotuningPreparation.OccurrenceEvidence>();
@@ -2837,9 +2855,9 @@ public final class AdvancedEngine implements AutoCloseable {
                 CpuCompletePlanTuning.CandidateBatch,
                 CpuCompletePlanTuning.SelectedDecision>> completePlanCandidateHandoff(
                         CompileArtifacts artifacts,
-                        CpuLocalWorkloadTuning.SelectedDecision phaseOneDecision) {
+                        Optional<CpuLocalWorkloadTuning.SelectedDecision> phaseOneDecision) {
             return completeTuning().candidateHandoff(
-                    composition.projectedContext(artifacts), Optional.of(phaseOneDecision));
+                    composition.projectedContext(artifacts), phaseOneDecision);
         }
 
         @Override public CompletePlanTuningRequest.PolicyIdentity
@@ -2982,9 +3000,10 @@ public final class AdvancedEngine implements AutoCloseable {
                 MetalCompletePlanTuning.CandidateBatch,
                 MetalCompletePlanTuning.SelectedDecision>> completePlanCandidateHandoff(
                         CompileArtifacts artifacts,
-                        MetalLocalWorkloadTuning.SelectedDecision phaseOneDecision) {
+                        Optional<MetalLocalWorkloadTuning.SelectedDecision> phaseOneDecision) {
+            if (phaseOneDecision.isEmpty()) return Optional.empty();
             return Optional.of(completeTuning().candidateHandoff(
-                    composition.projectedContext(artifacts), phaseOneDecision));
+                    composition.projectedContext(artifacts), phaseOneDecision.orElseThrow()));
         }
 
         @Override public List<MetalCompletePlanTuning.Candidate> completePlanCandidates(

@@ -10,6 +10,8 @@ import java.util.Optional;
 
 /**
  * Selected realizations of retained common units, owning no native handles or run data.
+ * Explicit finite tuning alternatives carry zero for both heuristic costs because enumeration
+ * does not rank or cost-prune them; ordinary deterministic selection retains its calculated costs.
  *
  * @param sessionIdentity non-null non-blank exact library-load identity
  * @param units non-null non-empty native selections in unique topological order; copied

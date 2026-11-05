@@ -1,5 +1,8 @@
 package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuCompletePlanIdentity;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningBatch;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBudget;
@@ -100,7 +103,7 @@ import jdk.incubator.vector.ByteVector;
  * This cold comparison queries native descriptors and exact scratch/staging requirements;
  * the Graph API may compile and close a temporary native kernel. No native handle escapes analysis,
  * no measurement occurs, and all selected native workspaces precede shared assignment. An explicit
- * OpenBLAS tuning decision freezes Phase-1 route selection and prevents this native comparison.
+ * local tuning decision freezes Phase-1 realization selection and prevents this native comparison.
  * Portable MATMUL realization and generated compute strategy follow the same cold preference;
  * a scalar preference retains direct or threshold-eligible tiled scalar work even when the
  * descriptor would also qualify for a vector candidate.
@@ -199,6 +202,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     @Override public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
+        if (context.backendInputs().localTuningDecision().isPresent())
+            return frozenLocal(context, context.backendInputs().localTuningDecision().orElseThrow(), false);
         if (context.requiresBatchSize()) return analyzeOrdinaryBatch(context);
         var units = decomposer.decompose(context, lowering);
         if (!context.constants().isEmpty()
@@ -472,7 +477,267 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     }
 
     /**
-     * Returns every complete retained topology/representation identity in stable rank order.
+     * Enumerates the complete legal finite local realization domain before any measurement.
+     * Portable MATMUL forms use the implemented fixed tiles and preferred species only; each
+     * legal range count is bounded by explicit configured parallelism, capacity and work size.
+     * OpenBLAS masks/threads and oneDNN APIs retain their owner's exact qualification/resources.
+     * Ordinary preparation never calls this discovery entry point. Local admission requires
+     * a bare MATMUL (optionally with absorbed permutations) and an intrinsically singleton
+     * retained topology/representation domain. All fusion and nonlocal choices stay in Phase 2.
+     * @param context immutable exact CPU projection with local materialization policy
+     * @return complete portable-first batch, or empty outside supported local families
+     * @throws IllegalArgumentException if a finite native domain exceeds its explicit bound
+     */
+    public Optional<CpuLocalTuningBatch> localTuningBatch(
+            PrepareContext<CpuPartitionAnalysisInputs> context) {
+        if (context.requiresBatchSize()) return Optional.empty();
+        if (context.nodes().isEmpty() || context.nodes().size() > 3
+                || context.nodes().getLast().operation().kind()
+                    != io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL
+                || context.nodes().subList(0, context.nodes().size() - 1).stream().anyMatch(node ->
+                    node.operation().kind() != io.github.pho001.synaptik.model.operation.layout.AxisTransformKind.PERMUTE))
+            return Optional.empty();
+        var clean = localContext(context, context.backendInputs().portableExecution(),
+                context.backendInputs().materializationPolicy());
+        var topology = decomposer.decompose(clean, lowering);
+        boolean direct = directPartition(clean, topology);
+        if (direct) return Optional.empty();
+        var selected = selectPlan(clean, Optional.empty(), topology);
+        if (!selected.representation().complete() || selected.representation().decisions().stream()
+                .filter(CpuRepresentationDecision.Variant.class::isInstance)
+                .map(CpuRepresentationDecision.Variant.class::cast)
+                .map(CpuRepresentationDecision.Variant::identity).distinct().count() != 1)
+            return Optional.empty();
+        var portable = selected.analysis();
+        var plan = portable.plan();
+        boolean matmul = plan.units().size() == 1 && plan.units().getFirst().portablePlan() != null
+                && plan.units().getFirst().portablePlan().specialization().matmulIr().isPresent();
+        // Only four lowering forms and <=64 complete topologies are retained before expansion.
+        var portableForms = new ArrayList<PortableTuningForm>(4);
+        long count = 1;
+        if (matmul) {
+            count = 0;
+            var configured = clean.backendInputs().portableExecution();
+            int maximum = Math.min(configured.configuredMaximumParallelism(), configured.availableParallelism());
+            for (var lowered : io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering
+                    .tuningAlternatives(plan.units().getFirst())) {
+                var preference = lowered.matmulIr().orElseThrow().preferredSpeciesBitSize() == 0
+                        ? CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR
+                        : CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE;
+                var execution = new CpuPartitionAnalysisInputs.PortableExecutionConfig(preference,
+                        maximum, configured.availableParallelism(), configured.minimumElementsPerWorker());
+                int ranges = analyzeUnit(localContext(clean, execution,
+                        clean.backendInputs().materializationPolicy(), plan.carrierPattern()),
+                        lowered, 0, false).plan().selectedRangeCount();
+                portableForms.add(new PortableTuningForm(lowered, preference, ranges));
+                count = checkedLocalCount(count, ranges);
+            }
+        }
+        var openBlas = openBlasSelector.evaluate(clean, plan, representationPlanner);
+        int blasCount = openBlas.map(result -> result.batch().candidates().size() - 1).orElse(0);
+        count = checkedLocalCount(count, blasCount);
+        var nativePeers = oneDnnSelector.isPresent() ? List.of(portable)
+                : List.<BackendPartitionAnalysis<CpuPartitionPreparationPlan>>of();
+        for (var peer : nativePeers) count = checkedLocalCount(count,
+                oneDnnSelector.orElseThrow().alternativeCount(clean, peer));
+        if (!matmul && count == 1) return Optional.empty();
+        var candidates = new ArrayList<CpuLocalTuningBatch.Candidate>(Math.toIntExact(count));
+        candidates.add(portableCandidate(plan));
+        for (var form : portableForms) {
+            var configured = clean.backendInputs().portableExecution();
+            for (int ranges = 1; ranges <= form.maximumRanges(); ranges++) {
+                var execution = new CpuPartitionAnalysisInputs.PortableExecutionConfig(form.preference(),
+                        ranges, configured.availableParallelism(), configured.minimumElementsPerWorker());
+                var selectedUnit = plan.units().getFirst();
+                var selectedTopology = new CpuPartitionDagDecomposer.Unit(selectedUnit.memberNodeOrdinals()
+                        .stream().map(clean.nodes()::get).toList(), form.lowered(), selectedUnit.dependencies(),
+                        selectedUnit.memberNodeOrdinals());
+                var realized = annotateSingle(analyzeUnit(localContext(clean, execution,
+                        clean.backendInputs().materializationPolicy(), plan.carrierPattern()),
+                        form.lowered(), 0, false), selectedTopology);
+                var candidate = portableCandidate(realized.plan(), retainedLocalIdentity(plan));
+                if (!candidates.getFirst().identity().equals(candidate.identity()))
+                    candidates.add(candidate);
+            }
+        }
+        openBlas.ifPresent(result -> result.batch().candidates().stream()
+                .filter(candidate -> candidate.openBlasPlan().isPresent()).forEach(candidates::add));
+        for (var peer : nativePeers) {
+            for (var nativeAlternative : oneDnnSelector.orElseThrow().alternatives(clean, peer)) {
+                var nativePlan = nativeAlternative.plan();
+                String fingerprint = oneDnnSelector.orElseThrow().candidateFingerprint(nativePlan)
+                        + ":" + portableKey(nativePlan);
+                candidates.add(new CpuLocalTuningBatch.Candidate(CpuLocalTuningBatch.RouteKind.ONEDNN,
+                        new CpuLocalTuningBatch.OneDnnIdentity(fingerprint,
+                            CpuLocalTuningBatch.resourceIdentities(nativePlan), retainedLocalIdentity(nativePlan).orElseThrow()),
+                        Optional.empty(), Optional.of(nativePlan)));
+            }
+        }
+        if (candidates.size() != count)
+            throw new IllegalStateException("CPU local domain changed during finite discovery");
+        return Optional.of(new CpuLocalTuningBatch(CpuLocalTuningBatch.SCHEMA_VERSION,
+                localWorkload(clean, plan), candidates));
+    }
+
+    private record PortableTuningForm(CpuPartitionLowering.LoweredPartition lowered,
+            CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference preference,
+            int maximumRanges) { }
+
+    private static long checkedLocalCount(long current, long additional) {
+        long count = Math.addExact(current, additional);
+        if (count > CpuLocalTuningBatch.MAXIMUM_CANDIDATES)
+            throw new IllegalArgumentException("CPU local candidate domain exceeds 8192 alternatives");
+        return count;
+    }
+    private static PrepareContext<CpuPartitionAnalysisInputs> localContext(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionAnalysisInputs.PortableExecutionConfig execution,
+            CpuPartitionAnalysisInputs.MaterializationPolicy policy) {
+        return localContext(context, execution, policy, context.backendInputs().carrierPattern());
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> localContext(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionAnalysisInputs.PortableExecutionConfig execution,
+            CpuPartitionAnalysisInputs.MaterializationPolicy policy,
+            List<CpuKernelSpecialization.CarrierAccess> carriers) {
+        var old = context.backendInputs();
+        var inputs = new CpuPartitionAnalysisInputs(old.loweringManifestEnabled(), carriers,
+                execution, policy, old.conv2dMaterializedSuffixUnit(), old.partialReductionEvidence(),
+                old.boundaryStorageFacts(), old.openBlasRoute(), old.cpuHardwareIdentity(),
+                old.workloadCohort(), Optional.empty());
+        return new PrepareContext<>(context.partitionDag(), context.values(), context.memoryRequirements(),
+                context.constants(), inputs, context.scanActivityPlans());
+    }
+
+    private static String portableKey(CpuPartitionPreparationPlan plan) {
+        return CpuLocalTuningBatch.portableStructuralKey(plan);
+    }
+    private static CpuLocalTuningBatch.Candidate portableCandidate(CpuPartitionPreparationPlan plan) {
+        return portableCandidate(plan, retainedLocalIdentity(plan));
+    }
+
+    private static CpuLocalTuningBatch.Candidate portableCandidate(CpuPartitionPreparationPlan plan,
+            Optional<CpuRepresentationDecision.VariantIdentity> topology) {
+        String key = portableKey(plan);
+        return new CpuLocalTuningBatch.Candidate(CpuLocalTuningBatch.RouteKind.PORTABLE,
+                new CpuLocalTuningBatch.PortableIdentity(plan.executionStrategy(), plan.selectedRangeCount(),
+                        plan.minimumElementsPerWorker(), plan.vectorSpeciesBitSize(),
+                        plan.units().getFirst().portablePlan().specialization().classIdentitySchema(), key,
+                        CpuLocalTuningBatch.resourceIdentities(plan), topology), Optional.empty(), Optional.of(plan));
+    }
+
+    private static List<PreparationResourceRequirement> planRequirements(CpuPartitionPreparationPlan plan) {
+        var requirements = new ArrayList<PreparationResourceRequirement>(plan.bufferDeclarations());
+        var workspaces = new LinkedHashMap<Long, PreparationResourceRequirement.Workspace>();
+        plan.workspaceDeclaration().ifPresent(workspace -> workspaces.put(workspace.requirementId(), workspace));
+        for (var unit : plan.units()) unit.runtimeFacts().workspaceDeclaration()
+                .ifPresent(workspace -> workspaces.putIfAbsent(workspace.requirementId(), workspace));
+        plan.openBlasPlan().ifPresent(nativePlan -> nativePlan.workspaceRequirements().forEach(
+                workspace -> workspaces.putIfAbsent(workspace.requirementId(), workspace)));
+        plan.oneDnnPlan().ifPresent(nativePlan -> nativePlan.workspaceRequirements().forEach(
+                workspace -> workspaces.putIfAbsent(workspace.requirementId(), workspace)));
+        requirements.addAll(workspaces.values());
+        return List.copyOf(requirements);
+    }
+
+    private static CpuLocalTuningBatch.WorkloadSignature localWorkload(
+            PrepareContext<CpuPartitionAnalysisInputs> context, CpuPartitionPreparationPlan plan) {
+        var inputs = context.backendInputs();
+        var config = inputs.openBlasRoute();
+        var boundaries = new ArrayList<CpuLocalTuningBatch.BoundarySignature>();
+        for (int index = 0; index < plan.boundaryValues().size(); index++) {
+            var id = plan.boundaryValues().get(index);
+            var descriptor = context.values().stream().filter(value -> value.id().equals(id)).findFirst().orElseThrow().descriptor();
+            var requirement = context.memoryRequirements().stream()
+                    .filter(memory -> memory.valueId().equals(id)).findFirst().orElseThrow();
+            var storage = inputs.boundaryStorageFacts().isEmpty()
+                    ? new CpuPartitionAnalysisInputs.BoundaryStorageFact(
+                        requirement.producerPartition().isPresent() || context.constants().containsKey(id),
+                        descriptor.dataType().byteWidth())
+                    : inputs.boundaryStorageFacts().get(index);
+            boundaries.add(new CpuLocalTuningBatch.BoundarySignature(descriptor.dataType(), descriptor.shape(),
+                    descriptor.layout().orElseThrow(), plan.carrierPattern().get(index), storage,
+                    plan.accessBindings().get(index)));
+        }
+        return new CpuLocalTuningBatch.WorkloadSignature(CpuLocalTuningBatch.OperationKind.MATMUL,
+                CpuLocalTuningBatch.OperationAttributes.NONE, boundaries,
+                CpuLocalTuningBatch.DeterminismMode.DEFAULT,
+                config.qualification().map(CpuLocalTuningBatch.QualificationScope::new),
+                inputs.cpuHardwareIdentity(), inputs.portableExecution().availableParallelism(),
+                inputs.portableExecution(), plan.executionStrategy(), plan.selectedRangeCount(),
+                plan.vectorSpeciesBitSize(), config.threadCandidates().stream().map(
+                        CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate::threadCount).toList(),
+                inputs.workloadCohort(), inputs.materializationPolicy(), config.portableCosts(),
+                config.representationCosts(), config.threadCandidates(),
+                config.minimumNetBenefitCostUnits(), config.minimumBenefitBasisPoints(),
+                plan.units().getFirst().portablePlan().specialization().classIdentitySchema(),
+                CpuLocalTuningBatch.ROUTE_POLICY_VERSION, CpuLocalTuningBatch.COST_POLICY_VERSION,
+                CpuLocalTuningBatch.portableStructuralKey(plan));
+    }
+    private static Optional<CpuRepresentationDecision.VariantIdentity> retainedLocalIdentity(
+            CpuPartitionPreparationPlan plan) {
+        return plan.representationDecisions().stream()
+                .filter(CpuRepresentationDecision.Selection.class::isInstance)
+                .map(CpuRepresentationDecision.Selection.class::cast)
+                .map(CpuRepresentationDecision.Selection::selected).findFirst();
+    }
+
+    private static boolean compatibleFrozenTopology(CpuRepresentationDecision.VariantIdentity identity,
+            CpuLocalTuningDecision decision) {
+        var candidate = decision.realization();
+        var realized = candidate.realization().orElseGet(() ->
+                decision.batch().candidates().getFirst().realization().orElseThrow());
+        var exact = retainedLocalIdentity(realized);
+        if (exact.isPresent()) return exact.orElseThrow().equals(identity);
+        if (!identity.materializations().isEmpty() || identity.topology().units().size() != realized.units().size())
+            return false;
+        for (int index = 0; index < realized.units().size(); index++) {
+            var unit = realized.units().get(index);
+            var selected = identity.topology().units().get(index);
+            if (!unit.memberNodeOrdinals().equals(selected.memberNodePositions())
+                    || !unit.dependencies().equals(selected.dependencyUnitPositions())) return false;
+        }
+        return true;
+    }
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> frozenLocal(
+            PrepareContext<CpuPartitionAnalysisInputs> context, CpuLocalTuningDecision decision,
+            boolean phaseTwoPolicyTransport) {
+        var phaseOne = localContext(context, decision.workload().portableExecution(),
+                decision.workload().materializationPolicy());
+        var topology = decomposer.decompose(phaseOne, lowering);
+        var baseline = directPartition(phaseOne, topology) ? analyzeDirectPartition(phaseOne, topology)
+                : selectPlan(phaseOne, Optional.empty(), topology).analysis();
+        if (decision.candidateSchemaVersion() != CpuLocalTuningBatch.SCHEMA_VERSION) {
+            throw new IllegalArgumentException("CPU local tuning schema is stale");
+        }
+        if (!decision.workload().equals(localWorkload(phaseOne, baseline.plan()))) {
+            throw new IllegalArgumentException("CPU local tuning decision is stale or incompatible");
+        }
+        var candidate = decision.realization();
+        if (candidate.route() == CpuLocalTuningBatch.RouteKind.OPENBLAS) {
+            return withOpenBlasEvaluation(baseline,
+                    new CpuOpenBlasRouteSelector.Result(decision.batch(), candidate));
+        }
+        var realized = candidate.realization().orElseThrow();
+        if (!context.values().stream().map(value -> value.id()).toList().containsAll(realized.boundaryValues()))
+            throw new IllegalArgumentException("CPU frozen realization belongs to another projection");
+        var nativeBaseline = retainedLocalIdentity(realized).map(identity ->
+                selectPlan(phaseOne, Optional.of(new SelectedCompletePlan(5, new CpuCompletePlanIdentity(identity, List.of(), Optional.empty(), Optional.empty()), List.of(1))),
+                        topology).analysis()).orElse(baseline);
+        var analysis = candidate.route() == CpuLocalTuningBatch.RouteKind.ONEDNN
+                ? oneDnnSelector.orElseThrow(() -> new IllegalArgumentException("oneDNN is unavailable"))
+                    .freeze(phaseOne, nativeBaseline, realized)
+                : new BackendPartitionAnalysis<>(context.partition(), realized, planRequirements(realized));
+        return new BackendPartitionAnalysis<>(analysis.partition(),
+                analysis.plan().withLocalTuning(decision.batch(), candidate), analysis.requirements());
+    }
+    /**
+     * Returns every retained complete topology/representation and legal finite implementation.
+     * Without Phase 1, topology t contributes product_i(p_i + a_i) ordinary/oneDNN combinations
+     * plus qualified whole-unit OpenBLAS alternatives; p_i is the exact portable form/range
+     * count and a_i the qualified permitted native API count. The aggregate 8192 ceiling is
+     * checked before expanding any combination list. A present local selection is frozen, not searched.
      *
      * <p>The result describes retained analysis alternatives only. It performs no route
      * measurement, ranking, execution, or resource allocation.</p>
@@ -488,33 +753,152 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     public CompletePlanCandidates completePlanCandidates(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
-        var units = decomposer.decompose(context, lowering);
-        if (directPartition(context, units)) {
-            analyzeDirectPartition(context, units);
+        if (context.requiresBatchSize()) return new CompletePlanCandidates(List.of(), false);
+        var baseline = decomposer.decompose(context, lowering);
+        if (directPartition(context, baseline)) {
+            analyzeDirectPartition(context, baseline);
             return new CompletePlanCandidates(List.of(), false);
         }
-        SelectionAnalysis selected = selectPlan(context, Optional.empty(), units);
-        List<CpuRepresentationDecision.Variant>
-                variants = selected.representation().decisions().stream()
+        var selectionDomain = selectionDomain(context, baseline);
+        var selected = selectPlan(context, Optional.empty(), selectionDomain);
+        if (!selected.representation().complete()) return new CompletePlanCandidates(List.of(), false);
+        var topologies = selected.representation().decisions().stream()
                 .filter(CpuRepresentationDecision.Variant.class::isInstance)
                 .map(CpuRepresentationDecision.Variant.class::cast)
-                .sorted(java.util.Comparator.comparingInt(
-                        CpuRepresentationDecision.Variant::stableTopologyRank))
-                .toList();
-        List<CpuRepresentationDecision.VariantIdentity>
-                identities = variants.stream().map(
-                        CpuRepresentationDecision.Variant::identity)
-                .distinct().toList();
+                .sorted(java.util.Comparator.comparingInt(CpuRepresentationDecision.Variant::stableTopologyRank))
+                .map(CpuRepresentationDecision.Variant::identity).distinct().toList();
+        if (context.backendInputs().localTuningDecision().isPresent()) {
+            // Existing local admission has an intrinsically single bare-MATMUL topology. Do not
+            // move fusion discovery into Phase 1 or delete prior Phase-2 topology identities.
+            return new CompletePlanCandidates(topologies.stream().map(identity ->
+                    new CpuCompletePlanIdentity(identity, List.of(), Optional.empty(), Optional.empty())).toList(),
+                    selected.representation().complete());
+        }
+        var domains = new ArrayList<CompleteTopologyDomain>(topologies.size());
+        long count = 0;
+        for (var topology : topologies) {
+            var portable = selectPlan(context, Optional.of(new SelectedCompletePlan(5,
+                    new CpuCompletePlanIdentity(topology, List.of(), Optional.empty(), Optional.empty()), List.of(1))), selectionDomain).analysis();
+            var forms = new ArrayList<List<PortableTuningForm>>(portable.plan().units().size());
+            var nativeCounts = oneDnnSelector.isPresent()
+                    ? oneDnnSelector.orElseThrow().alternativeCountsByUnit(context, portable)
+                    : java.util.Collections.nCopies(portable.plan().units().size(), 0);
+            long combinations = 1;
+            for (int position = 0; position < portable.plan().units().size(); position++) {
+                var unitForms = completePortableForms(context, portable.plan(), position);
+                forms.add(unitForms);
+                long portableCount = unitForms.isEmpty() ? 1 : unitForms.stream()
+                        .mapToLong(PortableTuningForm::maximumRanges).reduce(0, Math::addExact);
+                long factor = Math.addExact(portableCount, nativeCounts.get(position));
+                if (combinations > CpuLocalTuningBatch.MAXIMUM_CANDIDATES / factor)
+                    throw new IllegalArgumentException("CPU complete candidate domain exceeds 8192 alternatives");
+                combinations *= factor;
+            }
+            var blas = openBlasSelector.evaluate(context, portable.plan(), representationPlanner);
+            combinations = Math.addExact(combinations,
+                    blas.map(result -> result.batch().candidates().size() - 1).orElse(0));
+            count = checkedCompleteCount(count, combinations);
+            domains.add(new CompleteTopologyDomain(topology, portable, List.copyOf(forms), blas));
+        }
+        var identities = new ArrayList<CpuCompletePlanIdentity>(Math.toIntExact(count));
+        for (var domain : domains) {
+            identities.add(new CpuCompletePlanIdentity(domain.topology(), List.of(), Optional.empty(), Optional.empty()));
+            enumerateCompleteRealizations(domain, Optional.empty(), 0, new ArrayList<>(), identities);
+            domain.openBlas().ifPresent(result -> result.batch().candidates().stream()
+                    .filter(candidate -> candidate.openBlasPlan().isPresent()).forEach(candidate ->
+                        identities.add(new CpuCompletePlanIdentity(domain.topology(), List.of(), Optional.empty(),
+                            Optional.of(new CpuCompletePlanIdentity.OpenBlasAssignment(
+                                (CpuLocalTuningBatch.OpenBlasIdentity) candidate.identity(),
+                                candidate.openBlasPlan().orElseThrow()))))));
+            if (oneDnnSelector.isPresent()) for (var nativePlan :
+                    oneDnnSelector.orElseThrow().alternatives(context, domain.portable())) {
+                var assignment = new CpuCompletePlanIdentity.NativeAssignment(
+                        oneDnnSelector.orElseThrow().candidateFingerprint(nativePlan.plan()),
+                        nativePlan.plan().oneDnnPlan().orElseThrow());
+                enumerateCompleteRealizations(domain, Optional.of(assignment), 0, new ArrayList<>(), identities);
+            }
+        }
+        if (identities.size() != count)
+            throw new IllegalStateException("CPU complete domain changed during finite discovery");
         return new CompletePlanCandidates(identities, selected.representation().complete());
     }
 
+    private record CompleteTopologyDomain(CpuRepresentationDecision.VariantIdentity topology,
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable,
+            List<List<PortableTuningForm>> forms,
+            Optional<CpuOpenBlasRouteSelector.Result> openBlas) { }
+
+    private static long checkedCompleteCount(long current, long additional) {
+        long count = Math.addExact(current, additional);
+        if (count > CpuLocalTuningBatch.MAXIMUM_CANDIDATES)
+            throw new IllegalArgumentException("CPU complete candidate domain exceeds 8192 alternatives");
+        return count;
+    }
+
+    private List<PortableTuningForm> completePortableForms(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionPreparationPlan plan, int position) {
+        var unit = plan.units().get(position);
+        var effective = plan.representationUnits().isEmpty() ? unit.accessBindings()
+                : plan.representationUnits().get(position).accessBindings();
+        if (unit.portablePlan() == null || unit.portablePlan().specialization().matmulIr().isEmpty()) return List.of();
+        var configured = context.backendInputs().portableExecution();
+        var result = new ArrayList<PortableTuningForm>(4);
+        for (var lowered : io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering.tuningAlternatives(unit, effective)) {
+            var preference = lowered.matmulIr().orElseThrow().preferredSpeciesBitSize() == 0
+                    ? CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR
+                    : CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE;
+            var execution = new CpuPartitionAnalysisInputs.PortableExecutionConfig(preference,
+                    configured.configuredMaximumParallelism(), configured.availableParallelism(),
+                    configured.minimumElementsPerWorker());
+            var unitContext = decomposer.unitContext(context, unit.memberNodeOrdinals().stream()
+                    .map(context.nodes()::get).toList(), localContext(context, execution,
+                        context.backendInputs().materializationPolicy(), unit.carrierPattern()).backendInputs());
+            int ranges = analyzeUnit(unitContext, lowered, 0, false).plan().selectedRangeCount();
+            result.add(new PortableTuningForm(lowered, preference, ranges));
+        }
+        return List.copyOf(result);
+    }
+
+    private void enumerateCompleteRealizations(CompleteTopologyDomain domain,
+            Optional<CpuCompletePlanIdentity.NativeAssignment> nativeAssignment,
+            int position, ArrayList<CpuCompletePlanIdentity.UnitRealization> chosen,
+            ArrayList<CpuCompletePlanIdentity> identities) {
+        if (position == domain.forms().size()) {
+            if (!chosen.isEmpty() || nativeAssignment.isPresent())
+                identities.add(new CpuCompletePlanIdentity(domain.topology(), chosen, nativeAssignment, Optional.empty()));
+            return;
+        }
+        boolean nativeUnit = nativeAssignment.stream().flatMap(assignment -> assignment.plan().units().stream())
+                .anyMatch(unit -> unit.unitPosition() == position);
+        var forms = domain.forms().get(position);
+        if (nativeUnit || forms.isEmpty()) {
+            enumerateCompleteRealizations(domain, nativeAssignment, position + 1, chosen, identities);
+            return;
+        }
+        var ordinary = domain.portable().plan().units().get(position);
+        var original = ordinary.portablePlan().specialization().matmulIr().orElseThrow();
+        for (var form : forms) for (int ranges = 1; ranges <= form.maximumRanges(); ranges++) {
+            var ir = form.lowered().matmulIr().orElseThrow();
+            boolean isDefault = ir.realization() == original.realization()
+                    && ranges == ordinary.selectedRangeCount()
+                    && ir.preferredSpeciesBitSize() == ordinary.vectorSpeciesBitSize();
+            if (!isDefault) chosen.add(new CpuCompletePlanIdentity.UnitRealization(position,
+                    ir.realization(), ranges, ir.preferredSpeciesBitSize()));
+            enumerateCompleteRealizations(domain, nativeAssignment, position + 1, chosen, identities);
+            if (!isDefault) chosen.removeLast();
+        }
+    }
     /**
      * Freshly selects one exact retained complete plan and performs current route evaluation.
      *
      * <p>The selected identity bypasses ordinary topology/representation ranking but does not
-     * grant legality. Route evaluation preserves its exact common unit objects and retained
-     * baseline binding; oneDNN never substitutes a different decomposition here. An authenticated
-     * Phase-1 OpenBLAS decision prevents new oneDNN API/provider queries or route ranking.</p>
+     * grant legality. Fresh selection authenticates the exact source-member topology and retained
+     * representation; explicit unit overrides reconstruct only their selected implementation.
+     * oneDNN never substitutes a different decomposition here. An authenticated
+     * Phase-1 decision freezes its exact realization; native descriptor requery is limited to
+     * the selected API. Without Phase 1, the complete identity fixes every unit configuration
+     * and native assignment before this method; no alternative route is searched here.</p>
      *
      * @param context non-null complete CPU analysis context; inspected but not mutated
      * @param selectedPlan non-null exact authenticated selected-plan input; retained only in the
@@ -537,11 +921,118 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         if (directPartition(context, units)) throw new IllegalArgumentException(
                 "complete CPU plan selection is unavailable outside bounded topology/resource discovery");
         var portable = selectPlan(context, Optional.of(selectedPlan), units).analysis();
-        var peer = finishOpenBlas(context, portable);
-        return nativeComparisonEnabled(context)
-                ? oneDnnSelector.orElseThrow().select(context, peer, portable) : peer;
+        if (context.backendInputs().localTuningDecision().isPresent()) {
+            var decision = context.backendInputs().localTuningDecision().orElseThrow();
+            if (!selectedPlan.identity().units().isEmpty() || selectedPlan.identity().nativeAssignment().isPresent()
+                    || selectedPlan.identity().openBlasAssignment().isPresent())
+                throw new IllegalArgumentException("complete selection cannot repeat Phase-1 route search");
+            if (!compatibleFrozenTopology(selectedPlan.identity().topology(), decision))
+                throw new IllegalArgumentException("complete topology conflicts with the frozen CPU realization");
+            return frozenLocal(context, decision, true);
+        }
+        if (selectedPlan.identity().openBlasAssignment().isPresent()) {
+            var selectedNative = selectedPlan.identity().openBlasAssignment().orElseThrow();
+            var ordinary = portableCandidate(portable.plan());
+            var nativeCandidate = new CpuLocalTuningBatch.Candidate(CpuLocalTuningBatch.RouteKind.OPENBLAS,
+                    selectedNative.identity(), Optional.of(selectedNative.plan()), Optional.empty());
+            var batch = new CpuLocalTuningBatch(CpuLocalTuningBatch.SCHEMA_VERSION,
+                    localWorkload(context, portable.plan()), List.of(ordinary, nativeCandidate));
+            return withOpenBlasEvaluation(portable, new CpuOpenBlasRouteSelector.Result(batch, nativeCandidate));
+        }
+        var realized = realizeCompletePortable(context, portable, selectedPlan.identity().units());
+        if (selectedPlan.identity().nativeAssignment().isEmpty()) return realized;
+        var selectedNative = selectedPlan.identity().nativeAssignment().orElseThrow();
+        var frozen = oneDnnSelector.orElseThrow(() -> new IllegalArgumentException("oneDNN is unavailable"))
+                .freeze(context, realized, realized.plan().withOneDnn(selectedNative.plan()));
+        if (!oneDnnSelector.orElseThrow().candidateFingerprint(frozen.plan()).equals(selectedNative.fingerprint()))
+            throw new IllegalArgumentException("complete oneDNN realization identity differs");
+        return frozen;
     }
 
+    /**
+     * Reconstructs only the exact authenticated unit overrides after fresh retained-topology
+     * selection. Default-implementation cost/recognition snapshots are not copied onto a changed
+     * generated artifact: the enclosing complete identity retains the proven source topology and
+     * exact unit settings, while the returned plan validates its actual units and declarations.
+     * No implementation alternatives, route costs or native APIs are enumerated here.
+     * @param context current immutable CPU projection and explicit capacity/configuration
+     * @param portable freshly selected complete topology/representation before overrides
+     * @param selections exact ordered previously issued ordinary unit choices
+     * @return complete cold analysis preserving every buffer, copy and workspace declaration
+     * @throws IllegalArgumentException if type, species, capacity or range geometry differs
+     */
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> realizeCompletePortable(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable,
+            List<CpuCompletePlanIdentity.UnitRealization> selections) {
+        if (selections.isEmpty()) return portable;
+        var basis = portable.plan();
+        var units = new ArrayList<>(basis.units());
+        CpuPartitionPreparationPlan compatibility = basis;
+        var configured = context.backendInputs().portableExecution();
+        for (var selection : selections) {
+            var original = basis.units().get(selection.unitPosition());
+            var lowered = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering
+                    .tuningRealization(original, selection.realization(), basis.representationUnits().isEmpty()
+                        ? original.accessBindings() : basis.representationUnits().get(selection.unitPosition()).accessBindings());
+            int bits = lowered.matmulIr().orElseThrow().preferredSpeciesBitSize();
+            if (bits != selection.vectorSpeciesBits()
+                    || selection.rangeCount() > Math.min(configured.configuredMaximumParallelism(),
+                        configured.availableParallelism()))
+                throw new IllegalArgumentException("complete MATMUL target or capacity differs");
+            var preference = bits == 0 ? CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR
+                    : CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE;
+            var execution = new CpuPartitionAnalysisInputs.PortableExecutionConfig(preference,
+                    selection.rangeCount(), configured.availableParallelism(), configured.minimumElementsPerWorker());
+            var unitContext = decomposer.unitContext(context, original.memberNodeOrdinals().stream()
+                    .map(context.nodes()::get).toList(), localContext(context, execution,
+                        context.backendInputs().materializationPolicy(), original.carrierPattern()).backendInputs());
+            var realized = analyzeUnit(unitContext, lowered, selection.unitPosition(), false).plan();
+            var unit = realized.units().getFirst();
+            if (unit.selectedRangeCount() != selection.rangeCount())
+                throw new IllegalArgumentException("complete MATMUL range geometry differs");
+            units.set(selection.unitPosition(), new CpuPartitionPreparationPlan.ExecutionUnitPlan(
+                    unit.portablePlan(), unit.boundaryValues(), unit.accessBindings(), unit.carrierPattern(),
+                    unit.generatedCarrierPattern(), unit.extents(), unit.elementCount(), unit.executionStrategy(),
+                    unit.selectedRangeCount(), unit.minimumElementsPerWorker(), unit.vectorSpeciesBitSize(),
+                    unit.conv2dGeometry(), unit.conv3dGeometry(), unit.matmulGeometry(), unit.pool2dGeometry(),
+                    unit.pool3dGeometry(), unit.attentionGeometry(), unit.outputCount(), unit.fusionReason(),
+                    original.dependencies(), original.memberNodeOrdinals(), unit.runtimeFacts()));
+            if (units.size() == 1) compatibility = realized;
+        }
+        var represented = new ArrayList<CpuPartitionPreparationPlan.RepresentationUnitPlan>(basis.representationUnits().size());
+        for (var old : basis.representationUnits()) {
+            var unit = units.get(old.unitPosition());
+            if (unit == basis.units().get(old.unitPosition())) { represented.add(old); continue; }
+            var ir = unit.portablePlan().specialization().matmulIr().orElseThrow();
+            for (int input = 0; input < ir.inputAccesses().size(); input++)
+                ir = ir.withInputAccess(input, old.accessBindings().get(input).plan());
+            var specialization = unit.portablePlan().specialization();
+            var projected = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                    specialization.executionStrategy(), specialization.boundaryDataTypes(), old.carrierPattern(),
+                    specialization.vectorSpeciesBitSize(), old.portablePlan().specialization().materializedSourcePosition(),
+                    specialization.scalarPowerRealizations(), specialization.scratchParameter(),
+                    specialization.classIdentitySchema(), Optional.of(ir));
+            represented.add(new CpuPartitionPreparationPlan.RepresentationUnitPlan(old.unitPosition(),
+                    new CpuPortableRoutePlan(ir.encodedKernelIr(), projected), old.accessBindings(), old.carrierPattern()));
+        }
+        var realized = new CpuPartitionPreparationPlan(units, CpuPartitionPreparationPlan.Route.PORTABLE,
+                compatibility.executionStrategy(), basis.bufferDeclarations(), basis.boundaryValues(),
+                basis.accessBindings(), basis.carrierPattern(), basis.generatedCarrierPattern(),
+                compatibility.extents(), compatibility.elementCount(), basis.affineAddressPairs(),
+                compatibility.selectedRangeCount(), compatibility.minimumElementsPerWorker(),
+                compatibility.vectorSpeciesBitSize(), basis.loweringManifest().isEmpty() ? "" :
+                    "complete-realization=" + selections, basis.materialization(), basis.workspaceDeclaration(),
+                basis.workspaceUse(), basis.specializationBudget(), basis.movementGeometry(), basis.indexingGeometry(),
+                basis.scatterGeometry(), basis.foldGeometry(), basis.orderingGeometry(), basis.randomGeometry(),
+                basis.scanGeometry(), basis.aggregateGeometry(), basis.argExtremaGeometry(), basis.maskedReductionGeometry(),
+                basis.advancedReductionGeometry(), basis.softmaxGeometry(), basis.trailingNormalizationGeometry(),
+                basis.batchNormInferenceGeometry(), basis.batchNormTrainingGeometry(), basis.conv2dGeometry(),
+                List.of(), List.of(), basis.publicationBoundaryPositions(), basis.materializations(), represented,
+                List.of(), basis.partialReductionRecipe(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty());
+        return new BackendPartitionAnalysis<>(portable.partition(), realized, portable.requirements());
+    }
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> finishOpenBlas(
             PrepareContext<CpuPartitionAnalysisInputs> context,
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable) {
@@ -590,7 +1081,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      */
     private boolean nativeComparisonEnabled(PrepareContext<CpuPartitionAnalysisInputs> context) {
         if (oneDnnSelector.isEmpty() || context.requiresBatchSize()
-                || context.backendInputs().openBlasTuningDecision().isPresent()) return false;
+                || context.backendInputs().localTuningDecision().isPresent()) return false;
         for (var value : context.values()) {
             if (!value.descriptor().shape().isFullyStatic()) return false;
         }
@@ -610,7 +1101,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             List<CpuPartitionDagDecomposer.Unit> topology) {
         if (plan.route() != CpuPartitionPreparationPlan.Route.PORTABLE
                 || plan.materialization().isPresent() || !plan.materializations().isEmpty()
-                || plan.openBlasTuningBatch().isPresent() || plan.partialReductionRecipe().isPresent()
+                || plan.localTuningBatch().isPresent() || plan.partialReductionRecipe().isPresent()
                 || plan.units().size() != topology.size()) return false;
         for (int index = 0; index < topology.size(); index++) {
             var unit = plan.units().get(index);
@@ -624,8 +1115,12 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         return true;
     }
 
-    private SelectionAnalysis selectPlan(PrepareContext<CpuPartitionAnalysisInputs> context,
-            Optional<SelectedCompletePlan> explicitSelection,
+    private record SelectionDomain(BackendPartitionAnalysis<CpuPartitionPreparationPlan> baseline,
+            List<CpuSpecializedSubgraph> recognition, CpuPartitionDagDecomposer.Enumeration enumeration,
+            List<BackendPartitionAnalysis<CpuPartitionPreparationPlan>> analyses,
+            List<CpuFusionProfitabilitySelector.Candidate> candidates) { }
+
+    private SelectionDomain selectionDomain(PrepareContext<CpuPartitionAnalysisInputs> context,
             List<CpuPartitionDagDecomposer.Unit> baseline) {
         Objects.requireNonNull(context, "context");
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> baselineAnalysis =
@@ -644,13 +1139,30 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             analyses.add(analysis);
             candidates.add(new CpuFusionProfitabilitySelector.Candidate(topology, analysis.plan()));
         }
+        return new SelectionDomain(baselineAnalysis, recognition, enumeration,
+                List.copyOf(analyses), List.copyOf(candidates));
+    }
+
+    private SelectionAnalysis selectPlan(PrepareContext<CpuPartitionAnalysisInputs> context,
+            Optional<SelectedCompletePlan> explicitSelection,
+            List<CpuPartitionDagDecomposer.Unit> baseline) {
+        return selectPlan(context, explicitSelection, selectionDomain(context, baseline));
+    }
+
+    private SelectionAnalysis selectPlan(PrepareContext<CpuPartitionAnalysisInputs> context,
+            Optional<SelectedCompletePlan> explicitSelection, SelectionDomain domain) {
+        var baselineAnalysis = domain.baseline();
+        var recognition = domain.recognition();
+        var enumeration = domain.enumeration();
+        var analyses = domain.analyses();
+        var candidates = domain.candidates();
         CpuFusionProfitabilitySelector.Result selected = explicitSelection.isPresent()
                 ? selector.selectExact(context, enumeration, candidates,
-                        explicitSelection.orElseThrow().identity().topology())
+                        explicitSelection.orElseThrow().identity().topology().topology())
                 : selector.select(context, enumeration, candidates);
         CpuRepresentationPlanner.Result representation = explicitSelection.isPresent()
                 ? representationPlanner.selectExact(context, candidates, selected.decisions(),
-                        explicitSelection.orElseThrow().identity())
+                        explicitSelection.orElseThrow().identity().topology())
                 : representationPlanner.select(context, candidates, selected.decisions());
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> represented = withRepresentation(
                 analyses.get(representation.candidateIndex()), representation);
@@ -668,14 +1180,18 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *     partition outside the complete-candidate topology/resource domain
      */
     public record CompletePlanCandidates(
-            List<CpuRepresentationDecision.VariantIdentity> identities,
+            List<CpuCompletePlanIdentity> identities,
             boolean complete) {
         /**
          * Validates and snapshots the ordered identities.
          *
          * @throws NullPointerException if {@code identities} or an element is {@code null}
          */
-        public CompletePlanCandidates { identities = List.copyOf(identities); }
+        public CompletePlanCandidates {
+            if (identities.size() > CpuLocalTuningBatch.MAXIMUM_CANDIDATES)
+                throw new IllegalArgumentException("CPU complete candidate domain exceeds 8192 alternatives");
+            identities = List.copyOf(identities);
+        }
     }
 
     /**
@@ -688,7 +1204,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *     defensively snapshotted
      */
     public record SelectedCompletePlan(int schemaVersion,
-            CpuRepresentationDecision.VariantIdentity identity,
+            CpuCompletePlanIdentity identity,
             List<Integer> phaseOneFingerprint) {
         /**
          * Validates and snapshots the exact selection input.
@@ -815,8 +1331,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.publicationBoundaryPositions(), representation.materializations(),
                 representation.materializations().isEmpty() ? List.of() : representedUnits,
                 representation.decisions(), plan.partialReductionRecipe(),
-                plan.openBlasPlan(), plan.openBlasTuningBatch(),
-                plan.selectedOpenBlasTuningCandidate(), plan.retainedBaselineBinding(),
+                plan.openBlasPlan(), plan.localTuningBatch(),
+                plan.selectedLocalTuningCandidate(), plan.retainedBaselineBinding(),
                 plan.oneDnnPlan());
         return new BackendPartitionAnalysis<>(analysis.partition(), representedPlan, requirements);
     }
@@ -918,8 +1434,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.conv2dGeometry(), facts, decisions, publicationBoundaryPositions,
                 plan.materializations(), plan.representationUnits(),
                 plan.representationDecisions(), plan.partialReductionRecipe(),
-                plan.openBlasPlan(), plan.openBlasTuningBatch(),
-                plan.selectedOpenBlasTuningCandidate(),
+                plan.openBlasPlan(), plan.localTuningBatch(),
+                plan.selectedLocalTuningCandidate(),
                 baseline == null ? Optional.empty() : Optional.of(
                         CpuPartitionPreparationPlan.RetainedBaselineBinding.capture(
                                 context.partitionDag(), baseline, plan.units(), publications)),

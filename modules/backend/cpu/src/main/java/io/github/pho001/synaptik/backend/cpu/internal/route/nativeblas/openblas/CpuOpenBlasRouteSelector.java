@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas;
 
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningBatch;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr;
@@ -38,8 +39,8 @@ public final class CpuOpenBlasRouteSelector {
      * @param batch freshly generated candidate batch
      * @param selected selected member after decision or heuristic handling
      */
-    public record Result(CpuOpenBlasTuningBatch batch,
-            CpuOpenBlasTuningBatch.Candidate selected) {
+    public record Result(CpuLocalTuningBatch batch,
+            CpuLocalTuningBatch.Candidate selected) {
         /**
          * Validates exact batch membership. The immutable batch and selected member are retained
          * without mutation or resource ownership.
@@ -66,7 +67,8 @@ public final class CpuOpenBlasRouteSelector {
     }
 
     /**
-     * Produces valid K&gt;1 candidates and applies one compatible decision or the safe heuristic.
+     * Produces qualified OpenBLAS K&gt;1 candidates and preserves ordinary production ranking.
+     * An explicit decision must match exactly; stale or ineligible decisions fail without fallback.
      * @param context non-null complete CPU analysis projection
      * @param portablePlan non-null already-selected portable plan
      * @param representationPlanner non-null existing representation owner
@@ -80,8 +82,12 @@ public final class CpuOpenBlasRouteSelector {
         Objects.requireNonNull(portablePlan, "portablePlan");
         Objects.requireNonNull(representationPlanner, "representationPlanner");
         try {
-            return evaluateChecked(context, portablePlan, representationPlanner);
+            var result = evaluateChecked(context, portablePlan, representationPlanner);
+            if (result.isEmpty() && context.backendInputs().localTuningDecision().isPresent())
+                throw new IllegalArgumentException("CPU local tuning decision is no longer eligible");
+            return result;
         } catch (ArithmeticException | IllegalArgumentException uncertain) {
+            if (context.backendInputs().localTuningDecision().isPresent()) throw uncertain;
             return Optional.empty();
         }
     }
@@ -166,17 +172,15 @@ public final class CpuOpenBlasRouteSelector {
         long runs = context.backendInputs().materializationPolicy().expectedRunCount();
         long portableCost = total(config.portableCosts(), outputs, macs, runs);
         int capacity = context.backendInputs().portableExecution().availableParallelism();
-        var candidates = new ArrayList<CpuOpenBlasTuningBatch.Candidate>();
-        candidates.add(new CpuOpenBlasTuningBatch.Candidate(
-                CpuOpenBlasTuningBatch.RouteKind.PORTABLE,
-                new CpuOpenBlasTuningBatch.PortableIdentity(plan.executionStrategy(),
+        var candidates = new ArrayList<CpuLocalTuningBatch.Candidate>();
+        candidates.add(new CpuLocalTuningBatch.Candidate(
+                CpuLocalTuningBatch.RouteKind.PORTABLE,
+                new CpuLocalTuningBatch.PortableIdentity(plan.executionStrategy(),
                         plan.selectedRangeCount(), plan.minimumElementsPerWorker(),
                         plan.vectorSpeciesBitSize(),
                         unit.portablePlan().specialization().classIdentitySchema(),
-                        unit.portablePlan().portableKernelIr().structuralKey(),
-                        plan.bufferDeclarations().stream().map(value ->
-                                new CpuOpenBlasTuningBatch.ResourceIdentity(value.byteSize(),
-                                        value.byteAlignment())).toList()), Optional.empty()));
+                        CpuLocalTuningBatch.portableStructuralKey(plan),
+                        CpuLocalTuningBatch.resourceIdentities(plan), Optional.empty()), Optional.empty(), Optional.of(plan)));
         for (var representation : CpuOpenBlasRoutePlan.Representation.values()) {
             if (!representation.copiesLeft() && !leftDirect
                     || !representation.copiesRight() && !rightDirect
@@ -199,31 +203,33 @@ public final class CpuOpenBlasRouteSelector {
                     capacity);
         }
         if (candidates.size() == 1) return Optional.empty();
-        var batch = new CpuOpenBlasTuningBatch(CpuOpenBlasTuningBatch.SCHEMA_VERSION,
+        var batch = new CpuLocalTuningBatch(CpuLocalTuningBatch.SCHEMA_VERSION,
                 workload(context, plan, values, config, type, storage, capacity), candidates);
-        var decided = context.backendInputs().openBlasTuningDecision()
-                .flatMap(decision -> decision.match(batch));
-        return Optional.of(new Result(batch, decided.orElseGet(() -> heuristic(batch, config))));
+        var decision = context.backendInputs().localTuningDecision();
+        var selected = decision.isPresent() ? decision.orElseThrow().match(batch).orElseThrow(() ->
+                new IllegalArgumentException("CPU local tuning decision is stale or incompatible"))
+                : heuristic(batch, config);
+        return Optional.of(new Result(batch, selected));
     }
 
-    private static CpuOpenBlasTuningBatch.WorkloadSignature workload(
+    private static CpuLocalTuningBatch.WorkloadSignature workload(
             PrepareContext<CpuPartitionAnalysisInputs> context,
             CpuPartitionPreparationPlan plan, Map<ValueId, GraphValue> values,
             CpuPartitionAnalysisInputs.OpenBlasRouteConfig config, DataType type,
             List<CpuPartitionAnalysisInputs.BoundaryStorageFact> storage, int capacity) {
         var unit = plan.units().getFirst();
-        var boundaries = new ArrayList<CpuOpenBlasTuningBatch.BoundarySignature>(3);
+        var boundaries = new ArrayList<CpuLocalTuningBatch.BoundarySignature>(3);
         for (int index = 0; index < 3; index++) {
             var descriptor = values.get(unit.boundaryValues().get(index)).descriptor();
-            boundaries.add(new CpuOpenBlasTuningBatch.BoundarySignature(type, descriptor.shape(),
+            boundaries.add(new CpuLocalTuningBatch.BoundarySignature(type, descriptor.shape(),
                     descriptor.layout().orElseThrow(), unit.carrierPattern().get(index),
                     storage.get(index), unit.accessBindings().get(index)));
         }
-        return new CpuOpenBlasTuningBatch.WorkloadSignature(
-                CpuOpenBlasTuningBatch.OperationKind.MATMUL,
-                CpuOpenBlasTuningBatch.OperationAttributes.NONE, type, type, type,
-                type, boundaries, CpuOpenBlasTuningBatch.DeterminismMode.DEFAULT,
-                new CpuOpenBlasTuningBatch.QualificationScope(config.qualification().orElseThrow()),
+        return new CpuLocalTuningBatch.WorkloadSignature(
+                CpuLocalTuningBatch.OperationKind.MATMUL,
+                CpuLocalTuningBatch.OperationAttributes.NONE, boundaries,
+                CpuLocalTuningBatch.DeterminismMode.DEFAULT,
+                Optional.of(new CpuLocalTuningBatch.QualificationScope(config.qualification().orElseThrow())),
                 context.backendInputs().cpuHardwareIdentity(), capacity,
                 context.backendInputs().portableExecution(), plan.executionStrategy(),
                 plan.selectedRangeCount(), plan.vectorSpeciesBitSize(),
@@ -232,14 +238,15 @@ public final class CpuOpenBlasRouteSelector {
                         .toList(), context.backendInputs().workloadCohort(),
                 context.backendInputs().materializationPolicy(), config.portableCosts(),
                 config.representationCosts(), config.threadCandidates(),
-                config.minimumNetBenefitCostUnits().orElseThrow(),
-                config.minimumBenefitBasisPoints().orElseThrow(),
+                config.minimumNetBenefitCostUnits(),
+                config.minimumBenefitBasisPoints(),
                 unit.portablePlan().specialization().classIdentitySchema(),
-                CpuOpenBlasTuningBatch.ROUTE_POLICY_VERSION,
-                CpuOpenBlasTuningBatch.COST_POLICY_VERSION);
+                CpuLocalTuningBatch.ROUTE_POLICY_VERSION,
+                CpuLocalTuningBatch.COST_POLICY_VERSION,
+                CpuLocalTuningBatch.portableStructuralKey(plan));
     }
 
-    private static void append(List<CpuOpenBlasTuningBatch.Candidate> candidates,
+    private static void append(List<CpuLocalTuningBatch.Candidate> candidates,
             CpuOpenBlasRoutePlan.Representation representation,
             Optional<CpuMaterializationPlan> left, Optional<CpuMaterializationPlan> right,
             Optional<CpuOpenBlasOutputCopyPlan> output, DataType type, int m, int n, int k,
@@ -270,22 +277,22 @@ public final class CpuOpenBlasRouteSelector {
                     thread.threadCount(), thread.threadCount(), capacity, order, representation,
                     left, right, output, requirements, runs, bytes, inputElements, outputElements,
                     portableCost, nativeCost, benefit, basis, config.qualification());
-            var identity = new CpuOpenBlasTuningBatch.OpenBlasIdentity(representation,
+            var identity = new CpuLocalTuningBatch.OpenBlasIdentity(representation,
                     thread.threadCount(), thread.threadCount(), order,
                     requirements.stream().map(
                             PreparationResourceRequirement.Workspace::requirementId).toList(),
                     bytes, inputElements, outputElements);
-            candidates.add(new CpuOpenBlasTuningBatch.Candidate(
-                    CpuOpenBlasTuningBatch.RouteKind.OPENBLAS, identity, Optional.of(routePlan)));
+            candidates.add(new CpuLocalTuningBatch.Candidate(
+                    CpuLocalTuningBatch.RouteKind.OPENBLAS, identity, Optional.of(routePlan), Optional.empty()));
         }
     }
 
-    private static CpuOpenBlasTuningBatch.Candidate heuristic(CpuOpenBlasTuningBatch batch,
+    private static CpuLocalTuningBatch.Candidate heuristic(CpuLocalTuningBatch batch,
             CpuPartitionAnalysisInputs.OpenBlasRouteConfig config) {
-        CpuOpenBlasTuningBatch.Candidate selected = batch.candidates().getFirst();
+        CpuLocalTuningBatch.Candidate selected = batch.candidates().getFirst();
         CpuOpenBlasRoutePlan best = null;
         for (var candidate : batch.candidates()) {
-            if (candidate.route() != CpuOpenBlasTuningBatch.RouteKind.OPENBLAS) continue;
+            if (candidate.route() != CpuLocalTuningBatch.RouteKind.OPENBLAS) continue;
             CpuOpenBlasRoutePlan plan = candidate.openBlasPlan().orElseThrow();
             if (plan.openBlasCost() >= plan.portableCost()
                     || plan.netBenefit() < config.minimumNetBenefitCostUnits().orElseThrow()

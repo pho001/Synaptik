@@ -1,5 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas;
 
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningBatch;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningDecision;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
@@ -37,7 +39,7 @@ final class CpuOpenBlasRouteSelectorTest {
             assertEquals(k > 1 ? CpuPartitionPreparationPlan.Route.OPENBLAS : CpuPartitionPreparationPlan.Route.PORTABLE,plan.route());
             if (k <= 1) {
                 assertTrue(plan.openBlasPlan().isEmpty());
-                assertTrue(plan.openBlasTuningBatch().isEmpty());
+                assertTrue(plan.localTuningBatch().isEmpty());
             }
         }
     }
@@ -47,16 +49,15 @@ final class CpuOpenBlasRouteSelectorTest {
         for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64)) {
             var base = qualified(type,false,1);
             var batch = new CpuPartitionPreparer().analyze(context(type,dense(Shape.of(2,2)),
-                    dense(Shape.of(2,4)),dense(Shape.of(2,4)),base)).plan().openBlasTuningBatch().orElseThrow();
+                    dense(Shape.of(2,4)),dense(Shape.of(2,4)),base)).plan().localTuningBatch().orElseThrow();
             var nativeCandidate = batch.candidates().stream().filter(c -> c.openBlasPlan().isPresent()).findFirst().orElseThrow();
-            var decision = new CpuOpenBlasTuningDecision(batch.schemaVersion(),batch.workload(),nativeCandidate.identity());
+            var decision = new CpuLocalTuningDecision(batch.schemaVersion(), batch.workload(), nativeCandidate.identity(), batch);
             var inputs = new CpuPartitionAnalysisInputs(base.loweringManifestEnabled(),base.carrierPattern(),base.portableExecution(),
                     base.materializationPolicy(),base.conv2dMaterializedSuffixUnit(),base.partialReductionEvidence(),base.boundaryStorageFacts(),
                     base.openBlasRoute(),base.cpuHardwareIdentity(),base.workloadCohort(),Optional.of(decision));
-            var plan = new CpuPartitionPreparer().analyze(context(type,dense(Shape.of(2,1)),
-                    dense(Shape.of(1,4)),dense(Shape.of(2,4)),inputs)).plan();
-            assertEquals(CpuPartitionPreparationPlan.Route.PORTABLE,plan.route());
-            assertTrue(plan.openBlasTuningBatch().isEmpty()); assertTrue(plan.openBlasPlan().isEmpty());
+            assertThrows(IllegalArgumentException.class, () -> new CpuPartitionPreparer().analyze(
+                    context(type, dense(Shape.of(2, 1)), dense(Shape.of(1, 4)),
+                            dense(Shape.of(2, 4)), inputs)));
         }
     }
 
@@ -80,7 +81,7 @@ final class CpuOpenBlasRouteSelectorTest {
                 assertFalse(nativePlan.representation().copiesOutput());
                 assertEquals((left ? 1 : 0) + (right ? 1 : 0), nativePlan.workspaceRequirements().size());
                 assertEquals(3 + nativePlan.workspaceRequirements().size(), analysis.requirements().size());
-                var signature = plan.openBlasTuningBatch().orElseThrow().workload();
+                var signature = plan.localTuningBatch().orElseThrow().workload();
                 assertEquals(left ? Shape.of(3, 2) : Shape.of(2, 3),
                         signature.boundaries().get(0).shape());
                 assertEquals(List.of(2L, 3L), signature.boundaries().get(0).access().extents());

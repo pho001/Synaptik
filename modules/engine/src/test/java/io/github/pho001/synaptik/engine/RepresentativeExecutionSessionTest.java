@@ -1165,7 +1165,7 @@ final class RepresentativeExecutionSessionTest {
                     .allMatch(resource -> resource.closeCount.get() == 1));
             assertEquals(1, tuning.completeCompatibilityCount.get());
             assertArrayEquals(
-                    new byte[] {(byte) tuning.completePhaseOneDecision.candidate()},
+                    new byte[] {(byte) tuning.completePhaseOneDecision.orElseThrow().candidate()},
                     workload.winnerIdentity().bytes());
             assertFalse(java.nio.file.Files.exists(
                     request.config().modelPlanCache()));
@@ -1191,6 +1191,45 @@ final class RepresentativeExecutionSessionTest {
             assertTrue(tuning.selectedPreparedResources.stream()
                     .allMatch(resource -> resource.closeCount.get() == 1));
             assertTrue(java.nio.file.Files.isRegularFile(cache));
+        }
+    }
+
+    @Test
+    void absentLocalBatchSkipsLocalTunerAndPublishesOnlyCompleteEvidence(
+            @TempDir Path directory) throws IOException {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            Path cache = java.nio.file.Files.createDirectory(directory.resolve("not-a-cache-file"));
+            SyntheticTuning tuning = new SyntheticTuning();
+            tuning.localHandoffPresent = false;
+            var request = tuningRequest(input, cache,
+                    ModelAutotuningConfig.FallbackPolicy.REQUIRE_TUNED_RESULT, 1, 3);
+
+            var preparation = composition.lifecycleOwner.prepareTunedOrdinary(
+                    engine, compiled, request, tuning);
+
+            assertEquals(ModelAutotuningPreparation.Outcome.TUNED, preparation.outcome());
+            assertEquals(Optional.empty(), tuning.completePhaseOneDecision);
+            assertEquals(0, tuning.trialPrepareCount.get());
+            assertEquals(0, tuning.trialRunCount.get());
+            assertEquals(10, tuning.completeTrialPrepareCount.get());
+            assertEquals(10, tuning.completeTrialRunCount.get());
+            assertEquals(1, tuning.selectedPrepareCount.get());
+            var evidence = preparation.evidence().orElseThrow();
+            assertEquals(List.of(), evidence.workloads());
+            assertSame(request.config().budget(), evidence.budget());
+            assertEquals(ModelAutotuningPreparation.Source.MEASURED,
+                    evidence.completePlan().source());
+            assertEquals(2, evidence.completePlan().candidates().size());
+            assertTrue(tuning.completeTrialPreparedResources.stream()
+                    .allMatch(resource -> resource.closeCount.get() == 1));
+            assertTrue(java.nio.file.Files.isDirectory(cache));
+            assertFalse(java.nio.file.Files.exists(request.config().modelPlanCache()));
+            preparation.preparedExecution().close();
+            assertTrue(tuning.selectedPreparedResources.stream()
+                    .allMatch(resource -> resource.closeCount.get() == 1));
         }
     }
 
@@ -1710,8 +1749,9 @@ final class RepresentativeExecutionSessionTest {
         private Throwable selectedPreparationFailure;
         private Throwable completeTrialPreparationFailure;
         private Throwable completeTrialExecutionFailure;
+        private boolean localHandoffPresent = true;
         private boolean completePlanHandoffPresent = true;
-        private SyntheticDecision completePhaseOneDecision;
+        private Optional<SyntheticDecision> completePhaseOneDecision = Optional.empty();
         private final byte[][] completeBytes = {new byte[8], new byte[8]};
         private io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest.ReuseScope
                 completeReuseScope = io.github.pho001.synaptik.tools.tuning
@@ -1734,11 +1774,13 @@ final class RepresentativeExecutionSessionTest {
             if (handoffCount.getAndIncrement() == 0 && observedComposition != null) {
                 borrowCountAtFirstHandoff = observedComposition.borrowCount.get();
             }
+            if (!localHandoffPresent) return Optional.empty();
             return Optional.of(new BackendPartitionTuningHandoff<>(
                     artifacts.partitions().getFirst(), batch, Optional.empty()));
         }
 
         @Override public List<Integer> candidates(SyntheticBatch ignored) {
+            if (!localHandoffPresent) throw new AssertionError("absent local batch was enumerated");
             return List.of(1, 2);
         }
 
@@ -1796,10 +1838,12 @@ final class RepresentativeExecutionSessionTest {
 
         @Override public Optional<BackendPartitionTuningHandoff<
                 SyntheticPlanBatch, SyntheticPlanDecision>> completePlanCandidateHandoff(
-                        CompileArtifacts artifacts, SyntheticDecision phaseOneDecision) {
+                        CompileArtifacts artifacts, Optional<SyntheticDecision> phaseOneDecision) {
             completePhaseOneDecision = phaseOneDecision;
             if (!completePlanHandoffPresent) return Optional.empty();
-            if (phaseOneDecision.candidate() != 1 && phaseOneDecision.candidate() != 2) {
+            if (phaseOneDecision.isPresent()
+                    && phaseOneDecision.orElseThrow().candidate() != 1
+                    && phaseOneDecision.orElseThrow().candidate() != 2) {
                 return Optional.empty();
             }
             return Optional.of(new BackendPartitionTuningHandoff<>(

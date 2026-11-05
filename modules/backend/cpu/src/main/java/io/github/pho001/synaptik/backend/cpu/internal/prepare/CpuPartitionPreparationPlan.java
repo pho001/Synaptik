@@ -2,7 +2,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
-import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningBatch;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningBatch;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
@@ -159,10 +159,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  *     current production preparation keeps it empty until trusted complete evidence exists
  * @param openBlasPlan non-null optional exact post-lowering OpenBLAS route plan; present exactly
  *     when {@code route} is {@link Route#OPENBLAS}
- * @param openBlasTuningBatch non-null optional complete eligible tuning batch retained only in
+ * @param localTuningBatch non-null optional complete eligible tuning batch retained only in
  *     cold CPU preparation state
- * @param selectedOpenBlasTuningCandidate non-null optional exact selected candidate identity;
- *     present exactly with {@code openBlasTuningBatch}
+ * @param selectedLocalTuningCandidate non-null optional exact selected candidate identity;
+ *     present exactly with {@code localTuningBatch}
  * @param retainedBaselineBinding non-null optional CPU-private graph-value provenance captured
  *     only from the projected DAG and unfused baseline and bound to these selected unit objects;
  *     includes virtualized outputs, is absent before recognition, and enters no generated or
@@ -205,8 +205,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         List<CpuRepresentationDecision> representationDecisions,
         Optional<PartialReductionRecipe> partialReductionRecipe,
         Optional<CpuOpenBlasRoutePlan> openBlasPlan,
-        Optional<CpuOpenBlasTuningBatch> openBlasTuningBatch,
-        Optional<CpuOpenBlasTuningBatch.CandidateIdentity> selectedOpenBlasTuningCandidate,
+        Optional<CpuLocalTuningBatch> localTuningBatch,
+        Optional<CpuLocalTuningBatch.CandidateIdentity> selectedLocalTuningCandidate,
         Optional<RetainedBaselineBinding> retainedBaselineBinding,
         Optional<CpuOneDnnRoutePlan> oneDnnPlan)
         implements BackendPreparationPlan {
@@ -417,8 +417,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param representationDecisions non-null representation selection facts
      * @param partialReductionRecipe non-null optional partial-reduction recipe
      * @param openBlasPlan non-null optional exact OpenBLAS route plan
-     * @param openBlasTuningBatch non-null optional complete tuning batch
-     * @param selectedOpenBlasTuningCandidate non-null optional selected tuning identity
+     * @param localTuningBatch non-null optional complete tuning batch
+     * @param selectedLocalTuningCandidate non-null optional selected tuning identity
      * @throws IllegalArgumentException if retained decisions lack a trusted baseline binding or
      *     another plan invariant fails
      */
@@ -456,8 +456,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             List<CpuRepresentationDecision> representationDecisions,
             Optional<PartialReductionRecipe> partialReductionRecipe,
             Optional<CpuOpenBlasRoutePlan> openBlasPlan,
-            Optional<CpuOpenBlasTuningBatch> openBlasTuningBatch,
-            Optional<CpuOpenBlasTuningBatch.CandidateIdentity> selectedOpenBlasTuningCandidate) {
+            Optional<CpuLocalTuningBatch> localTuningBatch,
+            Optional<CpuLocalTuningBatch.CandidateIdentity> selectedLocalTuningCandidate) {
         this(units, route, executionStrategy, bufferDeclarations, boundaryValues,
                 accessBindings, carrierPattern, generatedCarrierPattern, extents, elementCount,
                 affineAddressPairs, selectedRangeCount, minimumElementsPerWorker,
@@ -469,8 +469,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
                 specializedSubgraphs, fusionDecisions, publicationBoundaryPositions,
                 materializations, representationUnits, representationDecisions,
-                partialReductionRecipe, openBlasPlan, openBlasTuningBatch,
-                selectedOpenBlasTuningCandidate, Optional.empty(), Optional.empty());
+                partialReductionRecipe, openBlasPlan, localTuningBatch,
+                selectedLocalTuningCandidate, Optional.empty(), Optional.empty());
     }
 
     /**
@@ -2184,10 +2184,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      * @param representationDecisions non-null ordered representation decisions
      * @param partialReductionRecipe non-null optional partial-reduction finalization handoff
      * @param openBlasPlan non-null optional exact OpenBLAS route plan
-     * @param openBlasTuningBatch non-null optional immutable complete eligible candidate batch
+     * @param localTuningBatch non-null optional immutable complete eligible candidate batch
      *     retained in cold preparation state
-     * @param selectedOpenBlasTuningCandidate non-null optional immutable selected identity,
-     *     present exactly when {@code openBlasTuningBatch} is present and naming one of its members
+     * @param selectedLocalTuningCandidate non-null optional immutable selected identity,
+     *     present exactly when {@code localTuningBatch} is present and naming one of its members
      * @param retainedBaselineBinding non-null optional graph-derived unfused boundary binding;
      *     required with recognized decisions and accepted only for its original selected units
      * @param oneDnnPlan non-null optional closed native assignment over retained common units
@@ -2242,10 +2242,10 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         partialReductionRecipe = Objects.requireNonNull(partialReductionRecipe,
                 "partialReductionRecipe");
         openBlasPlan = Objects.requireNonNull(openBlasPlan, "openBlasPlan");
-        openBlasTuningBatch = Objects.requireNonNull(openBlasTuningBatch,
-                "openBlasTuningBatch");
-        selectedOpenBlasTuningCandidate = Objects.requireNonNull(
-                selectedOpenBlasTuningCandidate, "selectedOpenBlasTuningCandidate");
+        localTuningBatch = Objects.requireNonNull(localTuningBatch,
+                "localTuningBatch");
+        selectedLocalTuningCandidate = Objects.requireNonNull(
+                selectedLocalTuningCandidate, "selectedLocalTuningCandidate");
         retainedBaselineBinding = Objects.requireNonNull(retainedBaselineBinding,
                 "retainedBaselineBinding");
         oneDnnPlan = Objects.requireNonNull(oneDnnPlan, "oneDnnPlan");
@@ -2280,7 +2280,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                     && u.portablePlan().ordinaryBatchGeometry().isEmpty()
                     && !u.runtimeFacts().generalScan().map(s -> s.ir().symbolic()).orElse(false)) || !accessBindings.isEmpty()
                 || materialization.isPresent() || !materializations.isEmpty() || !fusionDecisions.isEmpty()
-                || openBlasPlan.isPresent() || openBlasTuningBatch.isPresent())) {
+                || openBlasPlan.isPresent() || localTuningBatch.isPresent())) {
             throw new IllegalArgumentException("ordinary batch partition must retain fixed portable units");
         }
         // A constant-write unit has output-only computational boundaries; its partition also
@@ -2306,24 +2306,28 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
             throw new IllegalArgumentException("CPU route and oneDNN plan must agree");
         }
         if (oneDnnPlan.isPresent() && (openBlasPlan.isPresent()
-                || openBlasTuningBatch.isPresent() || selectedOpenBlasTuningCandidate.isPresent()
+
                 || ordinaryBatch || materialization.isPresent() || !materializations.isEmpty()
                 || !representationUnits.isEmpty() || partialReductionRecipe.isPresent()
                 || units.stream().anyMatch(unit -> unit.runtimeFacts().materialization().isPresent()))) {
             throw new IllegalArgumentException("CPU oneDNN route cannot share another native or representation choice");
         }
-        if (openBlasTuningBatch.isPresent() != selectedOpenBlasTuningCandidate.isPresent()
-                || openBlasTuningBatch.isPresent()
-                    && openBlasTuningBatch.orElseThrow()
-                        .find(selectedOpenBlasTuningCandidate.orElseThrow()).isEmpty()
-                || openBlasPlan.isPresent() != (openBlasTuningBatch.isPresent()
-                    && openBlasTuningBatch.orElseThrow()
-                        .find(selectedOpenBlasTuningCandidate.orElseThrow()).orElseThrow()
-                        .route() == CpuOpenBlasTuningBatch.RouteKind.OPENBLAS)
-                || openBlasPlan.isPresent() && !openBlasPlan.equals(openBlasTuningBatch.orElseThrow()
-                        .find(selectedOpenBlasTuningCandidate.orElseThrow()).orElseThrow()
+        if (localTuningBatch.isPresent() != selectedLocalTuningCandidate.isPresent()
+                || localTuningBatch.isPresent()
+                    && localTuningBatch.orElseThrow()
+                        .find(selectedLocalTuningCandidate.orElseThrow()).isEmpty()
+                || localTuningBatch.isPresent() && (oneDnnPlan.isPresent()
+                    != (localTuningBatch.orElseThrow()
+                        .find(selectedLocalTuningCandidate.orElseThrow()).orElseThrow()
+                        .route() == CpuLocalTuningBatch.RouteKind.ONEDNN))
+                || openBlasPlan.isPresent() != (localTuningBatch.isPresent()
+                    && localTuningBatch.orElseThrow()
+                        .find(selectedLocalTuningCandidate.orElseThrow()).orElseThrow()
+                        .route() == CpuLocalTuningBatch.RouteKind.OPENBLAS)
+                || openBlasPlan.isPresent() && !openBlasPlan.equals(localTuningBatch.orElseThrow()
+                        .find(selectedLocalTuningCandidate.orElseThrow()).orElseThrow()
                         .openBlasPlan())) {
-            throw new IllegalArgumentException("CPU OpenBLAS tuning facts disagree");
+            throw new IllegalArgumentException("CPU local tuning facts disagree");
         }
         if (openBlasPlan.isPresent()) {
             CpuOpenBlasRoutePlan nativePlan = openBlasPlan.orElseThrow();
@@ -2872,6 +2876,37 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
     }
 
     /**
+     * Records an authenticated exact local realization without changing its resources or units.
+     * @param batch complete freshly authenticated CPU local batch
+     * @param candidate exact selected member of that batch
+     * @return immutable plan with the selected identity retained for Phase-2 freezing
+     * @throws IllegalArgumentException if the candidate is not a member or route disagrees
+     */
+    public CpuPartitionPreparationPlan withLocalTuning(CpuLocalTuningBatch batch,
+            CpuLocalTuningBatch.Candidate candidate) {
+        if (batch.find(candidate.identity()).isEmpty()
+                || route != switch (candidate.route()) {
+                    case PORTABLE -> Route.PORTABLE;
+                    case OPENBLAS -> Route.OPENBLAS;
+                    case ONEDNN -> Route.ONEDNN;
+                }) {
+            throw new IllegalArgumentException("local realization and route disagree");
+        }
+        return new CpuPartitionPreparationPlan(units, route, executionStrategy,
+                bufferDeclarations, boundaryValues, accessBindings, carrierPattern,
+                generatedCarrierPattern, extents, elementCount, affineAddressPairs,
+                selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
+                loweringManifest, materialization, workspaceDeclaration, workspaceUse,
+                specializationBudget, movementGeometry, indexingGeometry, scatterGeometry,
+                foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
+                softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
+                batchNormTrainingGeometry, conv2dGeometry, specializedSubgraphs, fusionDecisions,
+                publicationBoundaryPositions, materializations, representationUnits,
+                representationDecisions, partialReductionRecipe, openBlasPlan, Optional.of(batch),
+                Optional.of(candidate.identity()), retainedBaselineBinding, oneDnnPlan);
+    }
+    /**
      * Attaches a closed native assignment without rebuilding common units or their provenance.
      *
      * @param nativePlan non-null selected oneDNN units and exact additional workspace facts
@@ -2882,7 +2917,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
     public CpuPartitionPreparationPlan withOneDnn(CpuOneDnnRoutePlan nativePlan) {
         Objects.requireNonNull(nativePlan, "nativePlan");
         if (route != Route.PORTABLE || openBlasPlan.isPresent() || oneDnnPlan.isPresent()
-                || openBlasTuningBatch.isPresent() || selectedOpenBlasTuningCandidate.isPresent()) {
+) {
             throw new IllegalArgumentException("oneDNN requires an untuned portable common plan");
         }
         return new CpuPartitionPreparationPlan(units, Route.ONEDNN, executionStrategy,
@@ -2896,8 +2931,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
                 batchNormTrainingGeometry, conv2dGeometry, specializedSubgraphs, fusionDecisions,
                 publicationBoundaryPositions, materializations, representationUnits,
-                representationDecisions, partialReductionRecipe, openBlasPlan, openBlasTuningBatch,
-                selectedOpenBlasTuningCandidate, retainedBaselineBinding, Optional.of(nativePlan));
+                representationDecisions, partialReductionRecipe, openBlasPlan, localTuningBatch,
+                selectedLocalTuningCandidate, retainedBaselineBinding, Optional.of(nativePlan));
     }
 
     /**

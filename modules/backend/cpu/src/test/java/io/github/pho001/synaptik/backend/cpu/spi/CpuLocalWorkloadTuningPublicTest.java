@@ -4,30 +4,26 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.cpu.CpuLocalWorkloadTuning;
-import io.github.pho001.synaptik.compiler.DerivativeGraphMetadata;
-import io.github.pho001.synaptik.compiler.PublicationPlan;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
-import io.github.pho001.synaptik.compiler.CompileConstantPlan;
 import io.github.pho001.synaptik.compiler.GraphCompilationPort;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
-import io.github.pho001.synaptik.model.datatype.ScalarValue;
-import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
-import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
 import io.github.pho001.synaptik.prepare.GraphPreparation;
-import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
-import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlanning;
-import java.lang.reflect.Constructor;
+import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
+import java.lang.foreign.MemorySegment;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -94,27 +90,22 @@ final class CpuLocalWorkloadTuningPublicTest {
     }
 
     @Test
-    void eligibleBatchRoundTripsAndPreparesExactCandidatesWhenProviderIsAvailable() {
+    void ordinaryBindableBatchRoundTripsAndPreparesEveryExactCandidate() {
         try (CpuBackendIntegration integration = CpuBackendIntegration.open()) {
             CpuLocalWorkloadTuning tuning = integration.localWorkloadTuning();
-            CompileArtifacts artifacts = resolvedMatmulArtifacts(integration,
+            CompileArtifacts artifacts = compile(integration,
                     leaf(Shape.of(2, 3)).matmul(leaf(Shape.of(3, 2))));
-            Optional<io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff<
-                    CpuLocalWorkloadTuning.CandidateBatch,
-                    CpuLocalWorkloadTuning.SelectedDecision>> maybe =
-                    tuning.candidateHandoff(context(integration, artifacts));
-            if (maybe.isEmpty()) return; // portable-only installations are supported
-            var handoff = maybe.orElseThrow();
+            assertEquals(2, artifacts.constants().bindableInputs().size());
+            assertTrue(artifacts.constants().constantSources().isEmpty());
+            var handoff = tuning.candidateHandoff(context(integration, artifacts)).orElseThrow();
             var batch = handoff.candidateBatch();
             var candidates = tuning.candidates(batch);
-            assertTrue(candidates.size() >= 2);
+            assertFalse(candidates.isEmpty());
             assertSame(artifacts.partitions().getFirst(), handoff.partition());
             assertTrue(handoff.selectedDecision().isEmpty());
             var repeatedBatch = tuning.candidateHandoff(
                     context(integration, artifacts)).orElseThrow().candidateBatch();
             assertAll(
-                    () -> assertEquals(3, java.nio.ByteBuffer.wrap(
-                            tuning.compatibility(batch).bytes()).getInt()),
                     () -> assertEquals(tuning.compatibility(batch),
                             tuning.compatibility(repeatedBatch)));
 
@@ -151,11 +142,126 @@ final class CpuLocalWorkloadTuningPublicTest {
             var firstDecision = tuning.selectedDecision(batch, candidates.getFirst());
             assertThrows(IllegalArgumentException.class,
                     () -> tuning.selectedPreparation(secondBatch, firstDecision));
-            byte[] schema2 = tuning.encodeDecision(firstDecision);
-            java.nio.ByteBuffer.wrap(schema2).putInt(4, 2);
-            assertTrue(tuning.decodeCompatibleDecision(batch, schema2).isEmpty());
+            for (int staleVersion : List.of(2, 3)) {
+                byte[] stale = tuning.encodeDecision(firstDecision);
+                java.nio.ByteBuffer.wrap(stale).putInt(4, staleVersion);
+                assertTrue(tuning.decodeCompatibleDecision(batch, stale).isEmpty());
+            }
 
         }
+    }
+
+    @Test
+    void everyOrdinaryBindableCandidateMatchesIndependentVariedMatmulOracle() throws Exception {
+        try (CpuBackendIntegration integration = CpuBackendIntegration.open()) {
+            for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+                for (boolean transposed : List.of(false, true)) {
+                    exerciseEveryMatmulCandidate(integration, type, transposed);
+                }
+            }
+        }
+    }
+
+    @Test
+    void everyConfiguredOneDnnCandidateMatchesIndependentVariedMatmulOracle() throws Exception {
+        String library = System.getenv("SYNAPTIK_ONEDNN_LIBRARY");
+        org.junit.jupiter.api.Assumptions.assumeTrue(library != null
+                && Files.isRegularFile(Path.of(library)),
+                "requires the established exact oneDNN 3.14.0 LP64 SEQ test library");
+        for (var api : CpuBackendIntegration.OneDnnApi.values()) {
+            try (var integration = CpuBackendIntegration.openOneDnn(Path.of(library), api)) {
+                for (boolean transposed : List.of(false, true)) {
+                    exerciseEveryMatmulCandidate(integration, DataType.FLOAT32, transposed);
+                }
+            }
+        }
+    }
+
+    private static void exerciseEveryMatmulCandidate(CpuBackendIntegration integration,
+            DataType type, boolean transposed) throws Exception {
+        int m = 3, k = 7, n = 5;
+        Shape leftShape = transposed ? Shape.of(k, m) : Shape.of(m, k);
+        Shape rightShape = transposed ? Shape.of(n, k) : Shape.of(k, n);
+        Tensor left = TensorFactory.create(new TensorDescriptor(type, leftShape,
+                Optional.of(LayoutDescriptor.contiguous(leftShape)), false));
+        Tensor right = TensorFactory.create(new TensorDescriptor(type, rightShape,
+                Optional.of(LayoutDescriptor.contiguous(rightShape)), false));
+        Tensor output = (transposed ? left.permute(1, 0) : left)
+                .matmul(transposed ? right.permute(1, 0) : right);
+        CompileArtifacts artifacts = compile(integration, output);
+        var local = integration.localWorkloadTuning();
+        var batch = local.candidateHandoff(context(integration, artifacts))
+                .orElseThrow().candidateBatch();
+        var candidates = local.candidates(batch);
+        assertFalse(candidates.isEmpty());
+        TensorDescriptor descriptor = artifacts.graph().values().stream()
+                .filter(value -> value.id().equals(artifacts.graph().outputs().getFirst()))
+                .findFirst().orElseThrow().descriptor();
+        for (var candidate : candidates) {
+            try (var prepared = GraphPreparation.prepare(artifacts,
+                    List.of(local.trialPreparation(batch, candidate)),
+                    integration.scheduleAssembler())) {
+                for (int pass = 0; pass < 2; pass++) {
+                    final int currentPass = pass;
+                    var leftStorage = matrixStorage(type, m * k, index -> {
+                        int row = transposed ? index % m : index / k;
+                        int inner = transposed ? index / m : index % k;
+                        return leftValue(row, inner, currentPass);
+                    });
+                    var rightStorage = matrixStorage(type, k * n, index -> {
+                        int inner = transposed ? index % k : index / n;
+                        int column = transposed ? index / k : index % n;
+                        return rightValue(inner, column, currentPass);
+                    });
+                    try (var leftInput = integration.borrow(leftStorage);
+                            var rightInput = integration.borrow(rightStorage)) {
+                        var inputs = artifacts.constants().bindableInputBindings().stream()
+                                .map(binding -> binding.tensorId().equals(left.id())
+                                        ? leftInput : rightInput).toList();
+                        try (var result = new PreparedExecutionRunner().run(prepared, inputs)) {
+                            ByteBuffer bytes = ByteBuffer.wrap(integration.copyToCanonicalHostBytes(
+                                    result.publicationRepresentation(0), descriptor,
+                                    (long) m * n * type.byteWidth())).order(ByteOrder.BIG_ENDIAN);
+                            for (int row = 0; row < m; row++) {
+                                for (int column = 0; column < n; column++) {
+                                    long expected = 0;
+                                    for (int inner = 0; inner < k; inner++) {
+                                        expected += (long) leftValue(row, inner, pass)
+                                                * rightValue(inner, column, pass);
+                                    }
+                                    double actual = type == DataType.FLOAT32
+                                            ? bytes.getFloat() : bytes.getDouble();
+                                    assertEquals((double) expected, actual,
+                                            "candidate=" + local.candidateIdentity(candidate)
+                                                    + ", transposed=" + transposed + ", pass="
+                                                    + pass + ", row=" + row + ", column=" + column);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static int leftValue(int row, int inner, int pass) {
+        return row * 5 - inner * 2 + pass + 1;
+    }
+
+    private static int rightValue(int inner, int column, int pass) {
+        return inner * 3 + column - pass * 2 - 4;
+    }
+
+    private static MemorySegmentStorage matrixStorage(DataType type, int count,
+            java.util.function.IntUnaryOperator value) {
+        if (type == DataType.FLOAT32) {
+            float[] values = new float[count];
+            for (int index = 0; index < count; index++) values[index] = value.applyAsInt(index);
+            return new MemorySegmentStorage(type, count, MemorySegment.ofArray(values));
+        }
+        double[] values = new double[count];
+        for (int index = 0; index < count; index++) values[index] = value.applyAsInt(index);
+        return new MemorySegmentStorage(type, count, MemorySegment.ofArray(values));
     }
 
     private static io.github.pho001.synaptik.prepare.analysis.PrepareContext<?> context(
@@ -174,48 +280,4 @@ final class CpuLocalWorkloadTuningPublicTest {
         return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(integration.capabilityProvider()), List.of(integration.availabilitySnapshot()));
     }
 
-    private static CompileArtifacts resolvedMatmulArtifacts(
-            CpuBackendIntegration integration, Tensor output) {
-        BackendCapabilityProvider captureProvider = new BackendCapabilityProvider() {
-            @Override public io.github.pho001.synaptik.backend.contract.BackendId backendId() {
-                return CpuBackendIntegration.class.cast(integration).capabilityProvider().backendId();
-            }
-            @Override public boolean supports(
-                    io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery query) {
-                return true;
-            }
-        };
-        CompileArtifacts base = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(captureProvider), List.of(integration.availabilitySnapshot()));
-        var outputIds = java.util.Set.copyOf(base.graph().outputs());
-        var values = base.graph().values().stream().map(value -> {
-            if (!outputIds.contains(value.id())) return value;
-            var descriptor = value.descriptor();
-            var resolved = new TensorDescriptor(descriptor.dataType(), descriptor.shape(),
-                    Optional.of(LayoutDescriptor.contiguous(descriptor.shape())),
-                    descriptor.requiresGrad());
-            return new GraphValue(value.id(), resolved);
-        }).toList();
-        var graph = new CompiledGraphModel(values, base.graph().nodes(), base.graph().inputs(),
-                base.graph().outputs(), base.graph().nodePhases());
-        var publication = construct(PublicationPlan.class,
-                new Class<?>[] {CompiledGraphModel.class, List.class, List.class}, graph,
-                base.publication().forwardBindings(), base.publication().gradientBindings());
-        var constants = construct(CompileConstantPlan.class,
-                new Class<?>[] {List.class, List.class}, List.of(), graph.inputs().stream()
-                        .map(id -> new CompileConstantPlan.ConstantSource(
-                                id, ScalarValue.float32(1.0f))).toList());
-        return new CompileArtifacts(base.mode(), graph, base.partitions(), LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constants, base.diagnostics(), new DerivativeGraphMetadata(
-                graph, base.derivatives().derivativeOrderByNode()));
-    }
-
-    private static <T> T construct(
-            Class<T> type, Class<?>[] parameterTypes, Object... arguments) {
-        try {
-            Constructor<T> constructor = type.getDeclaredConstructor(parameterTypes);
-            constructor.setAccessible(true);
-            return constructor.newInstance(arguments);
-        } catch (ReflectiveOperationException failure) {
-            throw new AssertionError(failure);
-        }
-    }
 }

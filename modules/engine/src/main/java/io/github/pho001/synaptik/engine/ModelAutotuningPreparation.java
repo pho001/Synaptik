@@ -10,12 +10,13 @@ import java.util.Optional;
 /**
  * Immutable public result of one complete tuned or safe-heuristic preparation.
  *
- * <p>A tuned result first records the authenticated local-workload decisions, then the exact
- * correctness actions and complete-plan measurements that selected the production plan. The
- * contained handle is freshly prepared only after both phases and representative cleanup finish;
- * no correctness or timing trial becomes production state. Current CPU and Metal complete-plan
- * evidence is session-scoped and measured, while the value model can also represent a future
- * authenticated persistent hit with no candidate rows.</p>
+ * <p>A tuned result records any authenticated local-workload decisions, then the exact correctness
+ * actions and complete-plan measurements that selected the production plan. An eligible CPU plan
+ * without local workloads skips that phase and records an empty workload list, not a synthetic
+ * measured or cache-hit workload. The contained handle is freshly prepared only after tuning and
+ * representative cleanup finish; no correctness or timing trial becomes production state. Current
+ * CPU and Metal complete-plan evidence is session-scoped and measured, while the value model can
+ * also represent a future authenticated persistent hit with no complete-candidate rows.</p>
  *
  * <p>Evidence is present exactly for {@link Outcome#TUNED}; fallback is always explicit and
  * carries none. This value is not another closeable owner: callers close the contained {@link
@@ -78,13 +79,16 @@ public final class ModelAutotuningPreparation {
     }
 
     /**
-     * Immutable authenticated evidence for the request and its ordered tuned workloads.
+     * Immutable authenticated evidence for the request, any tuned local workloads, and the
+     * mandatory complete-plan selection. An empty workload list records that no local batch was
+     * supplied; it does not describe a cache hit or a measurement of an invented workload.
      *
      * @param modelIdentity exact caller-defined model identity from the request
      * @param representativeProfile exact caller-defined profile identity from configuration
      * @param objective exact requested selection objective
      * @param budget exact requested bounded measurement budget
-     * @param workloads non-empty immutable ordered workload evidence snapshot
+     * @param workloads non-null ordered workload evidence, snapshotted immutably; empty when the
+     *     backend admitted complete-plan tuning without a local workload phase
      * @param completePlan non-null authenticated evidence for the complete-plan winner used by
      *     the fresh production preparation
      */
@@ -97,7 +101,6 @@ public final class ModelAutotuningPreparation {
             CompletePlanEvidence completePlan) {
         /** Validates and snapshots one complete evidence value.
          * @throws NullPointerException if any component or workload element is {@code null}
-         * @throws IllegalArgumentException if {@code workloads} is empty
          */
         public Evidence {
             Objects.requireNonNull(modelIdentity, "modelIdentity");
@@ -105,7 +108,6 @@ public final class ModelAutotuningPreparation {
             Objects.requireNonNull(objective, "objective");
             Objects.requireNonNull(budget, "budget");
             workloads = List.copyOf(Objects.requireNonNull(workloads, "workloads"));
-            if (workloads.isEmpty()) throw new IllegalArgumentException("workloads must not be empty");
             Objects.requireNonNull(completePlan, "completePlan");
         }
     }

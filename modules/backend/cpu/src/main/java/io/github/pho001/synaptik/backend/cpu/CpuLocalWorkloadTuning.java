@@ -4,8 +4,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuBackendComposition;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasQualification;
-import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningBatch;
-import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningDecision;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningBatch;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningDecision;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
@@ -38,7 +38,7 @@ import java.util.UUID;
  * recipes borrow that integration's provider and coordination lifetime and must not outlive it.</p>
  */
 public final class CpuLocalWorkloadTuning {
-    private static final int VALUE_SCHEMA = 3;
+    private static final int VALUE_SCHEMA = 4;
     private static final int DECISION_MAGIC = 0x53435055;
     private static final int MAXIMUM_DECISION_BYTES = 512;
 
@@ -260,30 +260,25 @@ public final class CpuLocalWorkloadTuning {
     }
 
     /**
-     * Authenticates exact Phase-1 presence, ownership, projection, and association for Phase 2.
+     * Authenticates present Phase-1 ownership, projection, and association without route discovery.
      *
      * @param context exact non-null current stable projection to authenticate
      * @param supplied non-null optional exact public Phase-1 decision; its value is borrowed and
      *     must originate from this live collaboration
-     * @return the matched immutable internal decision, or empty when fresh analysis proves that
-     *     no eligible local batch exists
+     * @return the associated immutable internal decision, or empty for absence whose fresh proof is
+     *     owned by complete-plan discovery
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if decision presence, owner, projection, or partition
      *     association does not match fresh analysis
      * @throws IllegalStateException if the owning integration is closed
      */
-    Optional<CpuOpenBlasTuningDecision> authenticateCompletePlanPhaseOne(
+    Optional<CpuLocalTuningDecision> authenticateCompletePlanPhaseOne(
             PrepareContext<?> context, Optional<SelectedDecision> supplied) {
         requireOpen();
         Objects.requireNonNull(context, "context");
         supplied = Objects.requireNonNull(supplied, "supplied");
-        Optional<BackendPartitionTuningHandoff<CandidateBatch, SelectedDecision>> fresh =
-                candidateHandoff(context);
-        if (fresh.isPresent() != supplied.isPresent()) {
-            throw new IllegalArgumentException(fresh.isPresent()
-                    ? "eligible CPU workload requires a Phase-1 decision"
-                    : "noneligible CPU workload cannot accept a Phase-1 decision");
-        }
+        // Complete-plan discovery owns the one fresh absence proof. Replaying a selected
+        // complete association never rediscovers a local route domain.
         if (supplied.isEmpty()) return Optional.empty();
         SelectedDecision decision = supplied.orElseThrow();
         requireDecision(decision);
@@ -362,15 +357,21 @@ public final class CpuLocalWorkloadTuning {
 
     private SelectedDecision decision(Association association, int index) {
         var candidate = association.internal.candidates().get(index);
-        return new SelectedDecision(association, new CpuOpenBlasTuningDecision(
+        return new SelectedDecision(association, new CpuLocalTuningDecision(
                 association.internal.schemaVersion(), association.internal.workload(),
-                candidate.identity()));
+                candidate.identity(), association.internal));
     }
 
     private Compatibility compatibility(Association association) {
+        return association.compatibility;
+    }
+
+    private Compatibility computeCompatibility(Association association) {
         ReuseScope scope = reuseScope(association);
         CanonicalSink sink = new CanonicalSink();
         encodeWorkload(sink, association.internal.workload());
+        sink.integer(association.internal.candidates().size());
+        association.internal.candidates().forEach(candidate -> sink.bytes(identity(candidate).encoded));
         byte[] digest = sink.digest();
         ByteBuffer bytes = ByteBuffer.allocate(5 + digest.length
                 + (scope == ReuseScope.SESSION ? sessionNonce.length : 0));
@@ -380,26 +381,35 @@ public final class CpuLocalWorkloadTuning {
     }
 
     private static ReuseScope reuseScope(Association association) {
-        return association.internal.workload().persistentProjection().isPresent()
+        return association.internal.candidates().stream().noneMatch(candidate ->
+                    candidate.route() == CpuLocalTuningBatch.RouteKind.ONEDNN)
+                && association.internal.workload().persistentProjection().isPresent()
                 ? ReuseScope.PERSISTENT : ReuseScope.SESSION;
     }
 
-    private static CandidateIdentity identity(CpuOpenBlasTuningBatch.Candidate candidate) {
+    private static CandidateIdentity identity(CpuLocalTuningBatch.Candidate candidate) {
         CanonicalSink sink = new CanonicalSink();
         sink.tag(candidate.route());
-        if (candidate.identity() instanceof CpuOpenBlasTuningBatch.PortableIdentity value) {
+        if (candidate.identity() instanceof CpuLocalTuningBatch.PortableIdentity value) {
             sink.tag(value.strategy().compute()).tag(value.strategy().orchestration())
                     .integer(value.rangeCount())
                     .longValue(value.minimumElementsPerWorker())
                     .integer(value.vectorSpeciesBits()).integer(value.generatedArtifactSchema())
                     .text(value.structuralKey()).integer(value.resources().size());
+            sink.bool(value.topology().isPresent());
+            value.topology().ifPresent(topology -> sink.bytes(CpuCompletePlanTuning.topologyFingerprint(topology)));
             value.resources().forEach(resource -> sink.longValue(resource.byteSize())
                     .longValue(resource.byteAlignment()));
-        } else if (candidate.identity() instanceof CpuOpenBlasTuningBatch.OpenBlasIdentity value) {
+        } else if (candidate.identity() instanceof CpuLocalTuningBatch.OpenBlasIdentity value) {
             sink.tag(value.representation()).integer(value.threadCount())
                     .integer(value.permitDemand()).integer(value.configuredThreadOrder())
                     .longs(value.workspaceRequirementIds()).longValue(value.workspaceBytes())
                     .longValue(value.inputCopiedElements()).longValue(value.outputCopiedElements());
+        } else if (candidate.identity() instanceof CpuLocalTuningBatch.OneDnnIdentity value) {
+            sink.text(value.fingerprint()).integer(value.resources().size())
+                    .bytes(CpuCompletePlanTuning.topologyFingerprint(value.topology()));
+            value.resources().forEach(resource -> sink.longValue(resource.byteSize())
+                    .longValue(resource.byteAlignment()));
         } else {
             throw new IllegalArgumentException("unsupported CPU tuning candidate identity");
         }
@@ -411,9 +421,8 @@ public final class CpuLocalWorkloadTuning {
     }
 
     private static void encodeWorkload(CanonicalSink sink,
-            CpuOpenBlasTuningBatch.WorkloadSignature value) {
-        sink.tag(value.operationKind()).tag(value.operationAttributes()).tag(value.leftType())
-                .tag(value.rightType()).tag(value.accumulationType()).tag(value.outputType())
+            CpuLocalTuningBatch.WorkloadSignature value) {
+        sink.text(value.semanticsFingerprint()).tag(value.operationKind()).tag(value.operationAttributes())
                 .integer(value.boundaries().size());
         value.boundaries().forEach(boundary -> {
             sink.tag(boundary.dataType());
@@ -429,7 +438,8 @@ public final class CpuLocalWorkloadTuning {
             encodeBinding(sink, boundary.access());
         });
         sink.tag(value.determinismMode());
-        encodeQualification(sink, value.qualification());
+        sink.integer(value.qualification().isPresent() ? 1 : 0);
+        value.qualification().ifPresent(qualification -> encodeQualification(sink, qualification));
         var hardware = value.hardware();
         sink.integer(hardware.schemaVersion()).text(hardware.architecture()).text(hardware.vendor())
                 .text(hardware.model()).strings(hardware.features())
@@ -466,9 +476,9 @@ public final class CpuLocalWorkloadTuning {
             sink.integer(candidate.threadCount());
             encodeCosts(sink, candidate.openBlasCosts());
         });
-        sink.longValue(value.minimumNetBenefitCostUnits())
-                .integer(value.minimumBenefitBasisPoints())
-                .integer(value.generatedArtifactSchema()).integer(value.routePolicyVersion())
+        sink.optionalLong(value.minimumNetBenefitCostUnits()).bool(value.minimumBenefitBasisPoints().isPresent());
+        if (value.minimumBenefitBasisPoints().isPresent()) sink.integer(value.minimumBenefitBasisPoints().getAsInt());
+        sink.integer(value.generatedArtifactSchema()).integer(value.routePolicyVersion())
                 .integer(value.costPolicyVersion());
     }
 
@@ -486,7 +496,7 @@ public final class CpuLocalWorkloadTuning {
     }
 
     private static void encodeQualification(CanonicalSink sink,
-            CpuOpenBlasTuningBatch.QualificationScope value) {
+            CpuLocalTuningBatch.QualificationScope value) {
         sink.tag(value.scope());
         var target = value.targetFingerprint();
         sink.integer(target.schemaVersion()).tag(target.operatingSystem()).tag(target.machine())
@@ -533,8 +543,8 @@ public final class CpuLocalWorkloadTuning {
     /** Opaque exact-association selected decision transported through shared Prepare. */
     public static final class SelectedDecision implements BackendTuningDecision {
         private final Association association;
-        private final CpuOpenBlasTuningDecision internal;
-        private SelectedDecision(Association association, CpuOpenBlasTuningDecision internal) {
+        private final CpuLocalTuningDecision internal;
+        private SelectedDecision(Association association, CpuLocalTuningDecision internal) {
             this.association = association;
             this.internal = internal;
         }
@@ -620,18 +630,22 @@ public final class CpuLocalWorkloadTuning {
         private final CpuLocalWorkloadTuning owner;
         private final PrepareContext<?> context;
         private final PlannedPartition partition;
-        private final CpuOpenBlasTuningBatch internal;
+        private final CpuLocalTuningBatch internal;
+        private final Compatibility compatibility;
         private Association(CpuLocalWorkloadTuning owner, PrepareContext<?> context,
-                PlannedPartition partition, CpuOpenBlasTuningBatch internal) {
+                PlannedPartition partition, CpuLocalTuningBatch internal) {
             this.owner = owner;
             this.context = context;
             this.partition = partition;
             this.internal = internal;
+            this.compatibility = owner.computeCompatibility(this);
         }
     }
 
     private static final class CanonicalSink {
         private final MessageDigest digest;
+        private final byte[] scalar = new byte[Long.BYTES];
+        private int sourceBytes;
         private CanonicalSink() {
             try {
                 digest = MessageDigest.getInstance("SHA-256");
@@ -641,18 +655,32 @@ public final class CpuLocalWorkloadTuning {
         }
         private CanonicalSink bool(boolean value) { return integer(value ? 1 : 0); }
         private CanonicalSink tag(Enum<?> value) { return integer(value.ordinal() + 1); }
+        private void reserve(int count) {
+            if (count < 0 || sourceBytes > 1_048_576 - count)
+                throw new IllegalArgumentException("CPU canonical identity exceeds 1 MiB");
+            sourceBytes += count;
+        }
         private CanonicalSink integer(int value) {
-            digest.update(ByteBuffer.allocate(4).putInt(value).array());
+            reserve(Integer.BYTES);
+            for (int index = 0; index < Integer.BYTES; index++)
+                scalar[index] = (byte) (value >>> (24 - 8 * index));
+            digest.update(scalar, 0, Integer.BYTES);
             return this;
         }
         private CanonicalSink longValue(long value) {
-            digest.update(ByteBuffer.allocate(8).putLong(value).array());
+            reserve(Long.BYTES);
+            for (int index = 0; index < Long.BYTES; index++)
+                scalar[index] = (byte) (value >>> (56 - 8 * index));
+            digest.update(scalar, 0, Long.BYTES);
             return this;
         }
         private CanonicalSink text(String value) {
-            byte[] bytes = Objects.requireNonNull(value, "value").getBytes(StandardCharsets.UTF_8);
+            Objects.requireNonNull(value, "value");
+            if (value.length() > 65_536) throw new IllegalArgumentException("canonical text too long");
+            byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
             if (bytes.length > 65_536) throw new IllegalArgumentException("canonical text too long");
             integer(bytes.length);
+            reserve(bytes.length);
             digest.update(bytes);
             return this;
         }
@@ -683,6 +711,7 @@ public final class CpuLocalWorkloadTuning {
         }
         private CanonicalSink bytes(byte[] values) {
             integer(values.length);
+            reserve(values.length);
             digest.update(values);
             return this;
         }

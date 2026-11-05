@@ -396,6 +396,91 @@ public final class CpuMatmulLowering {
     }
 
     /**
+     * Reuses an already-qualified selected unit, including its exact fused epilogue and types.
+     * @param unit complete resolved ordinary MATMUL unit with immutable invocation geometry
+     * @return every implemented legal fixed realization for that exact selected operation
+     * @throws IllegalArgumentException if the unit has no resolved MATMUL facts
+     */
+    public static List<CpuPartitionLowering.LoweredPartition> tuningAlternatives(
+            io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionUnitPlan unit) {
+        return tuningAlternatives(unit, unit.accessBindings());
+    }
+
+    /**
+     * Enumerates fixed forms using the exact physical bindings selected by representation planning.
+     * @param unit freshly qualified logical unit, retaining original source declarations
+     * @param effectiveBindings actual generated-consumer bindings after declared copies
+     * @return immutable scalar, vector, scalar-2x2 and vector-2x2 legal forms; no species search
+     */
+    public static List<CpuPartitionLowering.LoweredPartition> tuningAlternatives(
+            io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionUnitPlan unit,
+            List<CpuAccessPlan.Binding> effectiveBindings) {
+        var original = unit.portablePlan().specialization().matmulIr().orElseThrow();
+        var geometry = effectiveBindings.equals(unit.accessBindings()) ? unit.matmulGeometry().orElseThrow()
+                : representedGeometry(unit.matmulGeometry().orElseThrow(), effectiveBindings);
+        int bits = ModuleLayer.boot().findModule("jdk.incubator.vector").isPresent()
+                ? preferredBits(geometry.resultType()) : 0;
+        int lanes = bits / geometry.resultType().bitWidth();
+        var forms = new CpuMatmulCandidateSelector().select(new CpuMatmulCandidateSelector.Facts(
+                geometry.leftType(), geometry.rightType(), geometry.resultType(), geometry.batchCount(),
+                geometry.m(), geometry.k(), geometry.n(), geometry.rightNStride(), geometry.resultNStride(),
+                lanes, original.epilogue().terminal(), original.epilogue().hasBias()
+                    ? effectiveBindings.get(2).effectiveStrides().getLast() : 1), ComputePreference.SCALAR).candidates();
+        var result = new ArrayList<CpuPartitionLowering.LoweredPartition>(forms.size());
+        for (var form : forms) result.add(loweringForUnit(unit, selectedIr(original, form, bits)));
+        return List.copyOf(result);
+    }
+
+    /**
+     * Reconstructs one exact fixed realization without enumerating implementation alternatives.
+     * @param unit freshly qualified logical unit
+     * @param realization exact selected fixed form
+     * @param effectiveBindings generated-consumer bindings after declared representation copies
+     * @return resolved lowering with current target species and unchanged typed arithmetic
+     * @throws IllegalArgumentException if current vector qualification rejects the selected form
+     */
+    public static CpuPartitionLowering.LoweredPartition tuningRealization(
+            io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionUnitPlan unit,
+            CpuMatmulIr.Realization realization, List<CpuAccessPlan.Binding> effectiveBindings) {
+        var original = unit.portablePlan().specialization().matmulIr().orElseThrow();
+        var geometry = effectiveBindings.equals(unit.accessBindings()) ? unit.matmulGeometry().orElseThrow()
+                : representedGeometry(unit.matmulGeometry().orElseThrow(), effectiveBindings);
+        boolean vector = realization == CpuMatmulIr.Realization.DIRECT_N_VECTOR
+                || realization == CpuMatmulIr.Realization.TILED_N_VECTOR_2X2;
+        int bits = vector && ModuleLayer.boot().findModule("jdk.incubator.vector").isPresent()
+                ? preferredBits(geometry.resultType()) : 0;
+        if (vector && (bits == 0 || geometry.rightNStride() != 1 || geometry.resultNStride() != 1
+                || original.epilogue().terminal() == CpuMatmulIr.Epilogue.Terminal.TANH
+                    && original.epilogue().hasBias()
+                    && effectiveBindings.get(2).effectiveStrides().getLast() != 1))
+            throw new IllegalArgumentException("frozen vector MATMUL is no longer qualified");
+        return loweringForUnit(unit, selectedIr(original, realization, bits));
+    }
+
+    private static CpuMatmulIr selectedIr(CpuMatmulIr original, CpuMatmulIr.Realization form, int bits) {
+        boolean vector = form == CpuMatmulIr.Realization.DIRECT_N_VECTOR
+                || form == CpuMatmulIr.Realization.TILED_N_VECTOR_2X2;
+        return new CpuMatmulIr(original.leftType(), original.rightType(), original.resultType(), form,
+                original.epilogue(), vector ? bits : 0, original.numericalForm(),
+                original.inputAccesses(), original.outputAccess());
+    }
+
+    private static CpuPartitionLowering.LoweredPartition loweringForUnit(
+            io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionUnitPlan unit,
+            CpuMatmulIr ir) {
+        var geometry = unit.matmulGeometry().orElseThrow();
+        return new CpuPartitionLowering.LoweredPartition(ir.encodedKernelIr(),
+                unit.boundaryValues(), unit.accessBindings(), unit.accessBindings().stream()
+                    .map(CpuAccessPlan.Binding::referencedElementSpan).toList(),
+                unit.portablePlan().specialization().boundaryDataTypes(), List.of(),
+                new long[] {geometry.outputCount()}, geometry.outputCount(), unit.fusionReason(), new long[0],
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.of(
+                        new CpuPartitionLowering.LoweredPartition.MatmulFacts(ir, geometry)));
+    }
+    /**
      * Finds the adjacent, single-use private rank-two transpose prefix of one MATMUL anchor.
      * Public or outside-unit/partition obligations stop the prefix; unsupported views remain
      * separate copy units. Repeated MATMUL input occurrences do not acquire a fan-out exception.
@@ -502,6 +587,31 @@ public final class CpuMatmulLowering {
      * @throws ArithmeticException if a count or address calculation overflows
      */
     public Geometry lower(TensorDescriptor left, TensorDescriptor right, TensorDescriptor result) {
+        return normalizeGeometry(left, right, result);
+    }
+
+    /**
+     * Reconstructs exact invocation strides after an existing declared representation copy.
+     * @param original unchanged typed logical MATMUL equation
+     * @param bindings exact effective read/bias/write bindings used by the generated consumer
+     * @return geometry for the same operation over the selected physical representations
+     * @throws IllegalArgumentException if effective bindings violate the original equation
+     */
+    public static Geometry representedGeometry(Geometry original, List<CpuAccessPlan.Binding> bindings) {
+        return normalizeGeometry(representedDescriptor(original.leftType(), bindings.get(0)),
+                representedDescriptor(original.rightType(), bindings.get(1)),
+                representedDescriptor(original.resultType(), bindings.getLast()));
+    }
+
+    private static TensorDescriptor representedDescriptor(DataType type, CpuAccessPlan.Binding binding) {
+        Shape shape = Shape.of(binding.extents().stream().mapToLong(Long::longValue).toArray());
+        var layout = io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(shape,
+                binding.effectiveStrides().stream().mapToLong(Long::longValue).toArray(),
+                binding.baseElementOffset(), true);
+        return new TensorDescriptor(type, shape, Optional.of(layout), false);
+    }
+
+    private static Geometry normalizeGeometry(TensorDescriptor left, TensorDescriptor right, TensorDescriptor result) {
         Objects.requireNonNull(left, "left"); Objects.requireNonNull(right, "right");
         Objects.requireNonNull(result, "result");
         long[] a = extents(left), b = extents(right), c = extents(result);
@@ -960,7 +1070,8 @@ public final class CpuMatmulLowering {
 }
 
 /**
- * Applies the fixed realization thresholds on the cold path. Only homogeneous FLOAT32/FLOAT64
+ * Enumerates implemented legal fixed realizations and applies unchanged production thresholds.
+ * Only homogeneous FLOAT32/FLOAT64
  * TANH extends the no-terminal vector subset, with contiguous bias when present.
  */
 final class CpuMatmulCandidateSelector {
@@ -968,7 +1079,8 @@ final class CpuMatmulCandidateSelector {
     CpuMatmulCandidateSelector() { }
 
     /**
-     * Constructs the eligible bounded set and selects its deterministic production member.
+     * Constructs all legal fixed forms, independent of profitability thresholds, then selects
+     * its unchanged deterministic production member.
      *
      * @param facts checked non-null occurrence facts
      * @param preference non-null cold compute preference; scalar keeps eligible vector forms
@@ -982,7 +1094,7 @@ final class CpuMatmulCandidateSelector {
         Objects.requireNonNull(preference, "preference");
         long operations = Math.multiplyExact(Math.multiplyExact(
                 Math.multiplyExact(facts.batchCount(), facts.m()), facts.k()), facts.n());
-        boolean vectorEligible = facts.preferredLanes() > 0 && facts.k() > 0 && facts.rightNStride() == 1
+        boolean vectorEligible = facts.preferredLanes() > 0 && facts.rightNStride() == 1
                 && facts.resultNStride() == 1
                 && (facts.terminal() == CpuMatmulIr.Epilogue.Terminal.NONE
                     || facts.terminal() == CpuMatmulIr.Epilogue.Terminal.TANH
@@ -990,21 +1102,19 @@ final class CpuMatmulCandidateSelector {
                         && (facts.resultType() == DataType.FLOAT32 || facts.resultType() == DataType.FLOAT64))
                 && facts.leftType() == facts.rightType() && facts.rightType() == facts.resultType()
                 && (facts.resultType() == DataType.FLOAT32 || facts.resultType() == DataType.FLOAT64
-                    || facts.resultType() == DataType.INT32 || facts.resultType() == DataType.INT64)
-                && facts.n() >= facts.preferredLanes();
+                    || facts.resultType() == DataType.INT32 || facts.resultType() == DataType.INT64);
         var candidates = new ArrayList<CpuMatmulIr.Realization>();
         candidates.add(CpuMatmulIr.Realization.DIRECT_SCALAR);
         if (vectorEligible) candidates.add(CpuMatmulIr.Realization.DIRECT_N_VECTOR);
-        if (facts.m() >= 2 && facts.n() >= 2 && operations >= 16_384)
-            candidates.add(CpuMatmulIr.Realization.TILED_SCALAR_2X2);
-        if (vectorEligible && facts.m() >= 2 && facts.n() >= 2L * facts.preferredLanes()
-                && operations >= 65_536)
-            candidates.add(CpuMatmulIr.Realization.TILED_N_VECTOR_2X2);
-        boolean selectVector = vectorEligible && preference == ComputePreference.VECTOR_IF_ELIGIBLE;
+        candidates.add(CpuMatmulIr.Realization.TILED_SCALAR_2X2);
+        if (vectorEligible) candidates.add(CpuMatmulIr.Realization.TILED_N_VECTOR_2X2);
+        boolean selectVector = vectorEligible && facts.k() > 0 && facts.n() >= facts.preferredLanes()
+                && preference == ComputePreference.VECTOR_IF_ELIGIBLE;
         CpuMatmulIr.Realization selected;
         if (operations == 0 || facts.k() == 0 || facts.m() == 1 || facts.n() == 1
                 || operations < 4_096) selected = CpuMatmulIr.Realization.DIRECT_SCALAR;
-        else if (selectVector && operations >= 65_536 && candidates.contains(
+        else if (selectVector && facts.m() >= 2 && facts.n() >= 2L * facts.preferredLanes()
+                && operations >= 65_536 && candidates.contains(
                 CpuMatmulIr.Realization.TILED_N_VECTOR_2X2))
             selected = CpuMatmulIr.Realization.TILED_N_VECTOR_2X2;
         else if (operations >= 16_384 && !selectVector)

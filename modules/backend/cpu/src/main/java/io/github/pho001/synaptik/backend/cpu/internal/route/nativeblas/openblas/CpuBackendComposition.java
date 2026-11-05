@@ -8,6 +8,8 @@ import io.github.pho001.synaptik.backend.cpu.CpuTraceObserver;
 import io.github.pho001.synaptik.backend.cpu.CpuPreparationDiagnostics;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuTraceProducer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningBatch;
+import io.github.pho001.synaptik.backend.cpu.internal.route.CpuLocalTuningDecision;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBorrowedBuffer;
@@ -38,17 +40,27 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Owns CPU preparation collaborators, optional OpenBLAS, and explicitly required oneDNN state.
  *
  * <p>One composition always describes the fixed {@code cpu/host} device and retains the portable
- * scalar, single-thread compatibility route. Bounded automatic discovery and qualification may
- * add one eligible single-thread OpenBLAS candidate; provider presence neither changes backend
- * identity nor guarantees native selection. The owner is safe for concurrent collaborator access
- * and idempotent close. Leased native resources keep already-admitted Runtime runs alive after
- * this owner closes; new preparation still requires this owner to remain open.</p>
+ * scalar, single-thread compatibility route for ordinary preparation. Explicit tuning can admit
+ * declared canonical copies for caller-owned inputs without assuming that their storage is native.
+ * Optional qualified OpenBLAS and explicitly configured oneDNN remain routes of this same owner.
+ * The owner is safe for concurrent collaborator access and idempotent close. Leased native resources
+ * keep already-admitted Runtime runs alive after this owner closes; new preparation still requires
+ * this owner to remain open.</p>
  */
 public final class CpuBackendComposition implements AutoCloseable {
     private static final BackendAvailabilitySnapshot AVAILABILITY =
             new BackendAvailabilitySnapshot(CpuCapabilityProvider.CPU_BACKEND_ID,
                     Map.of(new BackendDeviceId(CpuCapabilityProvider.CPU_BACKEND_ID, "host"),
                             DeviceClass.CPU));
+
+    /** Copy admission for local trials; every copied byte remains a declared run-owned workspace. */
+    private static final CpuPartitionAnalysisInputs.MaterializationPolicy LOCAL_TUNING_POLICY =
+            new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                    true, 0, 0, 0, 0, 1, Long.MAX_VALUE, 0, 0);
+    /** Topology/representation policy; local choices retain their separately authenticated policy. */
+    private static final CpuPartitionAnalysisInputs.MaterializationPolicy COMPLETE_PLAN_POLICY =
+            new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                    true, 0, 1, 3, 1, 1, Long.MAX_VALUE, 0, 0);
 
     private final CpuConcurrencyBudget budget;
     private final Optional<CpuOpenBlasCoordinator> coordinator;
@@ -266,6 +278,8 @@ public final class CpuBackendComposition implements AutoCloseable {
 
     /**
      * Performs fresh CPU analysis and returns the current complete tunable batch, if any.
+     * The explicit local policy admits canonical input copies with exact resource declarations;
+     * it never upgrades borrowed caller storage to a native-storage fact.
      *
      * @param context non-null exact stable partition projection
      * @return the freshly analyzed immutable batch, or empty when the valid workload is not
@@ -274,11 +288,10 @@ public final class CpuBackendComposition implements AutoCloseable {
      * @throws IllegalStateException if this composition is closed
      * @throws IllegalArgumentException if the projection is outside the supported domain
      */
-    public Optional<CpuOpenBlasTuningBatch> tuningBatch(PrepareContext<?> context) {
+    public Optional<CpuLocalTuningBatch> tuningBatch(PrepareContext<?> context) {
         requireOpen();
-        return analyze(cpuContext(context, analysisInputs(Optional.empty(),
-                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED)))
-                .plan().openBlasTuningBatch();
+        return preparer.localTuningBatch(cpuContext(context,
+                analysisInputs(Optional.empty(), LOCAL_TUNING_POLICY)));
     }
 
     /**
@@ -297,14 +310,12 @@ public final class CpuBackendComposition implements AutoCloseable {
      * @throws IllegalStateException if this composition is closed
      */
     public CpuPartitionPreparer.CompletePlanCandidates completePlanCandidates(
-            PrepareContext<?> context, Optional<CpuOpenBlasTuningDecision> phaseOneDecision) {
+            PrepareContext<?> context, Optional<CpuLocalTuningDecision> phaseOneDecision) {
         requireOpen();
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(phaseOneDecision, "phaseOneDecision");
         validatePhaseOne(context, phaseOneDecision);
-        CpuPartitionAnalysisInputs inputs = analysisInputs(phaseOneDecision,
-                new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 3, 1,
-                        1, Long.MAX_VALUE, 0, 0));
+        CpuPartitionAnalysisInputs inputs = analysisInputs(phaseOneDecision, COMPLETE_PLAN_POLICY);
         return preparer.completePlanCandidates(cpuContext(context, inputs));
     }
 
@@ -316,9 +327,14 @@ public final class CpuBackendComposition implements AutoCloseable {
      * assembly, validation, and construction of the complete execution. This operation creates
      * no {@code RunState}, binds no representative input, and executes or times no trial.</p>
      *
+     * <p>The selected-plan association carries the absence proof established during complete
+     * discovery. Repreparing it revalidates its exact source/configuration fingerprint, rather than
+     * rerunning local discovery. A present local decision is revalidated only as its frozen
+     * realization; its unselected route peers are never queried here.</p>
+     *
      * @param context non-null exact stable one-partition projection; inspected but not mutated
      * @param phaseOneDecision non-null optional exact authenticated local selection, or empty for
-     *     freshly proved absence; the decision is borrowed
+     *     absence already authenticated by the selected-plan association; the decision is borrowed
      * @param selectedPlan non-null immutable retained complete-plan identity and association
      *     fingerprint; inspected but not mutated
      * @return a fresh immutable CPU-owned partition preparation borrowing this composition's
@@ -329,19 +345,17 @@ public final class CpuBackendComposition implements AutoCloseable {
      * @throws IllegalStateException if this composition is closed
      */
     public PartitionPreparation<?, ?> completePlanPreparation(PrepareContext<?> context,
-            Optional<CpuOpenBlasTuningDecision> phaseOneDecision,
+            Optional<CpuLocalTuningDecision> phaseOneDecision,
             CpuPartitionPreparer.SelectedCompletePlan selectedPlan) {
         requireOpen();
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(phaseOneDecision, "phaseOneDecision");
         Objects.requireNonNull(selectedPlan, "selectedPlan");
-        if (selectedPlan.schemaVersion() != 4) {
+        if (selectedPlan.schemaVersion() != 5) {
             throw new IllegalArgumentException("CPU complete-plan schema is unsupported");
         }
-        validatePhaseOne(context, phaseOneDecision);
-        CpuPartitionAnalysisInputs inputs = analysisInputs(phaseOneDecision,
-                new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 3, 1,
-                        1, Long.MAX_VALUE, 0, 0));
+        if (phaseOneDecision.isPresent()) validatePhaseOne(context, phaseOneDecision);
+        CpuPartitionAnalysisInputs inputs = analysisInputs(phaseOneDecision, COMPLETE_PLAN_POLICY);
         var selectedPreparer = new io.github.pho001.synaptik.prepare.analysis.BackendPartitionPreparer<
                 CpuPartitionAnalysisInputs,
                 io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan>() {
@@ -353,27 +367,31 @@ public final class CpuBackendComposition implements AutoCloseable {
         return partitionPreparation(inputs, selectedPreparer);
     }
 
+    /**
+     * Revalidates an exact frozen realization without enumerating its local peers again.
+     * Absence must still be established against the current bounded discovery domain.
+     *
+     * @param context non-null current stable partition projection, borrowed
+     * @param decision non-null optional immutable local selection, borrowed
+     * @throws IllegalArgumentException if eligibility or exact realization compatibility changed
+     */
     private void validatePhaseOne(PrepareContext<?> context,
-            Optional<CpuOpenBlasTuningDecision> decision) {
-        Optional<CpuOpenBlasTuningBatch> fresh = analyze(cpuContext(context,
-                analysisInputs(Optional.empty(),
-                        CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED)))
-                .plan().openBlasTuningBatch();
-        if (fresh.isPresent() != decision.isPresent()) {
-            throw new IllegalArgumentException("CPU Phase-1 eligibility changed");
-        }
-        if (decision.isPresent()) {
-            CpuOpenBlasTuningBatch.Candidate matched = decision.orElseThrow()
-                    .match(fresh.orElseThrow()).orElseThrow(() ->
-                            new IllegalArgumentException(
-                                    "CPU Phase-1 decision is stale or incompatible"));
-            BackendPartitionAnalysis<io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan>
-                    selected = analyze(cpuContext(context, analysisInputs(decision,
-                            CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED)));
-            if (!selected.plan().selectedOpenBlasTuningCandidate().orElseThrow()
-                    .equals(matched.identity())) {
-                throw new IllegalArgumentException("CPU Phase-1 decision was not selected");
+            Optional<CpuLocalTuningDecision> decision) {
+        if (decision.isEmpty()) {
+            if (preparer.localTuningBatch(cpuContext(context,
+                    analysisInputs(Optional.empty(), LOCAL_TUNING_POLICY))).isPresent()) {
+                throw new IllegalArgumentException("CPU Phase-1 eligibility changed");
             }
+            return;
+        }
+        var selected = analyze(cpuContext(context, analysisInputs(decision, LOCAL_TUNING_POLICY)));
+        var batch = selected.plan().localTuningBatch().orElseThrow(() ->
+                new IllegalArgumentException("CPU Phase-1 decision is no longer eligible"));
+        var matched = decision.orElseThrow().match(batch).orElseThrow(() ->
+                new IllegalArgumentException("CPU Phase-1 decision is stale or incompatible"));
+        if (!selected.plan().selectedLocalTuningCandidate().orElseThrow()
+                .equals(matched.identity())) {
+            throw new IllegalArgumentException("CPU Phase-1 decision was not selected");
         }
     }
 
@@ -389,24 +407,23 @@ public final class CpuBackendComposition implements AutoCloseable {
      *     the fresh batch
      */
     public PartitionPreparation<?, ?> selectedPreparation(PrepareContext<?> context,
-            CpuOpenBlasTuningDecision decision) {
+            CpuLocalTuningDecision decision) {
         requireOpen();
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(decision, "decision");
         BackendPartitionAnalysis<io.github.pho001.synaptik.backend.cpu.internal.prepare
                 .CpuPartitionPreparationPlan> analysis = analyze(cpuContext(context,
-                        analysisInputs(Optional.of(decision),
-                                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED)));
-        var batch = analysis.plan().openBlasTuningBatch().orElseThrow(() ->
+                        analysisInputs(Optional.of(decision), LOCAL_TUNING_POLICY)));
+        var batch = analysis.plan().localTuningBatch().orElseThrow(() ->
                 new IllegalArgumentException("CPU tuning decision is no longer eligible"));
         var matched = decision.match(batch).orElseThrow(() ->
                 new IllegalArgumentException("CPU tuning decision is stale or incompatible"));
-        if (!analysis.plan().selectedOpenBlasTuningCandidate().orElseThrow()
+        if (!analysis.plan().selectedLocalTuningCandidate().orElseThrow()
                 .equals(matched.identity())) {
             throw new IllegalArgumentException("CPU tuning decision was not selected");
         }
         return partitionPreparation(analysisInputs(Optional.of(decision),
-                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED), preparer);
+                LOCAL_TUNING_POLICY), preparer);
     }
 
     /**
@@ -525,7 +542,7 @@ public final class CpuBackendComposition implements AutoCloseable {
      * @return new non-null complete CPU analysis inputs
      */
     private CpuPartitionAnalysisInputs analysisInputs(
-            Optional<CpuOpenBlasTuningDecision> decision,
+            Optional<CpuLocalTuningDecision> decision,
             CpuPartitionAnalysisInputs.MaterializationPolicy materializationPolicy) {
         var route = qualification
                 .<CpuPartitionAnalysisInputs.OpenBlasRouteConfig>map(value ->
@@ -536,8 +553,8 @@ public final class CpuBackendComposition implements AutoCloseable {
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT,
                 materializationPolicy, false,
                 CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, List.of(), route,
-                CpuOpenBlasTuningBatch.HardwareIdentity.UNSPECIFIED,
-                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, decision);
+                CpuLocalTuningBatch.HardwareIdentity.UNSPECIFIED,
+                CpuLocalTuningBatch.WorkloadCohort.DEFAULT, decision);
     }
 
     /**

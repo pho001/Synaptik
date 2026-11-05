@@ -1287,6 +1287,53 @@ class CpuPreparedExecutableTest {
         } finally { if (!state.isClosed()) state.close(); }
     }
 
+    @Test void copiedMatmulUsesRepresentedOffsetsAndStridesForEveryCompleteFixedForm() {
+        for (int offset : new int[] {0, 1}) {
+            var base = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLoweringTest.context(
+                    DataType.FLOAT64, Shape.of(2, 2), Shape.of(2, 2), Shape.of(2, 2));
+            var rightDescriptor = new TensorDescriptor(DataType.FLOAT64, Shape.of(2, 2),
+                    Optional.of(LayoutDescriptor.of(Shape.of(2, 2), new long[] {1, 2}, offset, true)), false);
+            var values = new ArrayList<>(base.values());
+            values.set(1, new io.github.pho001.synaptik.model.graph.GraphValue(values.get(1).id(), rightDescriptor));
+            var memory = new ArrayList<>(base.memoryRequirements());
+            var rightRequirement = memory.get(1);
+            memory.set(1, new io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement(
+                    rightRequirement.valueId(), rightDescriptor, rightRequirement.producerPartition(),
+                    rightRequirement.consumerPartitions(), rightRequirement.graphOutput()));
+            var policy = new CpuPartitionAnalysisInputs.MaterializationPolicy(true,
+                    0, 1, 3, 1, 1, Long.MAX_VALUE, 0, 0);
+            var inputs = new CpuPartitionAnalysisInputs(false, java.util.Collections.nCopies(3, CarrierAccess.DOUBLE_ARRAY),
+                    CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy);
+            var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partitionDag(),
+                    values, memory, base.constants(), inputs, base.scanActivityPlans());
+            var preparer = new io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer();
+            assertTrue(preparer.localTuningBatch(context).isEmpty(), "copy representation remains Phase 2");
+            var complete = preparer.completePlanCandidates(context);
+            var forms = new java.util.HashSet<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization>();
+            for (var identity : complete.identities()) {
+                if (identity.topology().materializations().isEmpty()) continue;
+                var analysis = preparer.analyzeSelected(context,
+                        new io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer
+                            .SelectedCompletePlan(5, identity, List.of(0)));
+                forms.add(analysis.plan().units().getFirst().portablePlan().specialization().matmulIr().orElseThrow().realization());
+                var executable = CpuPartitionFinalizerTest.finalizePreparedExecutable(analysis, Optional.empty());
+                double[] left = {1, 2, 3, 4};
+                double[] right = offset == 0 ? new double[] {5, 7, 6, 8} : new double[] {99, 5, 7, 6, 8};
+                double[] before = right.clone();
+                double[] output = {42, 42, 42, 42};
+                var workspaces = executable.memoryPlan().workspaces().stream().map(entry ->
+                        CpuContiguousWorkspace.allocate(entry.byteSize(), entry.byteAlignment())).toList();
+                try (var run = state(executable, List.of(borrow(left, 0, left.length),
+                        borrow(right, 0, right.length), borrow(output, 0, output.length)), workspaces)) {
+                    executable.bind(run).execute();
+                    assertArrayEquals(new double[] {19, 22, 43, 50}, output);
+                    assertArrayEquals(before, right, "copy preparation/execution never mutates caller storage");
+                }
+                workspaces.forEach(workspace -> assertFalse(workspace.isAccessible()));
+            }
+            assertEquals(4, forms.size(), "the represented N-contiguous input qualifies both preferred-species forms");
+        }
+    }
     @Test void copiesSelectedGeneralInputOnceIntoRunWorkspaceBeforeConsumer() {
         Shape shape = Shape.of(2, 3);
         var dense = new TensorDescriptor(DataType.FLOAT64, shape,
