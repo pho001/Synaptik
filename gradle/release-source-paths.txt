@@ -160,6 +160,7 @@ docs/how-to/index.md
 docs/how-to/save-and-restart-training.md
 docs/index.md
 docs/planning/README.md
+docs/planning/autotuning-audit.md
 docs/planning/backends/cpu/0057-scan-body-java-audit.md
 docs/planning/backends/cpu/existing-emitter-composition-plan.md
 docs/planning/backends/cpu/master-plan.md
@@ -860,6 +861,7 @@ docs/planning/tools/benchmarks/tasks/.gitkeep
 docs/planning/tools/benchmarks/tasks/0001-cpu-baseline.md
 docs/planning/tools/cli/master-plan.md
 docs/planning/tools/cli/tasks/.gitkeep
+docs/planning/tools/cli/tasks/0001-live-model-training-and-terminal.md
 docs/planning/tools/tuning/master-plan.md
 docs/planning/tools/tuning/tasks/.gitkeep
 docs/planning/tools/tuning/tasks/0001-exact-default-model-guided-workload-tuning-and-reusable-cache.md
@@ -867,6 +869,7 @@ docs/planning/tools/tuning/tasks/0002-bounded-complete-plan-tuning-and-model-pla
 docs/planning/tools/tuning/tasks/0003-read-only-cache-plan-and-evidence-inspection.md
 docs/planning/tools/tuning/tasks/0004-package-javadoc-status-reconciliation.md
 docs/planning/tools/tuning/tasks/0005-model-plan-cache-encoding-bound.md
+docs/planning/tools/tuning/tasks/0006-candidate-coverage-and-correctness-audit.md
 docs/reference/backend-identities.md
 docs/reference/checkpoint/artifacts.md
 docs/reference/checkpoint/graph-example.md
@@ -1340,6 +1343,9 @@ modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/reference/CpuSoftmaxReferenceKernel.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/reference/CpuTrailingNormalizationReferenceKernel.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/reference/package-info.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/CpuCompletePlanIdentity.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/CpuLocalTuningBatch.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/CpuLocalTuningDecision.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuBackendComposition.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasBinaryInspector.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasCoordinator.java
@@ -1354,10 +1360,9 @@ modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasQualifier.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasRoutePlan.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasRouteSelector.java
-modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasTuningBatch.java
-modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasTuningDecision.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/package-info.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnAtomicKernel.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnCandidateIdentity.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnCompiler.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnCompositeProjection.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnGraph.java
@@ -1649,6 +1654,9 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/reference/CpuSoftmaxReferenceTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/reference/CpuTrailingNormalizationReferenceTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuBackendCompositionTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuFiniteCompleteRealizationTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuFiniteLocalRealizationTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuLocalTuningBatchTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasBinaryInspectorTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasCoordinatorTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasDiscoveryTest.java
@@ -1656,9 +1664,10 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasPreparedExecutableTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasQualifierTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasRouteSelectorTest.java
-modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasTuningBatchTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnCandidateIdentityTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnLowPrecisionTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnNativeContractTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnSelectorTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnWorkspaceFailureTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/CpuRecurrentScanCleanJavaOracle.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/CpuRecurrentScanScalarTimingTest.java

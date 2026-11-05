@@ -612,6 +612,22 @@ A <a id="term-manifest"></a>**manifest** lists the content, [identities](#term-i
 
 <a id="term-warmup"></a>**Warmup** runs work before collecting the intended measurements, for example to let [JVM](#term-java-virtual-machine-jvm) [compilation](#compiler-engine-and-execution-stage-names) settle. <a id="term-sampling"></a>**[Sampling](#term-sampling-machine-learning-and-hyperparameters)** collects measured observations; a timing sample is not a training-data [sample](#term-sample-machine-learning-and-hyperparameters). <a id="term-latency"></a>**Latency** is time for one defined unit of work, while <a id="term-throughput"></a>**throughput** is completed work per unit time. Their units and measured [lifecycle](#lifecycle) boundary must be stated.
 
+<a id="term-mbit-per-second"></a>**Mbit/s** means decimal megabits per second:
+one megabit is $10^6$ bits, one byte is eight bits, and a bit records a zero or one.
+For $b\ge0$ completed payload bytes over an interval of $\Delta t>0$ seconds, the rate is
+
+$$
+R_{\mathrm{Mbit/s}}=\frac{8b}{10^6\Delta t}.
+$$
+
+For example, $b=125000$ bytes over $\Delta t=1$ second gives $1$ Mbit/s.
+This is not MiB/s: one mebibyte is $2^{20}$ bytes. A label such as **training input+target
+payload** counts the actual decoded numeric data consumed by completed batches, including
+repeated epoch consumption. It does not additionally count CSV text, parameters,
+gradients, unused physical-storage padding, or copies between host and device.
+Logical padding elements that are actually consumed still count; this is not measured
+network or GPU bandwidth. Always state which bytes and time boundary a throughput number includes.
+
 A measurement **[distribution](#term-distribution)** describes how observed values vary, rather than a software package. For $n>0$ finite timing measurements $t_i$, indexed by $0\le i<n$ in one common unit, the <a id="term-mean"></a>**mean** is $\bar t=n^{-1}\sum_{i=0}^{n-1}t_i$. Times $(1,2,9)$ milliseconds have mean $4$ milliseconds: the slow sample affects the average.
 
 The <a id="term-median"></a>**median** is a middle [ordered observation](#stable-full-ordering). For $(1,2,9)$ milliseconds it is $2$ milliseconds, unlike the mean of $4$. An even sample count needs a stated rule, such as averaging the two middle observations. A <a id="term-percentile"></a>**percentile** marks a position in the ordered measurement distribution; the 90th percentile describes its upper portion, not an average. A finite sample's rank/interpolation convention must be stated because several are valid.
@@ -791,6 +807,17 @@ A <a id="term-command-buffer"></a>**command buffer** records device commands; a 
 ### Native numerical library and instruction architecture
 
 <a id="term-onednn"></a>**oneDNN** is the oneAPI Deep Neural Network Library, an external library of deep-learning numerical building blocks. <a id="term-dnn"></a>**DNN** means deep neural network. A library’s Primitive [API](#term-application-programming-interface-api) and [Graph](#graph) API are separate interfaces; presence of one does not establish availability of the other or [qualification](#term-qualification) of a particular recipe.
+
+<a id="onednn-primitive-and-graph-apis"></a>In the **oneDNN Primitive API**, a *primitive* is a compiled
+operation object configured for concrete data types, shapes and memory layouts, such as a matrix
+multiplication. A larger Synaptik unit may execute several such primitives in a fixed sequence.
+The **oneDNN Graph API** accepts a description of operations and edges, then partitions and
+compiles the admitted graph. It does not perform Synaptik automatic differentiation or replace
+Synaptik's Compiler. The CPU backend still decides which realization is qualified and declares
+its resources before execution. `AUTO` permits the current comparison; `PRIMITIVES` and `GRAPH`
+restrict eligible native API choices but do not force native execution. See the
+[qualified CPU realization](architecture/contracts/backend-execution.md#qualified-onednn-cpu-realization).
+Apple's [MPSGraph](#term-mpsgraph) is a separate GPU framework, not this oneDNN interface.
 
 An <a id="term-instruction-set-architecture-isa"></a>**instruction set architecture (ISA)** specifies processor instructions and machine rules. A library supporting a format on one processor does not prove native support for it on another. A <a id="term-native-library"></a>**native library** supplies platform-compiled code through an explicit boundary; native does not mean [GPU](#term-gpu), faster, trusted, or universally supported.
 

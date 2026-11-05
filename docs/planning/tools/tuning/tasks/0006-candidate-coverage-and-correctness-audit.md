@@ -1,6 +1,6 @@
 # Autotuning candidate coverage and correctness audit
 
-Status: In progress
+Status: Complete
 
 ## Authorization and ordering
 
@@ -67,3 +67,21 @@ Write scopes and semantic ownership are disjoint. Integrate transaction repair b
 coverage repair. Workers do not run checks; the coordinator owns the combined executable gate,
 failing-before/passing-after smoke and required independent targeted review. Shared documentation
 remains coordinator-owned; implementation Javadoc belongs to its writer.
+
+## Result
+
+The [audit report](../../../autotuning-audit.md#verified-cpu-coverage-and-fixes) records the
+bounded domain, actual before/after repairs, finite formulas, native policies, cache reuse,
+optional-Vector execution and the important observed exact-floating-agreement failure.
+Mixed ownership, wider Metal qualification, cross-topology local mapping and a newly tolerant
+comparison contract are proposals only, as the user required.
+
+Coordinator verification: 85 Tuning tests and 412 affected CPU/Engine/integration/conformance/
+architecture tests, all with zero failures, errors or skips; actual native and public-consumer
+programs are recorded separately. An earlier unfiltered CPU timeout is not called a pass.
+Independent source reviewers' findings were repaired; final follow-up reviews found no remaining
+source defect. The copied current lifecycle Java example also executes outside the checkout,
+without the optional Vector module, and prints the four expected MATMUL values.
+
+No Model arithmetic, owner/lifetime, Runtime search, module-edge or native ABI change is part
+of this cutover. Historical sealed documentation/release qualification remains unchanged.

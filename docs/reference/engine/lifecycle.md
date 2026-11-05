@@ -125,10 +125,10 @@ See the [fresh-value example](../../user-guide/running-models.md#run-fresh-value
 
 ### Supply representative values for bounded tuning
 
-Optional `prepareTuned(...)` is a cache-first preparation path for eligible single-owner CPU
-plans and exact singleton-NEG Metal plans. This strict public CPU example tunes a bare
-FLOAT32 `[2,2]` MATMUL. It needs JDK 26, the Engine dependencies and
-`--enable-native-access=ALL-UNNAMED`; the optional Vector module is not required. Candidate
+Optional `prepareTuned(...)` is a [cache](../../glossary.md#term-cache)-first preparation path for eligible single-owner
+[CPU](../../glossary.md#term-cpu) plans and exact [singleton](../../glossary.md#term-singleton)-NEG [Metal](../../glossary.md#term-metal) plans. This strict public CPU example tunes a bare
+[FLOAT32](../../glossary.md#term-float32) `[2,2]` [MATMUL](../../glossary.md#matrix-multiplication--matmul). It needs JDK 26, the Engine dependencies and
+`--enable-native-access=ALL-UNNAMED`; the optional [Vector API](../../glossary.md#term-vector-api) module is not required. Candidate
 budgets admit the bounded CPU space rather than silently truncating it. These sampling counts
 demonstrate the lifecycle, not a statistically reliable performance recommendation.
 
@@ -194,8 +194,12 @@ public final class BoundedCpuMatmul {
     // Close each result before its prepared owner, then Engine, then caller-owned input arena.
     try (var prepared = preparation.preparedExecution();
             var result = engine.run(prepared, List.of(left, right))) {
-      if (result.publications().size() != 1) {
-        throw new AssertionError("Expected one matrix publication");
+      // Materialize a detached, canonical host snapshot; this is not a borrowed CPU buffer.
+      var values = result.materialize(result.publications().getFirst(), 4L * Float.BYTES).bytes();
+      for (float expected : new float[] {19, 22, 43, 50}) {
+        float actual = values.getFloat(); // Canonical FLOAT32 bytes are big-endian.
+        if (actual != expected) throw new AssertionError("Unexpected matrix cell: " + actual);
+        System.out.println(actual);
       }
     }
    }
@@ -206,13 +210,13 @@ public final class BoundedCpuMatmul {
 The request snapshots the list and identity bytes but borrows live caller-owned Tensors and
 storage. Phase 1 reuses or measures an eligible local workload; its authenticated winner freezes
 intrinsic topology/representation for Phase 2. CPU plans without a local handoff bypass the local
-request, tuner and cache and report `workloads=[]`; they may still perform genuine complete-only
-Phase 2. Thus `CONTIGUOUS` or another locally ineligible expression does not by itself imply
-fallback. A complete batch may contain one candidate; checking it against the same reference is
-not an independent Model oracle. For Metal there is one complete candidate fixed to the local
-winner. Phase 2 performs every exact correctness action
-before timing; correctness, [warmup](../../glossary.md#term-warmup), and timed executions each use a fresh preparation and fresh
-Runtime state. After winner [authentication](../../glossary.md#term-authentication) and representative cleanup, the returned production
+request, tuner and cache and report `workloads=[]`; they may still perform genuine complete-only Phase 2.
+Thus `CONTIGUOUS` or another locally ineligible expression does not by itself imply fallback.
+A singleton complete batch has only `REFERENCE_CAPTURED`, with no later candidate to compare;
+this is not an independent Model oracle. For Metal, the sole complete candidate is fixed to the
+local winner. Every applicable correctness action finishes before timing; correctness,
+[warmup](../../glossary.md#term-warmup), and timed executions each use a fresh preparation and fresh Runtime state.
+After winner [authentication](../../glossary.md#term-authentication) and representative cleanup, the returned production
 handle is prepared afresh. Every trial closes its result before its temporary preparation on every
 path. The `ModelAutotuningPreparation` metadata carrier is not another closeable owner: its
 contained `PreparedExecution` alone owns the production preparation.

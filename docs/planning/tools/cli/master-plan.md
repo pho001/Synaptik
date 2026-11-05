@@ -8,8 +8,8 @@ handlers would call Engine or tooling; they would not define operation semantics
 eligibility or implement Runtime execution. A partition dump would describe which backend
 executes a group of graph operations, not transfer ownership of application memory.
 
-The plan remains Draft and promises no runnable command. For the existing calls such an adapter
-would compose, read [Engine's execution lifecycle](../../../reference/engine/lifecycle.md).
+The [real model/live terminal task](tasks/0001-live-model-training-and-terminal.md) is Ready
+after verified Tuning 0006; no executable command is claimed until its actual delivery gate.
 For an existing read-only diagnostic API rather than a promised CLI, read
 [tuning artifact inspection](../../../developer-guide/benchmarking.md#inspecting-current-tuning-artifacts-and-evidence).
 
@@ -39,12 +39,12 @@ Provide command-line diagnostics for [graph](../../../glossary.md#graph), [parti
 
 ## [Module](../../../glossary.md#term-module) invariants
 
-- [CLI](../../../glossary.md#term-cli) delegates to public [engine](../../../glossary.md#term-engine) and tooling contracts.
+- [CLI](../../../glossary.md#term-cli) delegates to public NN/Training/Checkpoint/Engine and tooling contracts; existing inward owners remain unchanged.
 - CLI remains an outer adapter.
 
 ## Allowed dependencies
 
-- [modules](../../../glossary.md#term-module)/[engine](../../../glossary.md#term-engine) and explicitly required public tool contracts
+- Public `extensions/nn` and its exported Model/Training/Checkpoint/Engine contracts, plus explicitly required public tool contracts.
 
 ## Forbidden dependencies
 
@@ -54,6 +54,7 @@ Provide command-line diagnostics for [graph](../../../glossary.md#graph), [parti
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
+| 0001 | [Real model training and live terminal](tasks/0001-live-model-training-and-terminal.md) | Ready | Verified Tuning 0006; current public NN/Training/Engine | Real numeric data/model commands and 500 ms ASCII progress; public-owner composition, no core architecture change. |
 
 
 ## Milestones
@@ -64,9 +65,9 @@ Provide command-line diagnostics for [graph](../../../glossary.md#graph), [parti
 
 ## Current status
 
-Draft.
-
-This tool is not yet planned in detail. Detailed task specifications will be created when it becomes the current or next implementation frontier.
+Ready: [0001](tasks/0001-live-model-training-and-terminal.md). Its public-workflow research and
+verified Tuning dependency are complete. The authorized implementation remains an outer caller;
+no executable command is claimed until real training, prediction and terminal acceptance runs.
 
 ## Open questions
 

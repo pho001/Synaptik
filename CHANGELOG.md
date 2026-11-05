@@ -4,6 +4,13 @@
 
 ### Added
 
+- [Bounded CPU autotuning coverage and correctness](docs/planning/autotuning-audit.md#verified-cpu-coverage-and-fixes):
+  truthful caller-input copies; legal scalar/vector/range and qualified OpenBLAS/oneDNN choices;
+  frozen selected configurations; complete-only and singleton transactions; copy geometry,
+  bias-stride, heap-ingress, zero-work and resource-policy repairs. Internal CPU identities are
+  versioned. Actual public/native runs and affected tests prove the reached paths; exact floating
+  disagreement still fails strict comparison, and architecture-changing expansions are proposals.
+
 - [Autotuning transaction repairs](docs/planning/autotuning-audit.md#reproduced-and-verified-transaction-repairs):
   accept valid `nanoTime()` rollover intervals, read each cache from one opened-file snapshot,
   and preserve primary publication failures when temporary cleanup also fails. Existing cache
