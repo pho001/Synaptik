@@ -189,18 +189,32 @@ final class CpuLocalWorkloadTuningPublicTest {
         Tensor output = (transposed ? left.permute(1, 0) : left)
                 .matmul(transposed ? right.permute(1, 0) : right);
         CompileArtifacts artifacts = compile(integration, output);
+        var projection = context(integration, artifacts);
         var local = integration.localWorkloadTuning();
-        var batch = local.candidateHandoff(context(integration, artifacts))
-                .orElseThrow().candidateBatch();
-        var candidates = local.candidates(batch);
-        assertFalse(candidates.isEmpty());
+        var handoff = local.candidateHandoff(projection);
+        var preparations = new java.util.ArrayList<
+                io.github.pho001.synaptik.prepare.PartitionPreparation<?, ?>>();
+        if (handoff.isPresent()) {
+            var batch = handoff.orElseThrow().candidateBatch();
+            for (var candidate : local.candidates(batch)) {
+                preparations.add(local.trialPreparation(batch, candidate));
+            }
+        } else {
+            assertTrue(transposed, "ordinary contiguous MATMUL must expose local configurations");
+            var complete = integration.completePlanTuning();
+            var batch = complete.candidateHandoff(projection, Optional.empty())
+                    .orElseThrow().candidateBatch();
+            for (var candidate : complete.candidates(batch)) {
+                preparations.add(complete.trialPreparation(batch, candidate));
+            }
+        }
+        assertFalse(preparations.isEmpty());
         TensorDescriptor descriptor = artifacts.graph().values().stream()
                 .filter(value -> value.id().equals(artifacts.graph().outputs().getFirst()))
                 .findFirst().orElseThrow().descriptor();
-        for (var candidate : candidates) {
+        for (int candidateIndex = 0; candidateIndex < preparations.size(); candidateIndex++) {
             try (var prepared = GraphPreparation.prepare(artifacts,
-                    List.of(local.trialPreparation(batch, candidate)),
-                    integration.scheduleAssembler())) {
+                    List.of(preparations.get(candidateIndex)), integration.scheduleAssembler())) {
                 for (int pass = 0; pass < 2; pass++) {
                     final int currentPass = pass;
                     var leftStorage = matrixStorage(type, m * k, index -> {
@@ -232,7 +246,7 @@ final class CpuLocalWorkloadTuningPublicTest {
                                     double actual = type == DataType.FLOAT32
                                             ? bytes.getFloat() : bytes.getDouble();
                                     assertEquals((double) expected, actual,
-                                            "candidate=" + local.candidateIdentity(candidate)
+                                            "candidate=" + candidateIndex
                                                     + ", transposed=" + transposed + ", pass="
                                                     + pass + ", row=" + row + ", column=" + column);
                                 }
