@@ -450,8 +450,7 @@ public final class CpuMatmulLowering {
         int bits = vector && ModuleLayer.boot().findModule("jdk.incubator.vector").isPresent()
                 ? preferredBits(geometry.resultType()) : 0;
         if (vector && (bits == 0 || geometry.rightNStride() != 1 || geometry.resultNStride() != 1
-                || original.epilogue().terminal() == CpuMatmulIr.Epilogue.Terminal.TANH
-                    && original.epilogue().hasBias()
+                || original.epilogue().hasBias()
                     && effectiveBindings.get(2).effectiveStrides().getLast() != 1))
             throw new IllegalArgumentException("frozen vector MATMUL is no longer qualified");
         return loweringForUnit(unit, selectedIr(original, realization, bits));
@@ -1095,10 +1094,9 @@ final class CpuMatmulCandidateSelector {
         long operations = Math.multiplyExact(Math.multiplyExact(
                 Math.multiplyExact(facts.batchCount(), facts.m()), facts.k()), facts.n());
         boolean vectorEligible = facts.preferredLanes() > 0 && facts.rightNStride() == 1
-                && facts.resultNStride() == 1
+                && facts.resultNStride() == 1 && facts.biasNStride() == 1
                 && (facts.terminal() == CpuMatmulIr.Epilogue.Terminal.NONE
                     || facts.terminal() == CpuMatmulIr.Epilogue.Terminal.TANH
-                        && facts.biasNStride() == 1
                         && (facts.resultType() == DataType.FLOAT32 || facts.resultType() == DataType.FLOAT64))
                 && facts.leftType() == facts.rightType() && facts.rightType() == facts.resultType()
                 && (facts.resultType() == DataType.FLOAT32 || facts.resultType() == DataType.FLOAT64
@@ -1136,7 +1134,7 @@ final class CpuMatmulCandidateSelector {
      * @param resultNStride result logical-N element stride
      * @param preferredLanes exact preferred species lane count, or zero when no species is available
      * @param terminal non-null exact fused terminal; only NONE or floating TANH permits vectors
-     * @param biasNStride bias element stride, or one when no bias is present; TANH vectors require one
+     * @param biasNStride bias element stride, or one when no bias is present; every vector form requires one
      */
     record Facts(DataType leftType, DataType rightType, DataType resultType,
             long batchCount, long m, long k, long n, long rightNStride, long resultNStride,

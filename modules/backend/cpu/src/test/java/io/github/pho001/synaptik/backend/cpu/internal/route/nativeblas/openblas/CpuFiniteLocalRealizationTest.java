@@ -149,6 +149,35 @@ final class CpuFiniteLocalRealizationTest {
                 "only authenticated Phase-2 selection may transport the materialization policy");
     }
 
+    @Test void phaseTwoScoringTransportCannotRestoreDisabledCopiesOrAnOlderWorkspaceCeiling() {
+        var nativeConfig = CpuOpenBlasRouteSelectorTest.defaultConfig();
+        var source = context(DataType.FLOAT32, 2, 3, 2, qualifiedInputs(
+                inputs(1, 1, 1, LOCAL, Optional.empty()), nativeConfig));
+        var preparer = new CpuPartitionPreparer();
+        var batch = preparer.localTuningBatch(source).orElseThrow();
+        var candidate = batch.candidates().stream().filter(value -> value.route()
+                == CpuLocalTuningBatch.RouteKind.OPENBLAS && value.openBlasPlan()
+                    .map(plan -> !plan.workspaceRequirements().isEmpty()).orElse(false))
+                .findFirst().orElseThrow();
+        var decision = new CpuLocalTuningDecision(batch.schemaVersion(), batch.workload(),
+                candidate.identity(), batch);
+        var valid = withInputs(source, qualifiedInputs(
+                inputs(1, 1, 1, COMPLETE, Optional.of(decision)), nativeConfig));
+        var identity = preparer.completePlanCandidates(valid).identities().getFirst();
+        var selected = new CpuPartitionPreparer.SelectedCompletePlan(5, identity, List.of(1));
+        var validPlan = preparer.analyzeSelected(valid, selected).plan();
+        long copiedBytes = validPlan.openBlasPlan().orElseThrow().workspaceRequirements().stream()
+                .mapToLong(requirement -> requirement.byteSize()).sum();
+        assertTrue(copiedBytes > 0, "the regression needs a genuinely selected copy workspace");
+        var tooSmall = new CpuPartitionAnalysisInputs.MaterializationPolicy(
+                true, 0, 1, 3, 1, 1, copiedBytes - 1, 0, 0);
+        for (var policy : List.of(CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, tooSmall)) {
+            var changed = withInputs(source, qualifiedInputs(
+                    inputs(1, 1, 1, policy, Optional.of(decision)), nativeConfig));
+            assertThrows(IllegalArgumentException.class, () -> preparer.analyzeSelected(changed, selected));
+        }
+    }
+
     private static void executeAndCompare(DataType type, int m, int k, int n,
             CpuPartitionPreparationPlan.ExecutionUnitPlan unit) throws Throwable {
         var route = unit.portablePlan();
@@ -253,6 +282,18 @@ final class CpuFiniteLocalRealizationTest {
                 CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, List.of(),
                 CpuPartitionAnalysisInputs.OpenBlasRouteConfig.DISABLED,
                 CpuLocalTuningBatch.HardwareIdentity.UNSPECIFIED, CpuLocalTuningBatch.WorkloadCohort.DEFAULT, decision);
+    }
+
+    private static CpuPartitionAnalysisInputs qualifiedInputs(CpuPartitionAnalysisInputs source,
+            CpuPartitionAnalysisInputs.OpenBlasRouteConfig nativeConfig) {
+        // Caller inputs are storage-unknown; the CPU owns its native output allocation.
+        var callerUnknown = new CpuPartitionAnalysisInputs.BoundaryStorageFact(false, 1);
+        var storageFacts = List.of(callerUnknown, callerUnknown,
+                new CpuPartitionAnalysisInputs.BoundaryStorageFact(true, 8));
+        return new CpuPartitionAnalysisInputs(source.loweringManifestEnabled(), source.carrierPattern(),
+                source.portableExecution(), source.materializationPolicy(), source.conv2dMaterializedSuffixUnit(),
+                source.partialReductionEvidence(), storageFacts, nativeConfig,
+                source.cpuHardwareIdentity(), source.workloadCohort(), source.localTuningDecision());
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type, int m, int k, int n,

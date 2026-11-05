@@ -63,7 +63,7 @@ final class CpuFiniteCompleteRealizationTest {
 
     @Test void completeCombinationLimitRejectsBeforeAnyPartialDomainIsReturned() {
         var preparer = new CpuPartitionPreparer();
-        assertThrows(IllegalArgumentException.class, () -> preparer.completePlanCandidates(chain(DataType.FLOAT32, 128))));
+        assertThrows(IllegalArgumentException.class, () -> preparer.completePlanCandidates(chain(DataType.FLOAT32, 128)));
         assertEquals(16, preparer.completePlanCandidates(chain(DataType.FLOAT32, 1)).identities().size());
     }
 

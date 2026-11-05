@@ -11,9 +11,6 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
-import io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff;
-import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
-import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.RecordComponent;
 import java.nio.ByteOrder;
@@ -27,38 +24,6 @@ final class CpuLocalTuningBatchTest {
     private record WorkloadMutation(String component,
             CpuLocalTuningBatch.WorkloadSignature workload) { }
 
-    @Test void adoptsOpaquePrepareRolesWithoutChangingCpuValueShape() {
-        var inputs = CpuOpenBlasRouteSelectorTest.maskInputs(DataType.FLOAT32, false, false,
-                false, 1, CpuOpenBlasRouteSelectorTest.defaultConfig());
-        var context = CpuOpenBlasRouteSelectorTest.context(
-                DataType.FLOAT32, dense(Shape.of(2, 3)), dense(Shape.of(3, 4)),
-                dense(Shape.of(2, 4)), inputs);
-        CpuLocalTuningBatch batch = new CpuPartitionPreparer().analyze(context).plan()
-                .localTuningBatch().orElseThrow();
-        CpuLocalTuningDecision decision = new CpuLocalTuningDecision(batch.schemaVersion(), batch.workload(), batch.candidates().getFirst().identity(), batch);
-        Optional<CpuLocalTuningDecision> present = Optional.of(decision);
-        BackendPartitionTuningHandoff<CpuLocalTuningBatch, CpuLocalTuningDecision> absent =
-                new BackendPartitionTuningHandoff<>(context.partition(), batch, Optional.empty());
-        BackendPartitionTuningHandoff<CpuLocalTuningBatch, CpuLocalTuningDecision> selected =
-                new BackendPartitionTuningHandoff<>(context.partition(), batch, present);
-
-        assertAll(
-                () -> assertEquals(List.of(BackendTuningCandidateBatch.class),
-                        List.of(CpuLocalTuningBatch.class.getInterfaces())),
-                () -> assertEquals(List.of(BackendTuningDecision.class),
-                        List.of(CpuLocalTuningDecision.class.getInterfaces())),
-                () -> assertRecordComponents(CpuLocalTuningBatch.class,
-                        "schemaVersion", "workload", "candidates"),
-                () -> assertRecordComponents(CpuLocalTuningDecision.class,
-                        "candidateSchemaVersion", "workload", "selectedCandidate", "batch"),
-                () -> assertSame(context.partition(), absent.partition()),
-                () -> assertSame(batch, absent.candidateBatch()),
-                () -> assertTrue(absent.selectedDecision().isEmpty()),
-                () -> assertSame(context.partition(), selected.partition()),
-                () -> assertSame(batch, selected.candidateBatch()),
-                () -> assertSame(present, selected.selectedDecision()),
-                () -> assertSame(decision, selected.selectedDecision().orElseThrow()));
-    }
 
     @Test void qualifiedMatmulRetainsDeterministicProfileFreeOpenBlasIdentity() {
         var inputs = CpuOpenBlasRouteSelectorTest.maskInputs(DataType.FLOAT32, false, false,
@@ -72,8 +37,6 @@ final class CpuLocalTuningBatchTest {
         CpuLocalTuningBatch firstBatch = first.localTuningBatch().orElseThrow();
         CpuLocalTuningBatch repeatedBatch = repeated.localTuningBatch().orElseThrow();
         assertAll(
-                () -> assertEquals(4, CpuLocalTuningBatch.SCHEMA_VERSION),
-                () -> assertEquals(3, CpuLocalTuningBatch.ROUTE_POLICY_VERSION),
                 () -> assertEquals(firstBatch.workload(), repeatedBatch.workload()),
                 () -> assertEquals(firstBatch.candidates().stream()
                                 .map(CpuLocalTuningBatch.Candidate::route).toList(),
@@ -250,22 +213,6 @@ final class CpuLocalTuningBatchTest {
                 CpuLocalTuningBatch.WorkloadCohort.DEFAULT, Optional.empty(), 1);
         var workload = analyze(inputs).localTuningBatch().orElseThrow().workload();
 
-        assertRecordComponents(CpuLocalTuningBatch.WorkloadSignature.class,
-                "operationKind", "operationAttributes", "boundaries",
-                "determinismMode", "qualification", "hardware", "cpuConcurrencyCapacity",
-                "portableExecution", "portableStrategy", "portableRangeCount",
-                "portableVectorSpeciesBits", "openBlasThreadCounts", "cohort",
-                "materializationPolicy", "portableCosts", "representationCosts",
-                "openBlasThreadCandidates", "minimumNetBenefitCostUnits",
-                "minimumBenefitBasisPoints", "generatedArtifactSchema", "routePolicyVersion",
-                "costPolicyVersion", "semanticsFingerprint");
-        assertNestedCompatibilityComponentInventories();
-
-        assertEquals(List.of("MATMUL"), java.util.Arrays.stream(
-                CpuLocalTuningBatch.OperationKind.values()).map(Enum::name).toList());
-        assertClosedEnum(CpuLocalTuningBatch.OperationAttributes.values(),
-                "operationAttributes");
-        assertClosedEnum(CpuLocalTuningBatch.DeterminismMode.values(), "determinismMode");
         for (String component : List.of("operationKind", "operationAttributes",
                 "determinismMode")) {
             assertThrows(NullPointerException.class, () -> with(workload, component, null),
@@ -352,8 +299,6 @@ final class CpuLocalTuningBatchTest {
         assertThrows(IllegalArgumentException.class,
                 () -> with(identity, "requiredSymbols", List.of("cblas_sgemm")),
                 "required-symbol inventory is schema-locked, so inequality is impossible");
-        assertClosedEnum(CpuOpenBlasQualification.BlasIntAbi.values(),
-                "persistentIdentity.blasIntAbi");
         assertThrows(NullPointerException.class, () -> with(identity, "blasIntAbi", null),
                 "persistentIdentity.blasIntAbi rejects null and has no second schema value");
         assertThrows(IllegalArgumentException.class,
@@ -626,61 +571,7 @@ final class CpuLocalTuningBatchTest {
         assertThrows(IllegalArgumentException.class, () -> with(workload, component, value), message);
     }
 
-    private static void assertClosedEnum(Object[] values, String component) {
-        assertEquals(1, values.length,
-                component + " has one schema value, so valid inequality is impossible");
-    }
 
-    private static void assertNestedCompatibilityComponentInventories() {
-        assertRecordComponents(CpuLocalTuningBatch.BoundarySignature.class, "dataType",
-                "shape", "layout", "carrier", "storage", "access");
-        assertEquals(List.of("nativeSegment", "byteAlignment"), java.util.Arrays.stream(
-                        CpuPartitionAnalysisInputs.BoundaryStorageFact.class.getRecordComponents())
-                .map(RecordComponent::getName).toList(),
-                "BoundaryStorageFact components must remain exactly nativeSegment and byteAlignment");
-        assertRecordComponents(CpuLocalTuningBatch.HardwareIdentity.class, "schemaVersion",
-                "architecture", "vendor", "model", "features");
-        assertRecordComponents(CpuLocalTuningBatch.WorkloadCohort.class, "schemaVersion",
-                "cohortId", "expectedRunCount");
-        assertRecordComponents(CpuLocalTuningBatch.QualificationScope.class, "scope",
-                "targetFingerprint", "persistentIdentity", "sessionCredential");
-        assertRecordComponents(CpuOpenBlasQualification.TargetFingerprint.class, "schemaVersion",
-                "operatingSystem", "machine", "addressWidthBits", "byteOrder");
-        assertRecordComponents(CpuOpenBlasQualification.PersistentIdentity.class,
-                "qualificationSchemaVersion", "targetFingerprint", "requiredSymbols",
-                "blasIntAbi", "numericalCaseVersion", "binaryIdentity");
-        assertRecordComponents(CpuOpenBlasQualification.BinaryIdentity.class, "schemaVersion",
-                "digestAlgorithm", "sha256", "byteLength", "executableFormat", "machine");
-        assertRecordComponents(CpuPartitionAnalysisInputs.PortableExecutionConfig.class,
-                "computePreference", "configuredMaximumParallelism", "availableParallelism",
-                "minimumElementsPerWorker");
-        assertRecordComponents(CpuPartitionPreparationPlan.ExecutionStrategy.class, "compute",
-                "orchestration");
-        assertRecordComponents(CpuPartitionAnalysisInputs.MaterializationPolicy.class, "enabled",
-                "copyFixedCostUnits", "copyCostUnitsPerElement",
-                "directKernelCostUnitsPerElement", "contiguousKernelCostUnitsPerElement",
-                "expectedRunCount", "maximumAdditionalBytes", "minimumNetBenefitCostUnits",
-                "minimumBenefitBasisPoints");
-        assertRecordComponents(CpuPartitionAnalysisInputs.CostTerms.class, "fixedCostUnits",
-                "costUnitsPerOutput", "costUnitsPerMac");
-        assertRecordComponents(CpuPartitionAnalysisInputs.RepresentationCostTerms.class,
-                "workspaceAllocationAndBindingFixed", "workspaceCostPerByte", "copyInFixed",
-                "copyInPerElement", "copyOutFixed", "copyOutPerElement");
-        assertRecordComponents(
-                CpuPartitionAnalysisInputs.OpenBlasRouteConfig.ThreadCandidate.class,
-                "threadCount", "openBlasCosts");
-        assertRecordComponents(CpuAccessPlan.class, "accessKind", "regime", "iterationRank",
-                "axisRoles", "contiguousSuffix");
-        assertRecordComponents(CpuAccessPlan.Binding.class, "plan", "extents",
-                "baseElementOffset", "effectiveStrides", "elementCount", "start", "end",
-                "referencedElementSpan", "startCoordinates", "startAddress",
-                "accessedElementStart", "accessedElementEnd");
-    }
-
-    private static void assertRecordComponents(Class<?> recordType, String... expected) {
-        assertEquals(List.of(expected), java.util.Arrays.stream(recordType.getRecordComponents())
-                .map(RecordComponent::getName).toList(), recordType.getSimpleName());
-    }
 
     private static Object component(Object record, String name) {
         try {

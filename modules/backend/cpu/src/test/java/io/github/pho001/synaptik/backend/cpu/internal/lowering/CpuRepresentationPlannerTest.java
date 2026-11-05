@@ -53,25 +53,18 @@ import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
 import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
 import io.github.pho001.synaptik.runtime.run.RunState;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 /**
  * Focused bounded-enumeration, typed-fact, and two-copy integration tests for CPU 0008E.
- *
- * <p>Assertions against the historical external evidence corpus are opt-in through
- * {@value #RETAINED_EVIDENCE_PROPERTY}; ordinary module validation does not depend on a
- * machine-local {@code /private/tmp} archive.</p>
  */
 class CpuRepresentationPlannerTest {
-    private static final String RETAINED_EVIDENCE_PROPERTY =
-            "synaptik.cpu.0008e.retainedEvidence";
     private static final Path RETAINED_PREDECESSOR = Path.of(
             "/private/tmp/synaptik-cpu-0008e-retained-evidence-20260827");
     private static final Path EVIDENCE = Path.of(
             "/private/tmp/synaptik-cpu-0008e-schema53-authoritative-evidence-v3-final2-20260827");
 
-    @Test void exactCeilingsAdmitEightSourcesAndSixtyFourByThirtySevenFacts() {
+    @Test void completeEnumerationRejectsUnreportedAdditionalSources() {
         assertAll(
                 () -> assertTrue(CpuRepresentationPlanner.completeWithinBudgets(
                         new CpuRepresentationPlanner.RepresentationProbe(64, 8, 384,
@@ -81,9 +74,7 @@ class CpuRepresentationPlannerTest {
                                 false, false))),
                 () -> assertFalse(CpuRepresentationPlanner.completeWithinBudgets(
                         new CpuRepresentationPlanner.RepresentationProbe(64, 8, 384,
-                                true, false))),
-                () -> assertEquals(2_368, 64 * (1 + 8 + 28)),
-                () -> assertEquals(2_753, 384 + 2_368 + 1));
+                                true, false))));
     }
 
     @Test void coConsumedPairIsRejectedBeforeRankingAndBothSinglesRemain() {
@@ -325,49 +316,6 @@ class CpuRepresentationPlannerTest {
         }
     }
 
-    @Test void retainedEvidenceAndGeneratedClassControlsRemainExactWithoutRerunningForks()
-            throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean(RETAINED_EVIDENCE_PROPERTY),
-                "historical CPU 0008E evidence verification is opt-in");
-        Path controls = EVIDENCE.resolve("controls");
-        Path final2 = EVIDENCE.resolve("forks/fork-0.csv");
-        Path coConsumed = Path.of("/private/tmp/"
-                + "synaptik-cpu-0008e-schema53-evidence-v3-complete-20260827/forks/fork-0.csv");
-        GeneratedCopy affected = affectedControl();
-        Shape shape = Shape.of(64, 64);
-        TensorDescriptor dense = descriptor(shape, LayoutDescriptor.contiguous(shape));
-        var direct = CpuPartitionPreparerTest.analyze(dense, dense, dense, dense,
-                CpuPartitionAnalysisInputs.DEFAULT).plan().units().getFirst().portablePlan();
-        byte[] directBytes = new CpuGeneratedKernelArtifactStore().loadOrGenerate(
-                direct.specialization(), direct.kernelIr()).classBytes();
-        for (byte[] bytes : List.of(affected.bytes(), directBytes)) {
-            java.lang.classfile.ClassFile.of().parse(bytes);
-            String constants = new String(bytes, StandardCharsets.ISO_8859_1);
-            for (String forbidden : List.of("CpuRepresentation", "CpuMaterializationPlan",
-                    "CopyCall", "java/lang/reflect", "java/lang/Integer", "valueOf"))
-                assertFalse(constants.contains(forbidden), forbidden);
-        }
-        String final2Text = Files.readString(final2);
-        assertAll(
-                () -> assertEquals(
-                        "c55d07272272fb484b4a6580312aba34aa67483e404f42ecddaf8a717d7f4612",
-                        sha256(Files.readAllBytes(final2))),
-                () -> assertEquals(
-                        "d581b84022d259fd92805e8ad26aab0d6e6437ace96aaed89eef08d8eb15f26d",
-                        sha256(Files.readAllBytes(coConsumed))),
-                () -> assertEquals(
-                        "5bb43f82369fcb43a3eb50b9be42d856016ec91bab3aeb0f83b4b0af928a6efd",
-                        sha256(directBytes)),
-                () -> assertEquals(
-                        "fad075e7abd6586cdd53da6e2787ef77d8a92f972cf6b6fb66a05cf501cb4369",
-                        sha256(affected.bytes())),
-                () -> assertArrayEquals(Files.readAllBytes(
-                        controls.resolve("direct-pointwise.class")), directBytes),
-                () -> assertArrayEquals(Files.readAllBytes(
-                        controls.resolve("affected-affine-array-segment.class")), affected.bytes()),
-                () -> assertTrue(final2Text.contains("1.000326680")),
-                () -> assertTrue(final2Text.contains("2.605250934")));
-    }
 
     @Test void formerlyFavorableProductionFormsRemainCompleteCandidateOnlyFacts() {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.INT32,

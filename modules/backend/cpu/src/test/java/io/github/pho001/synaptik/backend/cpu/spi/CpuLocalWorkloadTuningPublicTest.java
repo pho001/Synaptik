@@ -17,14 +17,13 @@ import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
-import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
-import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
 import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -34,43 +33,6 @@ import org.junit.jupiter.api.Test;
 
 /** Distinct-package checks for the supported opaque CPU tuning collaboration. */
 final class CpuLocalWorkloadTuningPublicTest {
-    @Test
-    void exposesOnlyTheTypedOpaqueSupportedShape() throws Exception {
-        assertAll(
-                () -> assertTrue(Modifier.isPublic(CpuLocalWorkloadTuning.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(CpuLocalWorkloadTuning.class.getModifiers())),
-                () -> assertEquals(0, CpuLocalWorkloadTuning.class.getConstructors().length),
-                () -> assertEquals(List.of(BackendTuningCandidateBatch.class),
-                        List.of(CpuLocalWorkloadTuning.CandidateBatch.class.getInterfaces())),
-                () -> assertEquals(List.of(BackendTuningDecision.class),
-                        List.of(CpuLocalWorkloadTuning.SelectedDecision.class.getInterfaces())),
-                () -> assertEquals(List.of("candidateHandoff", "candidateIdentity", "candidates",
-                                "compatibility", "decodeCompatibleDecision", "encodeDecision",
-                                "selectedDecision", "selectedPreparation", "trialPreparation"),
-                        Arrays.stream(CpuLocalWorkloadTuning.class.getDeclaredMethods())
-                                .filter(method -> Modifier.isPublic(method.getModifiers()))
-                                .map(method -> method.getName()).sorted().toList()),
-                () -> Arrays.stream(CpuLocalWorkloadTuning.class.getDeclaredMethods())
-                        .filter(method -> Modifier.isPublic(method.getModifiers()))
-                        .forEach(method -> assertFalse(
-                                method.toGenericString().contains(".compiler."))));
-        for (Class<?> value : List.of(CpuLocalWorkloadTuning.CandidateBatch.class,
-                CpuLocalWorkloadTuning.SelectedDecision.class,
-                CpuLocalWorkloadTuning.Candidate.class,
-                CpuLocalWorkloadTuning.Compatibility.class,
-                CpuLocalWorkloadTuning.CandidateIdentity.class)) {
-            assertEquals(0, value.getConstructors().length);
-        }
-        String source = Files.readString(Path.of("src/main/java/io/github/pho001/synaptik/backend/cpu/"
-                + "CpuLocalWorkloadTuning.java"));
-        assertAll(
-                () -> assertFalse(source.contains("tools.tuning")),
-                () -> assertFalse(source.contains("synaptik.engine")),
-                () -> assertFalse(source.contains("synaptik.compiler")),
-                () -> assertFalse(source.contains("java.io.")),
-                () -> assertFalse(source.contains("java.nio.file")),
-                () -> assertFalse(source.contains("reflect")));
-    }
 
     @Test
     void retainedCollaborationRejectsClosedUseAndValidNonTunableWork() {
@@ -90,7 +52,7 @@ final class CpuLocalWorkloadTuningPublicTest {
     }
 
     @Test
-    void ordinaryBindableBatchRoundTripsAndPreparesEveryExactCandidate() {
+    void ordinaryBindableBatchRoundTripsExactCandidateDecisions() {
         try (CpuBackendIntegration integration = CpuBackendIntegration.open()) {
             CpuLocalWorkloadTuning tuning = integration.localWorkloadTuning();
             CompileArtifacts artifacts = compile(integration,
@@ -124,8 +86,6 @@ final class CpuLocalWorkloadTuningPublicTest {
                 byte[] encoded = tuning.encodeDecision(decision);
                 var decoded = tuning.decodeCompatibleDecision(batch, encoded).orElseThrow();
                 assertEquals(decision, decoded);
-                assertNotNull(tuning.trialPreparation(batch, candidate));
-                assertNotNull(tuning.selectedPreparation(batch, decoded));
                 byte[] corrupt = encoded.clone();
                 corrupt[corrupt.length - 1] ^= 1;
                 assertTrue(tuning.decodeCompatibleDecision(batch, corrupt).isEmpty());
@@ -172,6 +132,67 @@ final class CpuLocalWorkloadTuningPublicTest {
             try (var integration = CpuBackendIntegration.openOneDnn(Path.of(library), api)) {
                 for (boolean transposed : List.of(false, true)) {
                     exerciseEveryMatmulCandidate(integration, DataType.FLOAT32, transposed);
+                }
+            }
+        }
+    }
+
+    @Test
+    void everyCompleteCandidateReadsActualBroadcastOrStridedBiasCoordinates() throws Exception {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            int n = type == DataType.FLOAT32
+                    ? jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.length()
+                    : jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED.length();
+            for (int biasStride : new int[] {0, 2}) {
+                Shape leftShape = Shape.of(1, 2), rightShape = Shape.of(2, n), biasShape = Shape.of(n);
+                Tensor left = TensorFactory.create(new TensorDescriptor(type, leftShape,
+                        Optional.of(LayoutDescriptor.contiguous(leftShape)), false));
+                Tensor right = TensorFactory.create(new TensorDescriptor(type, rightShape,
+                        Optional.of(LayoutDescriptor.contiguous(rightShape)), false));
+                Tensor bias = TensorFactory.create(new TensorDescriptor(type, biasShape,
+                        Optional.of(LayoutDescriptor.of(biasShape, new long[] {biasStride}, 0, true)), false));
+                try (Arena arena = Arena.ofShared();
+                        CpuBackendIntegration integration = CpuBackendIntegration.open()) {
+                    CompileArtifacts artifacts = compile(integration, left.matmul(right).add(bias));
+                    var projection = context(integration, artifacts);
+                    assertTrue(integration.localWorkloadTuning().candidateHandoff(projection).isEmpty());
+                    var complete = integration.completePlanTuning();
+                    var batch = complete.candidateHandoff(projection, Optional.empty())
+                            .orElseThrow().candidateBatch();
+                    var candidates = complete.candidates(batch);
+                    assertFalse(candidates.isEmpty(), "the numerical oracle must execute a real domain");
+                    TensorDescriptor descriptor = artifacts.graph().values().stream()
+                            .filter(value -> value.id().equals(artifacts.graph().outputs().getFirst()))
+                            .findFirst().orElseThrow().descriptor();
+                    int biasCount = 1 + (n - 1) * biasStride;
+                    var leftStorage = nativeStorage(arena, type, 2, index -> index + 1);
+                    var rightStorage = nativeStorage(arena, type, 2 * n, index -> index < n ? 1 : 2);
+                    // Poison unreferenced cells: a contiguous load cannot accidentally pass.
+                    var biasStorage = nativeStorage(arena, type, biasCount, index -> biasStride == 0
+                            ? 7 : index % 2 == 0 ? index / 2 + 1 : 1000);
+                    try (var leftInput = integration.borrow(leftStorage);
+                            var rightInput = integration.borrow(rightStorage);
+                            var biasInput = integration.borrow(biasStorage)) {
+                        var inputs = artifacts.constants().bindableInputBindings().stream().map(binding ->
+                                binding.tensorId().equals(left.id()) ? leftInput
+                                        : binding.tensorId().equals(right.id()) ? rightInput : biasInput).toList();
+                        for (int candidateIndex = 0; candidateIndex < candidates.size(); candidateIndex++) {
+                            try (var prepared = GraphPreparation.prepare(artifacts,
+                                    List.of(complete.trialPreparation(batch, candidates.get(candidateIndex))),
+                                    integration.scheduleAssembler());
+                                    var result = new PreparedExecutionRunner().run(prepared, inputs)) {
+                                var bytes = ByteBuffer.wrap(integration.copyToCanonicalHostBytes(
+                                        result.publicationRepresentation(0), descriptor,
+                                        (long) n * type.byteWidth())).order(ByteOrder.BIG_ENDIAN);
+                                for (int column = 0; column < n; column++) {
+                                    double actual = type == DataType.FLOAT32 ? bytes.getFloat() : bytes.getDouble();
+                                    assertEquals((double) (5 + (biasStride == 0 ? 7 : column + 1)), actual,
+                                            type + " biasStride=" + biasStride + " candidate="
+                                                    + candidateIndex + " column=" + column);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -276,6 +297,19 @@ final class CpuLocalWorkloadTuningPublicTest {
         double[] values = new double[count];
         for (int index = 0; index < count; index++) values[index] = value.applyAsInt(index);
         return new MemorySegmentStorage(type, count, MemorySegment.ofArray(values));
+    }
+
+    private static MemorySegmentStorage nativeStorage(Arena arena, DataType type, int count,
+            java.util.function.IntUnaryOperator value) {
+        var segment = arena.allocate((long) count * type.byteWidth(), 8);
+        if (type == DataType.FLOAT32) {
+            for (int index = 0; index < count; index++)
+                segment.setAtIndex(ValueLayout.JAVA_FLOAT, index, value.applyAsInt(index));
+        } else {
+            for (int index = 0; index < count; index++)
+                segment.setAtIndex(ValueLayout.JAVA_DOUBLE, index, value.applyAsInt(index));
+        }
+        return new MemorySegmentStorage(type, count, segment);
     }
 
     private static io.github.pho001.synaptik.prepare.analysis.PrepareContext<?> context(

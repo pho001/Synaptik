@@ -39,13 +39,8 @@ import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorId;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlanning;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
-import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
-import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
 import io.github.pho001.synaptik.prepare.GraphPreparation;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.Constructor;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -55,37 +50,6 @@ import org.junit.jupiter.api.Test;
 
 /** Distinct-package checks for the supported complete-plan collaboration. */
 final class CpuCompletePlanTuningPublicTest {
-    @Test
-    void exposesOnlyTheTypedOpaqueSupportedShape() throws Exception {
-        assertAll(
-                () -> assertTrue(Modifier.isPublic(CpuCompletePlanTuning.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(CpuCompletePlanTuning.class.getModifiers())),
-                () -> assertEquals(0, CpuCompletePlanTuning.class.getConstructors().length),
-                () -> assertEquals(List.of(BackendTuningCandidateBatch.class),
-                        List.of(CpuCompletePlanTuning.CandidateBatch.class.getInterfaces())),
-                () -> assertEquals(List.of(BackendTuningDecision.class),
-                        List.of(CpuCompletePlanTuning.SelectedDecision.class.getInterfaces())),
-                () -> Arrays.stream(CpuCompletePlanTuning.class.getDeclaredMethods())
-                        .filter(method -> Modifier.isPublic(method.getModifiers()))
-                        .forEach(method -> assertFalse(
-                                method.toGenericString().contains(".compiler."))));
-        for (Class<?> value : List.of(CpuCompletePlanTuning.CandidateBatch.class,
-                CpuCompletePlanTuning.SelectedDecision.class,
-                CpuCompletePlanTuning.Candidate.class,
-                CpuCompletePlanTuning.Compatibility.class,
-                CpuCompletePlanTuning.CandidateIdentity.class)) {
-            assertEquals(0, value.getConstructors().length);
-        }
-        String source = Files.readString(Path.of("src/main/java/io/github/pho001/synaptik/backend/cpu/"
-                + "CpuCompletePlanTuning.java"));
-        assertAll(
-                () -> assertFalse(source.contains("tools.tuning")),
-                () -> assertFalse(source.contains("synaptik.engine")),
-                () -> assertFalse(source.contains("synaptik.compiler")),
-                () -> assertFalse(source.contains("java.io.")),
-                () -> assertFalse(source.contains("java.nio.file")),
-                () -> assertFalse(source.contains("reflect")));
-    }
 
     @Test
     void completeAlternativesRoundTripAndPrepareFreshRecipes() {

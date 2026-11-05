@@ -155,7 +155,12 @@ public final class CpuOpenBlasPreparedExecutable extends PreparedExecutable {
         try {
             CpuBufferArgument argument = cpu.argument();
             if (index == plan.outputBoundaryPosition() && argument.readOnly()) return false;
-            if (copied(index)) return carrierAccess(argument) == expectedCarrier(index);
+            if (copied(index)) {
+                var expected = expectedCarrier(index);
+                // Segment-form copies can read an exact, already-classified primitive heap segment.
+                return expected == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
+                        || carrierAccess(argument) == expected;
+            }
             return argument instanceof CpuBufferArgument.Segment segment
                     && segment.segment().isNative();
         } catch (IllegalArgumentException | IllegalStateException incompatible) {
@@ -271,7 +276,9 @@ public final class CpuOpenBlasPreparedExecutable extends PreparedExecutable {
         var arguments = new CpuBufferArgument[3];
         for (int index = 0; index < arguments.length; index++) {
             CpuBufferRepresentation cpu = (CpuBufferRepresentation) buffers[index];
-            arguments[index] = cpu.argument();
+            arguments[index] = copied(index)
+                    && expectedCarrier(index) == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
+                    ? cpu.segmentArgument() : cpu.argument();
             if (cpu.dataType() != plan.dataType()) throw new IllegalArgumentException(
                     "OpenBLAS bound data type changed");
         }

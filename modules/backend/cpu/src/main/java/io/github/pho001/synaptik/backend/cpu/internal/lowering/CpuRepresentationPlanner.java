@@ -360,8 +360,8 @@ public final class CpuRepresentationPlanner {
         Optional<Long> copiedFact = copies.isEmpty() ? Optional.empty() : Optional.of(copied);
         Optional<Long> benefit = copies.isEmpty() ? Optional.empty()
                 : Optional.of(Math.subtractExact(direct, copied));
-        Optional<Integer> basis = copies.isEmpty() ? Optional.empty() : Optional.of(
-                Math.toIntExact(Math.floorDiv(Math.multiplyExact(10_000L,
+        Optional<Integer> basis = copies.isEmpty() ? Optional.empty() : Optional.of(direct == 0 ? 0
+                : Math.toIntExact(Math.floorDiv(Math.multiplyExact(10_000L,
                         benefit.orElseThrow()), direct)));
         var fact = new CpuRepresentationDecision.Variant(identity, topologyScore, representation,
                 comparison, bytes, plan.bufferDeclarations().size()
@@ -482,9 +482,10 @@ public final class CpuRepresentationPlanner {
                 type = value.dataType(); sourceBinding = binding; carrier = localCarrier;
                 consumers.add(new CpuRepresentationDecision.ConsumerPosition(unitIndex, local, uses));
             }
-            if (!compatible || consumers.isEmpty() || sourceBinding.plan().regime()
-                    == CpuAccessPlan.Regime.DENSE_LINEAR || sourceBinding.plan().regime()
-                    == CpuAccessPlan.Regime.SCALAR_ALL_ZERO) continue;
+            // An empty read domain has no elements to materialize.
+            if (!compatible || consumers.isEmpty() || sourceBinding.elementCount() == 0
+                    || sourceBinding.plan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR
+                    || sourceBinding.plan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO) continue;
             long elements = sourceBinding.elementCount();
             CpuAccessPlan.Binding dense = denseBinding(sourceBinding.extents().stream()
                     .mapToLong(Long::longValue).toArray(), elements);

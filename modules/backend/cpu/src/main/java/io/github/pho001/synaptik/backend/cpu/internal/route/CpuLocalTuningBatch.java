@@ -328,7 +328,7 @@ public record CpuLocalTuningBatch(int schemaVersion, WorkloadSignature workload,
         public PersistentWorkloadSignature {
             Objects.requireNonNull(workload, "workload");
             Objects.requireNonNull(qualification, "qualification");
-            if (!workload.qualification().persistentIdentity().orElseThrow()
+            if (!workload.qualification().flatMap(QualificationScope::persistentIdentity).orElseThrow()
                     .equals(qualification)) {
                 throw new IllegalArgumentException("persistent qualification disagrees");
             }

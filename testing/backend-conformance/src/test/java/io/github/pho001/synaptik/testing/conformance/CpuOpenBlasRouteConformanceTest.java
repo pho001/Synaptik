@@ -211,7 +211,7 @@ final class CpuOpenBlasRouteConformanceTest {
                 () -> assertEquals(CpuPartitionPreparationPlan.Route.OPENBLAS,
                         analysis.plan().route()),
                 () -> assertTrue(analysis.plan().openBlasPlan().isPresent()),
-                () -> assertTrue(analysis.plan().openBlasTuningBatch().isPresent()));
+                () -> assertTrue(analysis.plan().localTuningBatch().isPresent()));
         var fake = new ComputingInvocation(DataType.FLOAT32);
         PreparedExecutable executable = finalize(analysis, fake);
         try (Arena arena = Arena.ofConfined()) {

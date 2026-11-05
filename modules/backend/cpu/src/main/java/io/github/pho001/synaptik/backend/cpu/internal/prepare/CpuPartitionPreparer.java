@@ -703,8 +703,19 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> frozenLocal(
             PrepareContext<CpuPartitionAnalysisInputs> context, CpuLocalTuningDecision decision,
             boolean phaseTwoPolicyTransport) {
-        var phaseOne = localContext(context, decision.workload().portableExecution(),
-                decision.workload().materializationPolicy());
+        var current = context.backendInputs();
+        var currentPolicy = current.materializationPolicy();
+        var sourcePolicy = decision.workload().materializationPolicy();
+        // Only the four scoring costs change between phases; all constraints stay current.
+        if (phaseTwoPolicyTransport && (currentPolicy.enabled() != sourcePolicy.enabled()
+                || currentPolicy.expectedRunCount() != sourcePolicy.expectedRunCount()
+                || currentPolicy.maximumAdditionalBytes() != sourcePolicy.maximumAdditionalBytes()
+                || currentPolicy.minimumNetBenefitCostUnits() != sourcePolicy.minimumNetBenefitCostUnits()
+                || currentPolicy.minimumBenefitBasisPoints() != sourcePolicy.minimumBenefitBasisPoints())) {
+            throw new IllegalArgumentException("CPU Phase-2 policy transport changes non-scoring constraints");
+        }
+        var phaseOne = localContext(context, current.portableExecution(),
+                phaseTwoPolicyTransport ? sourcePolicy : currentPolicy);
         var topology = decomposer.decompose(phaseOne, lowering);
         var baseline = directPartition(phaseOne, topology) ? analyzeDirectPartition(phaseOne, topology)
                 : selectPlan(phaseOne, Optional.empty(), topology).analysis();

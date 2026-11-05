@@ -33,8 +33,8 @@ import java.util.OptionalLong;
  *     discovers or normalizes host facts
  * @param workloadCohort non-null expected-use cohort whose run count must agree with the existing
  *     materialization policy whenever OpenBLAS candidate generation is enabled
- * @param localTuningDecision non-null optional explicit decision to validate against a freshly
- *     generated candidate batch; incompatibility is a miss, not an error
+ * @param localTuningDecision non-null optional retained selection to authenticate against current
+ *     analysis facts; an incompatible explicit selection is rejected, not replaced by a heuristic
  */
 public record CpuPartitionAnalysisInputs(boolean loweringManifestEnabled,
         List<CarrierAccess> carrierPattern, PortableExecutionConfig portableExecution,
