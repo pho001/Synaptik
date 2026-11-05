@@ -19,7 +19,7 @@ The user supplies one explicit set of inputs to one optional [model](../glossary
 model + target + representative input/shape profiles
       + objective + budget + constraints + explicit caches
   -> model autotuning
-     1. reuse or measure canonical local workloads
+     1. reuse or measure canonical local workloads, when a local batch exists
      2. measure bounded complete plan candidates end to end
   -> updated workload cache + model plan result or prepared artifact
   -> runtime executes the selected result
@@ -29,21 +29,38 @@ model + target + representative input/shape profiles
 [backend](../glossary.md#backend)-neutral estimate used to prune or [rank](../glossary.md#term-ranking) [ownership](../glossary.md#term-ownership-meanings) choices. [Runtime profiling](../glossary.md#runtime-profiling) remains
 passive observation.
 
-The current public [Engine](../glossary.md#term-engine) composition implements both phases for one representative input set and
-one eligible single-[owner](../glossary.md#term-owner) [partition](../glossary.md#partition). [CPU](../glossary.md#term-cpu) retains its existing local and complete-plan [producers](../glossary.md#term-producer).
-[Metal](../glossary.md#term-metal) admits only exact [singleton](../glossary.md#term-singleton) NEG, exposes the ordered local candidates custom [kernel](../glossary.md#kernel) then
-[MPSGraph](../glossary.md#term-mpsgraph), and exposes one [complete-plan candidate](../glossary.md#complete-plan-candidate) fixed to the selected route. Engine joins
-Config, both generic tuning transactions, [Prepare](../glossary.md#prepare)'s [opaque](../glossary.md#term-opaque) [handoff](../glossary.md#term-handoff), the selected backend's typed
-[producer](../glossary.md#term-producer), and exact correctness behind `Engine.prepareTuned(...)`.
+The current public [Engine](../glossary.md#term-engine) composition supports one representative input set and one eligible
+single-[owner](../glossary.md#term-owner) [partition](../glossary.md#partition). [CPU](../glossary.md#term-cpu) either supplies a local batch or goes directly to complete-plan
+tuning. [Metal](../glossary.md#term-metal) admits only nonempty canonical FLOAT32 [singleton](../glossary.md#term-singleton) NEG, with ordered local
+candidates custom [kernel](../glossary.md#kernel) then [MPSGraph](../glossary.md#term-mpsgraph), and one [complete-plan candidate](../glossary.md#complete-plan-candidate) fixed to the local winner.
+Engine joins Config, the generic tools transactions, [Prepare](../glossary.md#prepare)'s [opaque](../glossary.md#term-opaque) [handoff](../glossary.md#term-handoff), the selected
+backend's typed [producer](../glossary.md#term-producer), and exact correctness behind `Engine.prepareTuned(...)`.
 
-Phase 1 runs once. Engine authenticates its selected decision and passes that exact value unchanged
-to the same backend's complete-plan producer. Phase 2 then checks every candidate by exact ordered
-[canonical](../glossary.md#term-canonical-form) [publication](../glossary.md#term-publication) bytes before any [warmup](../glossary.md#term-warmup) or timed execution. Each action uses a fresh
-preparation and fresh [Runtime](../glossary.md#term-runtime) state. After winner [authentication](../glossary.md#term-authentication), Engine cleans the representative
-session and performs exactly one fresh selected production preparation. This bounded composition
-does not add [Compiler](../glossary.md#term-compiler) [graph](../glossary.md#graph) alternatives, Planning owner or partition alternatives, multiple
-partitions, mixed backends, or persistent complete-plan reuse. Metal compatibility is session-only,
-so Metal cannot hit or publish the workload [cache](../glossary.md#term-cache) and never accesses the model-plan path.
+When present, Phase 1 runs once; Engine authenticates its decision and passes that exact value
+unchanged to the same backend's complete-plan producer. Without a CPU local batch, Engine
+constructs no workload-tuning request, invokes no local tuner or workload cache, and reports
+`evidence.workloads=[]`. That empty evidence is truthful, not a fabricated cache hit.
+Both branches then run Phase 2, checking every candidate by exact ordered [canonical](../glossary.md#term-canonical-form)
+[publication](../glossary.md#term-publication) bytes before any [warmup](../glossary.md#term-warmup) or timed execution. Every action uses fresh preparation and
+[Runtime](../glossary.md#term-runtime) state. After winner [authentication](../glossary.md#term-authentication), Engine cleans the representative session and makes
+exactly one fresh selected production preparation. Mixed-owner/multiple-partition tuning,
+broader Metal tuning and cross-topology local-decision mapping remain analysis-only. This
+composition adds no Compiler or Planning alternatives and no persistent complete-plan reuse.
+Metal compatibility is session-only; it accesses neither workload-cache nor model-plan files.
+
+```mermaid
+flowchart TD
+    accTitle: Current local and complete-only tuning branches
+    accDescr: Engine either measures or reuses a local decision, or for CPU skips all local work and records empty workload evidence. Both branches join complete-plan correctness, measurement and fresh production preparation.
+    A["Engine: one eligible owner and partition"] --> B{"Local batch supplied?"}
+    B -->|Yes| C["Phase 1: workload cache or local trials"]
+    C --> D["Authenticate exact local decision"]
+    B -->|No: CPU only| E["No local tuner/cache; workloads = empty"]
+    D --> F["Backend: complete batch"]
+    E --> F
+    F --> G["Phase 2: reference, exact checks, warmups, timing, selection"]
+    G --> H["Clean representative session; freshly prepare winner"]
+```
 
 ## [Benchmarking](../glossary.md#term-benchmarking) is fixed and observational
 
@@ -141,17 +158,90 @@ Running this same workflow over a representative model corpus may pre-[seed](../
 cache for a target. That is a use of [model autotuning](../glossary.md#autotuning--model-autotuning), not a separate platform-calibration
 subsystem, baseline workflow, or profile.
 
+Current CPU local admission is narrower than this general extraction responsibility: one bare
+[MATMUL](../glossary.md#matrix-multiplication--matmul), with at most two absorbed PERMUTE prerequisites, must already have an intrinsically
+singleton complete topology/representation. Phase 1 does **not** sweep fusion topologies.
+It enumerates the existing legal scalar direct/fixed-2×2 forms for the 40 promoted numeric
+tuples, and homogeneous FLOAT32/FLOAT64/INT32/INT64 vector direct/fixed-2×2 forms only where
+physical-layout, epilogue and species proofs hold. All legal configured range counts are included.
+This is no arbitrary species/tile/unroll search; an unresolved optional Vector module prunes
+vector forms rather than failing otherwise legal scalar tuning. Ordinary production defaults
+remain scalar and single-threaded.
+
+Qualified OpenBLAS alternatives enumerate every legal copy mask/configured-thread combination
+that fits resources, only for its existing positive rank-two homogeneous FLOAT32/FLOAT64 bare
+route with $K>1$, where $K$ is the integer contraction length. Qualified oneDNN alternatives
+enumerate every permitted API: `AUTO` permits up to two APIs per unit, a forced policy up to one.
+The [primitive/Graph APIs](../glossary.md#onednn-primitive-and-graph-apis) remain CPU-owned native routes, not backend owners.
+Existing Model qualification and staged dtype rules still decide eligibility; portable support
+for 40 tuples does not promise native support for all 40.
+
 ### Phase 2: bounded [graph](../glossary.md#graph) and plan tuning
 
-The workflow then measures a bounded set of complete valid candidates end to end. Depending on
-the candidate, variation may include graph transformations and [fusion](../glossary.md#term-fusion), [backend ownership](../glossary.md#backend-ownership) and
-partitioning, [layouts](../glossary.md#layout) and materializations, or [backend](../glossary.md#backend) routes and their already selected local
-configurations. The result is one explicit [model](../glossary.md#term-model) plan or prepared [artifact](../glossary.md#term-artifact).
+The general owner boundary permits bounded complete valid candidates to vary only decisions
+their producers own: graph transformations and [fusion](../glossary.md#term-fusion), [backend ownership](../glossary.md#backend-ownership) and partitioning,
+[layouts](../glossary.md#layout)/materializations, or routes and already selected local configurations. Those are not all
+current public features. Current CPU Phase 2 retains the existing backend topology/representation
+domain (including legal direct, single-copy and disjoint-two-copy forms), not new Compiler or
+Planning alternatives. A present local decision freezes its exact intrinsic topology and
+realization without rerunning local enumeration. Without a local decision, each retained variant
+enumerates existing typed per-unit portable MATMUL form/range choices and qualified oneDNN APIs;
+other ordinary units retain their existing configurations. Qualified whole-unit OpenBLAS
+alternatives are additional choices, not arbitrary mixed per-unit OpenBLAS placement.
 
-This phase uses Phase 1 [cache](../glossary.md#term-cache) results and does not repeat local route-[parameter](../glossary.md#term-parameter) search. A graph or
-plan decision may remain [occurrence](../glossary.md#term-occurrence)- or subgraph-specific because surrounding fusion, layout,
-[materialization](../glossary.md#materialization), and [partition](../glossary.md#partition) context can differ even when two local workloads have identical
-[signatures](../glossary.md#term-signature).
+Authenticated Phase-2 transport changes only four copy/direct/contiguous scoring cost terms.
+Current execution configuration, capacity and minimum worker work stay authoritative.
+Materialization `enabled`, `expectedRunCount`, `maximumAdditionalBytes`,
+`minimumNetBenefitCostUnits`, and `minimumBenefitBasisPoints` must match; scoring transport cannot
+enable a disabled copy or evade its byte limit. Caller inputs remain storage-unknown, so native
+alternatives need already-declared legal ingress/copy workspaces. Segment-form generated
+OpenBLAS copies may use exact matching primitive heap segments after intrinsic dtype/carrier
+classification; uncopied provider buffers remain native-only. No guard is suppressed and no
+caller storage is relabeled. Empty read domains have no meaningful materialization; zero direct
+scoring cost keeps the established basis-zero convention, not division by zero. $K=0$ remains
+portable, not newly native-qualified.
+
+A singleton complete batch is legal and still captures a reference, warms/times, selects, and
+freshly prepares production. Candidate zero has `REFERENCE_CAPTURED`; only later candidates have
+separate comparison actions. A singleton reference is not an independent Model oracle.
+The result is one explicit plan, not executable persistence.
+A generic future plan decision may remain [occurrence](../glossary.md#term-occurrence)- or subgraph-specific because surrounding
+fusion, layout, [materialization](../glossary.md#materialization), and partition context can differ for identical local signatures.
+
+#### Finite, all-or-nothing candidate domains
+
+For one legal portable MATMUL form, let $I\ge0$ be its integer work-iteration count, $O\ge0$ its
+output-coordinate count, $E>0$ the configured minimum output-coordinate work per worker, and
+$P,A\ge1$ the configured and available worker counts. Counts are dimensionless. For $I>0$:
+
+$$
+C=\max(1,\lfloor O/I\rfloor),\qquad
+q=\max(1,\lceil E/C\rceil),\qquad
+R=\min(P,A,\lceil I/q\rceil).
+$$
+
+$C$ counts output coordinates per work iteration; $q$ is the minimum iterations per worker.
+Enumerate range counts $1,\ldots,R$; for $I=0$, use $R=1$. For example, a direct-scalar
+form with $I=O=64$, $E=16$, $P=8$ and $A=4$ permits four range counts, not eight.
+Let $p_i=\sum_{f\in F_i}R_{if}$ count legal portable forms/ranges for unit $i$; a unit without
+these alternatives has $p_i=1$. With $B$ qualified whole-unit OpenBLAS mask/thread choices and
+$a$ qualified oneDNN alternatives for the singleton local unit:
+
+$$
+N_{\mathrm{local}}=p+B+a,\qquad
+N_{\mathrm{complete}}=\sum_{v\in V}
+\left[\prod_{i\in U_v}(p_{vi}+a_{vi})+B_v\right].
+$$
+
+Here $V$ is the retained complete topology/representation set, $U_v$ its ordered units, and
+$a_{vi}\in\{0,1,2\}$ the permitted qualified oneDNN API count. The complete formula describes the
+**no-local** branch; a present local selection is frozen. Native-replaced units do not multiply
+unused portable forms. Both aggregate domains are capped at 8192 before combination expansion,
+all-or-nothing: a prefix never masquerades as a complete domain. At most eight units with two
+qualified APIs each yield at most $3^8-1=6560$ nonempty native assignments. Existing limits of
+eight compiled nodes, 64 topologies, 256 pair attempts and 1 MiB canonical identity streams remain.
+Symbolic/Scan, over-eight and resource-bound exclusions are protocol exclusions, not merely
+architecture proposals.
 
 ## Candidate [ownership](../glossary.md#term-ownership-meanings) and [opaque](../glossary.md#term-opaque) orchestration
 
@@ -165,16 +255,18 @@ Each architecture [owner](../glossary.md#term-owner) generates complete candidat
 | [Concrete backend](../glossary.md#concrete-backend) prepare | Complete valid backend-specific [fusion](../glossary.md#term-fusion), [lowering](../glossary.md#lowering), route, [layout](../glossary.md#layout)/[materialization](../glossary.md#materialization), and route-configuration alternatives |
 | `tools/tuning` | Bounded measurement, [cache](../glossary.md#term-cache) coordination, comparison against the [objective](../glossary.md#term-objective) and constraints, and explicit result selection |
 
-The table shows decision ownership. Tuning does not take over graph semantics, compiler
-transformations, planning policy, backend lowering, route logic, or private configuration
-vocabulary.
+The table preserves decision ownership, including responsibilities for future alternatives;
+it does not claim all owners currently expose public candidate search. Current public tuning
+uses the bounded CPU subset above or Metal's two-local/one-fixed-complete singleton NEG subset.
+Tuning takes over neither graph semantics, compiler transformations, planning policy, backend
+lowering, route logic, nor private configuration vocabulary.
 
 Backend candidate generators are typed, version-controlled, tested, and colocated with the
 concrete routes they configure. They derive and prune complete valid configurations from [target](../glossary.md#term-target)
-capabilities, workload facts, and the tuning budget. For [CPU](../glossary.md#term-cpu) [matrix multiplication](../glossary.md#matrix-multiplication--matmul), candidates
-might include supported Java [Vector API](../glossary.md#term-vector-api) species and strategy, unroll, tile, parallelism, and
-[OpenBLAS](../glossary.md#term-openblas) thread configurations. [Scalar](../glossary.md#term-scalar), [vector](../glossary.md#term-vector), and OpenBLAS configurations are distinct typed
-route values rather than booleans in a [parameter](../glossary.md#term-parameter) bag.
+capabilities, workload facts, and the tuning budget. Current [CPU](../glossary.md#term-cpu) [matrix multiplication](../glossary.md#matrix-multiplication--matmul) enumerates
+only the fixed forms, supported species, legal ranges and qualified native choices described
+above. [Scalar](../glossary.md#term-scalar), [vector](../glossary.md#term-vector), OpenBLAS and oneDNN configurations are distinct typed route values,
+not booleans in a [parameter](../glossary.md#term-parameter) bag.
 
 Candidate discovery does not use `Map<String,Object>`, string [dispatch](../glossary.md#term-dispatch), reflective annotations, a
 central knob [registry](../glossary.md#term-registry), a generic configuration language, or arbitrary vector-[lane](../glossary.md#term-lane) promises. The
@@ -211,6 +303,12 @@ honestly declares `PERSISTENT`. Neither artifact is hidden process-global state,
 decision and winner [identities](../glossary.md#term-identity-meanings), and the winner summary. Serialization of a [prepared executable](../glossary.md#prepared-executable--preparedexecutable)
 remains dependent on backend and [lifecycle](../glossary.md#lifecycle) contracts and is deferred.
 
+CPU local schema 4, route-policy 3 and complete-plan schema 5 invalidate incompatible tuning
+decisions. Internal `route.CpuLocalTuningBatch`/`CpuLocalTuningDecision` and
+`CpuCompletePlanIdentity` describe CPU realizations, not an OpenBLAS-only owner protocol.
+These tuning identities are distinct from unchanged generic cache formats, generated-kernel
+schema/envelopes, numeric packed ABI and native ABI; no new executable format is implied.
+
 ## [Planning](../glossary.md#term-planning) cost stays [backend](../glossary.md#backend)-neutral
 
 The [planning cost model](../glossary.md#term-planning-cost-model) estimates [backend ownership](../glossary.md#backend-ownership) from [graph](../glossary.md#graph), transfer, [materialization](../glossary.md#materialization), and
@@ -227,11 +325,12 @@ absent, or an [artifact](../glossary.md#term-artifact) is incompatible or corrup
 valid complete candidates. Cache-only preparation may reuse compatible entries without running a
 search.
 
-The current [Engine](../glossary.md#term-engine) [operation](../glossary.md#operation) is cache-first in Phase 1: a compatible workload hit executes no
-local trial. Phase 2 receives the authenticated Phase-1 decision unchanged. For current [CPU](../glossary.md#term-cpu)
-`SESSION` compatibility it measures every complete candidate; a future authenticated persistent
-hit would skip Phase-2 trials and expose no fabricated candidate rows. On a measured [transaction](../glossary.md#term-transaction),
-all correctness actions complete before `tools/tuning` runs any configured [warmup](../glossary.md#term-warmup) or timed [sample](../glossary.md#term-sample-machine-learning-and-hyperparameters).
+When a local batch exists, the current [Engine](../glossary.md#term-engine) [operation](../glossary.md#operation) is cache-first in Phase 1: a compatible
+workload hit executes no local trial, and Phase 2 receives the authenticated local decision unchanged.
+The CPU complete-only branch instead has no local cache access or workload evidence rows.
+Current CPU `SESSION` compatibility measures every complete candidate; a future authenticated
+persistent hit would skip Phase-2 trials and expose no fabricated candidate rows. On a measured
+[transaction](../glossary.md#term-transaction), all correctness actions complete before any configured [warmup](../glossary.md#term-warmup) or timed [sample](../glossary.md#term-sample-machine-learning-and-hyperparameters).
 Selection uses the lowest integer-middle [median](../glossary.md#term-median) and encounter-order ties.
 
 Engine's package-private complete-plan correctness primitive preflights every
@@ -243,6 +342,8 @@ byte comparison. Publication order, repeated [aliases](../glossary.md#aliasing-a
 bits are significant. A mismatch carries no bytes and does not itself poison the representative
 session; execution, copy, count, length, or cleanup failure follows the existing session poisoning
 and once-only cleanup protocol.
+This is deliberately stricter than the floating variation Model permits: it is not a tolerance
+test or a change to Model arithmetic, and there is no value filter or numerical repair.
 
 Engine adapts that primitive to the generic Phase-2 transaction without moving candidate meaning
 out of the selected backend. Correctness, warmup, and timed actions each freshly [prepare](../glossary.md#prepare) the
@@ -251,14 +352,15 @@ additional fresh preparation creates the returned winner. The correctness primit
 does not enumerate or interpret candidates, time work, select a winner, access a cache, or apply
 fallback.
 
-`TUNED` carries authenticated [immutable](../glossary.md#term-immutable) evidence for both phases. Measured complete-plan rows
-record the exact correctness action, encounter-ordered raw samples, summary, and candidate
-[identity](../glossary.md#term-identity-meanings); compact cache records do not. `SAFE_HEURISTIC_FALLBACK` records one fresh allowed
+`TUNED` carries authenticated [immutable](../glossary.md#term-immutable) evidence for the phases actually run; CPU complete-only
+success has `workloads=[]`. Measured complete-plan rows record the exact correctness action,
+encounter-ordered raw samples, summary and candidate [identity](../glossary.md#term-identity-meanings); compact cache records do not.
+`SAFE_HEURISTIC_FALLBACK` records one fresh allowed
 safe-[heuristic](../glossary.md#term-heuristic) preparation through the selected adapter and carries no evidence. Caller-defined
 [model](../glossary.md#term-model) and profile identities label evidence; they neither key the workload cache nor authorize
-compatibility. The current [occurrence](../glossary.md#term-occurrence) is always index 0 in [partition](../glossary.md#partition) 0 with [weight](../glossary.md#term-weight) 1. Current CPU
-and [Metal](../glossary.md#term-metal) complete-plan compatibility is session-only; Metal local compatibility is also
-session-only. This remains bounded single-partition tuning, not model extraction,
+compatibility. A present local [occurrence](../glossary.md#term-occurrence) is index 0 in [partition](../glossary.md#partition) 0 with [weight](../glossary.md#term-weight) 1; complete-only
+execution has no local occurrence. Current CPU and [Metal](../glossary.md#term-metal) complete-plan compatibility is session-only;
+Metal local compatibility is also session-only. This remains bounded single-partition tuning, not model extraction,
 multi-occurrence weighting, broader [graph](../glossary.md#graph)/partition search, mixed-backend tuning, or executable
 [persistence](../glossary.md#term-persistence).
 
@@ -272,4 +374,5 @@ later [run](../glossary.md#term-run)'s settings.
 - [ADR 0008: Separate performance evidence, model autotuning, planning cost, and runtime observation](../design/decisions/0008-performance-evidence-and-tuning-boundaries.md)<span data-glossary-navigation="true"> ([ADR glossary](../glossary.md#term-architecture-decision-record-adr); [model autotuning glossary](../glossary.md#autotuning--model-autotuning); [planning glossary](../glossary.md#term-planning); [runtime glossary](../glossary.md#term-runtime))</span>
 - [Partition scoring](partition-scoring.md)<span data-glossary-navigation="true"> ([Partition glossary](../glossary.md#partition))</span>
 - [Runtime, prepare, and backend boundary](runtime-prepare-backend-boundary.md)<span data-glossary-navigation="true"> ([prepare glossary](../glossary.md#prepare); [backend glossary](../glossary.md#backend))</span>
+- [Backend execution contract: current CPU routes](contracts/backend-execution.md#cpu-backend-routes)
 - [Benchmarking guide](../developer-guide/benchmarking.md)<span data-glossary-navigation="true"> ([Benchmarking glossary](../glossary.md#term-benchmarking))</span>

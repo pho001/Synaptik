@@ -374,20 +374,30 @@ acquires no [ownership](../glossary.md#term-ownership-meanings).
 
 The two roles are deliberately method-free. Shared [Prepare](../glossary.md#prepare) can preserve the caller's concrete
 generic types, associate the values with one [partition](../glossary.md#partition), and transport them, but it cannot
-enumerate candidates, interpret compatibility, choose a winner, or apply a decision. [CPU](../glossary.md#term-cpu) [OpenBLAS](../glossary.md#term-openblas)
-and [Metal](../glossary.md#term-metal) route batches and decisions adopt these [nominal](../glossary.md#term-nominal) roles without moving their components,
-[schema](../glossary.md#term-schema), candidate generation, matching, [heuristic](../glossary.md#term-heuristic) fallback, or execution behavior out of the
-backend. Each backend validates a supplied decision against a freshly generated local batch.
+enumerate candidates, interpret compatibility, choose a winner, or apply a decision. [CPU](../glossary.md#term-cpu)
+local-realization and [Metal](../glossary.md#term-metal) route batches and decisions adopt these [nominal](../glossary.md#term-nominal) roles without
+moving their components, [schema](../glossary.md#term-schema), candidate generation, matching, [heuristic](../glossary.md#term-heuristic) fallback, or execution
+behavior out of the backend. CPU's internal `route.CpuLocalTuningBatch`/`CpuLocalTuningDecision`
+cover portable, qualified OpenBLAS and oneDNN alternatives; OpenBLAS is not a separate owner.
+Each backend authenticates a supplied local decision against current projected facts and configuration.
 
 The record itself contains no measurement, [cache](../glossary.md#term-cache) schema, serialized form, executable, or [Runtime](../glossary.md#term-runtime)
-state. Current public `Engine.prepareTuned(...)` first obtains the sole eligible single-[owner](../glossary.md#term-owner) local
-[handoff](../glossary.md#term-handoff), maps it to [occurrence](../glossary.md#term-occurrence) 0 in partition 0 with [weight](../glossary.md#term-weight) 1, and passes it opaquely to Phase 1.
-The exact authenticated local decision then goes unchanged to the same backend's separate
-complete-plan [producer](../glossary.md#term-producer). [Engine](../glossary.md#term-engine) transports that second decision-empty handoff to Phase 2 and later
-authenticates the decision-present result. Metal exposes this transport only for an exact
-[singleton](../glossary.md#term-singleton) NEG two-route local batch and a one-candidate complete batch fixed to the local winner.
-[Model](../glossary.md#term-model)-wide extraction, multiple occurrences, broader [graph](../glossary.md#graph)/partition search, multiple partitions,
-mixed backends, and executable [persistence](../glossary.md#term-persistence) remain downstream work.
+state. Current public `Engine.prepareTuned(...)` asks the sole eligible single-[owner](../glossary.md#term-owner) adapter for a
+local [handoff](../glossary.md#term-handoff). If present, Engine maps it to [occurrence](../glossary.md#term-occurrence) 0 in partition 0 with [weight](../glossary.md#term-weight) 1,
+passes it opaquely to Phase 1, authenticates the result, and passes that exact local decision
+unchanged to the same backend's separate complete-plan [producer](../glossary.md#term-producer). If CPU supplies no local
+batch, Engine bypasses the workload request, local tuner and workload cache, keeps
+`evidence.workloads=[]`, and supplies an empty optional local decision to the complete producer.
+This is an actual complete-only path, not a fabricated local cache hit or a skipped complete phase.
+Engine transports the separate decision-empty complete handoff to Phase 2 and later authenticates
+the decision-present result. CPU no-local Phase 2 retains existing complete topology/representation
+choices and typed per-unit portable/qualified oneDNN alternatives, plus qualified whole-unit
+OpenBLAS alternatives. A present local decision freezes its intrinsic singleton topology and exact
+realization; there is no Phase-1 topology sweep or cross-topology local-decision mapping.
+Metal exposes this transport only for exact nonempty canonical FLOAT32 singleton NEG: two local
+routes and one complete candidate fixed to the local winner. No-local Metal remains ineligible.
+[Model](../glossary.md#term-model)-wide extraction, multiple occurrences, mixed-owner/multiple-partition tuning, broader Metal
+tuning, and cross-topology mapping remain analysis-only; no new owner or protocol is implied.
 
 ### Current representative-execution [lifecycle](../glossary.md#lifecycle)
 
@@ -408,6 +418,13 @@ and result cleanup, and only then compares exact represented bytes. Order, byte 
 zero](../glossary.md#term-signed-zero), and [NaN payload](../glossary.md#nan-infinity-and-signed-zero) bits are significant. The comparison exposes only `MATCH` or `MISMATCH` and
 no bytes, [Tensor](../glossary.md#tensor) [metadata](../glossary.md#term-metadata), Runtime representation, or [backend](../glossary.md#backend) value.
 
+Even one complete survivor is a legal batch: reference capture, configured warmups/timing,
+selection and fresh production preparation still occur. Candidate zero has `REFERENCE_CAPTURED`;
+only later candidates have comparison actions, so a singleton is not an independent Model oracle.
+Exact byte comparison remains stricter than floating variation
+allowed by Model arithmetic; no tolerance, special-value filter or arithmetic reinterpretation
+is introduced.
+
 The session closes wrappers once in reverse order before fresh selected or ordinary fallback
 preparation. Execution, correctness-copy, result-count, copied-length, or cleanup failure
 invalidates the session and preserves the existing primary, suppression, poisoning, admission,
@@ -416,8 +433,8 @@ session, although a later Phase-2 owner must stop rather than time or select tha
 Required tuning propagates its recoverable failure without ordinary preparation; allowed fallback
 performs ordinary safe-[heuristic](../glossary.md#term-heuristic) preparation once only after successful cleanup. Engine closure
 waits for the admission, and a close [race](../glossary.md#term-race) rejects the final selected or fallback recipe. The public
-composition invokes tuning outside Runtime. [Cache](../glossary.md#term-cache) hits execute no trials; misses use configured
-warmups and timed [samples](../glossary.md#term-sample-machine-learning-and-hyperparameters), each through a freshly prepared trial and fresh `RunState`. Selected
+composition invokes tuning outside Runtime. Compatible local [cache](../glossary.md#term-cache) hits execute no local trials;
+misses use configured warmups and timed [samples](../glossary.md#term-sample-machine-learning-and-hyperparameters), each through a freshly prepared trial and fresh `RunState`. Selected
 and fallback production recipes are prepared afresh. No tuning state, cache access, [ranking](../glossary.md#term-ranking), or
 route selection enters Runtime.
 

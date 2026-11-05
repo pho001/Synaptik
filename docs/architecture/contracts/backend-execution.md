@@ -81,10 +81,12 @@ whole-body/binder [qualification](../../glossary.md#term-qualification). The
 
 Each concrete backend owns the complete typed configuration vocabulary and [candidate generator](../../glossary.md#candidate-generator)
 for each route it implements. A generator derives and prunes complete valid configurations from
-[target](../../glossary.md#term-target) capabilities, [canonical](../../glossary.md#term-canonical-form) workload facts, and the tuning budget. [CPU](../../glossary.md#term-cpu) [matrix](../../glossary.md#term-matrix-meanings)-multiplication
-candidates may, for example, include supported [Vector API](../../glossary.md#term-vector-api) species and strategy, unroll, tile,
-parallelism, or [OpenBLAS](../../glossary.md#term-openblas) thread configurations. [Vector](../../glossary.md#term-vector), [scalar](../../glossary.md#term-scalar), and OpenBLAS choices are distinct
-route-specific typed configurations, not booleans or entries in a generic [parameter](../../glossary.md#term-parameter) bag.
+[target](../../glossary.md#term-target) capabilities, [canonical](../../glossary.md#term-canonical-form) workload facts, and the tuning budget. Current [CPU](../../glossary.md#term-cpu) [MATMUL](../../glossary.md#matrix-multiplication--matmul)
+candidates enumerate the existing legal scalar direct/fixed-2×2 forms, qualified homogeneous
+[Vector API](../../glossary.md#term-vector-api) direct/fixed-2×2 forms at their supported species, legal configured range counts,
+and qualified [OpenBLAS](../../glossary.md#term-openblas) mask/thread and [oneDNN](../../glossary.md#term-onednn) API alternatives. This is not arbitrary
+species, tile, or unroll search. These are distinct route-specific typed configurations, not
+booleans or entries in a generic [parameter](../../glossary.md#term-parameter) bag.
 
 [Operation](../../glossary.md#operation) family selects the appropriate backend candidate generator; it is not a [cache key](../../glossary.md#term-cache-key) for
 one universal family-wide configuration. Local tuning measurements use a [canonical workload
@@ -111,6 +113,21 @@ entries from an explicit persistent workload [cache](../../glossary.md#term-cach
 measures a bounded set of complete valid [graph](../../glossary.md#graph), [fusion](../../glossary.md#term-fusion), [ownership](../../glossary.md#term-ownership-meanings)/[partition](../../glossary.md#partition), [layout](../../glossary.md#layout),
 [materialization](../../glossary.md#materialization), route, and configuration candidates end to end and selects an explicit prepared
 plan or [artifact](../../glossary.md#term-artifact). This second phase does not repeat local route-[parameter](../../glossary.md#term-parameter) search.
+
+These are decision boundaries, not a claim that every phase or owner alternative is implemented.
+Current CPU local admission requires a bare MATMUL with only absorbed PERMUTE prerequisites and
+an intrinsically singleton complete topology/representation; it does not sweep topologies in
+Phase 1. When CPU supplies no local batch, Engine bypasses the local tuner and workload cache,
+records `evidence.workloads=[]`, and still runs the complete-plan transaction. A singleton
+complete batch is legal: it still captures a reference, warms/times, selects, and freshly
+prepares production. Candidate zero is `REFERENCE_CAPTURED`; only later candidates have separate
+comparison actions, so a singleton reference is not an independent Model oracle.
+With a local decision, Phase 2 freezes that exact realization. Without one, it retains the existing
+complete topology/representation alternatives and enumerates legal per-unit portable/qualified
+oneDNN choices, plus qualified whole-unit OpenBLAS alternatives, not arbitrary mixed OpenBLAS
+placement. The [current workflow explanation](../performance-evidence-and-tuning.md#one-model-autotuning-workflow)
+details finite all-or-nothing bounds. Mixed-owner/multiple-partition tuning, broader Metal tuning,
+and cross-topology local-decision mapping remain analysis-only, not supported extensions.
 
 [Compiler](../../glossary.md#term-compiler), [planning](../../glossary.md#term-planning), [prepare](../../glossary.md#prepare), and concrete [backends](../../glossary.md#backend) generate the candidates for decisions they
 own. Tuning tooling coordinates measurement and selection without taking over graph semantics,
@@ -359,9 +376,17 @@ pipeline. [API](../../glossary.md#term-application-programming-interface-api) pr
 CPU analysis compares complete portable/[OpenBLAS](../../glossary.md#term-openblas) and explicit ordinary-[contraction](../../glossary.md#contraction-dimension) alternatives,
 including longer partitions and [constant](../../glossary.md#term-constant) writes, with conservative dimensionless heuristics
 charging arithmetic/remainder, [dispatch](../../glossary.md#term-dispatch)/control, preparation, memory, ingress and scratch.
-These are not measured time or a speedup guarantee. Exact OpenBLAS Phase-1 decisions remain
-frozen, selected Phase-2 [topology](../../glossary.md#term-topology) is not replaced, and Phase-2 [schema](../../glossary.md#term-schema) 4 binds oneDNN policy and
-load-session [identity](../../glossary.md#term-identity-meanings) while rejecting stale decisions.
+These are not measured time or a speedup guarantee. Exact CPU Phase-1 decisions (portable,
+OpenBLAS, or oneDNN) remain frozen; local admission proves intrinsic singleton topology rather
+than searching or deleting complete topologies. CPU complete-plan [schema](../../glossary.md#term-schema) 5 binds retained topology,
+per-unit realization/range/species, native assignments, oneDNN policy and load-session
+[identity](../../glossary.md#term-identity-meanings), rejecting stale decisions. CPU local schema 4 and route-policy 3 are separate
+tuning identities; this clarification changes neither generated-kernel schema/envelopes nor native ABI.
+Authenticated Phase-2 transport permits only the four copy/direct/contiguous scoring costs to
+differ. Current execution configuration, capacity and minimum worker work remain authoritative;
+materialization `enabled`, `expectedRunCount`, `maximumAdditionalBytes`,
+`minimumNetBenefitCostUnits`, and `minimumBenefitBasisPoints` must match. It does not replace
+constraints with heuristics or repeat local enumeration.
 
 Analysis retains descriptor facts, not native handles. Primitive [metadata](../../glossary.md#term-metadata) queries create no
 primitive; Graph's scratch query requires temporary [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) and closure. Finalization

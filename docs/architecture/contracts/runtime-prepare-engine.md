@@ -886,12 +886,22 @@ failure closes only run-owned resources in reverse acquisition order and never c
 caller storage. Closing a read-only prepared child [releases](../../glossary.md#commit-release-distribution-log-and-seed-meanings) its [lease](../../glossary.md#term-lease), not another run's child or
 the still-open prepared owner.
 
-`Engine.prepareTuned(...)` admits one eligible single-owner CPU plan or exact [singleton](../../glossary.md#term-singleton)-NEG Metal
-plan. It rejects empty, missing, mixed-owner, and multiple-partition plans before representative
-trial execution; Metal additionally requires the complete custom-[kernel](../../glossary.md#kernel)/[MPSGraph](../../glossary.md#term-mpsgraph) local [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters), so
-MPSGraph-only plans are not tuned. `ALLOW_SAFE_HEURISTIC` may fall back only through the exact
-already-selected adapter after a recoverable tuning failure; it never changes owner or admits a
-heterogeneous trial.
+`Engine.prepareTuned(...)` admits one eligible single-owner CPU plan or exact nonempty canonical
+[FLOAT32](../../glossary.md#term-float32) [singleton](../../glossary.md#term-singleton)-NEG Metal plan. It rejects empty, missing, mixed-owner, and
+multiple-partition plans before representative trial execution. CPU may supply no local batch:
+Engine then constructs no workload-tuning request, calls no local tuner or workload cache, and
+publishes `evidence.workloads=[]`. Its complete-plan transaction still captures/checks canonical
+publication bytes, warms/times and selects even a singleton complete batch, then prepares a fresh
+production winner. A singleton self-reference is not an independent Model numerical oracle.
+When a local batch exists, Engine authenticates its exact selected decision and passes it unchanged
+to that backend's complete-plan producer; CPU freezes its intrinsically singleton local topology
+and realization rather than sweeping topologies in Phase 1 or repeating local search in Phase 2.
+Metal still requires both custom-[kernel](../../glossary.md#kernel)/[MPSGraph](../../glossary.md#term-mpsgraph) local candidates and one complete candidate fixed to
+the local winner; no-local Metal and MPSGraph-only plans are not tuned.
+`ALLOW_SAFE_HEURISTIC` may fall back only through the exact already-selected adapter after a
+recoverable tuning failure and successful representative cleanup; it never changes owner or
+admits a heterogeneous trial. [The workflow explanation](../performance-evidence-and-tuning.md#correctness-fallback-and-runtime-boundary)
+describes the unchanged exact-byte gate and trial-resource ownership.
 
 The registry map has no post-prepare execution role. Runtime receives immutable schedules with
 direct [prepared executable](../../glossary.md#prepared-executable--preparedexecutable), transfer, representation-creation, and publication references. Outer
