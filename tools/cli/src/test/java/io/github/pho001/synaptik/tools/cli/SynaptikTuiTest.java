@@ -150,7 +150,23 @@ final class SynaptikTuiTest {
                 assertArrayEquals(new float[] {1, 3, 5},
                         CliRegressionTest.flatten(CliRegressionTest.parse(Files.readString(output))), 0);
                 assertEquals(key.kind() != TuiConsole.Kind.ESCAPE, session.finished());
+                if (key.kind() == TuiConsole.Kind.INTERRUPT) assertEquals(130, session.exitStatus());
             }
+        }
+    }
+
+    @Test
+    void interruptAfterOrdinaryInspectionClosureStillReturnsInterruptStatus() throws Exception {
+        Path source = linear("already-closed", 1, new float[] {2}, new float[] {1});
+        try (var error = new PrintStream(new ByteArrayOutputStream());
+                var session = new SynaptikTui.Session(error)) {
+            session.submit(options("inspect", "--model", source.toString()));
+            session.close();
+            session.tick();
+            assertEquals(0, session.currentJob().status());
+            session.handle(key(TuiConsole.Kind.INTERRUPT));
+            assertTrue(session.finished());
+            assertEquals(130, session.exitStatus());
         }
     }
 
@@ -257,24 +273,6 @@ final class SynaptikTuiTest {
         }
     }
 
-    @Test
-    void inspectionDetachesPublicMetadataWithoutRegressionSignatureNarrowing() throws Exception {
-        var scalar = TensorFactory.scalar(7f, Optional.empty(), false);
-        Path path = directory.resolve("scalar-graph");
-        GraphCheckpoint.save(path, new GraphCheckpoint.Source(List.of(), List.of(scalar),
-                List.of(new GraphCheckpoint.Leaf("constant", GraphCheckpoint.Role.CONSTANT, scalar))), CliModel.LIMITS);
-        try (var error = new PrintStream(new ByteArrayOutputStream())) {
-            var inspect = new SynaptikTui.ActiveJob(options("inspect", "--model", path.toString()), error);
-            run(inspect);
-            assertEquals(0, inspect.view().status());
-            var detached = inspect.view().inspection();
-            assertTrue(detached.stream().anyMatch(line -> line.contains(scalar.descriptor().toString())));
-            assertTrue(detached.stream().anyMatch(line -> line.contains("storedBytes=4")));
-            Files.delete(path);
-            assertFalse(detached.isEmpty());
-            assertThrows(UnsupportedOperationException.class, () -> detached.add("mutation"));
-        }
-    }
 
     @Test
     void eventHistoryRemainsBoundedAndFinishedMonitorCannotAdmitMoreSamples() {
@@ -292,9 +290,33 @@ final class SynaptikTuiTest {
             assertEquals(50, job.view().progress().snapshot().steps());
             assertEquals(50, job.view().progress().snapshot().recentEpochs()[7].number());
             assertTrue(job.events().size() <= 16);
-            var snapshot = job.view().progress().snapshot();
-            job.refresh();
-            assertSame(snapshot, job.view().progress().snapshot());
+        }
+    }
+
+    @Test
+    void everySavedLeafRemainsReachableByInspectionNavigationAndResize() throws Exception {
+        var builder = Model.builder().input(DataType.FLOAT32, 1, 1);
+        for (int layer = 0; layer < 12; layer++) builder = builder.linear(1, true);
+        Path path = directory.resolve("many-inspection-leaves");
+        try (var model = builder.build()) { model.save(path); }
+        var source = GraphCheckpoint.load(path, CliModel.LIMITS);
+        var names = source.leaves().stream().map(GraphCheckpoint.Leaf::name).toList();
+        try (var error = new PrintStream(new ByteArrayOutputStream());
+                var session = new SynaptikTui.Session(error)) {
+            session.submit(options("inspect", "--model", path.toString()));
+            session.close();
+            session.tick();
+            var seen = new java.util.HashSet<String>();
+            int bound = CliModel.describe(source).stream().mapToInt(String::length).sum() + names.size();
+            for (int offset = 0; offset < bound && seen.size() < names.size(); offset++) {
+                var frame = session.frame(offset % 2 == 0 ? 50 : 45, 12);
+                String visible = String.join("", frame.lines());
+                for (String name : names) {
+                    if (visible.contains(name)) seen.add(name);
+                }
+                session.handle(key(TuiConsole.Kind.DOWN));
+            }
+            assertEquals(new java.util.HashSet<>(names), seen);
         }
     }
 

@@ -136,7 +136,7 @@ final class TuiForm {
             case CHARACTER:
                 int cp = key.character();
                 if (!Character.isValidCodePoint(cp) || cp >= 0xd800 && cp <= 0xdfff
-                        || Character.isISOControl(cp) || Character.getType(cp) == Character.FORMAT) return Result.UNCHANGED;
+                        || Character.isISOControl(cp)) return Result.UNCHANGED;
                 String character = Character.toString(cp);
                 input.value = value.substring(0, cursor) + character + value.substring(cursor);
                 cursor += character.length();

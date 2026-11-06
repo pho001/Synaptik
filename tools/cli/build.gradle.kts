@@ -5,8 +5,8 @@ plugins {
 dependencies {
     implementation(project(":modules:engine"))
     implementation(project(":extensions:nn"))
-    implementation("org.jline:jline-terminal:3.30.6")
-    runtimeOnly("org.jline:jline-terminal-ffm:3.30.6")
+    implementation("org.jline:jline-terminal:4.5.0")
+    runtimeOnly("org.jline:jline-terminal-ffm:4.5.0")
 }
 
 application {

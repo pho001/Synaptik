@@ -59,6 +59,7 @@ class TuiViewTest {
         TrainingProgressStats stats = new TrainingProgressStats(clock::get);
         stats.beginEpoch(1);
         stats.step(-9, 2, 24);
+        stats.snapshot(); // History is sampled at refresh, not once for every recorded update.
         clock.addAndGet(1_000_000_000L);
         stats.step(3, 2, 24);
         TuiView.Progress progress = new TuiView.Progress(2, 10, 20, "CPU", stats.snapshot(), null, null);
@@ -86,6 +87,36 @@ class TuiViewTest {
         assertEquals(4, SynaptikBrand.width("界🙂"));
         assertEquals("e\u0301", SynaptikBrand.clip("e\u0301x", 1));
         assertFalse(SynaptikBrand.plain("bad\033[2J\r\n\u009b").codePoints().anyMatch(Character::isISOControl));
+    }
+
+    @Test
+    void normalNarrowDashboardRetainsFinitePointsAndNonfiniteGapsAfterEpochHistoryFills() {
+        AtomicLong clock = new AtomicLong();
+        TrainingProgressStats stats = new TrainingProgressStats(clock::get);
+        for (int epoch = 1; epoch <= 9; epoch++) {
+            stats.beginEpoch(epoch);
+            stats.step(epoch == 9 ? Double.NaN : epoch, 1, 8);
+            clock.addAndGet(1_000_000);
+            stats.endEpoch();
+            stats.snapshot();
+        }
+        var progress = new TuiView.Progress(20, 1, 1, "CPU", stats.snapshot(), null, null);
+        var job = new TuiView.Job("Train", true, false, 0, null, List.of(), progress, clock.get());
+        var frame = TuiView.job(job, List.of("actual completion event"), 80, 24);
+        fits(frame, 80, 24);
+        assertEquals(8, frame.lines().stream().flatMapToInt(String::chars).filter(point -> point == '*').count());
+        assertTrue(frame.lines().stream().anyMatch(line -> line.indexOf('?') >= 0
+                && line.chars().allMatch(point -> point == ' ' || point == '*' || point == '?')));
+    }
+
+    @Test
+    void editCursorFollowsRenderedReplacementWithoutChangingStoredFormatCharacters() {
+        var form = new TuiForm(TuiForm.Action.INSPECT);
+        int before = TuiView.form(form, 80, 24, null).cursor().column();
+        TuiFormTest.type(form, "👩‍💻\uDB40\uDC01");
+        var frame = TuiView.form(form, 80, 24, null);
+        assertEquals(before + 6, frame.cursor().column()); // Two wide symbols and two safe replacement cells.
+        fits(frame, 80, 24);
     }
 
     private static void fits(TuiView.Frame frame, int columns, int rows) {

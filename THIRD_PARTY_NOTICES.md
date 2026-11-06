@@ -116,14 +116,14 @@ Those tooling licenses do not select a license for Synaptik itself.
 
 ## Standalone CLI terminal dependencies
 
-The separate local CLI application image uses `org.jline:jline-terminal:3.30.6`,
-`org.jline:jline-terminal-ffm:3.30.6` and transitive `org.jline:jline-native:3.30.6`.
+The separate local CLI/TUI application image uses `org.jline:jline-terminal:4.5.0`,
+`org.jline:jline-terminal-ffm:4.5.0` and transitive `org.jline:jline-native:4.5.0`.
 The selected terminal provider is JLine's JDK FFM provider, not a numerical backend.
 The dependency JARs may contain platform terminal support; this is not a claim that the CLI
 contains no third-party native material. No JDK, OpenBLAS, oneDNN or Synaptik Metal native package
 is bundled by this application image.
 
-The pinned upstream [JLine licence](https://github.com/jline/jline3/blob/jline-3.30.6/LICENSE.txt)
+The pinned upstream [JLine licence](https://github.com/jline/jline3/blob/4.5.0/LICENSE.txt)
 is reproduced verbatim below. The JLine native module also contains Apache-derived
 `JLineNativeLoader` and `OSInfo` material with retained Apache Software Foundation source
 headers. Preserve the original JAR notices and the accompanying

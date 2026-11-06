@@ -31,6 +31,16 @@ class TuiFormTest {
     }
 
     @Test
+    void formatJoinersRemainPartOfTheActualFileAddress(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory)
+            throws Exception {
+        var file = java.nio.file.Files.writeString(directory.resolve("👩‍💻.model"), "owned fixture");
+        TuiForm form = new TuiForm(TuiForm.Action.INSPECT);
+        type(form, file.toString());
+        var selected = CliArguments.parse(form.arguments()).requiredPath("model");
+        assertTrue(java.nio.file.Files.isSameFile(file, selected));
+    }
+
+    @Test
     void loadedModelDisablesExcludesAndSkipsNewModelGeometryWithoutLosingEdits() {
         TuiForm form = new TuiForm(TuiForm.Action.TRAIN);
         type(form, "input.csv");

@@ -2,7 +2,8 @@ package io.github.pho001.synaptik.tools.cli;
 
 import java.util.List;
 import org.jline.terminal.Terminal;
-import org.jline.utils.Curses;
+import org.jline.utils.AttributedStringBuilder;
+import org.jline.utils.AttributedStyle;
 import org.jline.utils.InfoCmp.Capability;
 import org.jline.utils.WCWidth;
 
@@ -83,16 +84,18 @@ final class SynaptikBrand {
         String bold = terminal.getStringCapability(Capability.enter_bold_mode);
         String reset = terminal.getStringCapability(Capability.exit_attribute_mode);
         if (colors == null || colors < 8 || cyan == null || dim == null || bold == null || reset == null) return row;
-        if (row.equals("SYNAPTIK")) return Curses.tputs(bold) + row + Curses.tputs(reset);
-        if (!LOGO.contains(row)) return row;
-        StringBuilder result = new StringBuilder(row.length() * 8);
+        if (!row.equals("SYNAPTIK") && !LOGO.contains(row)) return row;
+        // Use JLine's attributed ANSI renderer, not its low-level conditional terminfo
+        // interpreter: the shipped xterm setaf template underflows Curses' condition stack.
+        AttributedStringBuilder result = new AttributedStringBuilder(row.length());
+        AttributedStyle nodes = AttributedStyle.DEFAULT.foreground(AttributedStyle.CYAN);
+        AttributedStyle links = AttributedStyle.DEFAULT.faint();
         for (int i = 0; i < row.length(); i++) {
             char ch = row.charAt(i);
-            if (ch == 'o' || ch == '+') result.append(Curses.tputs(cyan, 6));
-            else if (ch == '-' || ch == '/' || ch == '\\') result.append(Curses.tputs(dim));
-            else if (Character.isLetter(ch)) result.append(Curses.tputs(bold));
-            result.append(ch).append(Curses.tputs(reset));
+            result.style(ch == 'o' || ch == '+' ? nodes
+                    : ch == '-' || ch == '/' || ch == '\\' ? links
+                    : Character.isLetter(ch) ? AttributedStyle.BOLD : AttributedStyle.DEFAULT).append(ch);
         }
-        return result.toString();
+        return result.toAnsi(terminal);
     }
 }

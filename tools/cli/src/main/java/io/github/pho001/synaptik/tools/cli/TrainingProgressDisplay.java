@@ -170,10 +170,14 @@ final class TrainingProgressDisplay implements TrainingProgress.Sink {
         }
         boolean side = width >= 108;
         int left = side ? Math.min(76, width - 34) : width;
-        List<String> plot = plot(state.losses(), side ? width - left - 3 : width, 6);
         int available = height - result.size();
+        // Keep actual history visible before optional recent-epoch rows. Narrow TUI bodies
+        // shrink the plot rather than allowing the epoch table to consume the entire viewport.
+        boolean below = !side && available >= 11;
+        int plotRows = side ? 6 : Math.max(1, Math.min(6, available - 7 - 3 - 1));
+        List<String> plot = plot(state.losses(), side ? width - left - 3 : width, plotRows);
         int body = side ? Math.min(Math.max(text.size(), plot.size()), available)
-                : Math.min(text.size(), available >= 7 + plot.size() ? available - plot.size() : available);
+                : Math.min(text.size(), below ? available - plot.size() : available);
         for (int i = 0; i < body; i++) {
             String row = i < text.size() ? clip(text.get(i), left) : "";
             if (side && i < plot.size()) {

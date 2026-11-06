@@ -55,7 +55,7 @@ final class SynaptikTui {
                 session.handle(key);
                 dirty |= key.kind() != TuiConsole.Kind.TIMEOUT;
             }
-            return session.exitStatus;
+            return session.exitStatus();
         } catch (RuntimeException | Error failure) {
             primary = failure;
             throw failure;
@@ -107,6 +107,10 @@ final class SynaptikTui {
         private boolean exit;
         private boolean back;
         private int exitStatus;
+        private boolean interruptExit;
+        private int inspectionOffset;
+        private int inspectionWidth = -1;
+        private List<String> inspectionLines = List.of();
 
         /** @param error borrowed workflow diagnostics; detached monitors never write to it */
         Session(PrintStream error) { this.error = error; }
@@ -114,14 +118,16 @@ final class SynaptikTui {
         /** @return whether all admitted work is closed and the UI may exit */
         boolean finished() { return exit && (job == null || job.done); }
 
-        /** Samples detached measurements only, and applies pending navigation after closure. */
+        /** @return the session outcome after admitted work closes; INT retains its exit semantics */
+        int exitStatus() { return exitStatus; }
+
+        /** Applies pending navigation after ordinary worker closure; sampling belongs to rendering. */
         void tick() {
             if (job == null) return;
-            job.refresh();
             if (!job.done) return;
             if (job.failure instanceof Error && !(job.failure instanceof LinkageError)
                     && !(job.failure instanceof java.io.IOError)) rethrow(job.failure);
-            if (exit) exitStatus = job.status;
+            if (exit) exitStatus = interruptExit ? 130 : job.status;
             else if (back) returnFromJob();
         }
 
@@ -132,7 +138,23 @@ final class SynaptikTui {
          * @return immutable detached screen content fitted to the current terminal geometry
          */
         TuiView.Frame frame(int columns, int rows) {
-            if (job != null) return TuiView.job(currentJob(), job.events(), columns, rows);
+            if (job != null) {
+                job.refresh(); // Sample detached state only when a frame is actually requested.
+                TuiView.Job view = currentJob();
+                if (!view.inspection().isEmpty()) {
+                    int width = Math.max(0, columns - 1);
+                    if (inspectionWidth != width) {
+                        inspectionLines = TuiView.wrapInspection(view.inspection(), width);
+                        inspectionWidth = width;
+                    }
+                    inspectionOffset = Math.min(inspectionOffset, Math.max(0, inspectionLines.size() - 1));
+                    List<String> window = inspectionLines.subList(inspectionOffset,
+                            Math.min(inspectionLines.size(), inspectionOffset + Math.max(0, rows)));
+                    view = new TuiView.Job(view.title(), view.running(), view.stopRequested(), view.status(),
+                            view.detail(), window, view.progress(), view.elapsedNanos());
+                }
+                return TuiView.job(view, job.events(), columns, rows);
+            }
             if (form != null) return TuiView.form(form, columns, rows, notice);
             return TuiView.menu(selected, columns, rows, notice);
         }
@@ -153,6 +175,14 @@ final class SynaptikTui {
                     job.requestStop("Back requested");
                 } else if (!job.done && character(key, 's') && job.training()) {
                     job.requestStop("Stop requested");
+                } else if (job.done && !job.inspection.isEmpty()) {
+                    switch (key.kind()) {
+                        case UP -> inspectionOffset = Math.max(0, inspectionOffset - 1);
+                        case DOWN -> inspectionOffset = Math.min(Math.max(0, inspectionLines.size() - 1), inspectionOffset + 1);
+                        case HOME -> inspectionOffset = 0;
+                        case END -> inspectionOffset = Math.max(0, inspectionLines.size() - 1);
+                        default -> { }
+                    }
                 }
                 return;
             }
@@ -201,6 +231,9 @@ final class SynaptikTui {
             job = next;
             back = false;
             notice = null;
+            inspectionOffset = 0;
+            inspectionWidth = -1;
+            inspectionLines = List.of();
         }
 
         private void returnFromJob() {
@@ -212,6 +245,7 @@ final class SynaptikTui {
 
         /** Native INT and raw Ctrl-C stop then exit, only after worker-owned resources close. */
         void interrupt() {
+            interruptExit = true;
             exitStatus = 130;
             requestExit();
         }
@@ -219,7 +253,7 @@ final class SynaptikTui {
         private void requestExit() {
             exit = true;
             if (job != null && !job.done) job.requestStop("Exit requested");
-            else if (job != null) exitStatus = job.status;
+            else if (job != null) exitStatus = interruptExit ? 130 : job.status;
         }
 
         private void stopForClosure() {
