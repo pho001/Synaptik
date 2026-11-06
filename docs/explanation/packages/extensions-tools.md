@@ -238,7 +238,22 @@ Harnesses own their temporary execution/native resources and measurement state; 
 
 ## io.github.pho001.synaptik.tools.cli
 
-[CliToolModule](../../../tools/cli/src/main/java/io/github/pho001/synaptik/tools/cli/CliToolModule.java) is an **inert marker**, not a command-line entry point. Its private constructor and empty body provide no `main`, command parser, file workflow or invocation [lifecycle](../../glossary.md#lifecycle). There are no accepted [CLI](../../glossary.md#term-cli) [arguments](../../glossary.md#term-argument), emitted results, resources or command-specific errors to document. LearningJourney's executable example is not supplied by this marker; use the [examples entry point](../../examples/README.md), not an imagined `synaptik` command.
+[SynaptikCli](../../../tools/cli/src/main/java/io/github/pho001/synaptik/tools/cli/SynaptikCli.java)
+is the real [command-line entry point](../../how-to/train-with-cli.md): `train` reads numeric
+examples, calls public Model/Training, and saves current graph/weights; `predict` loads and
+computes actual values; `inspect` reads public source metadata without an Engine.
+
+The CLI owns CSV traversal, separate native input/target buffers and terminal presentation.
+Model owns its private parameter copies and TrainingSession; Engine owns execution.
+Input buffers remain live and unchanged until each synchronous call returns. The refresh
+thread reads detached scalar counters and pre-update loss only, not live Model state.
+
+The [TTY/plain display](../../glossary.md#term-tty) includes ASCII SYNAPTIK, real epochs/times,
+completed steps/s, logical input+target [Mbit/s](../../glossary.md#term-mbit-per-second) and a
+bounded [text loss plot](../../glossary.md#term-text-loss-plot). Interrupt stops future admissions,
+not an active numerical call. Static tails, finite numeric CSV, saved-signature qualification,
+publication/error boundaries and the separate local application image are explained in the guide.
+This package does not become a nineteenth published library or add optimizer/kernel/runtime logic.
 
 ## io.github.pho001.synaptik.testing.architecture
 

@@ -4,6 +4,14 @@
 
 ### Added
 
+- [Real local CLI training, prediction and inspection](docs/how-to/train-with-cli.md):
+  public Model/Training workflows over finite numeric CSV, static-batch validation, current-value
+  checkpoint persistence, logical-payload rates and truthful loss display. Fifty-eight focused
+  tests and actual external-directory consumers pass, including explicit Metal/oneDNN configurations.
+  Independent review repairs preserve terminal/error lifetimes and report cancellation during an
+  already admitted save honestly. The user-authorized interactive TUI successor is tracked
+  [separately](docs/planning/tools/cli/tasks/0002-interactive-tui-workbench.md), not yet claimed delivered.
+
 - [Bounded CPU autotuning coverage and correctness](docs/planning/autotuning-audit.md#verified-cpu-coverage-and-fixes):
   truthful caller-input copies; legal scalar/vector/range and qualified OpenBLAS/oneDNN choices;
   frozen selected configurations; complete-only and singleton transactions; copy geometry,

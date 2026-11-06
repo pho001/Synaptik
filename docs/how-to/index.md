@@ -19,6 +19,7 @@ when output bytes must survive result closure. Neither workflow asks you to clos
 
 | I want to… | Guide |
 |---|---|
+| Train real numeric files, save a Model and see live terminal progress | [Command-line training, inspection and prediction](train-with-cli.md) |
 | Choose [CPU](../glossary.md#term-cpu), [Metal](../glossary.md#term-metal) or explicit mixed execution | [Choose a backend deliberately](choose-a-backend.md) |
 | Save a trained [model](../glossary.md#term-model) and start fresh training after load | [Save and restart training](save-and-restart-training.md) |
 | Find the stage responsible for a rejection or wrong expectation | [Diagnose a failed computation](diagnose-a-computation.md) |

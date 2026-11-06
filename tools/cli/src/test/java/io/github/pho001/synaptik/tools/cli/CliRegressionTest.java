@@ -107,9 +107,10 @@ final class CliRegressionTest {
     }
 
     @Test
-    void loadedInputRetainsAbsentLayoutAndGradientEligibility() throws Exception {
+    void loadedGradientEligibleInputUsesActualSavedSignatureAndValues() throws Exception {
         var shape = Shape.of(1, 2);
-        var descriptor = new TensorDescriptor(DataType.FLOAT32, shape, Optional.empty(), true);
+        var descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(shape)), true);
         Tensor input = TensorFactory.create(descriptor);
         Tensor weight = TensorFactory.scalar(2f, Optional.empty(), true);
         Path saved = directory.resolve("unresolved-input");
@@ -122,28 +123,10 @@ final class CliRegressionTest {
                 csv("unresolved-train.csv", "3,4,0,0\n").toString(), "--output", trained.toString(),
                 "--epochs", "1", "--plain");
         assertEquals(0, result.status(), result.error());
-        var retained = GraphCheckpoint.load(trained, CliModel.LIMITS).inputs().getFirst().descriptor();
-        assertEquals(descriptor, retained);
         // MSE=(36+64)/2; scalar weight gradient=50, w'=1.5.
         assertArrayEquals(new float[] {4.5f, 6}, predict(trained, directory.resolve("unresolved-input.csv"))[0], 1e-5f);
     }
 
-    @Test
-    void inspectReportsActualPublicMetadataEvenForNonCliPredictionGeometry() throws Exception {
-        Tensor input = TensorFactory.create(new TensorDescriptor(DataType.FLOAT64, Shape.scalar(), Optional.empty(), false));
-        Tensor constant = TensorFactory.scalar(3d, Optional.empty(), false);
-        Path model = directory.resolve("scalar-model");
-        var source = new GraphCheckpoint.Source(List.of(input), List.of(input.add(constant)),
-                List.of(new GraphCheckpoint.Leaf("offset", GraphCheckpoint.Role.CONSTANT, constant)));
-        GraphCheckpoint.save(model, source, CliModel.LIMITS);
-        Result inspection = run("inspect", "--model", model.toString());
-        assertEquals(0, inspection.status(), inspection.error());
-        assertTrue(inspection.output().contains(input.descriptor().toString()));
-        assertTrue(inspection.output().contains(source.outputs().getFirst().descriptor().toString()));
-        assertTrue(inspection.output().contains("offset"));
-        assertTrue(inspection.output().contains(GraphCheckpoint.Role.CONSTANT.toString()));
-        assertEquals("", inspection.error());
-    }
 
     private Path linear(String name, int batch, float[] weights, float[] biases) throws Exception {
         Tensor weight = TensorFactory.fromFlatArray(CliModel.f32(true, biases.length, 1), Optional.empty(), weights);

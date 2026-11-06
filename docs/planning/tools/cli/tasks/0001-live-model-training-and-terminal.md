@@ -1,6 +1,6 @@
 # Real model training and live terminal CLI
 
-Status: Ready — Tuning 0006 behavior verification and independent review are complete.
+Status: In progress — implementation, 58 tests and real CPU/native consumers verified; terminal/documentation gate continues with user-authorized TUI 0002.
 
 ## Authorization and dependency
 

@@ -57,7 +57,12 @@ final class CsvRegressionWorkflow {
         try (TrainingProgress progress = TrainingProgress.open(error, args.has("plain"), refresh,
                 epochs, stepsPerEpoch, data.rows(), backend.label())) {
             try {
+                if (progress.cancellationRequested()) {
+                    progress.finish(TrainingProgress.Outcome.CANCELLED, "Stopped before execution; no model saved.");
+                    return 130;
+                }
                 boolean cancelled;
+                boolean saved = false;
                 try (var engine = backend.open();
                      var acquired = source == null
                              ? CliModel.create(batch, features, outputs, seed, engine)
@@ -103,10 +108,17 @@ final class CsvRegressionWorkflow {
                         progress.endEpoch();
                     }
                     cancelled |= progress.cancellationRequested();
-                    if (!cancelled) model.save(outputPath);
+                    if (!cancelled) {
+                        model.save(outputPath);
+                        saved = true;
+                    }
                 }
+                // Final outcome admission: observe INT during an already admitted save or
+                // numerical cleanup. A completed atomic save is never falsely claimed undone.
+                cancelled |= progress.cancellationRequested();
                 progress.finish(cancelled ? TrainingProgress.Outcome.CANCELLED : TrainingProgress.Outcome.COMPLETED,
-                        cancelled ? "Stopped after the last completed call; no model saved."
+                        cancelled ? (saved ? "Stopped after an admitted save; fully trained checkpoint already saved to " + outputPath
+                                : "Stopped after the last completed call; no model saved.")
                                 : "Saved current graph/weights to " + outputPath + "; no optimizer/cursor resume state.");
                 return cancelled ? 130 : 0;
             } catch (IOException | RuntimeException | Error failure) {

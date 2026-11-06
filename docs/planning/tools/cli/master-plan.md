@@ -54,7 +54,8 @@ Provide command-line diagnostics for [graph](../../../glossary.md#graph), [parti
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | [Real model training and live terminal](tasks/0001-live-model-training-and-terminal.md) | Ready | Verified Tuning 0006; current public NN/Training/Engine | Real numeric data/model commands and 500 ms ASCII progress; public-owner composition, no core architecture change. |
+| 0001 | [Real model training and live terminal](tasks/0001-live-model-training-and-terminal.md) | In progress | Verified Tuning 0006; current public NN/Training/Engine | Real commands implemented, 58 focused tests and actual CPU/Metal/oneDNN consumers pass; final terminal/documentation qualification continues. |
+| 0002 | [Interactive TUI workbench and shared branding](tasks/0002-interactive-tui-workbench.md) | Ready | Integrated 0001 workflows; explicit user scope selection | Menu/forms, shared workflows, live state/events/safe stop and common ASCII/ANSI logo; no core architecture change. |
 
 
 ## Milestones
@@ -65,9 +66,11 @@ Provide command-line diagnostics for [graph](../../../glossary.md#graph), [parti
 
 ## Current status
 
-Ready: [0001](tasks/0001-live-model-training-and-terminal.md). Its public-workflow research and
-verified Tuning dependency are complete. The authorized implementation remains an outer caller;
-no executable command is claimed until real training, prediction and terminal acceptance runs.
+User-authorized [0002](tasks/0002-interactive-tui-workbench.md) is the immediate interactive
+frontier over implemented 0001 workflows. CLI remains available for automation. The first real
+external-directory CPU train/save/inspect/cold-predict consumer returned the expected values;
+explicit Metal and exact oneDNN configurations also completed real train/predict runs.
+Terminal qualification and shared documentation remain part of the combined delivery gate.
 
 ## Open questions
 

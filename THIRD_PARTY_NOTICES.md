@@ -113,3 +113,58 @@ Apache License 2.0 headers. `gradle/wrapper/gradle-wrapper.jar` includes the com
 License 2.0 text in `META-INF/LICENSE`; preserve that embedded material when distributing the
 wrapper. The Gradle distribution is downloaded separately and is not bundled in the application.
 Those tooling licenses do not select a license for Synaptik itself.
+
+## Standalone CLI terminal dependencies
+
+The separate local CLI application image uses `org.jline:jline-terminal:3.30.6`,
+`org.jline:jline-terminal-ffm:3.30.6` and transitive `org.jline:jline-native:3.30.6`.
+The selected terminal provider is JLine's JDK FFM provider, not a numerical backend.
+The dependency JARs may contain platform terminal support; this is not a claim that the CLI
+contains no third-party native material. No JDK, OpenBLAS, oneDNN or Synaptik Metal native package
+is bundled by this application image.
+
+The pinned upstream [JLine licence](https://github.com/jline/jline3/blob/jline-3.30.6/LICENSE.txt)
+is reproduced verbatim below. The JLine native module also contains Apache-derived
+`JLineNativeLoader` and `OSInfo` material with retained Apache Software Foundation source
+headers. Preserve the original JAR notices and the accompanying
+[Apache License 2.0 text](tools/cli/licenses/APACHE-2.0.txt). Generated Gradle application start
+scripts retain their original Apache headers; the same complete licence accompanies them.
+These component terms do not select a licence for Synaptik's own material or grant publication
+permission for the separate private CLI distribution.
+
+```text
+Copyright (c) 2002-2023, the original author or authors.
+All rights reserved.
+
+https://opensource.org/licenses/BSD-3-Clause
+
+Redistribution and use in source and binary forms, with or
+without modification, are permitted provided that the following
+conditions are met:
+
+Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+
+Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with
+the distribution.
+
+Neither the name of JLine nor the names of its contributors
+may be used to endorse or promote products derived from this
+software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING,
+BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+OF THE POSSIBILITY OF SUCH DAMAGE.
+```

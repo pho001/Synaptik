@@ -164,7 +164,8 @@ final class CliBoundaryTest {
         Tensor scalar = TensorFactory.scalar(2f, Optional.empty(), true);
         var parameter = new GraphCheckpoint.Leaf("weight", GraphCheckpoint.Role.PARAMETER, scalar);
         var arity = new GraphCheckpoint.Source(List.of(input, second), List.of(input.mul(scalar)), List.of(parameter));
-        var rank = new GraphCheckpoint.Source(List.of(input), List.of(input.mul(scalar).sum()), List.of(parameter));
+        Tensor vector = TensorFactory.create(CliModel.f32(false, 1));
+        var rank = new GraphCheckpoint.Source(List.of(vector), List.of(vector.mul(scalar)), List.of(parameter));
         Tensor doubles = TensorFactory.create(new TensorDescriptor(DataType.FLOAT64, Shape.of(1, 1),
                 Optional.of(LayoutDescriptor.contiguous(Shape.of(1, 1))), false));
         Tensor offset = TensorFactory.scalar(2d, Optional.empty(), false);
@@ -205,6 +206,22 @@ final class CliBoundaryTest {
         int result = SynaptikCli.run(new String[] {"predict", "--model", model.toString(), "--data", csv.toString()},
                 broken, new PrintStream(new ByteArrayOutputStream()));
         assertEquals(1, result);
+    }
+
+    @Test
+    void knownBrokenProgressCannotTrainAndPublishAnApparentlySuccessfulModel() throws Exception {
+        Path csv = Files.writeString(directory.resolve("broken-progress.csv"), "0,1\n");
+        Path output = directory.resolve("must-not-publish");
+        try (PrintStream broken = new PrintStream(new OutputStream() {
+            @Override public void write(int value) throws IOException { throw new IOException("closed diagnostics"); }
+        })) {
+            int status = SynaptikCli.run(new String[] {"train", "--data", csv.toString(),
+                    "--output", output.toString(), "--epochs", "1", "--plain"},
+                    new PrintStream(new ByteArrayOutputStream()), broken);
+            assertEquals(1, status);
+            assertFalse(Files.exists(output));
+            assertEquals("0,1\n", Files.readString(csv));
+        }
     }
 
     private Path zeroLinear(String name, int batch) throws Exception {

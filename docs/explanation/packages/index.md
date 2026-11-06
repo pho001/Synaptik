@@ -19,9 +19,10 @@ supported application interface; [CPU](../../glossary.md#term-cpu) internal pack
 
 Coverage includes the three Java testing marker packages so that a source explorer does not
 mistake those directory names for a hidden runtime. Build aggregation projects without Java
-packages are not extra execution components. [CUDA](../../glossary.md#term-cuda)/[ONNX](../../glossary.md#term-onnx)/[CLI](../../glossary.md#term-cli) markers are described as markers, not
-advertised capabilities. No native OpenBLAS or [oneDNN](../../glossary.md#term-onednn) implementation is bundled merely because
-its Java foreign-function boundary exists.
+packages are not extra execution components. [CUDA](../../glossary.md#term-cuda)/[ONNX](../../glossary.md#term-onnx)
+remain markers, not advertised capabilities; the [CLI](../../how-to/train-with-cli.md)
+now has real public-API workflows. No native OpenBLAS or [oneDNN](../../glossary.md#term-onednn)
+implementation is bundled merely because its Java foreign-function boundary exists.
 
 For the actual [dependency](../../glossary.md#term-dependency) rules and scopes, use [ARCHITECTURE.md](../../../ARCHITECTURE.md).
 For what can execute on a selected [device](../../glossary.md#term-device)/type/layout, use the

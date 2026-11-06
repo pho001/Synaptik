@@ -12,6 +12,7 @@ import org.jline.terminal.TerminalBuilder;
 import org.jline.terminal.spi.SystemStream;
 import org.jline.terminal.spi.TerminalProvider;
 import org.jline.utils.InfoCmp.Capability;
+import org.jline.utils.OSUtils;
 
 /**
  * Stderr-only, non-raw terminal adapter. It never enters an alternate screen, consumes input,
@@ -53,10 +54,15 @@ final class TrainingProgressDisplay implements TrainingProgress.Sink {
     static TrainingProgressDisplay open(PrintStream error, boolean plain, int epochs,
             long stepsPerEpoch, long examplesPerEpoch, String backend) {
         Terminal candidate = null;
-        if (!plain && error == System.err && !"dumb".equalsIgnoreCase(System.getenv("TERM"))) {
+        if (!plain && error == System.err && !OSUtils.IS_WINDOWS
+                && !"dumb".equalsIgnoreCase(System.getenv("TERM"))) {
             try {
                 TerminalProvider provider = TerminalProvider.load("ffm");
-                if (provider.isSystemStream(SystemStream.Input) && provider.isSystemStream(SystemStream.Error)) {
+                String inputTerminal = provider.systemStreamName(SystemStream.Input);
+                // Pinned Windows FFM writes stdout; POSIX dimensions come from stdin. Only
+                // matching POSIX terminal identities qualify for stderr-only live rendering.
+                if (inputTerminal != null && inputTerminal.equals(provider.systemStreamName(SystemStream.Error))
+                        && provider.isSystemStream(SystemStream.Input) && provider.isSystemStream(SystemStream.Error)) {
                     candidate = TerminalBuilder.builder().name("Synaptik training").system(true)
                             .provider("ffm").systemOutput(TerminalBuilder.SystemOutput.SysErr)
                             .dumb(false).nativeSignals(true).build();
@@ -69,8 +75,8 @@ final class TrainingProgressDisplay implements TrainingProgress.Sink {
                 if (candidate != null) {
                     try {
                         candidate.close();
-                    } catch (IOException | RuntimeException cleanup) {
-                        unavailable.addSuppressed(cleanup);
+                    } catch (IOException | RuntimeException | Error cleanup) {
+                        if (cleanup != unavailable) unavailable.addSuppressed(cleanup);
                     }
                 }
                 candidate = null;
@@ -212,7 +218,7 @@ final class TrainingProgressDisplay implements TrainingProgress.Sink {
                 result.add(line);
             }
         } else if (height > 2) {
-            result.add("SYNAPTIK");
+            result.add(clip("SYNAPTIK", width));
         }
         boolean side = width >= 108;
         int left = side ? Math.min(76, width - 34) : width;
@@ -347,18 +353,17 @@ final class TrainingProgressDisplay implements TrainingProgress.Sink {
             return;
         }
         closed = true;
-        RuntimeException failure = null;
+        Throwable failure = null;
         if (terminal != null) {
             try {
                 restoreCursor();
-            } catch (RuntimeException problem) {
+            } catch (RuntimeException | Error problem) {
                 failure = problem;
             }
             try {
                 terminal.close();
-            } catch (IOException | RuntimeException problem) {
-                RuntimeException next = problem instanceof RuntimeException runtime ? runtime
-                        : new UncheckedIOException((IOException) problem);
+            } catch (IOException | RuntimeException | Error problem) {
+                Throwable next = problem instanceof IOException io ? new UncheckedIOException(io) : problem;
                 if (failure == null) {
                     failure = next;
                 } else if (failure != next) {
@@ -366,8 +371,11 @@ final class TrainingProgressDisplay implements TrainingProgress.Sink {
                 }
             }
         }
-        if (failure != null) {
-            throw failure;
+        if (failure instanceof RuntimeException runtime) {
+            throw runtime;
+        }
+        if (failure instanceof Error error) {
+            throw error;
         }
     }
 }

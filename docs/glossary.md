@@ -72,7 +72,9 @@ combination implied by Model construction. CPU↔Metal composition and bounded [
 sessions, accumulation and [SGD](#term-stochastic-gradient-descent-sgd)/[Adam](#adaptive-optimizer--adam-adamw)/[AdamW](#adaptive-optimizer--adam-adamw) state with in-memory snapshots; durable cross-[owner](#term-owner)
 [checkpoint](#term-checkpoint)/[resume](#schema-serialization-and-checkpoint) behavior remains future work.
 
-[CUDA](#term-cuda), [ONNX](#term-onnx), and [CLI](#term-cli) are currently marker projects. Checkpoint now has a bounded [opaque](#term-opaque) [artifact](#term-artifact)
+[CUDA](#term-cuda) and [ONNX](#term-onnx) are currently marker projects. The separate [CLI](#term-cli)
+application has real [numeric training/prediction/inspection workflows](how-to/train-with-cli.md);
+its interactive TUI successor is being implemented without changing numerical owners. Checkpoint now has a bounded [opaque](#term-opaque) [artifact](#term-artifact)
 file [API](#term-application-programming-interface-api) and public model-state save/inspect/load. Data implements [host sequence metadata](#host-sequence-metadata) and
 [INT64](#data-type--datatype) sequence [padding](#padding) without runtime [binding](#term-binding). Text implements frozen whitespace [tokenization](#frozen-whitespace-tokenizer)
 and delegates numeric batching to Data; Vision remains unimplemented and separately gated.
@@ -507,6 +509,42 @@ A <a id="term-cpu"></a>**CPU** (central processing unit) is a general-purpose pr
 <a id="term-host"></a>**Host** usually means the application’s CPU-side environment; <a id="term-device"></a>**device** means the selected execution hardware, often an accelerator. Shared physical memory does not remove explicit [ownership](#term-ownership-meanings), representation, transfer, or [synchronization](#term-synchronization) rules.
 
 <a id="term-metal"></a>**Metal** is Apple’s GPU programming framework. <a id="term-cuda"></a>**CUDA** is NVIDIA’s GPU computing platform and programming environment. <a id="term-onnx"></a>**ONNX** expands to Open Neural Network Exchange, a [model](#term-model) interchange format. <a id="term-cli"></a>**CLI** means command-line interface. Naming these technologies in a document does not establish their implementation status in Synaptik; use the [status convention](#implementation-status-convention) and owning area’s current evidence.
+
+### CSV and numeric dataset rows
+
+<a id="term-csv"></a>**CSV** means comma-separated values: a text row contains fields separated
+by commas. The name alone does not specify headers, quoting, decimal syntax or missing values.
+Synaptik's numeric CLI format deliberately accepts finite FLOAT32 numbers without headers or
+quoted fields: one row is one [example](#term-sample), its leading columns are
+[features](#term-feature), and the declared final columns are training [targets](#term-target).
+It is not a saved [Model](#term-model) or an unrestricted spreadsheet importer.
+
+### Terminal, TTY, standard streams and ANSI controls
+
+<a id="term-terminal"></a>A **terminal** displays a command-line program's text and can interpret
+cursor controls. <a id="term-tty"></a>A **TTY** is the operating system's terminal-device interface
+(historically “teletype”); a redirected file or pipe is not an interactive terminal merely
+because it receives text.
+
+<a id="term-standard-streams"></a>**Standard input** (`stdin`), **standard output** (`stdout`) and
+**standard error** (`stderr`) are a process's conventional input, result and diagnostic streams.
+Keeping progress on stderr lets stdout remain usable as prediction data. These stream names
+do not imply ownership of the caller's tensor storage.
+
+<a id="term-ansi"></a>**ANSI/VT-style control sequences** are special character sequences that
+can move the cursor or change presentation; they are not model data. A live display redraws its
+own lines only when the terminal supports it. **Plain output** appends ordinary lines instead,
+so files, pipes and unsupported terminals do not receive escape-code debris.
+
+### Text loss plot and sparkline
+
+<a id="term-text-loss-plot"></a>A **text loss plot** maps actual [loss](#loss) observations to
+character positions. A **sparkline** is a very compact, often single-line version. Horizontal
+position represents observation order; vertical position represents loss on the stated scale.
+A bounded recent history is not the complete dataset history or proof of convergence.
+Constant values need a nonzero display range; [NaN and infinity](#nan-infinity-and-signed-zero)
+need visible markers or gaps, not invented finite replacements. Pre-update training loss and
+evaluation of the final Model are different measurements.
 
 ### MPS, MPSGraph, and OpenBLAS
 

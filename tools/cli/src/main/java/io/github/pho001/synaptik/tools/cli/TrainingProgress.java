@@ -30,7 +30,8 @@ final class TrainingProgress implements AutoCloseable {
     private volatile boolean cancellationRequested;
     private boolean finished;
     private boolean closed;
-    private RuntimeException failure;
+    private volatile Throwable failure;
+    private Throwable deliveredFailure;
     private Thread refresher;
     private Thread shutdownHook;
     private Terminal terminal;
@@ -77,7 +78,7 @@ final class TrainingProgress implements AutoCloseable {
         } catch (RuntimeException | Error problem) {
             try {
                 progress.close();
-            } catch (RuntimeException cleanup) {
+            } catch (RuntimeException | Error cleanup) {
                 if (cleanup != problem) {
                     problem.addSuppressed(cleanup);
                 }
@@ -130,8 +131,13 @@ final class TrainingProgress implements AutoCloseable {
         stats.endEpoch();
     }
 
-    /** @return whether SIGINT requested no further step admissions; never interrupts active work */
+    /** @return whether SIGINT requested no further admissions; throws a known presentation failure */
     boolean cancellationRequested() {
+        if (failure != null) {
+            synchronized (renderLock) {
+                rethrowFailure();
+            }
+        }
         return cancellationRequested;
     }
 
@@ -170,7 +176,7 @@ final class TrainingProgress implements AutoCloseable {
     private void render(Outcome outcome, String detail) {
         try {
             sink.render(stats.snapshot(), outcome, detail);
-        } catch (RuntimeException problem) {
+        } catch (RuntimeException | Error problem) {
             remember(problem);
         }
     }
@@ -192,7 +198,7 @@ final class TrainingProgress implements AutoCloseable {
         }
     }
 
-    private void remember(RuntimeException problem) {
+    private void remember(Throwable problem) {
         if (failure == null) {
             failure = problem;
         } else if (failure != problem) {
@@ -200,6 +206,17 @@ final class TrainingProgress implements AutoCloseable {
             if (failure.getSuppressed().length < 4) {
                 failure.addSuppressed(problem);
             }
+        }
+    }
+
+    private void rethrowFailure() {
+        if (failure instanceof RuntimeException runtime) {
+            deliveredFailure = failure;
+            throw runtime;
+        }
+        if (failure instanceof Error error) {
+            deliveredFailure = failure;
+            throw error;
         }
     }
 
@@ -214,22 +231,14 @@ final class TrainingProgress implements AutoCloseable {
     }
 
     private void shutdownCleanup() {
-        synchronized (renderLock) {
-            if (!closed) {
-                closed = true;
-                renderLock.notifyAll();
-                try {
-                    restoreSignal();
-                } finally {
-                    sink.close();
-                }
-            }
-        }
+        // Reuse the same all-cleanup-attempted and primary-error-preserving owner closure.
+        close();
     }
 
     /**
      * Stops future redraws and restores signal/cursor/terminal resources without touching training
-     * owners. Idempotent cleanup rethrows its retained failure, allowing normal resource suppression.
+     * owners. An already delivered presentation failure is not thrown again by resource closure:
+     * Java try-with-resources must never attempt to suppress a throwable onto itself.
      * @throws RuntimeException if rendering or terminal cleanup failed
      */
     @Override
@@ -245,12 +254,12 @@ final class TrainingProgress implements AutoCloseable {
                 renderLock.notifyAll();
                 try {
                     restoreSignal();
-                } catch (RuntimeException problem) {
+                } catch (RuntimeException | Error problem) {
                     remember(problem);
                 }
                 try {
                     sink.close();
-                } catch (RuntimeException problem) {
+                } catch (RuntimeException | Error problem) {
                     remember(problem);
                 }
                 if (shutdownHook != null) {
@@ -258,13 +267,13 @@ final class TrainingProgress implements AutoCloseable {
                         Runtime.getRuntime().removeShutdownHook(shutdownHook);
                     } catch (IllegalStateException shuttingDown) {
                         // Shutdown has already started; the hook sees closed and does nothing.
-                    } catch (RuntimeException problem) {
+                    } catch (RuntimeException | Error problem) {
                         remember(problem);
                     }
                 }
             }
-            if (failure != null) {
-                throw failure;
+            if (failure != deliveredFailure) {
+                rethrowFailure();
             }
         }
     }

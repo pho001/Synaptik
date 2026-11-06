@@ -54,7 +54,7 @@ public final class SynaptikCli {
         } catch (IllegalArgumentException failure) {
             report(error, failure);
             return error.checkError() ? 1 : 2;
-        } catch (IOException | RuntimeException | LinkageError failure) {
+        } catch (IOException | RuntimeException | LinkageError | java.io.IOError failure) {
             report(error, failure);
             return 1;
         }
@@ -103,7 +103,8 @@ public final class SynaptikCli {
               New models are biased F32 rank-two Linear [B,F] -> [B,O]. Saved models require one declared
               static, positive rank-two F32 input and one rank-two F32 output with the same B.
               Complete input descriptors (including requiresGrad and layout presence) are retained. Inputs
-              must have absent or canonical contiguous offset-zero non-view layout, as in current graph files.
+              may have absent or canonical contiguous offset-zero non-view layout. Absence is preserved,
+              not silently resolved: a backend may reject it (the current CPU MUL path does).
               Output values are detached dense rows. Other graph/AD/backend capability failures are reported,
               never replaced by an alternate model. Inspect shows public descriptors/leaves without an Engine.
               Static B>1 requires row count exactly divisible by B, for both train and predict. No dropped,
@@ -113,8 +114,11 @@ public final class SynaptikCli {
               changing parameters, not a final-model evaluation. Nonfinite successful objectives remain visible.
               Payload Mbit/s counts 4*B*(F+O) decoded training input+target bytes per completed successful step,
               not CSV/disk/network/device bandwidth. Progress is stderr; prediction stdout stays CSV-only.
-              Ctrl-C requests cooperative stop after the current admitted call: no next step, no success save,
-              normal owner cleanup and status 130 when signal registration succeeds. No hard cancellation.
+              Ctrl-C requests cooperative stop after the current admitted call: no next step and status 130
+              when signal registration succeeds. Cancellation observed before save admission prevents saving.
+              An admitted save may finish: late cancellation reports whether the trained checkpoint was saved.
+              Final outcome is admitted after numerical cleanup; later presentation failures cannot undo a save.
+              No hard cancellation or rollback of completed calls/publication is promised.
               Model files save only graph/current weights, never optimizer history or an exact-resume cursor.
               Output parent directories must exist. Prediction files publish atomically on complete success;
               stdout streams rows and cannot retract earlier rows after a later failure. No native/JDK bundles.

@@ -42,14 +42,18 @@ The [production support matrix](docs/backend-guide/production-support.md) is the
 for current operation, [data type](docs/glossary.md#data-type--datatype),
 [layout](docs/glossary.md#layout) and [derivative](docs/glossary.md#term-derivative) qualification.
 CPU support is not a Metal capability promise. [CUDA](docs/glossary.md#term-cuda),
-[ONNX](docs/glossary.md#term-onnx) and [CLI](docs/glossary.md#term-cli) markers are not usable products.
+[ONNX](docs/glossary.md#term-onnx) markers are not usable products. The separate
+[real CLI application](docs/how-to/train-with-cli.md) trains numeric CSV, saves/loads Models,
+predicts actual values and displays live training state; its supported geometry is explicit.
 [Saving a Model](docs/tutorials/save-close-load.md) stores admitted source and current values,
 not prepared native executables, optimizer state or the application's complete training continuation.
 
 [Distribution](docs/glossary.md#term-distribution) remains **private/internal**: no public project licence or redistribution grant has
 been selected, and no public upload is authorized. The sealed
 `0.1.0-public-audit.20261104` candidate has [source-matched audit evidence](docs/planning/public-release-audit-2026-11-04.md#result).
-This documentation uses those [artifacts](docs/glossary.md#term-artifact); it does not silently replace or requalify them.
+The learning-project qualification remains pinned to those sealed artifacts. The current
+checkout's CLI image and [bounded autotuning repairs](docs/planning/autotuning-audit.md)
+are separate work; they do not silently replace or requalify that release.
 
 ## Prerequisites
 

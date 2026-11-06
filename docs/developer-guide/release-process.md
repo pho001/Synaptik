@@ -76,8 +76,10 @@ accepted. Neither authorizes a public registry upload.
 
 The root `releaseDistribution` task uses ordinary [Gradle](../glossary.md#term-gradle) Java/[Maven](../glossary.md#term-maven) publications for eighteen
 implemented products. Each has [binary](../glossary.md#term-binary-descriptor-and-metadata), source and [Javadoc](../glossary.md#term-javadoc) [artifacts](../glossary.md#term-artifact) in the versioned local
-Maven repository. Grouping, test, benchmark, [CUDA](../glossary.md#term-cuda), [ONNX](../glossary.md#term-onnx) and [CLI](../glossary.md#term-cli) marker projects are not supported
-publications. Their retained source is not silently promoted into the [release](../glossary.md#term-release) [API](../glossary.md#term-application-programming-interface-api).
+Maven repository. Grouping, test, benchmark, [CUDA](../glossary.md#term-cuda) and
+[ONNX](../glossary.md#term-onnx) marker projects are not supported publications.
+The [real CLI application image](../how-to/train-with-cli.md) is built separately with `installDist`;
+it is not a nineteenth library publication or a reissue of the sealed release.
 
 **Gradle** is the build tool running these tasks. **Maven** names both another build tool and
 the repository layout used to resolve Java dependencies. A [publication](../glossary.md#term-publication)'s **coordinates** identify

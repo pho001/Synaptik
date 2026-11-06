@@ -138,6 +138,39 @@ class TrainingProgressTest {
         }
     }
 
+    @Test
+    void knownPresentationFailuresStopAdmissionsAndCleanupCannotSelfSuppressThePrimary() {
+        for (Throwable rendering : new Throwable[] {
+                new IllegalStateException("renderer"),
+                new java.io.IOError(new java.io.IOException("terminal capability"))
+        }) {
+            var cleanup = new java.io.IOError(new java.io.IOException("terminal close"));
+            Capture capture = new Capture() {
+                @Override
+                public void render(TrainingProgressStats.Snapshot snapshot, TrainingProgress.Outcome outcome, String detail) {
+                    if (rendering instanceof Error error) throw error;
+                    throw (RuntimeException) rendering;
+                }
+
+                @Override
+                public void close() {
+                    super.close();
+                    throw cleanup;
+                }
+            };
+            Throwable actual = assertThrows(rendering.getClass(), () -> {
+                try (TrainingProgress progress = new TrainingProgress(() -> 0, capture, 500, 1)) {
+                    progress.refresh();
+                    progress.cancellationRequested();
+                }
+            });
+            assertSame(rendering, actual);
+            assertEquals(1, capture.closes);
+            assertEquals(1, actual.getSuppressed().length);
+            assertSame(cleanup, actual.getSuppressed()[0]);
+        }
+    }
+
     private static class Capture implements TrainingProgress.Sink {
         final List<TrainingProgressStats.Snapshot> frames = new ArrayList<>();
         final List<TrainingProgress.Outcome> outcomes = new ArrayList<>();

@@ -153,7 +153,7 @@ This permission applies to the elapsed clock difference only. Candidate counts, 
 
 ### Current finite domain
 
-The [CPU producer contract](../guides/cpu-backend.md#cold-local-workload-tuning-collaboration)
+The [CPU producer contract](../backend-guide/cpu-backend.md#cold-local-workload-tuning-collaboration)
 and [Engine lifecycle example](../reference/engine/lifecycle.md) explain the current behavior:
 
 - **Phase 1:** an eligible bare singleton MATMUL, including its absorbed PERMUTE views, supplies
