@@ -15,6 +15,24 @@ import org.jline.utils.Signals;
 final class TrainingProgress implements AutoCloseable {
     enum Outcome { COMPLETED, CANCELLED, FAILED }
 
+    /** Creates an owned monitor on the workflow worker without transferring numerical ownership. */
+    @FunctionalInterface
+    interface Factory {
+        /**
+         * Opens a presentation monitor after data and geometry admission.
+         * @param error borrowed diagnostic destination
+         * @param plain whether the caller prohibits terminal control
+         * @param refreshMillis positive sampling interval in milliseconds
+         * @param epochs positive total epoch count
+         * @param stepsPerEpoch positive admitted updates per epoch
+         * @param examplesPerEpoch positive admitted examples per epoch
+         * @param backendLabel detached backend description
+         * @return owned monitor finished and closed by the workflow worker
+         */
+        TrainingProgress open(PrintStream error, boolean plain, long refreshMillis, int epochs,
+                long stepsPerEpoch, long examplesPerEpoch, String backendLabel);
+    }
+
     /** Capture seam; production implementations own only presentation resources. */
     interface Sink extends AutoCloseable {
         void render(TrainingProgressStats.Snapshot snapshot, Outcome outcome, String detail);
@@ -88,10 +106,12 @@ final class TrainingProgress implements AutoCloseable {
     }
 
     /**
-     * Deterministic clock/capture seam without threads, terminal acquisition, or signal changes.
+     * Detached monitor without threads, terminal acquisition, or signal changes. The workflow
+     * worker records successful updates and finishes/closes it; an outer UI may call refresh
+     * and requestCancellation concurrently. The sink must consume detached data only.
      * @param clock monotonic nanosecond clock
-     * @param sink owned detached snapshot consumer
-     * @param refreshMillis positive cadence, used when production starts the refresher
+     * @param sink owned detached snapshot consumer; never a numerical owner
+     * @param refreshMillis positive cadence for the outer refresh owner
      * @param epochs positive configured epoch count
      */
     TrainingProgress(LongSupplier clock, Sink sink, long refreshMillis, int epochs) {

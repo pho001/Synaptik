@@ -12,6 +12,8 @@ import io.github.pho001.synaptik.nn.module.Model;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /** Public source-descriptor admission and one-read, private-state Model acquisition. */
@@ -129,18 +131,29 @@ final class CliModel {
      * @param output borrowed destination, never closed
      */
     static void inspect(GraphCheckpoint.Source source, PrintStream output) {
+        describe(source).forEach(output::println);
+    }
+
+    /**
+     * Detaches public source metadata without signature narrowing or Engine acquisition.
+     * @param source decoded source including all public leaves
+     * @return immutable display lines retaining no tensors, storage or execution owners
+     */
+    static List<String> describe(GraphCheckpoint.Source source) {
+        List<String> lines = new ArrayList<>();
         for (int i = 0; i < source.inputs().size(); i++) {
-            output.println("input[" + i + "] " + source.inputs().get(i).descriptor());
+            lines.add("input[" + i + "] " + source.inputs().get(i).descriptor());
         }
         for (int i = 0; i < source.outputs().size(); i++) {
-            output.println("output[" + i + "] " + source.outputs().get(i).descriptor());
+            lines.add("output[" + i + "] " + source.outputs().get(i).descriptor());
         }
         for (var leaf : source.leaves()) {
             var storage = leaf.tensor().hostStorage();
-            output.println("leaf " + leaf.name() + " role=" + leaf.role()
+            lines.add("leaf " + leaf.name() + " role=" + leaf.role()
                     + " identity=" + leaf.tensor().id() + " " + leaf.tensor().descriptor()
                     + " storedBytes=" + (storage.isPresent() ? storage.orElseThrow().byteSize() : "absent"));
         }
-        output.println("Graph and current values only; no optimizer state or dataset cursor.");
+        lines.add("Graph and current values only; no optimizer state or dataset cursor.");
+        return List.copyOf(lines);
     }
 }

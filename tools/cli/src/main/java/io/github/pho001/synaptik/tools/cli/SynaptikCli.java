@@ -13,7 +13,7 @@ public final class SynaptikCli {
 
     /**
      * Runs the application and exits with its conventional command status.
-     * @param args train, predict, inspect or help followed by command-local long options
+     * @param args train, predict, inspect, tui or help followed by command-local long options
      */
     public static void main(String[] args) {
         System.exit(run(args, System.out, System.err));
@@ -42,6 +42,7 @@ public final class SynaptikCli {
                 }
                 case "train" -> CsvRegressionWorkflow.train(options, error);
                 case "predict" -> CsvRegressionWorkflow.predict(options, output);
+                case "tui" -> SynaptikTui.run(error);
                 case "inspect" -> {
                     CliModel.inspect(CliModel.load(options.requiredPath("model")), output);
                     yield 0;
@@ -73,7 +74,13 @@ public final class SynaptikCli {
               synaptik train --data numeric.csv --output trained.synaptik [options]
               synaptik predict --model trained.synaptik --data features.csv [--output predictions.csv] [backend options]
               synaptik inspect --model trained.synaptik
+              synaptik tui
               synaptik help | --help | <command> --help
+
+            Interactive workbench:
+              tui requires a supported local stdin/stderr TTY; use train/predict/inspect otherwise.
+              Menu/forms start the same workflows. Training stop is cooperative; prediction/inspection
+              finish admitted work before back/exit. Prediction requires an output file in the TUI.
 
             Train options:
               --model PATH          Start fresh training from saved graph/current weights (not optimizer resume)

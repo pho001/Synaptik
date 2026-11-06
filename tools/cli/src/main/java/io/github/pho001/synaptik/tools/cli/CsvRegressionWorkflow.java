@@ -20,16 +20,29 @@ final class CsvRegressionWorkflow {
     private CsvRegressionWorkflow() { }
 
     static int train(CliArguments args, PrintStream error) throws IOException {
+        return train(args, error, TrainingProgress::open);
+    }
+
+    /**
+     * Executes the same admitted training workflow with an outer presentation owner.
+     * @param args shared command options
+     * @param error borrowed diagnostic stream
+     * @param progressFactory opens a monitor after validation, on this numerical-owner thread
+     * @return zero on saved completion, or 130 on cooperative stop (an admitted save may finish)
+     * @throws IOException if data, checkpoint or publication fails
+     */
+    static int train(CliArguments args, PrintStream error, TrainingProgress.Factory progressFactory)
+            throws IOException {
         Path dataPath = args.requiredPath("data");
         Path outputPath = args.requiredPath("output");
         requireDistinct(outputPath, dataPath, "model output must not replace training CSV");
         CliBackend backend = CliBackend.parse(args);
-        int epochs = args.positiveInt("epochs", 20);
-        long refresh = args.integer("refresh-ms", 500);
+        int epochs = args.positiveInt("epochs", CliDefaults.EPOCHS);
+        long refresh = args.integer("refresh-ms", CliDefaults.REFRESH_MILLIS);
         if (refresh <= 0) throw new IllegalArgumentException("--refresh-ms must be positive");
-        int requestedBatch = args.positiveInt("batch-size", 1);
-        int requestedOutputs = args.positiveInt("outputs", 1);
-        long seed = args.integer("seed", 0);
+        int requestedBatch = args.positiveInt("batch-size", CliDefaults.BATCH_SIZE);
+        int requestedOutputs = args.positiveInt("outputs", CliDefaults.OUTPUTS);
+        long seed = args.integer("seed", CliDefaults.SEED);
         Optimizer optimizer = optimizer(args);
 
         GraphCheckpoint.Source source = args.has("model") ? CliModel.load(args.requiredPath("model")) : null;
@@ -54,7 +67,7 @@ final class CsvRegressionWorkflow {
         // Check logical telemetry arithmetic before the first update too.
         long bytesPerBatch = Math.multiplyExact(4L, Math.multiplyExact((long) batch, (long) features + outputs));
 
-        try (TrainingProgress progress = TrainingProgress.open(error, args.has("plain"), refresh,
+        try (TrainingProgress progress = progressFactory.open(error, args.has("plain"), refresh,
                 epochs, stepsPerEpoch, data.rows(), backend.label())) {
             try {
                 if (progress.cancellationRequested()) {
@@ -163,7 +176,7 @@ final class CsvRegressionWorkflow {
     }
 
     private static Optimizer optimizer(CliArguments args) {
-        return switch (args.value("optimizer", "sgd")) {
+        return switch (args.value("optimizer", CliDefaults.OPTIMIZER)) {
             case "sgd" -> new Sgd(args.positiveFloatRate("learning-rate", 0.01));
             case "adam" -> new Adam(args.positiveFloatRate("learning-rate", 0.001), 0.9, 0.999, 1e-8, 0);
             default -> throw new IllegalArgumentException("--optimizer must be sgd or adam");

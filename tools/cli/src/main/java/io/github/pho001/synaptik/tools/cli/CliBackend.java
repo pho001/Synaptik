@@ -9,7 +9,7 @@ import java.nio.file.Path;
 /** Explicit public Engine composition, with no alternate-backend retries or selection claims. */
 record CliBackend(String name, Path library, CpuBackendIntegration.OneDnnApi api) {
     static CliBackend parse(CliArguments args) {
-        String name = args.value("backend", "cpu");
+        String name = args.value("backend", CliDefaults.BACKEND);
         if (!name.equals("cpu") && !name.equals("metal") && !name.equals("onednn")) {
             throw new IllegalArgumentException("--backend must be cpu, metal or onednn");
         }
@@ -27,7 +27,7 @@ record CliBackend(String name, Path library, CpuBackendIntegration.OneDnnApi api
             if (!library.isAbsolute()) throw new IllegalArgumentException("--" + option + " must be absolute");
             library = library.normalize();
         }
-        var api = switch (args.value("onednn-api", "auto")) {
+        var api = switch (args.value("onednn-api", CliDefaults.ONEDNN_API)) {
             case "auto" -> CpuBackendIntegration.OneDnnApi.AUTO;
             case "primitives" -> CpuBackendIntegration.OneDnnApi.PRIMITIVES;
             case "graph" -> CpuBackendIntegration.OneDnnApi.GRAPH;

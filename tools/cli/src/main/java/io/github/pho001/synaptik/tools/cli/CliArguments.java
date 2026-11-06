@@ -28,7 +28,7 @@ final class CliArguments {
         String command = args[0];
         if (command.equals("--help") || command.equals("-h") || command.equals("help")) {
             if (args.length > 1 && !(args.length == 2
-                    && Set.of("train", "predict", "inspect").contains(args[1]))) {
+                    && Set.of("train", "predict", "inspect", "tui").contains(args[1]))) {
                 throw new IllegalArgumentException("help accepts only an optional command name");
             }
             return new CliArguments("help", Map.of());
@@ -38,6 +38,7 @@ final class CliArguments {
                     "seed", "optimizer", "learning-rate", "refresh-ms", "plain", "help");
             case "predict" -> Set.of("data", "output", "model", "help");
             case "inspect" -> Set.of("model", "help");
+            case "tui" -> Set.of("help");
             default -> throw new IllegalArgumentException("unknown command: " + command);
         };
         Map<String, String> values = new HashMap<>();
@@ -48,7 +49,8 @@ final class CliArguments {
             }
             int equal = token.indexOf('=');
             String name = token.substring(2, equal < 0 ? token.length() : equal);
-            if (!allowed.contains(name) && !(BACKEND.contains(name) && !command.equals("inspect"))) {
+            if (!allowed.contains(name) && !(BACKEND.contains(name)
+                    && (command.equals("train") || command.equals("predict")))) {
                 throw new IllegalArgumentException("unsupported option for " + command + ": --" + name);
             }
             boolean flag = name.equals("plain") || name.equals("help");
