@@ -1,6 +1,6 @@
 # Interactive TUI over shared CLI workflows
 
-Status: Ready — user selected interactive TUI with retained CLI, and requested a shared ASCII/ANSI logo.
+Status: Complete — user-selected interactive TUI, retained CLI and shared ASCII/ANSI logo are exercised; see [behavior/terminal qualification](../../../terminal-interface-validation.md).
 
 ## Authorization and architecture boundary
 
@@ -68,3 +68,17 @@ snapshots/source copies are not permanent tests.
   numerical/data invariants; no wording/default/ASCII/wiring/mock-echo tests.
 - Independent source review, current guide/README/backlinks/source inventory and exact exercised
   evidence are updated before closure. Performance comparison follows the completed interface.
+
+## Result
+
+Real keyboard workflows navigate forms, train/save, predict and inspect source metadata without
+CLI subprocesses or output parsing. One worker owns numerical lifetimes; the UI reads detached
+samples, shows bounded events and safely requests stop. Actual 80×24 and resized screens retain
+loss/rates and metadata can be scrolled to its final row.
+
+Data failure/edit/retry, `s`, raw Ctrl-C, native INT during an admitted 20,000-row prediction,
+NO_COLOR and provider restoration are exercised. Shared branding uses JLine attributed ANSI;
+the narrow wordmark and plain CLI need no color. Complete evidence, meaningful affected tests,
+source revision and platform limits are in the [qualification report](../../../terminal-interface-validation.md).
+The [user guide](../../../../how-to/train-with-cli.md#open-the-interactive-workbench) supplies controls
+and the ownership diagram. No numerical architecture change was required.

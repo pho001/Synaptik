@@ -4,13 +4,16 @@
 
 ### Added
 
-- [Real local CLI training, prediction and inspection](docs/how-to/train-with-cli.md):
-  public Model/Training workflows over finite numeric CSV, static-batch validation, current-value
-  checkpoint persistence, logical-payload rates and truthful loss display. Fifty-eight focused
-  tests and actual external-directory consumers pass, including explicit Metal/oneDNN configurations.
-  Independent review repairs preserve terminal/error lifetimes and report cancellation during an
-  already admitted save honestly. The user-authorized interactive TUI successor is tracked
-  [separately](docs/planning/tools/cli/tasks/0002-interactive-tui-workbench.md), not yet claimed delivered.
+- [Real local CLI and interactive TUI](docs/how-to/train-with-cli.md): shared public Model/Training
+  workflows over finite numeric CSV, static-batch validation, current-value checkpoint persistence,
+  actual prediction and scrollable metadata inspection. A keyboard workbench adds forms,
+  bounded events and cooperative stop without a second numerical engine or CLI subprocesses.
+  Common ASCII/ANSI branding, adaptive text loss history, epochs/times and logical payload
+  Mbit/s refresh at 500 ms by default. [Qualification](docs/planning/terminal-interface-validation.md)
+  records 89 passing affected behavior tests, 25 freshly forced architecture tests and actual
+  external-directory/controlling-terminal consumers. Repairs include FFM restoration (JLine 4.5.0),
+  attributed ANSI, interrupt-exit precedence and narrow-screen/path/inspection boundaries.
+  No core numerical architecture, native ABI, sealed publication or public licence changed.
 
 - [Bounded CPU autotuning coverage and correctness](docs/planning/autotuning-audit.md#verified-cpu-coverage-and-fixes):
   truthful caller-input copies; legal scalar/vector/range and qualified OpenBLAS/oneDNN choices;

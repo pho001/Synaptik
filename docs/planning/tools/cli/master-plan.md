@@ -1,17 +1,19 @@
 # [CLI](../../../glossary.md#term-cli) Master Plan
 
-## Editorial reading key: an outer adapter is a proposed caller
+<a id="editorial-reading-key-an-outer-adapter-is-a-proposed-caller"></a>
+## Reader's key: CLI and TUI are outer callers
 
 A command-line interface (CLI) turns a person's command and arguments into calls to existing
-public APIs, then formats the returned data. Here “outer adapter” means the proposed command
-handlers would call Engine or tooling; they would not define operation semantics, choose backend
-eligibility or implement Runtime execution. A partition dump would describe which backend
-executes a group of graph operations, not transfer ownership of application memory.
+public APIs, then formats the returned data. The interactive TUI obtains the same arguments from
+forms and calls the same workflows directly. Neither owns operation semantics, backend eligibility
+or Runtime execution. The application owns its input buffers until synchronous calls return.
 
-The [real model/live terminal task](tasks/0001-live-model-training-and-terminal.md) is Ready
-after verified Tuning 0006; no executable command is claimed until its actual delivery gate.
-For an existing read-only diagnostic API rather than a promised CLI, read
-[tuning artifact inspection](../../../developer-guide/benchmarking.md#inspecting-current-tuning-artifacts-and-evidence).
+[0001](tasks/0001-live-model-training-and-terminal.md) and
+[0002](tasks/0002-interactive-tui-workbench.md) are complete. Start with the
+[actual user guide](../../../how-to/train-with-cli.md) and
+[behavior/terminal qualification](../../terminal-interface-validation.md).
+For read-only tuning diagnostics, see
+[artifact inspection](../../../developer-guide/benchmarking.md#inspecting-current-tuning-artifacts-and-evidence).
 
 
 ## Goal
@@ -54,8 +56,8 @@ Provide command-line diagnostics for [graph](../../../glossary.md#graph), [parti
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | [Real model training and live terminal](tasks/0001-live-model-training-and-terminal.md) | In progress | Verified Tuning 0006; current public NN/Training/Engine | Real commands implemented, 58 focused tests and actual CPU/Metal/oneDNN consumers pass; final terminal/documentation qualification continues. |
-| 0002 | [Interactive TUI workbench and shared branding](tasks/0002-interactive-tui-workbench.md) | Ready | Integrated 0001 workflows; explicit user scope selection | Menu/forms, shared workflows, live state/events/safe stop and common ASCII/ANSI logo; no core architecture change. |
+| 0001 | [Real model training and live terminal](tasks/0001-live-model-training-and-terminal.md) | Complete | Verified Tuning 0006; current public NN/Training/Engine | Real commands, external-directory CPU/native consumers, meaningful tests and actual terminal qualification. |
+| 0002 | [Interactive TUI workbench and shared branding](tasks/0002-interactive-tui-workbench.md) | Complete | Integrated 0001 workflows; explicit user scope selection | Real menu/forms, shared workflows, live state/events/safe stop, scrollable inspection and common ASCII/ANSI logo. |
 
 
 ## Milestones
@@ -66,11 +68,11 @@ Provide command-line diagnostics for [graph](../../../glossary.md#graph), [parti
 
 ## Current status
 
-User-authorized [0002](tasks/0002-interactive-tui-workbench.md) is the immediate interactive
-frontier over implemented 0001 workflows. CLI remains available for automation. The first real
-external-directory CPU train/save/inspect/cold-predict consumer returned the expected values;
-explicit Metal and exact oneDNN configurations also completed real train/predict runs.
-Terminal qualification and shared documentation remain part of the combined delivery gate.
+The combined CLI/TUI delivery has 89 passing affected behavioral tests and 25 freshly forced
+architecture tests. Actual keyboard workflows train/save/predict/inspect, resize, recover from
+editable errors and stop safely. Raw Ctrl-C/native INT, NO_COLOR and terminal restoration have
+separate real-terminal receipts. See [qualification](../../terminal-interface-validation.md)
+for exact scope and platform limits. PyTorch performance comparisons remain separate work.
 
 ## Open questions
 

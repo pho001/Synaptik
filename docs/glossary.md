@@ -73,8 +73,8 @@ sessions, accumulation and [SGD](#term-stochastic-gradient-descent-sgd)/[Adam](#
 [checkpoint](#term-checkpoint)/[resume](#schema-serialization-and-checkpoint) behavior remains future work.
 
 [CUDA](#term-cuda) and [ONNX](#term-onnx) are currently marker projects. The separate [CLI](#term-cli)
-application has real [numeric training/prediction/inspection workflows](how-to/train-with-cli.md);
-its interactive TUI successor is being implemented without changing numerical owners. Checkpoint now has a bounded [opaque](#term-opaque) [artifact](#term-artifact)
+and [interactive TUI](#term-tui) share real [numeric training/prediction/inspection workflows](how-to/train-with-cli.md)
+without changing numerical owners. Checkpoint now has a bounded [opaque](#term-opaque) [artifact](#term-artifact)
 file [API](#term-application-programming-interface-api) and public model-state save/inspect/load. Data implements [host sequence metadata](#host-sequence-metadata) and
 [INT64](#data-type--datatype) sequence [padding](#padding) without runtime [binding](#term-binding). Text implements frozen whitespace [tokenization](#frozen-whitespace-tokenizer)
 and delegates numeric batching to Data; Vision remains unimplemented and separately gated.
@@ -526,6 +526,17 @@ cursor controls. <a id="term-tty"></a>A **TTY** is the operating system's termin
 (historically “teletype”); a redirected file or pipe is not an interactive terminal merely
 because it receives text.
 
+<a id="term-pty"></a>A **PTY**, or pseudoterminal, is a pair of operating-system endpoints.
+A terminal emulator or driver writes the master endpoint; the application sees the slave
+endpoint as a real terminal device, including dimensions, keyboard mode and signals.
+This permits real terminal interaction without a physical serial terminal. A mocked `isTTY`
+boolean or a redirected text file does not provide those behaviors.
+
+<a id="term-tui"></a>A **TUI** is a text-based user interface with interactive screens, fields
+and keyboard navigation. A CLI normally receives one command and arguments; a TUI keeps an
+interaction loop alive. They can call the same application workflows without one spawning the
+other. Neither presentation style changes who owns Model state or performs numerical execution.
+
 <a id="term-standard-streams"></a>**Standard input** (`stdin`), **standard output** (`stdout`) and
 **standard error** (`stderr`) are a process's conventional input, result and diagnostic streams.
 Keeping progress on stderr lets stdout remain usable as prediction data. These stream names
@@ -535,6 +546,21 @@ do not imply ownership of the caller's tensor storage.
 can move the cursor or change presentation; they are not model data. A live display redraws its
 own lines only when the terminal supports it. **Plain output** appends ordinary lines instead,
 so files, pipes and unsupported terminals do not receive escape-code debris.
+
+<a id="term-raw-terminal-mode"></a>**Raw terminal mode** lets an application handle keys without
+the operating system's usual line editing/echo behavior. The application must then interpret
+control keys and restore the previous terminal settings. This “raw” concerns keyboard input,
+not a tensor's raw floating-point bits.
+
+<a id="term-canonical-terminal-mode"></a>**Canonical terminal input** lets the operating system
+collect and edit a line before making it available to the application, normally after Enter.
+In raw mode the application receives keys without that line-processing delay and must supply
+its own editing. Input mode, cursor visibility and alternate screen are separate settings.
+
+<a id="term-alternate-screen"></a>An **alternate screen** is a separate terminal display buffer
+used by a full-screen TUI. Leaving it restores the previous main screen; it does not save a model,
+restore optimizer state or roll back computation. The TUI owns this display lifetime and must
+restore screen, cursor and input mode even when an operation fails.
 
 ### Text loss plot and sparkline
 

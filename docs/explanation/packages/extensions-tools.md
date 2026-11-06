@@ -239,20 +239,22 @@ Harnesses own their temporary execution/native resources and measurement state; 
 ## io.github.pho001.synaptik.tools.cli
 
 [SynaptikCli](../../../tools/cli/src/main/java/io/github/pho001/synaptik/tools/cli/SynaptikCli.java)
-is the real [command-line entry point](../../how-to/train-with-cli.md): `train` reads numeric
-examples, calls public Model/Training, and saves current graph/weights; `predict` loads and
-computes actual values; `inspect` reads public source metadata without an Engine.
+is the real [CLI/TUI entry point](../../how-to/train-with-cli.md): `train` reads numeric examples,
+calls public Model/Training, and saves graph/weights; `predict` computes actual values; `inspect`
+reads public source metadata without an Engine. `tui` obtains arguments from interactive forms
+and invokes the same workflows directly, not through a subprocess or parsed CLI output.
 
-The CLI owns CSV traversal, separate native input/target buffers and terminal presentation.
-Model owns its private parameter copies and TrainingSession; Engine owns execution.
-Input buffers remain live and unchanged until each synchronous call returns. The refresh
-thread reads detached scalar counters and pre-update loss only, not live Model state.
+The application owns CSV traversal, separate native input/target buffers and presentation.
+Model owns private parameters/TrainingSession; Engine owns execution. Buffers remain live and
+unchanged until each synchronous call returns. In TUI one worker owns those numerical lifetimes;
+the terminal thread handles keys and detached scalar/loss/event samples only. The CLI's background
+refresh similarly reads no live Model state. See the [ownership diagram](../../how-to/train-with-cli.md#presentation-and-numerical-ownership).
 
-The [TTY/plain display](../../glossary.md#term-tty) includes ASCII SYNAPTIK, real epochs/times,
-completed steps/s, logical input+target [Mbit/s](../../glossary.md#term-mbit-per-second) and a
-bounded [text loss plot](../../glossary.md#term-text-loss-plot). Interrupt stops future admissions,
-not an active numerical call. Static tails, finite numeric CSV, saved-signature qualification,
-publication/error boundaries and the separate local application image are explained in the guide.
+The [TTY/plain display](../../glossary.md#term-tty) includes common ASCII/ANSI branding, real
+epochs/times, completed steps/s, logical input+target [Mbit/s](../../glossary.md#term-mbit-per-second)
+and a bounded [text loss plot](../../glossary.md#term-text-loss-plot). Cooperative stop ends future
+admissions, not an active call. TUI adds events and wrapped/scrollable inspection. Exact file,
+geometry, error and terminal limits are in the guide and [qualification](../../planning/terminal-interface-validation.md).
 This package does not become a nineteenth published library or add optimizer/kernel/runtime logic.
 
 ## io.github.pho001.synaptik.testing.architecture

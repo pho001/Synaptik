@@ -3,7 +3,9 @@
 The [CLI](../glossary.md#term-cli) is an outer caller of the existing public
 [Model](../reference/nn/owned-model.md), [TrainingSession](../glossary.md#training-session--trainingsession)
 and [Engine](../reference/engine/lifecycle.md) APIs. It reads your files and presents progress;
-it does not implement another optimizer, executor or model format.
+it does not implement another optimizer, numerical execution engine or model format.
+The interactive [TUI](../glossary.md#term-tui) calls those same workflows; CLI commands remain
+available for scripts and redirected data.
 
 ## Build the separate local application
 
@@ -21,6 +23,66 @@ The image includes the Java dependencies and their [third-party notices](../../T
 It does not include a JDK, OpenBLAS, oneDNN or the Synaptik Metal native package. JLine terminal
 support is a separate dependency, not a numerical backend. The optional Java Vector module is
 not a launcher requirement. See [private distribution rules](../developer-guide/release-process.md).
+
+## Open the interactive workbench
+
+```sh
+# Use a real supported terminal; this does not start a subprocess-based CLI wrapper.
+tools/cli/build/install/synaptik/bin/synaptik tui
+```
+
+Choose **Train**, **Predict**, **Inspect** or **Quit**. The form selects your data/model paths,
+backend and applicable training settings. A blank model path creates the seeded Linear model;
+a supplied model uses its saved geometry, so new-model seed/batch/output controls are visibly
+disabled. Backend-specific library/API controls are enabled only when applicable.
+
+The workbench uses a qualified [TTY](../glossary.md#term-tty), owns its
+[raw keyboard mode](../glossary.md#term-raw-terminal-mode) and
+[alternate screen](../glossary.md#term-alternate-screen), and restores them when it closes.
+Redirected or unsupported terminals report the prerequisite; use ordinary CLI commands instead
+of pretending an interactive screen exists. Pinned JLine **4.5.0** preserves the native terminal
+configuration that the earlier FFM conversion lost.
+
+| Context | Keys | Effect |
+|---|---|---|
+| Menu | Up/Down, Enter; `t`, `p`, `i`, `q` | Select an operation or quit. |
+| Form | Tab/Shift-Tab or Up/Down | Move between enabled fields. |
+| Text field | Left/Right, Home/End, Backspace/Delete | Edit the actual file path or value. |
+| Choice field | Left/Right or Space | Cycle the applicable choices. |
+| Form | Enter / Esc | Start / return without starting work. |
+| Running training | `s` | Request safe stop and keep the result screen open. |
+| Running operation | Esc | Return after admitted work closes; training requests stop first. |
+| Running operation | `q`, Ctrl-C or end of input | Request exit after ordinary worker cleanup; no hard interruption. |
+| Completed operation | Enter / Esc | Return to menu, or to the editable form after an error. |
+| Inspection | Up/Down, Home/End | Scroll wrapped public metadata; fields beyond the viewport remain reachable. |
+
+Training shows actual loss/rates and a bounded event panel. Data errors leave a usable form:
+correct the path/value and submit again. File names retain their exact characters; display
+control characters are sanitized only in the rendered copy. Prediction uses an explicit output
+file in TUI so CSV cannot overwrite the screen; CLI prediction may still stream to stdout.
+
+Prediction and inspection may finish an already admitted operation before returning or exiting.
+For example, Ctrl-C during an admitted prediction waits for its normal atomic file publication,
+then exits 130; it does not claim the resulting file was rolled back.
+
+### Presentation and numerical ownership
+
+```mermaid
+flowchart TD
+    accTitle: CLI and TUI share one numerical workflow
+    accDescr: CLI commands and TUI forms call shared application workflows. One execution thread owns Model, Training, Engine and batch storage. The TUI reads detached snapshots and events and requests cooperative stop without closing numerical owners.
+    C["CLI: parsed command"] --> W["Shared application workflow"]
+    T["TUI: menu, form, terminal"] --> W
+    W --> E["Execution thread: public Model, Training, Engine"]
+    E --> F["Actual checkpoint or prediction file"]
+    E --> D["Detached loss, counts and events"]
+    D --> T
+    T -. "Stop request; never interrupt or close a numerical owner" .-> E
+```
+
+In CLI the caller thread runs the workflow. In TUI one worker does; the terminal thread only
+handles keys and detached presentation state. No private Model inspection, duplicate optimizer,
+second numerical execution engine, subprocess command or output parsing is introduced.
 
 ## First real training run
 
@@ -137,8 +199,8 @@ or smooth curve is invented to make the display look better.
 ### Resize, errors and Ctrl-C
 
 The live renderer queries actual dimensions, fits its output and restores the cursor.
-Pinned JLine FFM live output is qualified only for matching POSIX input/stderr terminal identities;
-its Windows writer does not reliably target stderr, so that combination uses plain output.
+Live FFM output is qualified only for matching POSIX input/stderr terminal identities.
+Windows uses conservative plain progress; no live Windows or Linux terminal qualification is claimed.
 
 Ctrl-C requests **cooperative** cancellation: the current admitted synchronous step finishes,
 its real result is counted, and no next step is scheduled. Cancellation before save admission
@@ -171,3 +233,6 @@ the [CPU native contract](../backend-guide/cpu-backend.md),
 the [Metal contract](../backend-guide/metal-backend.md), and the
 [bounded autotuning audit](../planning/autotuning-audit.md). This CLI composes ordinary public
 Model execution; it does not invent a training-autotuning API or broaden that audit's candidate domain.
+
+For exercised workflows, terminal restoration findings and exact verification scope, read
+[CLI/TUI behavior and terminal qualification](../planning/terminal-interface-validation.md).

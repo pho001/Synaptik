@@ -1,6 +1,6 @@
 # Real model training and live terminal CLI
 
-Status: In progress — implementation, 58 tests and real CPU/native consumers verified; terminal/documentation gate continues with user-authorized TUI 0002.
+Status: Complete — real commands and external CPU/native consumers qualified; combined CLI/TUI terminal and documentation closure is recorded in [behavior/terminal qualification](../../../terminal-interface-validation.md).
 
 ## Authorization and dependency
 
@@ -31,7 +31,7 @@ and independent review; that classification does not itself change architecture.
 CLI owns file decoding, epoch traversal, counters and terminal presentation. Public NN Model
 owns private parameters, its native parameter Arena, TrainingSession and cached execution.
 Training owns optimizer math/state and atomic updates; Engine owns execution. Do not implement
-optimizer/AD/kernel logic, a second executor, hard mid-step cancellation or private state access.
+optimizer/AD/kernel logic, a second numerical execution engine, hard mid-step cancellation or private state access.
 
 ## Real command workflow
 
@@ -86,7 +86,7 @@ marker; do not invent a finite loss, omit successful counters or override Traini
 - Count logical successful FLOAT32 payload, not file/network/device bytes. For batch B, F input
   features and O targets, payload is `4 * B * (F + O)` bytes. Use bytes and elapsed time from the
   same interval; zero intervals are unavailable rates, not infinity.
-- Pin JLine terminal and FFM provider 3.30.6, explicit FFM provider and stderr selection. No
+- Pin JLine terminal and FFM provider 4.5.0, explicit FFM provider and stderr selection. No
   fallback provider discovery. Real tty input/stderr, useful capabilities and dimensions are
   required; pipes, dumb/unsupported terminals and explicit plain mode use append-only logs.
 - UI consumes detached statistics only. Interrupt requests stop future scheduling after the
@@ -104,10 +104,20 @@ and migrate current references. This separate local CLI image does not extend or
 sealed eighteen-product distribution and grants no public publishing permission. Carry existing
 notices plus pinned JLine BSD and Apache-derived-component/Gradle-script licence material; do not
 incidentally bundle a JDK, OpenBLAS, oneDNN or Metal native package.
-
 Writers skip all builds/tests/lint/format/native runs; coordinator runs the final gate once.
 Permanent tests cover actual training/prediction/signature/data errors and deterministic
 counter/rate/loss boundaries, not source text, wording, wiring or ASCII snapshots. Actual PTY
 proof must show periodic redraw, size change, final/error state and cooperative interrupt/cursor
 restoration; plain output must contain no terminal escapes. Record backend/native facts and
 scope limits. Architecture-dependent extensions receive analysis/proposals, not hidden workarounds.
+
+## Result
+
+The original 58-test CLI delivery was expanded with the interactive successor to 89 affected
+passing behavior tests plus 25 explicitly forced architecture tests. Real train/save/inspect/
+cold-predict consumers run outside the checkout, including explicit Metal and exact oneDNN
+configurations. Actual PTY checks cover refresh, resize, cancellation, plain/NO_COLOR behavior,
+stdout isolation and terminal restoration. Provider and ANSI findings were repaired, not hidden.
+See the [combined qualification](../../../terminal-interface-validation.md) and
+[current guide](../../../../how-to/train-with-cli.md) for source, evidence and limitations.
+

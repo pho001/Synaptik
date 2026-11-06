@@ -15,6 +15,7 @@ The documentation starts from ordinary Java knowledge.
 | You want to… | Start here |
 |---|---|
 | [Run](docs/glossary.md#term-run) your first [model](docs/glossary.md#term-model) and learn the required concepts | [The complete learning journey](docs/tutorials/index.md) |
+| Train, predict or inspect saved models without writing Java | [Interactive TUI and scriptable CLI](docs/how-to/train-with-cli.md) |
 | Use existing [ML](docs/glossary.md#term-machine-learning-ml) knowledge with Java [tensor](docs/glossary.md#tensor)/model APIs | [Task guides](docs/how-to/index.md) and [topic-sized reference](docs/reference/index.md) |
 | Understand or contribute to the implementation | [One program through the framework](docs/explanation/framework.md), then the [package/native atlas](docs/explanation/packages/index.md) |
 
@@ -30,6 +31,24 @@ current input storage is only borrowed for that synchronous call. The returned h
 an independent copy. The [first-model chapter](docs/tutorials/first-model.md#who-supplies-the-weight-and-who-executes-the-rule)
 and [ownership walkthrough](docs/explanation/ownership.md) explain these different lifetimes.
 
+## Run the terminal workbench
+
+From a JDK 26 checkout:
+
+```sh
+# Build a separate local application, not a new published library.
+./gradlew :tools:cli:installDist
+# Menu → data/model/backend/training form → actual computation.
+tools/cli/build/install/synaptik/bin/synaptik tui
+```
+
+The [TUI guide](docs/how-to/train-with-cli.md#open-the-interactive-workbench) explains fields and keys.
+Live training includes epochs, timing, logical input/target Mbit/s, a text loss plot and events.
+The same application keeps `train`, `predict` and `inspect` commands for scripts and pipes;
+unsupported terminals use plain CLI progress, not a pretend interactive screen.
+Read [actual behavior/terminal qualification](docs/planning/terminal-interface-validation.md)
+for tested surfaces and limits.
+
 ## Current implementation status
 
 [Tensor](docs/glossary.md#tensor) expressions describe mathematical meaning.
@@ -43,7 +62,7 @@ for current operation, [data type](docs/glossary.md#data-type--datatype),
 [layout](docs/glossary.md#layout) and [derivative](docs/glossary.md#term-derivative) qualification.
 CPU support is not a Metal capability promise. [CUDA](docs/glossary.md#term-cuda),
 [ONNX](docs/glossary.md#term-onnx) markers are not usable products. The separate
-[real CLI application](docs/how-to/train-with-cli.md) trains numeric CSV, saves/loads Models,
+[CLI/TUI application](docs/how-to/train-with-cli.md) trains numeric CSV, saves/loads Models,
 predicts actual values and displays live training state; its supported geometry is explicit.
 [Saving a Model](docs/tutorials/save-close-load.md) stores admitted source and current values,
 not prepared native executables, optimizer state or the application's complete training continuation.
@@ -52,7 +71,7 @@ not prepared native executables, optimizer state or the application's complete t
 been selected, and no public upload is authorized. The sealed
 `0.1.0-public-audit.20261104` candidate has [source-matched audit evidence](docs/planning/public-release-audit-2026-11-04.md#result).
 The learning-project qualification remains pinned to those sealed artifacts. The current
-checkout's CLI image and [bounded autotuning repairs](docs/planning/autotuning-audit.md)
+checkout's CLI/TUI image and [bounded autotuning repairs](docs/planning/autotuning-audit.md)
 are separate work; they do not silently replace or requalify that release.
 
 ## Prerequisites
