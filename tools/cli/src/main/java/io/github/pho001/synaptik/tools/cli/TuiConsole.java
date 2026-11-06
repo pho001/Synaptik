@@ -18,6 +18,8 @@ import org.jline.utils.NonBlockingReader;
 /**
  * UI-thread-owned raw terminal, input decoder and alternate screen. The signal callback only
  * sets a flag: it never interrupts a thread or touches numerical owners. System streams are borrowed.
+ * Raw software-signal character mappings are disabled only in this console's owned attributes,
+ * not through process-global properties, and restored with the original attributes on close.
  */
 final class TuiConsole implements AutoCloseable {
     record Cursor(int row, int column) {}
@@ -70,6 +72,13 @@ final class TuiConsole implements AutoCloseable {
             terminal.enterRawMode();
             Attributes raw = new Attributes(terminal.getAttributes());
             raw.setLocalFlag(Attributes.LocalFlag.ISIG, false);
+            // JLine 4 translates these bytes in software even with ISIG clear, then also
+            // passes them to the decoder. Disable only this console's raw mappings to avoid
+            // duplicate Ctrl-C handling; native INT still reaches the owned signal handler.
+            raw.setControlChar(Attributes.ControlChar.VINTR, -1);
+            raw.setControlChar(Attributes.ControlChar.VQUIT, -1);
+            raw.setControlChar(Attributes.ControlChar.VSUSP, -1);
+            raw.setControlChar(Attributes.ControlChar.VSTATUS, -1);
             terminal.setAttributes(raw);
             console.screenOwned = true;
             terminal.puts(Capability.enter_ca_mode);

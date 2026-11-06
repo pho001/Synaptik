@@ -18,6 +18,7 @@ import java.util.Map;
 import org.jline.terminal.Attributes;
 import org.jline.terminal.Size;
 import org.jline.terminal.Terminal;
+import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.InfoCmp.Capability;
 import org.jline.utils.NonBlockingReader;
 import org.junit.jupiter.api.Test;
@@ -82,6 +83,29 @@ class TuiConsoleTest {
         assertRestored(state);
         console.close();
         assertEquals(1, state.closes);
+    }
+
+    @Test
+    void rawSignalPolicyOwnsAndRestoresCallerCharacterMappingsWithoutGlobalChanges() {
+        TerminalState state = new TerminalState();
+        List<Attributes.ControlChar> controls = List.of(Attributes.ControlChar.VINTR,
+                Attributes.ControlChar.VQUIT, Attributes.ControlChar.VSUSP, Attributes.ControlChar.VSTATUS);
+        int mapping = 17;
+        for (Attributes.ControlChar control : controls) state.attributes.setControlChar(control, mapping++);
+        Map<Attributes.ControlChar, Integer> original = Map.copyOf(state.attributes.getControlChars());
+        String softwareSignals = System.getProperty(TerminalBuilder.PROP_SOFTWARE_SIGNALS);
+        try (TuiConsole console = TuiConsole.acquire(state.terminal)) {
+            for (Attributes.ControlChar control : controls) assertEquals(-1, state.attributes.getControlChar(control));
+            state.handler.handle(Terminal.Signal.INT);
+            assertTrue(console.interruptionRequested());
+            assertFalse(console.interruptionRequested());
+            state.input.text("\003");
+            assertEquals(TuiConsole.Kind.INTERRUPT, console.readKey(1).kind());
+            assertEquals(softwareSignals, System.getProperty(TerminalBuilder.PROP_SOFTWARE_SIGNALS));
+        }
+        assertEquals(original, state.attributes.getControlChars());
+        assertEquals(softwareSignals, System.getProperty(TerminalBuilder.PROP_SOFTWARE_SIGNALS));
+        assertRestored(state);
     }
 
     @Test

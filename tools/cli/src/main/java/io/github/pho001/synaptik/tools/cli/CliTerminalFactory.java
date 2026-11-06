@@ -10,7 +10,11 @@ import org.jline.terminal.spi.TerminalProvider;
 import org.jline.utils.InfoCmp.Capability;
 import org.jline.utils.OSUtils;
 
-/** POSIX stdin/stderr qualification shared by both presentations; never tries another provider. */
+/**
+ * POSIX stdin/stderr qualification shared by both presentations; never tries another provider.
+ * Construction disables automatic grapheme-mode probing so it neither consumes caller input
+ * nor enables a terminal width policy that these codepoint-based presentations do not model.
+ */
 final class CliTerminalFactory {
     private CliTerminalFactory() {}
 
@@ -55,7 +59,8 @@ final class CliTerminalFactory {
         }
         Terminal terminal = TerminalBuilder.builder().name("Synaptik").system(true)
                 .provider("ffm").systemOutput(TerminalBuilder.SystemOutput.SysErr)
-                .dumb(false).nativeSignals(true).build();
+                // Keep progress input untouched and both frontends on their codepoint-width policy.
+                .dumb(false).nativeSignals(true).graphemeCluster(false).build();
         boolean qualified;
         try {
             qualified = usable(terminal, full);
