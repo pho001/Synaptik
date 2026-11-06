@@ -23,6 +23,15 @@ import java.util.function.Consumer;
 /** Package-private native-lifecycle owner used only by {@link MetalBackendIntegration}. */
 final class MetalBackendRuntime implements AutoCloseable {
     private static final ValueLayout.OfByte BYTE = ValueLayout.JAVA_BYTE;
+    private static final ValueLayout.OfShort NATIVE_SHORT = ValueLayout.JAVA_SHORT_UNALIGNED;
+    private static final ValueLayout.OfInt NATIVE_INT = ValueLayout.JAVA_INT_UNALIGNED;
+    private static final ValueLayout.OfLong NATIVE_LONG = ValueLayout.JAVA_LONG_UNALIGNED;
+    private static final ValueLayout.OfShort BIG_ENDIAN_SHORT =
+            NATIVE_SHORT.withOrder(ByteOrder.BIG_ENDIAN);
+    private static final ValueLayout.OfInt BIG_ENDIAN_INT =
+            NATIVE_INT.withOrder(ByteOrder.BIG_ENDIAN);
+    private static final ValueLayout.OfLong BIG_ENDIAN_LONG =
+            NATIVE_LONG.withOrder(ByteOrder.BIG_ENDIAN);
 
     private final MetalDeviceContext context;
     private final BackendAvailabilitySnapshot availabilitySnapshot;
@@ -349,12 +358,17 @@ final class MetalBackendRuntime implements AutoCloseable {
         }
         metal.executionHandle(); // Empty publications retain the same lifetime guard as downloads.
         byte[] result = new byte[Math.toIntExact(byteCount)];
-        long[] dimensions = descriptor.shape().toLongArray();
-        long[] strides = storagePublication ? storageLayout.strides() : layout.strides();
         if (elements == 0L) return result;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment staging = arena.allocate(physicalByteCount, width);
             metal.download(0L, staging, 0L, physicalByteCount);
+            if (dataType != DataType.BOOL && canonical
+                    && (!storagePublication || storageLayout.equals(layout))) {
+                copyDenseCanonical(staging, width, elements, result);
+                return result;
+            }
+            long[] dimensions = descriptor.shape().toLongArray();
+            long[] strides = storagePublication ? storageLayout.strides() : layout.strides();
             for (long ordinal = 0L; ordinal < elements; ordinal++) {
                 long sourceElement = storagePublication
                         ? storageElementIndex(
@@ -383,6 +397,22 @@ final class MetalBackendRuntime implements AutoCloseable {
             }
         }
         return result;
+    }
+
+    /** Packs physically canonical raw bits without per-byte addressing or FP conversion. */
+    private static void copyDenseCanonical(MemorySegment source, int width, long elements,
+            byte[] destination) {
+        MemorySegment target = MemorySegment.ofArray(destination);
+        switch (width) {
+            case 1 -> MemorySegment.copy(source, 0L, target, 0L, elements);
+            case 2 -> MemorySegment.copy(source, NATIVE_SHORT, 0L,
+                    target, BIG_ENDIAN_SHORT, 0L, elements);
+            case 4 -> MemorySegment.copy(source, NATIVE_INT, 0L,
+                    target, BIG_ENDIAN_INT, 0L, elements);
+            case 8 -> MemorySegment.copy(source, NATIVE_LONG, 0L,
+                    target, BIG_ENDIAN_LONG, 0L, elements);
+            default -> throw new AssertionError("unsupported element width: " + width);
+        }
     }
 
     /** Rejects unqualified FP8 storage before any typed Metal allocation or publication. */

@@ -70,6 +70,54 @@ class MetalFoundationTest {
     }
 
     @Test
+    void canonicalSnapshotsPreserveRawWidthsAndStillValidateBoolBytes() {
+        var api = new FakeNativeApi();
+        try (var context = MetalDeviceContext.open(api); Arena arena = Arena.ofConfined()) {
+            var runtime = new MetalBackendRuntime(context);
+            var shape = io.github.pho001.synaptik.model.shape.Shape.of(2);
+            for (var type : List.of(
+                    io.github.pho001.synaptik.model.datatype.DataType.FLOAT16,
+                    io.github.pho001.synaptik.model.datatype.DataType.FLOAT32,
+                    io.github.pho001.synaptik.model.datatype.DataType.FLOAT64)) {
+                int width = type.byteWidth();
+                var nativeBytes = java.nio.ByteBuffer.allocate(2 * width).order(java.nio.ByteOrder.nativeOrder());
+                var expected = java.nio.ByteBuffer.allocate(2 * width).order(java.nio.ByteOrder.BIG_ENDIAN);
+                switch (width) {
+                    case 2 -> {
+                        nativeBytes.putShort((short) 0x7fc1).putShort((short) 0x8000);
+                        expected.putShort((short) 0x7fc1).putShort((short) 0x8000);
+                    }
+                    case 4 -> {
+                        nativeBytes.putInt(0x7fc0_0123).putInt(0x8000_0000);
+                        expected.putInt(0x7fc0_0123).putInt(0x8000_0000);
+                    }
+                    case 8 -> {
+                        nativeBytes.putLong(0x7ff8_0000_0000_0042L).putLong(Long.MIN_VALUE);
+                        expected.putLong(0x7ff8_0000_0000_0042L).putLong(Long.MIN_VALUE);
+                    }
+                    default -> throw new AssertionError(width);
+                }
+                var descriptor = new io.github.pho001.synaptik.model.tensor.TensorDescriptor(type, shape,
+                        java.util.Optional.of(io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(shape)), false);
+                try (var buffer = context.createBuffer(2L * width)) {
+                    buffer.upload(0, arena.allocateFrom(JAVA_BYTE, nativeBytes.array()), 0, 2L * width);
+                    assertArrayEquals(expected.array(),
+                            runtime.copyToCanonicalHostBytes(buffer, descriptor, 2L * width));
+                }
+            }
+            var bool = new io.github.pho001.synaptik.model.tensor.TensorDescriptor(
+                    io.github.pho001.synaptik.model.datatype.DataType.BOOL, shape,
+                    java.util.Optional.of(io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(shape)), false);
+            try (var buffer = context.createBuffer(2)) {
+                buffer.upload(0, arena.allocateFrom(JAVA_BYTE, new byte[] {0, 2}), 0, 2);
+                assertThrows(IllegalArgumentException.class, () -> runtime.copyToCanonicalHostBytes(buffer, bool, 2));
+                buffer.upload(0, arena.allocateFrom(JAVA_BYTE, new byte[] {0, 1}), 0, 2);
+                assertArrayEquals(new byte[] {0, 1}, runtime.copyToCanonicalHostBytes(buffer, bool, 2));
+            }
+        }
+    }
+
+    @Test
     void createsFreshExactGeometryAndRoundTripsOnlyRequestedBytes() {
         var api = new FakeNativeApi();
         var context = MetalDeviceContext.open(api);

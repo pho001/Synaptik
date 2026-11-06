@@ -13,7 +13,7 @@ import java.util.Objects;
 /**
  * Copies supported CPU physical representations into detached canonical host snapshots.
  *
- * <p>This cold-path owner validates the complete provable representation and descriptor geometry
+ * <p>This exporter validates the complete provable representation and descriptor geometry
  * before allocation or source access. It has no mutable state, retains no source or result, and
  * performs no Runtime, route, provider, schedule, or ownership operation. Segment-backed source
  * elements are read in native byte order, while every result uses canonical row-major logical
@@ -30,6 +30,12 @@ public final class CpuHostSnapshotExporter {
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfLong NATIVE_LONG =
             ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+    private static final ValueLayout.OfShort BIG_ENDIAN_SHORT =
+            ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.BIG_ENDIAN);
+    private static final ValueLayout.OfInt BIG_ENDIAN_INT =
+            ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.BIG_ENDIAN);
+    private static final ValueLayout.OfLong BIG_ENDIAN_LONG =
+            ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.BIG_ENDIAN);
 
     private CpuHostSnapshotExporter() {
     }
@@ -126,6 +132,10 @@ public final class CpuHostSnapshotExporter {
             return result;
         }
         if (layout.kind() == LayoutKind.DENSE_CONTIGUOUS && layout.storageOffset() == 0) {
+            if (descriptor.dataType() != DataType.BOOL) {
+                copyDense(argument, width, elementCount, result);
+                return result;
+            }
             for (long logicalIndex = 0; logicalIndex < elementCount; logicalIndex++) {
                 encode(argument, descriptor.dataType(), logicalIndex, logicalIndex, result);
             }
@@ -145,6 +155,33 @@ public final class CpuHostSnapshotExporter {
             increment(coordinates, extents);
         }
         return result;
+    }
+
+    /** Copies raw bits in one checked operation; BOOL still needs logical-element validation. */
+    private static void copyDense(CpuBufferArgument argument, int width, long elements,
+            byte[] destination) {
+        MemorySegment source = switch (argument) {
+            case CpuBufferArgument.Segment value -> value.segment();
+            case CpuBufferArgument.Doubles value -> MemorySegment.ofArray(value.carrier());
+            case CpuBufferArgument.Floats value -> MemorySegment.ofArray(value.carrier());
+            case CpuBufferArgument.Shorts value -> MemorySegment.ofArray(value.carrier());
+            case CpuBufferArgument.Ints value -> MemorySegment.ofArray(value.carrier());
+            case CpuBufferArgument.Longs value -> MemorySegment.ofArray(value.carrier());
+            case CpuBufferArgument.Bytes value -> MemorySegment.ofArray(value.carrier());
+        };
+        MemorySegment target = MemorySegment.ofArray(destination);
+        long offset = argument.byteOffset();
+        // Integer layouts swap bytes without interpreting floating NaNs or signed zero.
+        switch (width) {
+            case 1 -> MemorySegment.copy(source, offset, target, 0L, elements);
+            case 2 -> MemorySegment.copy(source, NATIVE_SHORT, offset,
+                    target, BIG_ENDIAN_SHORT, 0L, elements);
+            case 4 -> MemorySegment.copy(source, NATIVE_INT, offset,
+                    target, BIG_ENDIAN_INT, 0L, elements);
+            case 8 -> MemorySegment.copy(source, NATIVE_LONG, offset,
+                    target, BIG_ENDIAN_LONG, 0L, elements);
+            default -> throw new AssertionError("unsupported element width: " + width);
+        }
     }
 
     /** Advances one row-major coordinate, with the final axis changing fastest. */

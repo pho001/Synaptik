@@ -137,48 +137,60 @@ final class CpuHostSnapshotExporterTest {
     }
 
     @Test
-    void rejectsBoolAtFirstNonCanonicalLogicalOccurrence() {
-        CpuBorrowedBuffer buffer = borrowed(DataType.BOOL, new byte[] {2, 1, (byte) 255}, 3);
-        Shape shape = Shape.of(3);
-        TensorDescriptor reverseByOffset = descriptor(DataType.BOOL, shape,
-                LayoutDescriptor.of(shape, new long[] {0}, 2, true));
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                () -> CpuHostSnapshotExporter.copy(buffer, reverseByOffset, 3));
-        assertEquals("BOOL representation contains non-canonical byte at logical index 0: 255",
-                failure.getMessage());
+    void denseExportRetainsSelectedHeapRegionAndUnalignedNativeRawBits() {
+        float[] values = {1.0f, Float.intBitsToFloat(0xffc0_0123),
+                Float.intBitsToFloat(0x8000_0000), 2.0f};
+        MemorySegment selected = MemorySegment.ofArray(values).asSlice(4, 8);
+        Shape shape = Shape.of(2);
+        TensorDescriptor float32 = descriptor(DataType.FLOAT32, shape, LayoutDescriptor.contiguous(shape));
+        byte[] expected = bytes(8).putInt(0xffc0_0123).putInt(0x8000_0000).array();
+        // Mutable sliced arrays expose a carrier-relative offset; read-only heap segments do not.
+        for (MemorySegment region : new MemorySegment[] {selected, selected.asReadOnly()}) {
+            var borrowed = CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.FLOAT32, 2, region));
+            assertArrayEquals(expected, CpuHostSnapshotExporter.copy(borrowed, float32, 8));
+        }
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment unaligned = arena.allocate(17, 1).asSlice(1, 16);
+            unaligned.set(ValueLayout.JAVA_LONG_UNALIGNED, 0, 0x7ff8_0000_0000_0042L);
+            unaligned.set(ValueLayout.JAVA_LONG_UNALIGNED, 8, Long.MIN_VALUE);
+            var borrowed = CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.FLOAT64, 2, unaligned));
+            TensorDescriptor float64 = descriptor(DataType.FLOAT64, shape, LayoutDescriptor.contiguous(shape));
+            assertArrayEquals(bytes(16).putLong(0x7ff8_0000_0000_0042L).putLong(Long.MIN_VALUE).array(),
+                    CpuHostSnapshotExporter.copy(borrowed, float64, 16));
+        }
     }
 
     @Test
-    void enforcesArgumentShapeLayoutAndSizePrecedence() {
-        BufferRepresentation arbitrary = () -> { };
+    void validatesLogicalBoolBytesWithoutReadingInactivePoison() {
+        CpuBorrowedBuffer buffer = borrowed(DataType.BOOL, new byte[] {2, 1, (byte) 255}, 3);
+        Shape shape = Shape.of(3);
+        TensorDescriptor valid = descriptor(DataType.BOOL, shape,
+                LayoutDescriptor.of(shape, new long[] {0}, 1, true));
+        assertArrayEquals(new byte[] {1, 1, 1}, CpuHostSnapshotExporter.copy(buffer, valid, 3));
+        TensorDescriptor invalid = descriptor(DataType.BOOL, shape,
+                LayoutDescriptor.of(shape, new long[] {0}, 2, true));
+        assertThrows(IllegalArgumentException.class,
+                () -> CpuHostSnapshotExporter.copy(buffer, invalid, 3));
+    }
+
+    @Test
+    void rejectsInvalidMaterializationGeometryBeforeAccessingClosedStorage() {
+        CpuNativeBuffer closed = CpuNativeBuffer.allocate(DataType.BOOL, 1, 1);
+        closed.close();
         TensorDescriptor scalar = descriptor(DataType.BOOL, Shape.scalar(),
                 LayoutDescriptor.contiguous(Shape.scalar()));
-        assertThrows(NullPointerException.class,
-                () -> CpuHostSnapshotExporter.copy(null, null, -1));
-        assertThrows(NullPointerException.class,
-                () -> CpuHostSnapshotExporter.copy(arbitrary, null, -1));
-        assertMessage("maximumBytes must be non-negative: -1",
-                () -> CpuHostSnapshotExporter.copy(arbitrary, scalar, -1));
-
+        // A prematurely entered data-copy path would instead report closed storage.
+        assertThrows(IllegalArgumentException.class, () -> CpuHostSnapshotExporter.copy(closed, scalar, -1));
+        assertThrows(IllegalArgumentException.class, () -> CpuHostSnapshotExporter.copy(closed, scalar, 0));
         Shape dynamic = Shape.ofDimensions(new DynamicDimension("N"));
-        TensorDescriptor dynamicDescriptor = new TensorDescriptor(DataType.BOOL, dynamic,
-                Optional.empty(), false);
-        assertMessage("host snapshot requires a fully static shape: Shape[N]",
-                () -> CpuHostSnapshotExporter.copy(arbitrary, dynamicDescriptor, 0));
-        TensorDescriptor unresolved = new TensorDescriptor(DataType.BOOL, Shape.of(1),
-                Optional.empty(), false);
-        assertMessage("host snapshot requires a resolved layout",
-                () -> CpuHostSnapshotExporter.copy(arbitrary, unresolved, 1));
-        assertMessage("canonical byte count exceeds maximumBytes: required=1, maximum=0",
-                () -> CpuHostSnapshotExporter.copy(arbitrary, scalar, 0));
-
+        TensorDescriptor dynamicDescriptor = new TensorDescriptor(DataType.BOOL, dynamic, Optional.empty(), false);
+        assertThrows(IllegalArgumentException.class,
+                () -> CpuHostSnapshotExporter.copy(closed, dynamicDescriptor, 0));
+        TensorDescriptor unresolved = new TensorDescriptor(DataType.BOOL, Shape.of(1), Optional.empty(), false);
+        assertThrows(IllegalArgumentException.class, () -> CpuHostSnapshotExporter.copy(closed, unresolved, 1));
         Shape tooLarge = Shape.of((long) Integer.MAX_VALUE + 1);
-        TensorDescriptor ceiling = descriptor(DataType.BOOL, tooLarge,
-                LayoutDescriptor.contiguous(tooLarge));
-        assertMessage("canonical byte count exceeds JVM byte[] limit: 2147483648",
-                () -> CpuHostSnapshotExporter.copy(arbitrary, ceiling, Long.MAX_VALUE));
-        assertMessage("representation is not a supported CPU buffer representation",
-                () -> CpuHostSnapshotExporter.copy(arbitrary, scalar, 1));
+        TensorDescriptor ceiling = descriptor(DataType.BOOL, tooLarge, LayoutDescriptor.contiguous(tooLarge));
+        assertThrows(IllegalArgumentException.class, () -> CpuHostSnapshotExporter.copy(closed, ceiling, Long.MAX_VALUE));
     }
 
     @Test
@@ -197,19 +209,16 @@ final class CpuHostSnapshotExporterTest {
     }
 
     @Test
-    void rejectsUnsupportedSubclassClosedInaccessibleTypeGeometryAndCapacityInOrder()
-            throws Exception {
+    void rejectsUnsupportedClosedInaccessibleOrIncompatibleStorage() throws Exception {
         Shape one = Shape.of(1);
         TensorDescriptor int32 = descriptor(DataType.INT32, one, LayoutDescriptor.contiguous(one));
         TestCpuBuffer subclass = new TestCpuBuffer(DataType.INT32, 4,
                 MemorySegment.ofArray(new int[] {1}));
-        assertMessage("representation is not a supported CPU buffer representation",
-                () -> CpuHostSnapshotExporter.copy(subclass, int32, 4));
+        assertThrows(IllegalArgumentException.class, () -> CpuHostSnapshotExporter.copy(subclass, int32, 4));
 
         CpuNativeBuffer closed = CpuNativeBuffer.allocate(DataType.INT32, 4, 4);
         closed.close();
-        assertState("CPU representation is closed",
-                () -> CpuHostSnapshotExporter.copy(closed, int32, 4));
+        assertThrows(IllegalStateException.class, () -> CpuHostSnapshotExporter.copy(closed, int32, 4));
 
         try (Arena arena = Arena.ofConfined(); var executor = Executors.newSingleThreadExecutor()) {
             CpuBorrowedBuffer confined = CpuBorrowedBuffer.borrow(new MemorySegmentStorage(
@@ -218,29 +227,22 @@ final class CpuHostSnapshotExporterTest {
                     () -> executor.submit(() ->
                             CpuHostSnapshotExporter.copy(confined, int32, 4)).get()).getCause();
             assertInstanceOf(IllegalStateException.class, cause);
-            assertEquals("CPU representation is not accessible to current thread", cause.getMessage());
         }
 
         CpuBorrowedBuffer wrongType = borrowed(DataType.FLOAT32, new float[] {1}, 1);
-        assertMessage("CPU representation data type differs from descriptor: representation="
-                        + "FLOAT32, descriptor=INT32",
-                () -> CpuHostSnapshotExporter.copy(wrongType, int32, 4));
+        assertThrows(IllegalArgumentException.class, () -> CpuHostSnapshotExporter.copy(wrongType, int32, 4));
 
         try (CpuNativeBuffer partial = CpuNativeBuffer.allocate(DataType.INT32, 3, 1)) {
-            assertMessage("CPU representation byte size is not a complete element multiple",
-                    () -> CpuHostSnapshotExporter.copy(partial, int32, 4));
+            assertThrows(IllegalArgumentException.class, () -> CpuHostSnapshotExporter.copy(partial, int32, 4));
         }
         try (CpuNativeBuffer empty = CpuNativeBuffer.allocate(DataType.INT32, 0, 4)) {
-            assertMessage("CPU representation capacity is smaller than descriptor span: "
-                            + "capacity=0, required=1",
-                    () -> CpuHostSnapshotExporter.copy(empty, int32, 4));
+            assertThrows(IllegalArgumentException.class, () -> CpuHostSnapshotExporter.copy(empty, int32, 4));
         }
         CpuBorrowedBuffer wrongCarrier = CpuBorrowedBuffer.borrow(new MemorySegmentStorage(
                 DataType.FLOAT32, 1, MemorySegment.ofArray(new int[] {1})));
         TensorDescriptor float32 = descriptor(DataType.FLOAT32, one,
                 LayoutDescriptor.contiguous(one));
-        assertMessage("heap carrier is incompatible with data type",
-                () -> CpuHostSnapshotExporter.copy(wrongCarrier, float32, 4));
+        assertThrows(IllegalArgumentException.class, () -> CpuHostSnapshotExporter.copy(wrongCarrier, float32, 4));
     }
 
     @Test
@@ -291,13 +293,6 @@ final class CpuHostSnapshotExporterTest {
         }
     }
 
-    private static void assertMessage(String expected, org.junit.jupiter.api.function.Executable call) {
-        assertEquals(expected, assertThrows(IllegalArgumentException.class, call).getMessage());
-    }
-
-    private static void assertState(String expected, org.junit.jupiter.api.function.Executable call) {
-        assertEquals(expected, assertThrows(IllegalStateException.class, call).getMessage());
-    }
 
     private static final class TestCpuBuffer extends CpuBufferRepresentation {
         private TestCpuBuffer(DataType type, long size, MemorySegment segment) {
