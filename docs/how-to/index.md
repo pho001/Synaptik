@@ -19,8 +19,9 @@ when output bytes must survive result closure. Neither workflow asks you to clos
 
 | I want to… | Guide |
 |---|---|
-| Train real numeric files, save a Model and see live terminal progress | [Command-line training, inspection and prediction](train-with-cli.md) |
+| Train real numeric files, save a Model and see live terminal progress | [Interactive TUI and scriptable CLI](train-with-cli.md) |
 | Choose [CPU](../glossary.md#term-cpu), [Metal](../glossary.md#term-metal) or explicit mixed execution | [Choose a backend deliberately](choose-a-backend.md) |
+| Build an explicit Apple CPU numerical-library variant without changing backend ownership | [oneDNN with Accelerate](build-onednn-with-accelerate.md) |
 | Save a trained [model](../glossary.md#term-model) and start fresh training after load | [Save and restart training](save-and-restart-training.md) |
 | Find the stage responsible for a rejection or wrong expectation | [Diagnose a failed computation](diagnose-a-computation.md) |
 | [Compile](../glossary.md#compile) and [prepare](../glossary.md#prepare) once, then [run](../glossary.md#term-run) fresh values | [Reusable prepared execution](../user-guide/running-models.md#compile-and-prepare-once)<span data-glossary-navigation="true"> ([prepared execution glossary](../glossary.md#prepared-execution--preparedexecution))</span> |

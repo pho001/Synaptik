@@ -360,5 +360,7 @@ Mixed-owner/multipartition tuning, broader Metal qualification, cross-topology P
 mapping and a new floating comparison contract remain the explicit proposals above. No ownership,
 Model arithmetic, Runtime search, module-edge or native ABI change was implemented by this repair.
 
-The requested [live CLI successor](tools/cli/tasks/0001-live-model-training-and-terminal.md) and
-matched PyTorch measurements follow this audit; their results are not claimed here.
+The delivered [CLI/TUI workflows](../how-to/train-with-cli.md) and
+[matched PyTorch measurements](native-performance-comparison.md) follow this audit. Their
+terminal, numerical and timing results have separate qualification; autotuning coverage is not
+inferred from a fast ordinary execution.

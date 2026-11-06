@@ -17,6 +17,7 @@ The documentation starts from ordinary Java knowledge.
 | [Run](docs/glossary.md#term-run) your first [model](docs/glossary.md#term-model) and learn the required concepts | [The complete learning journey](docs/tutorials/index.md) |
 | Train, predict or inspect saved models without writing Java | [Interactive TUI and scriptable CLI](docs/how-to/train-with-cli.md) |
 | Use existing [ML](docs/glossary.md#term-machine-learning-ml) knowledge with Java [tensor](docs/glossary.md#tensor)/model APIs | [Task guides](docs/how-to/index.md) and [topic-sized reference](docs/reference/index.md) |
+| Compare native paths with PyTorch and understand actual remaining gaps | [Matched Metal/oneDNN results, repairs and proposals](docs/planning/native-performance-comparison.md) |
 | Understand or contribute to the implementation | [One program through the framework](docs/explanation/framework.md), then the [package/native atlas](docs/explanation/packages/index.md) |
 
 The learning project is one commented, runnable application: construct a model, understand
@@ -71,8 +72,9 @@ not prepared native executables, optimizer state or the application's complete t
 been selected, and no public upload is authorized. The sealed
 `0.1.0-public-audit.20261104` candidate has [source-matched audit evidence](docs/planning/public-release-audit-2026-11-04.md#result).
 The learning-project qualification remains pinned to those sealed artifacts. The current
-checkout's CLI/TUI image and [bounded autotuning repairs](docs/planning/autotuning-audit.md)
-are separate work; they do not silently replace or requalify that release.
+checkout's CLI/TUI image, [bounded autotuning repairs](docs/planning/autotuning-audit.md) and
+[measured native-path repairs](docs/planning/native-performance-comparison.md) are separate work;
+they do not silently replace or requalify that release.
 
 ## Prerequisites
 

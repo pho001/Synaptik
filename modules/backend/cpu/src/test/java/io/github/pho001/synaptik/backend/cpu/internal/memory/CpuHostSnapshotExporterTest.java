@@ -8,7 +8,6 @@ import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
-import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;

@@ -580,6 +580,13 @@ evaluation of the final Model are different measurements.
 
 <a id="term-cblas"></a>**CBLAS** is the C interface to Basic Linear Algebra Subprograms, not another backend [owner](#term-owner).
 
+<a id="term-accelerate"></a>**Apple Accelerate** is an operating-system framework containing
+CPU numerical libraries, including [BLAS](#term-blas) matrix routines. It is not
+[Metal/MPSGraph](#term-mpsgraph), and “PyTorch CPU” does not automatically mean oneDNN.
+oneDNN can itself be built to call Accelerate through its existing external-BLAS option;
+this changes the numerical-library implementation, not Synaptik's CPU backend identity.
+See the [explicit optional build recipe](how-to/build-onednn-with-accelerate.md).
+
 <a id="term-mpp"></a>**MPP** means Metal Performance Primitives, a separate Apple numerical interface. “Classic-MPS” refers to older Metal Performance Shaders interfaces, not MPSGraph. The [environment-bound certificate decision](design/decisions/0024-environment-bound-metal-raw-certificates.md) records that neither classic-MPS nor MPP is positively certified there; these names must not be read as additional qualified routes.
 
 ### Floating-point precision and rounding
@@ -661,6 +668,10 @@ An <a id="term-architecture-decision-record-adr"></a>**architecture decision rec
 The <a id="term-java-development-kit-jdk"></a>**Java Development Kit (JDK)** supplies Java development tools and runtime components. The <a id="term-java-virtual-machine-jvm"></a>**Java virtual machine (JVM)** executes Java [bytecode](#term-bytecode). <a id="term-javadoc"></a>**Javadoc** is Java’s [API](#term-application-programming-interface-api)-documentation system. A <a id="term-toolchain"></a>**toolchain** is the selected set of [compiler](#term-compiler)/runtime tools used for a build; installing some Java version does not prove the build selected it.
 
 <a id="term-gradle"></a>**Gradle** and <a id="term-maven"></a>**Maven** automate builds and dependency handling. A <a id="term-dependency"></a>**dependency** is another component needed to compile or run; dependency direction says which component is allowed to rely on which. Maven’s <a id="term-pom"></a>**POM** (Project Object Model) describes a project. <a id="term-gav"></a>**GAV** means group, [artifact](#term-artifact), version: coordinates identifying a published component. A <a id="term-jar"></a>**JAR** (Java archive) packages Java classes and resources; “artifact” also has a broader [meaning](#artifact-manifest-and-source-provenance).
+
+<a id="term-cmake"></a>**CMake** configures native-code projects and generates instructions
+for a selected build tool. `cmake --build` then invokes that tool and its C/C++ compiler.
+CMake is not itself the compiler and does not replace Synaptik's Java Gradle build.
 
 The <a id="term-java-platform-module-system-jpms"></a>**Java Platform Module System (JPMS)** gives Java [modules](#term-module) named dependency and export boundaries. A module is such a unit in module-system discussions, not a neural-network layer. The <a id="term-classpath"></a>**classpath** locates ordinary classes/resources; the <a id="term-module-path"></a>**module path** locates named modules. Build-tool project boundaries, Java modules, and [NN](#neural-network-module-parameter-buffer-and-forward-context) modules are distinct uses of “module”.
 
@@ -882,6 +893,16 @@ its resources before execution. `AUTO` permits the current comparison; `PRIMITIV
 restrict eligible native API choices but do not force native execution. See the
 [qualified CPU realization](architecture/contracts/backend-execution.md#qualified-onednn-cpu-realization).
 Apple's [MPSGraph](#term-mpsgraph) is a separate GPU framework, not this oneDNN interface.
+
+<a id="term-seq-native-runtime"></a>oneDNN's **SEQ** is its sequential CPU threading build
+mode (runtime code `1`). It is not Synaptik's Runtime subsystem. An external BLAS library has
+its own thread policy, so SEQ alone does not constrain every dependency or process on the host.
+
+<a id="term-kleidiai"></a>**KleidiAI** is Arm's CPU numerical-kernel library. The oneDNN
+implementation name `kai` can identify a selected KleidiAI path; it does not mean a GPU
+backend or universal type/shape support. The observed `a64_sgemm_asimd_8x12` routine uses Arm
+Advanced SIMD (Neon) instructions for single-precision matrix products. A library's actual
+selected implementation must be observed, not inferred only from installed build options.
 
 An <a id="term-instruction-set-architecture-isa"></a>**instruction set architecture (ISA)** specifies processor instructions and machine rules. A library supporting a format on one processor does not prove native support for it on another. A <a id="term-native-library"></a>**native library** supplies platform-compiled code through an explicit boundary; native does not mean [GPU](#term-gpu), faster, trusted, or universally supported.
 

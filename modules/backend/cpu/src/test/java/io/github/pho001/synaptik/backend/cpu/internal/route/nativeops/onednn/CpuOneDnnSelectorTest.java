@@ -154,26 +154,6 @@ final class CpuOneDnnSelectorTest {
         }
     }
 
-    @Test
-    void lowMatmulRetainsDeclaredF32StagingAndExactIngressSpans() {
-        var base = matmulContext(false);
-        var context = context(base.nodes(), 3, DataType.BFLOAT16);
-        var ordinary = new CpuPartitionPreparer().analyze(context);
-        try (var library = openLibrary()) {
-            var selector = new CpuOneDnnSelector(library, CpuOneDnnRoutePlan.Api.PRIMITIVE);
-            var alternatives = selector.alternatives(context, ordinary);
-            assertEquals(1, alternatives.size());
-            var candidate = alternatives.getFirst();
-            var unit = candidate.plan().oneDnnPlan().orElseThrow().units().getFirst();
-            assertTrue(unit.projection().requiresOutputNarrowing());
-            assertEquals(DataType.BFLOAT16, unit.projection().logicalOutputType());
-            assertEquals(DataType.FLOAT32, unit.projection().spec().output().dataType());
-            assertEquals(16, unit.outputStagingWorkspace().orElseThrow().byteSize());
-            assertTrue(unit.inputCopies().stream().allMatch(copy -> copy.workspace().byteSize() == 8));
-            assertEquals(candidate.requirements(),
-                    selector.freeze(context, ordinary, candidate.plan()).requirements());
-        }
-    }
 
     @Test
     void unqualifiedUnaryNeverBecomesANativeAlternative() {

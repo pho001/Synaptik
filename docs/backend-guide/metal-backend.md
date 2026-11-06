@@ -707,6 +707,14 @@ route. The harness creates no result [artifact](../glossary.md#term-artifact). D
 see the [benchmarking guide](../developer-guide/benchmarking.md)<span data-glossary-navigation="true"> ([benchmarking glossary](../glossary.md#term-benchmarking))</span> for the full protocol and [CI](../glossary.md#term-continuous-integration-ci)
 boundary.
 
+### Matched framework comparison
+
+The [actual PyTorch comparison](../planning/native-performance-comparison.md) measures repeated
+host-input to completed immutable-host-output FLOAT32 matrix products, not resident-device
+kernel timing. Bulk raw-bit packing preserves authenticated physical layout, BOOL validation,
+native download and detached-value lifetime. Remaining completion/transfer/residency changes
+are analyzed as proposals, not implemented by dropping a wait or a copy.
+
 ## Examples
 
 ### Exact [singleton](../glossary.md#term-singleton) custom route

@@ -39,6 +39,33 @@ import org.junit.jupiter.params.provider.EnumSource;
  */
 final class EngineOneDnnIntegrationTest {
     @ParameterizedTest
+    @EnumSource(OneDnnApi.class)
+    void lowPrecisionComputationDoesNotDependOnNativeTypeAvailability(OneDnnApi api) {
+        // A valid required library need not implement every native precision. Ordinary CPU
+        // computation must remain correct whether cold selection chooses native or portable.
+        Shape shape = Shape.of(2, 2);
+        var descriptor = new TensorDescriptor(DataType.BFLOAT16, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        short[] leftBits = {0x3f80, 0x4000, 0x4040, 0x4080}; // 1, 2, 3, 4
+        short[] rightBits = {0x40a0, 0x40c0, 0x40e0, 0x4100}; // 5, 6, 7, 8
+        Tensor left = TensorFactory.create(descriptor, Optional.empty(), Optional.of(
+                new MemorySegmentStorage(DataType.BFLOAT16, 4, MemorySegment.ofArray(leftBits))));
+        Tensor right = TensorFactory.create(descriptor, Optional.empty(), Optional.of(
+                new MemorySegmentStorage(DataType.BFLOAT16, 4, MemorySegment.ofArray(rightBits))));
+        try (Engine engine = configured(api)) {
+            var graph = engine.compile(List.of(left.matmul(right)));
+            try (var prepared = engine.prepare(graph);
+                    var result = engine.run(prepared, List.of(left, right))) {
+                var bytes = result.materialize(result.publications().getFirst(), 8).bytes();
+                for (float expected : new float[] {19, 22, 43, 50}) {
+                    float actual = Float.intBitsToFloat(Short.toUnsignedInt(bytes.getShort()) << 16);
+                    assertEquals(expected, actual);
+                }
+            }
+        }
+    }
+
+    @ParameterizedTest
     @EnumSource(value = OneDnnApi.class, names = {"PRIMITIVES", "GRAPH"})
     void savedPreactivationAndAllLinearGradientsRefreshSharedInputsAtTheSameAddresses(OneDnnApi api) {
         // Each forward/reverse contraction has 32^3 MACs. The same external x is read by the

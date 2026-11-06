@@ -72,7 +72,7 @@ The combined CLI/TUI delivery has 89 passing affected behavioral tests and 25 fr
 architecture tests. Actual keyboard workflows train/save/predict/inspect, resize, recover from
 editable errors and stop safely. Raw Ctrl-C/native INT, NO_COLOR and terminal restoration have
 separate real-terminal receipts. See [qualification](../../terminal-interface-validation.md)
-for exact scope and platform limits. PyTorch performance comparisons remain separate work.
+for exact scope and platform limits. PyTorch comparisons have a separate [measured report](../../native-performance-comparison.md).
 
 ## Open questions
 

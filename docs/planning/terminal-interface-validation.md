@@ -1,6 +1,6 @@
 # CLI/TUI behavior and terminal qualification
 
-Status: Complete for the exercised macOS arm64 surface. Performance comparisons are separate work.
+Status: Complete for the exercised macOS arm64 surface. [Performance comparisons](native-performance-comparison.md) are separate evidence.
 
 ## Source and supported boundary
 
@@ -23,6 +23,10 @@ reissue of the sealed eighteen-product release. JDK/numerical native libraries r
 JLine terminal/[FFM](../glossary.md#term-ffm)/native artifacts are pinned to **4.5.0** with the complete
 [component notices](../../THIRD_PARTY_NOTICES.md). No Model arithmetic, numerical owner, Runtime
 search, native Synaptik ABI or inward dependency contract changed.
+
+The later [canonical-publication repair](native-performance-comparison.md) keeps these numerical
+owners and was checked against the complete 89-test CLI/TUI scope as well as real native consumers.
+The terminal-specific implementation/PTY evidence above remains pinned to its original source.
 
 ## Actually executed verification
 

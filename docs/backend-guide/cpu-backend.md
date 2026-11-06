@@ -538,6 +538,14 @@ Its build uses `CMAKE_BUILD_TYPE=Release`, `ONEDNN_CPU_RUNTIME=SEQ`,
 `ONEDNN_VERBOSE=ON`, and disables upstream tests/examples. This is a [reproducible build](../glossary.md#term-reproducible-build) and
 [qualification](../glossary.md#term-qualification) procedure, not a claim that the Linux job has already passed.
 
+On Apple arm64, an [optional same-version Accelerate build](../how-to/build-onednn-with-accelerate.md)
+uses upstream's existing BLAS option while retaining the required ABI, SEQ/Graph configuration,
+CPU backend identity and per-run lifetimes. It is an explicit separate library path, not an
+automatic replacement for the local oneDNN installation or a promise of native eligibility.
+Its [measured PyTorch comparison](../planning/native-performance-comparison.md) separates
+canonical-packing improvements from native-vendor differences and documents native BF16/FP8
+availability limits rather than treating a loaded library as an eligibility guarantee.
+
 ### Complete public configuration example
 
 **Goal and inputs:** explicitly load the caller's exact library and compute a [FLOAT32](../glossary.md#term-float32)

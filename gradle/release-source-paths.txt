@@ -154,6 +154,7 @@ docs/history/reference/tensor/compiler-qualification.md
 docs/history/reference/tensor/historical-status.md
 docs/history/reference/tensor/model-overview.md
 docs/history/reference/tensor/qualification-overview.md
+docs/how-to/build-onednn-with-accelerate.md
 docs/how-to/choose-a-backend.md
 docs/how-to/diagnose-a-computation.md
 docs/how-to/index.md
@@ -851,6 +852,7 @@ docs/planning/modules/trace/tasks/.gitkeep
 docs/planning/modules/trace/tasks/0001-core-trace-event-envelope.md
 docs/planning/modules/trace/tasks/0002-model-correlation-identifiers.md
 docs/planning/modules/trace/tasks/0003-backend-preparation-and-invocation-diagnostic-dtos.md
+docs/planning/native-performance-comparison.md
 docs/planning/planning-guide.md
 docs/planning/production-release-goal.md
 docs/planning/project-review-2026-10-13-findings.md
@@ -2767,6 +2769,7 @@ testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integr
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/TrainingSessionCpuIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/WholeModelCheckpointEngineIntegrationTest.java
 tools/benchmarks/build.gradle.kts
+tools/benchmarks/onednn-3.14-accelerate-bfloat16.patch
 tools/benchmarks/src/main/java/io/github/pho001/synaptik/tools/benchmarks/BenchmarksToolModule.java
 tools/benchmarks/src/main/java/io/github/pho001/synaptik/tools/benchmarks/CpuLifecycleBenchmark.java
 tools/benchmarks/src/main/java/io/github/pho001/synaptik/tools/benchmarks/CpuOneDnnBenchmark.java

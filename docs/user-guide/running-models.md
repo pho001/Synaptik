@@ -1306,6 +1306,12 @@ an explicit numerical copy, not merely another Java reference to the same storag
 **[Canonical](../glossary.md#term-canonical-form) [row-major](../glossary.md#term-row-major)** output puts one complete row before the next in the standard detached
 representation. The byte ceiling limits that copy, not all temporary execution memory.
 
+The [matched native-performance report](../planning/native-performance-comparison.md) times
+this complete host-output boundary, including publication copies and run-result closure.
+Raw-bit bulk packing changes how an eligible copy is performed, not who owns the input or how
+long a detached value remains readable. Device residency and zero-copy handoff are separate,
+unimplemented lifetime proposals, not promises made by `materialize(...)`.
+
 ## [Run](../glossary.md#term-run) fresh values in compiled order
 
 **Goal and inputs.** [Prepare](../glossary.md#prepare) negation of a storage-free [FLOAT32](../glossary.md#term-float32) [2] [prototype](../glossary.md#term-prototype) once, then supply

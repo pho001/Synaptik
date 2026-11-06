@@ -15,6 +15,13 @@
   attributed ANSI, interrupt-exit precedence and narrow-screen/path/inspection boundaries.
   No core numerical architecture, native ABI, sealed publication or public licence changed.
 
+- [Measured Metal/oneDNN comparison with PyTorch](docs/planning/native-performance-comparison.md):
+  power-matched original/repaired images, complete integer-oracle host outputs and all three native
+  API controls. Canonical CPU/Metal snapshots now bulk-copy/swap raw bits without weakening BOOL,
+  geometry, lifetime or immutable-value checks. An [opt-in same-ABI oneDNN/Accelerate build](docs/how-to/build-onednn-with-accelerate.md)
+  addresses the observed Arm native-library mismatch; residual performance gaps and ownership/
+  completion proposals are explicit, not hidden architecture changes or parity promises.
+
 - [Bounded CPU autotuning coverage and correctness](docs/planning/autotuning-audit.md#verified-cpu-coverage-and-fixes):
   truthful caller-input copies; legal scalar/vector/range and qualified OpenBLAS/oneDNN choices;
   frozen selected configurations; complete-only and singleton transactions; copy geometry,

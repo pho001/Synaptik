@@ -7,6 +7,12 @@ generic tuning transactions, bounded [Engine](../glossary.md#term-engine) compos
 The `tools/benchmarks` project contains the report-only [CPU](../glossary.md#term-cpu) Engine [lifecycle](../glossary.md#lifecycle) harness and a fixed
 [Metal](../glossary.md#term-metal) singleton-`NEG` two-route harness. No benchmark result changes production settings.
 
+The separate [matched PyTorch comparison](../planning/native-performance-comparison.md) records
+actual Metal and explicit oneDNN host-to-host runs, independent integer oracles, power-matched
+original/repaired images, all native API controls and residual architecture-only proposals.
+Its [optional Apple oneDNN build recipe](../how-to/build-onednn-with-accelerate.md) keeps native
+version/runtime ownership explicit. These observations do not replace this guide's evidence rules.
+
 ## Prerequisites and terms
 
 Read the [performance evidence and tuning boundary](../architecture/performance-evidence-and-tuning.md)
