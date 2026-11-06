@@ -8,11 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import org.jline.terminal.Size;
 import org.jline.terminal.Terminal;
-import org.jline.terminal.TerminalBuilder;
-import org.jline.terminal.spi.SystemStream;
-import org.jline.terminal.spi.TerminalProvider;
 import org.jline.utils.InfoCmp.Capability;
-import org.jline.utils.OSUtils;
 
 /**
  * Stderr-only, non-raw terminal adapter. It never enters an alternate screen, consumes input,
@@ -20,12 +16,6 @@ import org.jline.utils.OSUtils;
  * ASCII, including user-derived labels and exception details.
  */
 final class TrainingProgressDisplay implements TrainingProgress.Sink {
-    private static final String[] WORDMARK = {
-        " ___ __   __ _  _   _   ___ _____ ___ _  __",
-        "/ __|\\ \\ / /| \\| | /_\\ | _ \\_   _|_ _| |/ /",
-        "\\__ \\ \\ V / | .` |/ _ \\|  _/ | |  | || ' < ",
-        "|___/  |_|  |_|\\_/_/ \\_\\_|   |_| |___|_|\\_\\"
-    };
     private final PrintStream error;
     private final Terminal terminal;
     private final int epochs;
@@ -53,35 +43,7 @@ final class TrainingProgressDisplay implements TrainingProgress.Sink {
      */
     static TrainingProgressDisplay open(PrintStream error, boolean plain, int epochs,
             long stepsPerEpoch, long examplesPerEpoch, String backend) {
-        Terminal candidate = null;
-        if (!plain && error == System.err && !OSUtils.IS_WINDOWS
-                && !"dumb".equalsIgnoreCase(System.getenv("TERM"))) {
-            try {
-                TerminalProvider provider = TerminalProvider.load("ffm");
-                String inputTerminal = provider.systemStreamName(SystemStream.Input);
-                // Pinned Windows FFM writes stdout; POSIX dimensions come from stdin. Only
-                // matching POSIX terminal identities qualify for stderr-only live rendering.
-                if (inputTerminal != null && inputTerminal.equals(provider.systemStreamName(SystemStream.Error))
-                        && provider.isSystemStream(SystemStream.Input) && provider.isSystemStream(SystemStream.Error)) {
-                    candidate = TerminalBuilder.builder().name("Synaptik training").system(true)
-                            .provider("ffm").systemOutput(TerminalBuilder.SystemOutput.SysErr)
-                            .dumb(false).nativeSignals(true).build();
-                    if (!usable(candidate)) {
-                        candidate.close();
-                        candidate = null;
-                    }
-                }
-            } catch (IOException | RuntimeException | LinkageError unavailable) {
-                if (candidate != null) {
-                    try {
-                        candidate.close();
-                    } catch (IOException | RuntimeException | Error cleanup) {
-                        if (cleanup != unavailable) unavailable.addSuppressed(cleanup);
-                    }
-                }
-                candidate = null;
-            }
-        }
+        Terminal candidate = CliTerminalFactory.openLiveProgress(error, plain);
         return new TrainingProgressDisplay(error, candidate, epochs, stepsPerEpoch, examplesPerEpoch, backend);
     }
 
@@ -101,18 +63,6 @@ final class TrainingProgressDisplay implements TrainingProgress.Sink {
         return terminal;
     }
 
-    private static boolean usable(Terminal terminal) {
-        Size size = terminal.getSize();
-        return terminal.getType() != null && !terminal.getType().startsWith("dumb")
-                && size.getColumns() >= 32 && size.getRows() >= 6
-                && has(terminal, Capability.cursor_up) && has(terminal, Capability.carriage_return)
-                && has(terminal, Capability.clr_eol) && has(terminal, Capability.cursor_invisible)
-                && has(terminal, Capability.cursor_normal);
-    }
-
-    private static boolean has(Terminal terminal, Capability capability) {
-        return terminal.getStringCapability(capability) != null;
-    }
 
     @Override
     public synchronized void render(TrainingProgressStats.Snapshot snapshot,
@@ -152,7 +102,7 @@ final class TrainingProgressDisplay implements TrainingProgress.Sink {
                 terminal.puts(Capability.carriage_return);
                 terminal.puts(Capability.clr_eol);
                 if (i < lines.size()) {
-                    terminal.writer().print(lines.get(i));
+                    terminal.writer().print(SynaptikBrand.style(lines.get(i), terminal));
                 }
                 terminal.writer().print("\r\n");
             }
@@ -213,10 +163,8 @@ final class TrainingProgressDisplay implements TrainingProgress.Sink {
         }
         List<String> result = new ArrayList<>();
         // Preserve useful scalar rows before spending the terminal's vertical space on art.
-        if (wordmark && height >= 17 && width >= 45) {
-            for (String line : WORDMARK) {
-                result.add(line);
-            }
+        if (wordmark && height >= 17 && width >= 26) {
+            result.addAll(SynaptikBrand.lines(width, height));
         } else if (height > 2) {
             result.add(clip("SYNAPTIK", width));
         }
